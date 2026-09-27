@@ -1,7 +1,7 @@
 import type { AgentSession, ProviderKind, ProviderSessionSummary, SessionMessageMatch } from '@waku/client'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ProviderIcon, PROVIDERS, providerMeta, WakuIcon, type WakuIconName } from '@/components/waku-icon'
+import { ProviderIcon, NEW_TASK_PROVIDERS as PROVIDERS, providerMeta, WakuIcon, type WakuIconName } from '@/components/waku-icon'
 import type { SettingsPageId } from '@/components/settings-view'
 import { SETTINGS_PAGES } from '@/components/settings-view'
 import {
@@ -82,7 +82,7 @@ export function CommandPalette({
   const { client } = useDaemon()
   const settings = useDaemonSettings()
   const [view, setView] = useState<CommandPaletteView>(initialView)
-  const [resumeProvider, setResumeProvider] = useState<ProviderKind>(currentProvider)
+  const [resumeProvider, setResumeProvider] = useState<ProviderKind>('nebius')
   const [query, setQuery] = useState('')
   const [matches, setMatches] = useState<SessionMessageMatch[]>([])
   const [matchesQuery, setMatchesQuery] = useState<string | null>(null)
@@ -114,7 +114,7 @@ export function CommandPalette({
       ? document.activeElement
       : null
     setView(initialView)
-    setResumeProvider(currentProvider)
+    setResumeProvider('nebius')
     setQuery('')
     setMatches([])
     setMatchesQuery(null)
@@ -203,7 +203,7 @@ export function CommandPalette({
   }, [client, open, resumeProvider, view])
 
   function openResumeView() {
-    setResumeProvider(currentProvider)
+    setResumeProvider('nebius')
     setView('resume')
     setQuery('')
     setPreviousItems([])

@@ -195,6 +195,7 @@ export function MobileComposer({
   const [localError, setLocalError] = useState<string | null>(null);
   const [traitsSheetOpen, setTraitsSheetOpen] = useState(false);
   const modelProbe = useProviderModels(session.provider);
+  const providerAvailable = session.provider === 'nebius';
   const models = modelProbe.data?.models ?? [];
   const activeModel = session.model
     ? models.find((item) => item.id === session.model)
@@ -355,6 +356,10 @@ export function MobileComposer({
   }, [requestSignature]);
 
   async function submit() {
+    if (!providerAvailable) {
+      setLocalError('This historical provider is read-only in this ion distribution.');
+      return;
+    }
     const prompt = draft.trim();
     const submittedAttachments = attachments;
     if (
@@ -508,24 +513,24 @@ export function MobileComposer({
             )}
           </ScrollView>
         ) : undefined}
-        editable={!disconnected && !submitting}
+        editable={!disconnected && !submitting && providerAvailable}
         left={(
           <>
             <ComposerAddMenu
-              disabled={disconnected || submitting || importingAttachments}
+              disabled={disconnected || submitting || importingAttachments || !providerAvailable}
               onChoose={(source) => void chooseAttachment(source)}
               onChooseContext={contextPicker.open}
             />
-            <ComposerAccessMenu
+            {providerAvailable && <ComposerAccessMenu
               mode={session.runtime_mode}
               onApply={(mode) => applyOptions({ runtimeMode: mode })}
-            />
+            />}
           </>
         )}
         placeholder={placeholder}
         right={(
           <>
-            {activeModel && modelHasConfigurableTraits(activeModel) && (
+            {providerAvailable && activeModel && modelHasConfigurableTraits(activeModel) && (
               <ComposerIconButton
                 icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
                 label="Model options"
@@ -556,6 +561,7 @@ export function MobileComposer({
                 || submitting
                 || importingAttachments
                 || disconnected
+                || !providerAvailable
               }
               label={canSteer ? 'Send to working agent' : busy ? 'Queue message' : 'Send message'}
               onPress={() => void submit()}

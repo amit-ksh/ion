@@ -32,6 +32,12 @@ bun install
 bun run dev
 ```
 
+For Windows desktop development, run
+`bun install --frozen-lockfile --ignore-scripts` in place of `bun install`.
+The mobile workspace's
+`expo-libghostty` postinstall downloads an iOS framework and invokes the Unix
+`unzip` command; the Windows desktop watcher does not use it.
+
 On macOS the watcher builds and signs `target/debug/Waku Debug.app`; on Linux
 and Windows it builds `target/debug/waku`. In both cases the provider daemon remains an
 external `target/debug/waku-debug-daemon`: provider-only edits rebuild and
@@ -40,13 +46,15 @@ and relaunch the app normally. Keep that watcher running while you work. Do
 not start a second watcher or manually relaunch the debug app. Press `Ctrl-C`,
 or quit the app, to stop it.
 
-The embedded browser and experimental computer-use integration are currently
-macOS-only. On Linux and Windows the browser reports that it is unavailable,
-while the computer-use UI and runtime stay disabled.
+The embedded browser is currently macOS-only. Windows debug builds support
+Computer Use through the bundled Cua Driver SDK; see [Windows](docs/windows.md).
 
 Windows needs the MSVC toolchain (Visual Studio Build Tools with the C++
 workload and the Windows SDK) so Cargo can link and so the resource compiler
-is available for the executable's icon and version block.
+is available for the executable's icon and version block. Install the matching
+**MSVC v143 C++ x64/x86 Spectre-mitigated libs** through Visual Studio Installer
+→ Modify → Individual components as well. The Cua SDK build requires the
+`lib/spectre/x64` directory for the active MSVC toolset.
 
 ## Linux bundle
 

@@ -80,6 +80,7 @@ pub fn fallback_models(provider: ProviderKind) -> Vec<ProviderModel> {
         ProviderKind::Cursor => {
             vec![ProviderModel::new("auto", tr!("model_option.auto")).default()]
         }
+        ProviderKind::Nebius => waku_protocol::model_catalog::fallback_models(provider),
         // Harness reports its account/configuration-specific catalog from its
         // Host. An invented fallback would make unavailable routes selectable.
         ProviderKind::DeepSeek => Vec::new(),
@@ -138,6 +139,7 @@ pub fn discover_catalog(
         ProviderKind::OpenCode2 => crate::opencode2_session::discover_catalog(binary),
         ProviderKind::Grok => (discover_grok_models(binary), None),
         ProviderKind::Kimi => (discover_kimi_models(binary), None),
+        ProviderKind::Nebius => (Vec::new(), None),
         ProviderKind::Pi => (discover_pi_models(binary, PiDialect::Pi), None),
         ProviderKind::OhMyPi => (discover_pi_models(binary, PiDialect::OhMyPi), None),
     };

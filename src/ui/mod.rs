@@ -166,6 +166,7 @@ pub fn provider_color(theme: &Theme, provider: ProviderKind) -> Hsla {
         ProviderKind::DeepSeek => rgb(0x4D6BFE).into(),
         ProviderKind::Codex
         | ProviderKind::Cursor
+        | ProviderKind::Nebius
         | ProviderKind::Fx
         | ProviderKind::OpenCode
         | ProviderKind::OpenCode2
@@ -195,6 +196,7 @@ pub fn provider_icon(provider: ProviderKind) -> &'static str {
         ProviderKind::OpenCode2 => "icons/provider-opencode2.svg",
         ProviderKind::Grok => "icons/provider-grok.svg",
         ProviderKind::Kimi => "icons/provider-kimi.svg",
+        ProviderKind::Nebius => "icons/sparkle.svg",
         ProviderKind::OhMyPi => "icons/provider-ohmypi.svg",
         ProviderKind::Pi => "icons/provider-pi.svg",
     }

@@ -58,6 +58,13 @@ pub fn fallback_models(provider: ProviderKind) -> Vec<ProviderModel> {
         ProviderKind::Cursor => {
             vec![ProviderModel::new("auto", tr!("model_option.auto")).default()]
         }
+        ProviderKind::Nebius => vec![
+            ProviderModel::new(
+                "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
+                "NVIDIA Nemotron 3 Super",
+            )
+            .default(),
+        ],
         ProviderKind::DeepSeek
         | ProviderKind::Fx
         | ProviderKind::Grok

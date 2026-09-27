@@ -52,7 +52,7 @@ export const SETTINGS_PAGES: Array<{
 }> = [
   { id: 'general', label: 'General', labelKey: 'settings.general', icon: 'settings', keywords: 'general local projects conversations privacy analytics telemetry anonymous sharing', keywordsKey: 'settings.general_keywords' },
   { id: 'appearance', label: 'Appearance', labelKey: 'settings.appearance', icon: 'appearance', keywords: 'appearance theme system light dark language', keywordsKey: 'settings.appearance_keywords' },
-  { id: 'providers', label: 'Providers', labelKey: 'settings.providers', icon: 'bot', keywords: 'providers agents models cli version install detect claude codex cursor opencode opencode2 amp grok pi omp oh my pi kimi', keywordsKey: 'settings.providers_keywords' },
+  { id: 'providers', label: 'Models & Speech', labelKey: 'settings.providers', icon: 'bot', keywords: 'models speech nebius nemotron byok credential catalog', keywordsKey: 'settings.providers_keywords' },
   { id: 'skills', label: 'Skills', labelKey: 'settings.skills', icon: 'package', keywords: 'skills library agent disable enable delete shared', keywordsKey: 'settings.skills_keywords' },
   { id: 'usage', label: 'Usage', labelKey: 'settings.usage', icon: 'chartColumn', keywords: 'usage tokens cost spend cache daily monthly project model history', keywordsKey: 'settings.usage_keywords' },
   { id: 'daemon', label: 'Daemon', labelKey: 'settings.daemon', icon: 'server', keywords: 'daemon server remote web network connection url token websocket', keywordsKey: 'settings.daemon_keywords' },
@@ -77,8 +77,8 @@ export function SettingsView({
   const [query, setQuery] = useState('')
   const localizedPages = SETTINGS_PAGES.map((candidate) => ({
     ...candidate,
-    localizedLabel: t(candidate.labelKey),
-    localizedKeywords: `${candidate.keywords} ${t(candidate.keywordsKey)}`.toLowerCase(),
+    localizedLabel: candidate.id === 'providers' ? 'Models & Speech' : t(candidate.labelKey),
+    localizedKeywords: candidate.id === 'providers' ? candidate.keywords : `${candidate.keywords} ${t(candidate.keywordsKey)}`.toLowerCase(),
   }))
   const pages = localizedPages.filter((candidate) =>
     !query.trim() || candidate.localizedKeywords.includes(query.trim().toLowerCase()),
@@ -154,7 +154,7 @@ export function SettingsView({
             <h1 className="text-[18px] font-medium">{activePage?.localizedLabel}</h1>
             {page === 'general' && <GeneralSettings />}
             {page === 'appearance' && <AppearanceSettings />}
-            {page === 'providers' && <ProvidersSettings />}
+            {page === 'providers' && <ModelsSpeechSettings />}
             {page === 'usage' && <UsageSettings projects={projects} />}
             {page === 'daemon' && <DaemonSettings />}
           </div>
@@ -235,6 +235,24 @@ function AppearanceSettings() {
           triggerClassName="h-8 w-[116px] max-w-none justify-between border bg-background px-3 text-[12px]"
         />
       </div>
+    </div>
+  )
+}
+
+function ModelsSpeechSettings() {
+  return (
+    <div className="flex flex-col gap-4">
+      <SettingsCard>
+        <h3 className="text-sm font-medium">Nebius Token Factory</h3>
+        <p className="mt-2 text-xs text-[var(--text-secondary)]">
+          ion is free and uses your own Nebius API key. Set and verify it in the desktop app's Models &amp; Speech settings; the key stays in its OS credential vault.
+        </p>
+        <p className="mt-2 text-xs text-[var(--text-tertiary)]">Fixed endpoint: api.tokenfactory.nebius.com/v1</p>
+      </SettingsCard>
+      <SettingsCard>
+        <h3 className="text-sm font-medium">Local speech</h3>
+        <p className="mt-2 text-xs text-[var(--text-secondary)]">NVIDIA Nemotron 3.5 ASR Streaming 0.6B through NeMo-Speech.cpp. No speech credential is needed.</p>
+      </SettingsCard>
     </div>
   )
 }

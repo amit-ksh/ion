@@ -6,7 +6,7 @@ description = "An AI work IDE that coordinates code, apps, and computers through
 license = "GPL-3.0-only"
 
 [workspace]
-members = ["crates/waku-client", "crates/waku-core", "crates/waku-daemon", "crates/waku-protocol", "crates/waku-computer-use"]
+members = ["crates/waku-client", "crates/waku-core", "crates/waku-daemon", "crates/waku-protocol", "crates/waku-computer-use", "crates/waku-credentials"]
 default-members = [
   ".",
   "crates/waku-client",
@@ -14,6 +14,7 @@ default-members = [
   "crates/waku-daemon",
   "crates/waku-protocol",
   "crates/waku-computer-use",
+  "crates/waku-credentials",
 ]
 resolver = "2"
 
@@ -43,6 +44,7 @@ unicode-linebreak = "0.1.5"
 url = "2"
 uuid = { version = "1.18", features = ["v4", "serde"] }
 waku-client = { path = "crates/waku-client" }
+waku-credentials = { path = "crates/waku-credentials" }
 waku-protocol = { path = "crates/waku-protocol" }
 pulldown-cmark = "0.13"
 # Native, offline math typesetting; all layout and raster work runs on workers.
@@ -51,6 +53,7 @@ ratex-layout = "=0.1.14"
 ratex-types = "=0.1.14"
 ratex-svg = { version = "=0.1.14", features = ["embed-fonts"] }
 regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 rust-i18n = "4"
 rust-umami = "0.1.1"
 smol = "2"

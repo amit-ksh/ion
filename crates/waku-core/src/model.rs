@@ -5,6 +5,15 @@ use std::path::Path;
 pub use waku_protocol::model::*;
 
 pub fn provider_probe(provider: ProviderKind, binary_override: Option<&str>) -> ProviderProbe {
+    if provider == ProviderKind::Nebius {
+        return ProviderProbe {
+            provider,
+            installed: true,
+            path: None,
+            models: crate::model_catalog::fallback_models(provider),
+            agent_presets: Vec::new(),
+        };
+    }
     let path = match binary_override {
         Some(binary) => crate::command_env::resolve_binary_override(binary),
         None => crate::command_env::find_executable(provider.command()),
@@ -45,6 +54,23 @@ fn apply_cached_models(
 }
 
 pub fn discover_provider_models(mut probe: ProviderProbe) -> ProviderProbe {
+    if probe.provider == ProviderKind::Nebius {
+        if let Ok(ids) = crate::credentials::CredentialService::global().nebius_model_ids() {
+            let preferred = "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B";
+            probe.models = ids
+                .into_iter()
+                .map(|id| {
+                    let model = ProviderModel::new(id.clone(), id.clone());
+                    if id == preferred {
+                        model.default()
+                    } else {
+                        model
+                    }
+                })
+                .collect();
+        }
+        return probe;
+    }
     if probe.provider.supports_model_discovery()
         && let Some(path) = probe.path.as_deref()
     {

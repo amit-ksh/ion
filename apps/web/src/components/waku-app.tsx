@@ -872,11 +872,11 @@ export function WakuApp() {
       config?.address ?? 'disconnected',
     )
     return {
-      ...createSession(projectId, preferences.lastProvider, false),
-      model: preferences.lastModel,
-      reasoning_effort: preferences.lastReasoningEffort,
-      service_tier: preferences.lastServiceTier,
-      context_window: preferences.lastContextWindow,
+      ...createSession(projectId, 'nebius', false),
+      model: preferences.lastProvider === 'nebius' ? preferences.lastModel : null,
+      reasoning_effort: preferences.lastProvider === 'nebius' ? preferences.lastReasoningEffort : null,
+      service_tier: preferences.lastProvider === 'nebius' ? preferences.lastServiceTier : null,
+      context_window: preferences.lastProvider === 'nebius' ? preferences.lastContextWindow : null,
     }
   }
 

@@ -121,6 +121,12 @@ Debug builds expose Computer Use for supported providers through the bundled
 Cua Driver SDK. It operates within the current interactive Windows desktop;
 elevated apps and secure desktops retain Windows restrictions. See
 [Computer Use](computer-use.md) for the runtime, packaging, and validation.
+Building that SDK requires the **MSVC v143 C++ x64/x86 Spectre-mitigated libs**
+component matching the installed MSVC toolset. Add it in Visual Studio
+Installer → Modify → Individual components if the dev watcher reports
+`No spectre-mitigated libs were found`. For MSVC 14.44, the exact component ID
+is `Microsoft.VisualStudio.Component.VC.14.44.17.14.x86.x64.Spectre`.
+The ARM and ATL Spectre components do not provide `lib/spectre/x64`.
 
 ## What is not available yet
 

@@ -29,6 +29,7 @@ export function readProviderProbeCache(
   expectedBinaryOverride?: string | null,
   now = Date.now(),
 ): CachedProviderProbe | undefined {
+  if (provider === 'nebius') return undefined
   const state = readState(storage)
   const entry = state?.entries[entryKey(address, provider)]
   if (!entry || now - entry.updatedAt > CACHE_MAX_AGE) return undefined
@@ -46,6 +47,7 @@ export function writeProviderProbeCache(
   data: ProviderProbeResult,
   now = Date.now(),
 ): void {
+  if (provider === 'nebius') return
   if (!storage) return
   const state = readState(storage) ?? { version: CACHE_VERSION, entries: {} }
   const entries = Object.fromEntries(

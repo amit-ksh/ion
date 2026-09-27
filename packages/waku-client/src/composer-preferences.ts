@@ -20,7 +20,7 @@ export interface ComposerPreferences {
 }
 
 const DEFAULT_PREFERENCES: ComposerPreferences = {
-  lastProvider: 'codex',
+  lastProvider: 'nebius',
   lastModel: null,
   lastReasoningEffort: null,
   lastServiceTier: null,
@@ -39,6 +39,7 @@ const PROVIDERS = new Set<ProviderKind>([
   'openCode2',
   'grok',
   'kimi',
+  'nebius',
   'ohMyPi',
   'pi',
 ])

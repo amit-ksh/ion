@@ -1117,6 +1117,14 @@ pub struct Waku {
     /// override input below edits this provider's entry.
     expanded_provider_settings: Option<ProviderKind>,
     provider_path_input: Entity<TextInput>,
+    credential_inputs: HashMap<crate::credentials::CredentialKind, Entity<TextInput>>,
+    credential_statuses:
+        HashMap<crate::credentials::CredentialKind, crate::credentials::CredentialStatus>,
+    credential_feedback: HashMap<crate::credentials::CredentialKind, String>,
+    credential_busy: HashSet<crate::credentials::CredentialKind>,
+    credential_generation: HashMap<crate::credentials::CredentialKind, u64>,
+    nebius_catalog: Vec<String>,
+    permission_detail_scroll: ScrollHandle,
     computer_permissions: ComputerPermissions,
     computer_permission_tx: Sender<Result<ComputerPermissions, String>>,
     computer_permission_events: Receiver<Result<ComputerPermissions, String>>,
@@ -1947,6 +1955,23 @@ impl Waku {
         let composer_draft_store = ComposerDraftStore::remote(daemon.clone());
         let composer_drafts = composer_draft_store.load().unwrap_or_default();
         let mut state = store.load_or_fresh(cwd);
+        if waku_protocol::distribution::DistributionProfile::current()
+            == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+            && let Some(project_id) = state
+                .selected_session
+                .and_then(|id| state.sessions.iter().find(|session| session.id == id))
+                .filter(|session| {
+                    !session.has_started() && session.provider != ProviderKind::Nebius
+                })
+                .map(|session| session.project_id)
+        {
+            // Preserve the old draft for Full-profile restoration; open a new
+            // Nebius draft instead of silently rewriting its provider.
+            let mut draft = AgentSession::new(project_id, ProviderKind::Nebius);
+            draft.runtime_mode = state.last_runtime_mode;
+            state.selected_session = Some(draft.id);
+            state.sessions.push(draft);
+        }
         let home_directory = crate::projectless::home_directory();
         state.apply_daemon_settings(daemon.settings());
         if let Err(error) = daemon.update_settings(state.daemon_settings()) {
@@ -2031,6 +2056,28 @@ impl Waku {
                 .select_all_on_focus_click()
                 .placeholder(tr!("input.detected_automatically"))
         });
+        let credential_inputs = [
+            (
+                crate::credentials::CredentialKind::NebiusTokenFactoryApiKey,
+                "Nebius API key",
+            ),
+            (
+                crate::credentials::CredentialKind::ComposioScopedProjectKey,
+                "Composio scoped project key",
+            ),
+            (
+                crate::credentials::CredentialKind::GatewayPairingToken,
+                "Gateway pairing token",
+            ),
+        ]
+        .into_iter()
+        .map(|(kind, placeholder)| {
+            (
+                kind,
+                cx.new(|cx| TextInput::new(window, cx).secure().placeholder(placeholder)),
+            )
+        })
+        .collect::<HashMap<_, _>>();
         let usage_project_filter =
             cx.new(|cx| TextInput::new(window, cx).placeholder(tr!("input.filter_projects")));
         let right_panel_diff_filter =
@@ -2769,6 +2816,13 @@ impl Waku {
                 provider_detection_checked_at: None,
                 expanded_provider_settings: None,
                 provider_path_input,
+                credential_inputs,
+                credential_statuses: HashMap::new(),
+                credential_feedback: HashMap::new(),
+                credential_busy: HashSet::new(),
+                credential_generation: HashMap::new(),
+                nebius_catalog: Vec::new(),
+                permission_detail_scroll: ScrollHandle::new(),
                 computer_permissions: ComputerPermissions::default(),
                 computer_permission_tx,
                 computer_permission_events,

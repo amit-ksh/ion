@@ -18,20 +18,7 @@ import { persistentStorageSync } from '@/lib/composer-preferences-store';
 import { useDaemon } from '@/lib/daemon-context';
 import { providerLabel } from '@/lib/session-presentation';
 
-const PROVIDERS: ProviderKind[] = [
-  'codex',
-  'claude',
-  'cursor',
-  'amp',
-  'openCode',
-  'openCode2',
-  'grok',
-  'kimi',
-  'deepSeek',
-  'fx',
-  'ohMyPi',
-  'pi',
-];
+const PROVIDERS: ProviderKind[] = ['nebius'];
 
 export function useTaskState() {
   const { activeProfile, client, phase } = useDaemon();
@@ -113,18 +100,19 @@ function providerModelsQuery(
 export function useProviderModels(provider: ProviderKind | null) {
   const daemon = useDaemon();
   const settings = useDaemonSettings();
-  return useQuery(providerModelsQuery(daemon, settings, provider ?? 'codex'));
+  return useQuery(providerModelsQuery(daemon, settings, provider === 'nebius' ? provider : 'nebius'));
 }
 
 /** Model discovery across every given provider, cache-shared with
  * useProviderModels. Backs the cross-provider model picker. */
 export function useAllProviderModels(providers: ProviderKind[]) {
+  const visibleProviders = providers.filter((provider) => provider === 'nebius');
   const daemon = useDaemon();
   const settings = useDaemonSettings();
   const queries = useQueries({
-    queries: providers.map((provider) => providerModelsQuery(daemon, settings, provider)),
+    queries: visibleProviders.map((provider) => providerModelsQuery(daemon, settings, provider)),
   });
-  return providers.map((id, index) => ({
+  return visibleProviders.map((id, index) => ({
     id,
     label: providerLabel(id),
     models: queries[index]?.data?.models ?? [],

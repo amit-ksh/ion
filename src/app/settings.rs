@@ -17,6 +17,13 @@ const SETTINGS_SIDEBAR_CONTEXT: &str = "SettingsSidebar";
 /// it.
 const SETTINGS_SEARCH_CONTEXT: &str = "SettingsSidebar > TextInput";
 
+#[derive(Clone, Copy)]
+enum CredentialAction {
+    Set,
+    Test,
+    Delete,
+}
+
 /// The sidebar's rows in display order, each with the keyword haystack the
 /// search field filters against.
 const SETTINGS_PAGES: [(SettingsPage, &str, &str, &str); 7] = [
@@ -82,13 +89,286 @@ pub(super) fn visible_settings_pages(
         .into_iter()
         .filter(|(page, ..)| page.is_visible_in_navigation())
         .filter_map(move |(page, label_key, icon, keywords_key)| {
-            let label = crate::i18n::translate(label_key);
-            let keywords = crate::i18n::translate(keywords_key).to_lowercase();
+            let label = if page == SettingsPage::Providers
+                && waku_protocol::distribution::DistributionProfile::current()
+                    == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+            {
+                "Models & Speech".to_owned()
+            } else {
+                crate::i18n::translate(label_key)
+            };
+            let keywords = if page == SettingsPage::Providers
+                && waku_protocol::distribution::DistributionProfile::current()
+                    == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+            {
+                "models speech nebius nemotron api key byok credential catalog".to_owned()
+            } else {
+                crate::i18n::translate(keywords_key).to_lowercase()
+            };
             (query.is_empty() || keywords.contains(query)).then_some((page, label, icon))
         })
 }
 
 impl Waku {
+    pub(super) fn refresh_credential_statuses(&mut self, cx: &mut Context<Self>) {
+        use crate::credentials::{CredentialKind as Kind, CredentialService};
+        let kinds = [
+            Kind::NebiusTokenFactoryApiKey,
+            Kind::ComposioScopedProjectKey,
+            Kind::GatewayPairingToken,
+        ];
+        let generations = self.credential_generation.clone();
+        cx.spawn(async move |waku, cx| {
+            let statuses = cx
+                .background_executor()
+                .spawn(async move {
+                    kinds
+                        .into_iter()
+                        .map(|kind| (kind, CredentialService::global().status(kind)))
+                        .collect::<Vec<_>>()
+                })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                for (kind, status) in statuses {
+                    if waku.credential_generation.get(&kind) == generations.get(&kind) {
+                        waku.credential_statuses.insert(kind, status);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn run_credential_action(
+        &mut self,
+        kind: crate::credentials::CredentialKind,
+        action: CredentialAction,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::credentials::{CredentialKind as Kind, CredentialService, CredentialTest};
+        if !self.credential_busy.insert(kind) {
+            return;
+        }
+        let value = if matches!(action, CredentialAction::Set) {
+            let input = self.credential_inputs.get(&kind).unwrap();
+            let value = input.read(cx).content().trim().to_owned();
+            if value.is_empty() {
+                self.credential_busy.remove(&kind);
+                self.credential_feedback
+                    .insert(kind, "Enter a key or token first.".into());
+                cx.notify();
+                return;
+            }
+            input.update(cx, |input, cx| input.clear(cx));
+            Some(value)
+        } else {
+            None
+        };
+        let generation = self.credential_generation.entry(kind).or_default();
+        *generation = generation.wrapping_add(1);
+        let generation = *generation;
+        self.credential_feedback.remove(&kind);
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let result = cx.background_executor().spawn(async move {
+                let service = CredentialService::global();
+                let result = (|| -> anyhow::Result<(String, Option<Vec<String>>)> { match action {
+                    CredentialAction::Set => {
+                        let status = service.set(kind, value.unwrap())?;
+                        let note = if status == crate::credentials::CredentialStatus::MemoryOnly {
+                            "Saved for this app session only; OS vault unavailable.".to_owned()
+                        } else { "Saved in the OS credential vault.".to_owned() };
+                        Ok((note, None))
+                    }
+                    CredentialAction::Test => match service.test(kind)? {
+                        CredentialTest::NebiusModels(models) => Ok((format!("Nebius key verified; {} models available.", models.len()), Some(models))),
+                        CredentialTest::Stored => Ok(("Credential is stored. Gateway validation becomes available with its integration.".into(), None)),
+                    },
+                    CredentialAction::Delete => {
+                        service.delete(kind)?;
+                        Ok(("Credential deleted.".into(), None))
+                    }
+                } })();
+                (result, service.status(kind))
+            }).await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.credential_generation.get(&kind).copied() != Some(generation) { return; }
+                waku.credential_busy.remove(&kind);
+                waku.credential_statuses.insert(kind, result.1);
+                match result.0 {
+                    Ok((message, catalog)) => {
+                        waku.credential_feedback.insert(kind, message);
+                        if kind == Kind::NebiusTokenFactoryApiKey {
+                            if let Some(catalog) = catalog { waku.nebius_catalog = catalog; }
+                            if matches!(action, CredentialAction::Delete) { waku.nebius_catalog.clear(); }
+                            waku.refresh_provider_model_discovery(ProviderKind::Nebius);
+                        }
+                    }
+                    Err(error) => { waku.credential_feedback.insert(kind, error.to_string()); }
+                }
+                cx.notify();
+            });
+        }).detach();
+    }
+
+    fn credential_button(
+        &self,
+        kind: crate::credentials::CredentialKind,
+        action: CredentialAction,
+        label: &'static str,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = Theme::current(cx);
+        let id = SharedString::from(format!("credential-{}-{label}", kind.account()));
+        div()
+            .id(id)
+            .tab_group()
+            .tab_index(0)
+            .tab_stop(true)
+            .focus_visible(|style| style.border_color(theme.accent))
+            .h(px(30.0))
+            .px(px(12.0))
+            .rounded(px(7.0))
+            .border_1()
+            .border_color(theme.border_strong)
+            .flex()
+            .items_center()
+            .text_size(sp(12.5))
+            .text_color(theme.text)
+            .hover(|element| element.bg(theme.overlay))
+            .opacity(if self.credential_busy.contains(&kind) {
+                0.5
+            } else {
+                1.0
+            })
+            .child(label)
+            .on_click(
+                cx.listener(move |this, _, _, cx| this.run_credential_action(kind, action, cx)),
+            )
+            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
+                if !event.keystroke.modifiers.modified()
+                    && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                {
+                    this.run_credential_action(kind, action, cx);
+                    cx.stop_propagation();
+                }
+            }))
+            .into_any_element()
+    }
+
+    fn render_models_speech_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+        use crate::credentials::{CredentialKind as Kind, CredentialStatus};
+        let theme = Theme::current(cx);
+        let mut content = div().flex().flex_col().gap(px(14.0));
+        for (kind, title, description) in [
+            (
+                Kind::NebiusTokenFactoryApiKey,
+                "Nebius Token Factory",
+                "Use your own API key. ion checks the official model catalog at api.tokenfactory.nebius.com/v1.",
+            ),
+            (
+                Kind::ComposioScopedProjectKey,
+                "Composio project",
+                "Optional scoped project key for the later personal integration gateway.",
+            ),
+            (
+                Kind::GatewayPairingToken,
+                "Gateway pairing",
+                "Optional pairing token for a later personal Nebius gateway.",
+            ),
+        ] {
+            let status = match self
+                .credential_statuses
+                .get(&kind)
+                .copied()
+                .unwrap_or(CredentialStatus::Missing)
+            {
+                CredentialStatus::Missing => "Not configured",
+                CredentialStatus::StoredInVault => "Stored in OS vault",
+                CredentialStatus::MemoryOnly => "Stored for this app session only",
+            };
+            let input = self.credential_inputs.get(&kind).unwrap().clone();
+            let mut card = div()
+                .w_full()
+                .p(px(18.0))
+                .rounded(px(12.0))
+                .bg(theme.raised)
+                .flex()
+                .flex_col()
+                .gap(px(8.0))
+                .child(
+                    div()
+                        .text_size(sp(14.0))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(theme.text)
+                        .child(title),
+                )
+                .child(
+                    div()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_secondary)
+                        .child(description),
+                )
+                .child(
+                    TextField::new(
+                        SharedString::from(format!("credential-input-{}", kind.account())),
+                        input,
+                    )
+                    .w_full(),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(8.0))
+                        .child(self.credential_button(kind, CredentialAction::Set, "Save", cx))
+                        .child(self.credential_button(kind, CredentialAction::Test, "Test", cx))
+                        .child(self.credential_button(
+                            kind,
+                            CredentialAction::Delete,
+                            "Delete",
+                            cx,
+                        )),
+                )
+                .child(
+                    div()
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .child(status),
+                );
+            if let Some(feedback) = self.credential_feedback.get(&kind) {
+                card = card.child(
+                    div()
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .child(feedback.clone()),
+                );
+            }
+            if kind == Kind::NebiusTokenFactoryApiKey && !self.nebius_catalog.is_empty() {
+                let models = self
+                    .nebius_catalog
+                    .iter()
+                    .take(8)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" · ");
+                card = card.child(
+                    div()
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .child(format!("Available models: {models}")),
+                );
+            }
+            content = content.child(card);
+        }
+        content = content.child(div().w_full().p(px(18.0)).rounded(px(12.0)).bg(theme.raised)
+            .flex().flex_col().gap(px(5.0))
+            .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Local speech"))
+            .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
+                .child("NVIDIA Nemotron 3.5 ASR Streaming 0.6B through NeMo-Speech.cpp. Local setup arrives in a later milestone; no speech credential is needed.")));
+        content.into_any_element()
+    }
+
     pub(super) fn render_settings(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::current(cx);
 
@@ -356,7 +636,15 @@ impl Waku {
                     .text_color(theme.text)
                     .child(match page {
                         SettingsPage::General => tr!("settings.general"),
-                        SettingsPage::Providers => tr!("settings.providers"),
+                        SettingsPage::Providers => {
+                            if waku_protocol::distribution::DistributionProfile::current()
+                                == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+                            {
+                                "Models & Speech".to_owned()
+                            } else {
+                                tr!("settings.providers")
+                            }
+                        }
                         SettingsPage::Skills => tr!("settings.skills"),
                         SettingsPage::Usage => tr!("settings.usage"),
                         SettingsPage::Daemon => tr!("settings.daemon"),
@@ -366,7 +654,15 @@ impl Waku {
             )
             .child(match page {
                 SettingsPage::General => self.render_general_settings(cx),
-                SettingsPage::Providers => self.render_providers_settings(cx),
+                SettingsPage::Providers => {
+                    if waku_protocol::distribution::DistributionProfile::current()
+                        == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+                    {
+                        self.render_models_speech_settings(cx)
+                    } else {
+                        self.render_providers_settings(cx)
+                    }
+                }
                 SettingsPage::Skills => self.render_skills_settings(cx),
                 SettingsPage::Usage => self.render_usage_settings(cx),
                 SettingsPage::Daemon => self.render_daemon_settings(cx),

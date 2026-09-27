@@ -121,7 +121,7 @@ export default function NewTaskScreen() {
 
   useEffect(() => {
     if (provider && installedProviders.includes(provider)) return;
-    const preferred = installedProviders.includes('codex') ? 'codex' : installedProviders[0];
+    const preferred = installedProviders[0];
     if (preferred) {
       setProvider(preferred);
       setModel(null);
@@ -150,11 +150,11 @@ export default function NewTaskScreen() {
       setRuntimeMode(extras.runtimeMode);
       setIsolated(extras.isolated);
       if (extras.projectId) setProjectId(extras.projectId);
-      setProvider(prefs.lastProvider);
-      setModel(prefs.lastModel);
-      setReasoningEffort(prefs.lastReasoningEffort);
-      setServiceTier(prefs.lastServiceTier);
-      setContextWindow(prefs.lastContextWindow);
+      setProvider('nebius');
+      setModel(prefs.lastProvider === 'nebius' ? prefs.lastModel : null);
+      setReasoningEffort(prefs.lastProvider === 'nebius' ? prefs.lastReasoningEffort : null);
+      setServiceTier(prefs.lastProvider === 'nebius' ? prefs.lastServiceTier : null);
+      setContextWindow(prefs.lastProvider === 'nebius' ? prefs.lastContextWindow : null);
       preferencesRef.current = prefs;
       setRestoredAddress(address);
     })();

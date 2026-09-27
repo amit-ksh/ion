@@ -203,6 +203,7 @@ export function Composer({
   const draftChange = useRef(onComposerDraftChange)
   draftChange.current = onComposerDraftChange
   const busy = ['connecting', 'working', 'waiting', 'background'].includes(session.status)
+  const legacyReadOnly = session.provider !== 'nebius'
   const runningTurnId = [...session.turns].reverse().find((turn) => turn.status === 'running')?.id
   const escapeStopTarget = `${session.id}:${runningTurnId ?? ''}`
   const escapeStopArmed = busy && isEscapeStopArmed(escapeStopArm, escapeStopTarget, Date.now())
@@ -213,7 +214,7 @@ export function Composer({
     ?? probe.data?.models.find((model) => model.is_default)
     ?? probe.data?.models[0]
   const hasDraft = Boolean(prompt.trim() || attachments.length)
-  const canSteer = busy && session.status !== 'connecting' && runtime?.supportsSteer
+  const canSteer = !legacyReadOnly && busy && session.status !== 'connecting' && runtime?.supportsSteer
   const workspace = session.workspace ?? { kind: 'local' as const }
   const projectChoices = selectableProjects(projects, project)
   const projectless = isProjectlessProject(project)
@@ -449,6 +450,7 @@ export function Composer({
   }
 
   async function submit() {
+    if (legacyReadOnly) return
     if (submitting || (!prompt.trim() && attachments.length === 0)) return
     if (executeLocalComposerCommand()) return
     const submittedPrompt = prompt
@@ -488,6 +490,7 @@ export function Composer({
   }
 
   async function steer() {
+    if (legacyReadOnly) return
     if (!hasDraft || !canSteer) return
     if (executeLocalComposerCommand()) return
     const submittedPrompt = prompt
@@ -718,7 +721,16 @@ export function Composer({
               }}
             />
           )}
-          <section
+          {legacyReadOnly ? (
+            <section className="rounded-[13px] border bg-card p-3 text-sm text-[var(--text-secondary)]">
+              This earlier provider task is available for reference in this ion build.
+              {busy && (
+                <Button className="ml-3" size="sm" variant="secondary" onClick={stopTurn}>
+                  {t('composer.stop')}
+                </Button>
+              )}
+            </section>
+          ) : <section
             className="rounded-[13px] border bg-card p-2.5 focus-within:border-input"
             onDragOver={(event) => {
               event.preventDefault()
@@ -868,7 +880,7 @@ export function Composer({
               )}
             </div>
             </div>
-          </section>
+          </section>}
         </div>
 
         {filePickerOpen && (

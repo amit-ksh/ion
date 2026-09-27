@@ -1,7 +1,7 @@
 import type { AgentSession, ProviderKind, ProviderModel, ProviderProbe } from '@waku/client'
 import { Popover } from '@base-ui/react/popover'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { ProviderIcon, PROVIDERS, providerMeta, WakuIcon } from '@/components/waku-icon'
+import { ProviderIcon, NEW_TASK_PROVIDERS as PROVIDERS, providerMeta, WakuIcon } from '@/components/waku-icon'
 import { useDaemonSettings, useProviderProbes } from '@/hooks/use-daemon-data'
 import { useI18n } from '@/lib/i18n'
 import {

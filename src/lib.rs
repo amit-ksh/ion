@@ -33,6 +33,7 @@ mod app;
 mod assets;
 mod browser;
 mod computer_use;
+use waku_credentials as credentials;
 pub mod daemon;
 mod driver;
 mod input;
@@ -56,7 +57,7 @@ use gpui::{
 };
 
 use crate::app::Waku;
-use crate::identity::{APP_ID, APP_NAME};
+use crate::identity::{APP_ID, APP_NAME, PUBLIC_NAME};
 actions!(
     waku,
     [
@@ -328,7 +329,7 @@ pub fn run() {
                 .open_window(
                     WindowOptions {
                         titlebar: Some(TitlebarOptions {
-                            title: Some(APP_NAME.into()),
+                            title: Some(PUBLIC_NAME.into()),
                             // Windows creates the window without `WS_CAPTION`
                             // either way; asking for the transparent titlebar
                             // is what extends the client area over the frame
@@ -413,10 +414,13 @@ pub fn run() {
 pub(crate) fn set_app_menus(cx: &mut App, updater_available: bool) {
     cx.set_menus(vec![
         Menu {
-            name: APP_NAME.into(),
+            name: PUBLIC_NAME.into(),
             disabled: false,
             items: {
-                let mut items = vec![MenuItem::action(tr!("menu.about", app = APP_NAME), About)];
+                let mut items = vec![MenuItem::action(
+                    tr!("menu.about", app = PUBLIC_NAME),
+                    About,
+                )];
                 if updater_available {
                     items.push(MenuItem::action(
                         tr!("menu.check_for_updates"),
@@ -427,7 +431,7 @@ pub(crate) fn set_app_menus(cx: &mut App, updater_available: bool) {
                 items.extend([
                     MenuItem::action(tr!("menu.settings"), OpenSettings),
                     MenuItem::separator(),
-                    MenuItem::action(tr!("menu.quit", app = APP_NAME), Quit),
+                    MenuItem::action(tr!("menu.quit", app = PUBLIC_NAME), Quit),
                 ]);
                 items
             },

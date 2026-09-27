@@ -260,11 +260,25 @@ impl Waku {
         provider: ProviderKind,
         cx: &mut Context<Self>,
     ) {
+        let provider = if waku_protocol::distribution::ProviderPolicy::allows_new_task(provider) {
+            provider
+        } else {
+            waku_protocol::distribution::DistributionProfile::current()
+                .visible_providers()
+                .find(|kind| self.provider_enabled(*kind))
+                .unwrap_or(ProviderKind::Nebius)
+        };
         if let Some(draft_id) = self
             .state
             .sessions
             .iter()
-            .find(|session| session.project_id == project_id && !session.has_started())
+            .find(|session| {
+                session.project_id == project_id
+                    && !session.has_started()
+                    && waku_protocol::distribution::ProviderPolicy::allows_new_task(
+                        session.provider,
+                    )
+            })
             .map(|session| session.id)
         {
             self.select_session(draft_id, cx);
@@ -916,6 +930,9 @@ impl Waku {
         model: String,
         cx: &mut Context<Self>,
     ) {
+        if !self.provider_enabled(provider) {
+            return;
+        }
         let Some((session_id, provider_changed)) = self
             .selected_session()
             .filter(|session| {

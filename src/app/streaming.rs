@@ -443,6 +443,8 @@ impl Waku {
                 options,
             } => {
                 if self.accepts_turn_output(session_id) {
+                    self.permission_detail_scroll
+                        .set_offset(gpui::Point::default());
                     runtime.pending_permission = Some(PendingPermission {
                         request_id,
                         title,

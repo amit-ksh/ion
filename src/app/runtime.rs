@@ -602,7 +602,7 @@ fn perform_provider_rewind(
         }
         // Unreachable through the UI, which hides rewinding for providers that
         // answer `supports_conversation_rollback` with false.
-        ProviderKind::Fx | ProviderKind::Kimi => Err(anyhow::anyhow!(tr!(
+        ProviderKind::Fx | ProviderKind::Kimi | ProviderKind::Nebius => Err(anyhow::anyhow!(tr!(
             "errors.provider_turn_branching_unsupported",
             provider = provider.display_name()
         ))),
@@ -925,7 +925,7 @@ fn perform_response_fork(mut request: ResponseForkRequest) -> Result<PreparedRes
             }
             // Unreachable through the UI, which hides branching for providers
             // that answer `supports_conversation_fork` with false.
-            ProviderKind::Fx | ProviderKind::Kimi => anyhow::bail!(tr!(
+            ProviderKind::Fx | ProviderKind::Kimi | ProviderKind::Nebius => anyhow::bail!(tr!(
                 "errors.provider_turn_branching_unsupported",
                 provider = provider.display_name()
             )),
@@ -1600,7 +1600,8 @@ impl Waku {
     /// Whether the provider can back a new session: installed and not switched
     /// off in the Providers settings.
     pub(super) fn provider_enabled(&self, provider: ProviderKind) -> bool {
-        !self.state.disabled_providers.contains(&provider)
+        waku_protocol::distribution::ProviderPolicy::allows_new_task(provider)
+            && !self.state.disabled_providers.contains(&provider)
             && self
                 .provider_probe(provider)
                 .is_some_and(|probe| probe.installed)
@@ -2613,9 +2614,13 @@ impl Waku {
     /// disagree about what the session is currently set to.
     pub(super) fn session_options(&self, session: &AgentSession) -> SessionOptions {
         let model = session.model.clone().or_else(|| {
-            self.provider_probe(session.provider)
-                .and_then(ProviderProbe::preferred_model)
-                .map(|model| model.id.clone())
+            if session.provider == ProviderKind::Nebius {
+                None // The native driver chooses from the live catalog.
+            } else {
+                self.provider_probe(session.provider)
+                    .and_then(ProviderProbe::preferred_model)
+                    .map(|model| model.id.clone())
+            }
         });
         let model_metadata = self.model_metadata_for_session(session);
         let mut reasoning_effort = session.reasoning_effort.clone().filter(|effort| {
@@ -2776,6 +2781,7 @@ impl Waku {
             .iter()
             .find(|probe| probe.provider == session.provider)
             .and_then(|probe| probe.path.clone())
+            .or_else(|| (session.provider == ProviderKind::Nebius).then(PathBuf::new))
             .ok_or_else(|| {
                 anyhow::anyhow!(tr!(
                     "errors.provider_not_found",

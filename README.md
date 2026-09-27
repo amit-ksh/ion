@@ -48,6 +48,11 @@ Install and authenticate at least one supported agent CLI before starting Waku.
 Waku detects available CLIs automatically and uses each provider's native
 structured protocol and session continuity.
 
+The ion hackathon development profile uses Nebius Token Factory through your
+own API key instead of an agent CLI. Save and test the key under **Settings →
+Models & Speech**, then create a Nebius task. See the
+[native runtime check](docs/ai-ide-plan/09-native-nebius-runtime.md).
+
 ## Highlights
 
 - Keep projects and independent agent sessions in one native app.
@@ -109,6 +114,12 @@ the MSVC toolchain; install the native build prerequisites listed in
 bun install
 bun run dev
 ```
+
+For Windows desktop development, use
+`bun install --frozen-lockfile --ignore-scripts` instead of `bun install`.
+The workspace includes a mobile
+dependency whose iOS postinstall invokes the Unix `unzip` command; the desktop
+watcher does not need that postinstall.
 
 The embedded browser and experimental computer-use integration currently
 remain macOS-only. Agent sessions, projects, transcripts, skills, usage,

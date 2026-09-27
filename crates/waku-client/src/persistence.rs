@@ -440,7 +440,10 @@ impl PersistedState {
             sessions: Vec::new(),
             selected_project: None,
             selected_session: None,
-            last_provider: ProviderKind::Codex,
+            last_provider: waku_protocol::distribution::DistributionProfile::current()
+                .visible_providers()
+                .next()
+                .unwrap_or(ProviderKind::Codex),
             last_runtime_mode: RuntimeMode::default(),
             last_model: None,
             last_reasoning_effort: None,
@@ -474,7 +477,13 @@ impl PersistedState {
 
     pub fn fresh(cwd: PathBuf) -> Self {
         let project = Project::from_path(cwd);
-        let session = AgentSession::new(project.id, ProviderKind::Codex);
+        let session = AgentSession::new(
+            project.id,
+            waku_protocol::distribution::DistributionProfile::current()
+                .visible_providers()
+                .next()
+                .unwrap_or(ProviderKind::Codex),
+        );
         Self {
             selected_project: Some(project.id),
             selected_session: Some(session.id),

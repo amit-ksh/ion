@@ -335,6 +335,7 @@ const PROVIDER_ICONS: Record<ProviderKind, string> = {
   openCode2: 'i-waku-provider-opencode2',
   grok: 'i-waku-provider-grok',
   kimi: 'i-waku-provider-kimi',
+  nebius: 'i-lucide-zap',
   ohMyPi: 'i-waku-provider-ohmypi',
   pi: 'i-waku-provider-pi',
 }
@@ -355,9 +356,12 @@ export const PROVIDERS: Array<{
   { id: 'openCode2', name: 'OpenCode 2', shortName: 'OpenCode 2', command: 'opencode2' },
   { id: 'grok', name: 'Grok Build', shortName: 'Grok', command: 'grok' },
   { id: 'kimi', name: 'Kimi Code', shortName: 'Kimi', command: 'kimi' },
+  { id: 'nebius', name: 'Nebius Nemotron', shortName: 'Nebius', command: 'nebius-native' },
   { id: 'ohMyPi', name: 'Oh My Pi', shortName: 'Oh My Pi', command: 'omp' },
   { id: 'pi', name: 'Pi', shortName: 'Pi', command: 'pi' },
 ]
+
+export const NEW_TASK_PROVIDERS = PROVIDERS.filter(({ id }) => id === 'nebius')
 
 export function providerMeta(provider: ProviderKind) {
   return PROVIDERS.find((candidate) => candidate.id === provider) ?? PROVIDERS[2]!

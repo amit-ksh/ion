@@ -393,6 +393,7 @@ fn agent_arguments(
                 push(&mut args, effort);
             }
         }
+        ProviderKind::Nebius => {}
     }
     push(&mut args, prompt);
     args
@@ -743,6 +744,10 @@ mod tests {
     fn every_provider_uses_a_noninteractive_generation_mode() {
         let prompt = "Generate subject";
         for provider in ProviderKind::ALL {
+            if provider == ProviderKind::Nebius {
+                // The native HTTP driver has no one-shot CLI arguments.
+                continue;
+            }
             let args = agent_arguments(
                 provider,
                 Some("model"),
@@ -824,6 +829,7 @@ mod tests {
                     assert!(has_pair(&args, "--output-format", "text"));
                     assert!(has_pair(&args, "--model", "model"));
                 }
+                ProviderKind::Nebius => unreachable!("Nebius has no CLI"),
             }
         }
     }

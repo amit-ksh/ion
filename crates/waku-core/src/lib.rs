@@ -28,6 +28,7 @@ pub mod codex_session;
 pub mod command_env;
 pub mod composer_complete;
 pub mod computer_use;
+pub(crate) use waku_credentials as credentials;
 pub mod cursor_session;
 pub mod daemon;
 pub mod deepseek_pool;

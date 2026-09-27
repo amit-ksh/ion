@@ -14,3 +14,5 @@ pub const APP_ID: &str = "sh.waku";
 pub const DATA_DIRECTORY_NAME: &str = "Waku Debug";
 #[cfg(not(debug_assertions))]
 pub const DATA_DIRECTORY_NAME: &str = "Waku";
+/// Customer-facing identity; APP_NAME and APP_ID remain compatibility identifiers.
+pub const PUBLIC_NAME: &str = "ion";

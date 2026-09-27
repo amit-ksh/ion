@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>ion — Waku AI IDE Plan</title>
+  <style>
+    :root {
+      --canvas: #141414;
+      --sidebar: #181818;
+      --surface: #1a1a1a;
+      --raised: #232323;
+      --hover: #2a2a2a;
+      --border: #343434;
+      --border-soft: #292929;
+      --text: #e2e2e2;
+      --secondary: #a3a3a3;
+      --tertiary: #7d7d7d;
+      --accent: #e2795b;
+      --accent-soft: rgba(226, 121, 91, .14);
+      --blue: #3b82f6;
+      --blue-soft: rgba(59, 130, 246, .14);
+      --green: #4fb477;
+      --amber: #d5a84d;
+      --red: #d66b6b;
+      --radius: 14px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 86% 3%, rgba(226, 121, 91, .07), transparent 28rem),
+        var(--canvas);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+    a { color: #8ab4ff; text-underline-offset: 3px; }
+    a:hover { color: #b5ceff; }
+    code { font-family: var(--mono); font-size: .88em; }
+
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+    .toc {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 18px;
+      background: rgba(24, 24, 24, .94);
+      border-right: 1px solid var(--border-soft);
+      backdrop-filter: blur(18px);
+      overflow: auto;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; }
+    .brand-mark {
+      width: 31px; height: 31px; border-radius: 9px;
+      display: grid; place-items: center;
+      color: #171717; background: var(--accent); font-weight: 800;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.06) inset;
+    }
+    .brand strong { display: block; letter-spacing: -.02em; }
+    .brand small { display: block; color: var(--tertiary); font-size: 11px; }
+    .toc-label { margin: 20px 8px 7px; color: var(--tertiary); font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
+    .toc a {
+      display: flex; gap: 9px; align-items: center;
+      padding: 8px 10px; border-radius: 8px;
+      color: var(--secondary); text-decoration: none; font-size: 13px;
+    }
+    .toc a:hover { color: var(--text); background: var(--raised); }
+    .toc a::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+    .toc .decision { margin-top: 26px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .toc .decision span { color: var(--accent); font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .toc .decision p { margin: 7px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.45; }
+
+    main { min-width: 0; }
+    .wrap { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+    .hero { padding: 86px 0 52px; border-bottom: 1px solid var(--border-soft); }
+    .eyebrow { display: flex; align-items: center; gap: 10px; color: var(--accent); font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .eyebrow::before { content: ""; width: 24px; height: 1px; background: var(--accent); }
+    h1 { max-width: 850px; margin: 20px 0 18px; font-size: clamp(40px, 6vw, 76px); line-height: .99; letter-spacing: -.055em; font-weight: 650; }
+    .hero-copy { max-width: 750px; margin: 0; color: var(--secondary); font-size: clamp(17px, 2vw, 21px); line-height: 1.55; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .chip { padding: 7px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--secondary); background: rgba(35,35,35,.6); font: 12px/1 var(--mono); }
+    .chip.hot { color: #f0a58f; border-color: rgba(226,121,91,.38); background: var(--accent-soft); }
+
+    section { padding: 64px 0; border-bottom: 1px solid var(--border-soft); }
+    .section-head { display: grid; grid-template-columns: minmax(200px, .42fr) minmax(0, 1fr); gap: 42px; margin-bottom: 28px; }
+    .section-kicker { margin: 7px 0 0; color: var(--accent); font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: clamp(27px, 3vw, 40px); line-height: 1.12; letter-spacing: -.035em; font-weight: 620; }
+    .section-head p { margin: 6px 0 0; max-width: 690px; color: var(--secondary); font-size: 16px; }
+    h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: -.01em; }
+    p { margin-top: 0; }
+
+    .decision-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .decision-card { min-height: 160px; padding: 19px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .decision-card .n { color: var(--tertiary); font: 11px/1 var(--mono); }
+    .decision-card h3 { margin-top: 31px; }
+    .decision-card p { margin: 0; color: var(--secondary); font-size: 13px; }
+
+    .comparison { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+    th { color: var(--tertiary); font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; background: #1c1c1c; }
+    td { color: var(--secondary); font-size: 13px; }
+    td:first-child { color: var(--text); font-weight: 570; }
+    tr:last-child td { border-bottom: 0; }
+    .state { white-space: nowrap; font: 11px/1 var(--mono); }
+    .state.now { color: var(--amber); }
+    .state.partial { color: #8ab4ff; }
+    .state.target { color: var(--green); }
+
+    .sidebar-stage { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 18px; align-items: stretch; }
+    .sidebar-mock { padding: 15px; border: 1px solid var(--border); border-radius: 16px; background: var(--sidebar); box-shadow: 0 18px 50px rgba(0,0,0,.22); }
+    .window-dots { display: flex; gap: 5px; padding: 2px 4px 13px; }
+    .window-dots i { width: 7px; height: 7px; border-radius: 50%; background: #3b3b3b; }
+    .nav-row { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 0 10px; border-radius: 8px; color: #cacaca; font-size: 13px; }
+    .nav-row.active { color: #fff; background: var(--raised); }
+    .nav-row .ico { display: inline-grid; width: 21px; color: var(--tertiary); font-family: var(--mono); }
+    .nav-row .count { color: var(--tertiary); font: 10px/1 var(--mono); }
+    .nav-group { margin: 17px 10px 7px; color: #646464; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .11em; }
+    .project { margin-top: 2px; }
+    .task { padding-left: 31px; color: #999; }
+    .task.current { color: #e7e7e7; }
+    .annotation-stack { display: grid; gap: 10px; }
+    .annotation { display: grid; grid-template-columns: 27px 1fr; gap: 12px; padding: 17px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .annotation b { color: var(--accent); font: 600 11px/27px var(--mono); text-align: center; border: 1px solid rgba(226,121,91,.25); border-radius: 7px; background: var(--accent-soft); }
+    .annotation p { margin: 3px 0 0; color: var(--secondary); font-size: 13px; }
+
+    .arch { overflow-x: auto; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: #171717; }
+    .arch svg { display: block; width: 100%; min-width: 850px; height: auto; }
+    .legend { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 14px; color: var(--tertiary); font-size: 11px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 8px; height: 8px; border-radius: 2px; }
+
+    .pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .pillar { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .pillar .tag { color: var(--accent); font: 600 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .pillar h3 { margin-top: 17px; }
+    .pillar p { color: var(--secondary); font-size: 13px; }
+    .pillar ul { margin: 14px 0 0; padding-left: 17px; color: var(--secondary); font-size: 12px; }
+    .pillar li { margin: 5px 0; }
+
+    .team-flow { display: grid; grid-template-columns: 1fr 44px 1fr 44px 1fr; align-items: center; gap: 8px; }
+    .flow-card { height: 100%; padding: 19px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .flow-card strong { display: block; margin-bottom: 5px; }
+    .flow-card p { margin: 0; color: var(--secondary); font-size: 13px; }
+    .arrow { color: var(--tertiary); text-align: center; font-size: 20px; }
+    .contract { margin-top: 12px; padding: 10px; border-radius: 8px; background: #151515; color: #aab5c5; font: 11px/1.55 var(--mono); }
+
+    .roadmap { position: relative; display: grid; gap: 10px; }
+    .roadmap::before { content: ""; position: absolute; left: 91px; top: 32px; bottom: 32px; width: 1px; background: var(--border); }
+    .phase { position: relative; display: grid; grid-template-columns: 74px 16px minmax(0, 1fr); gap: 10px; align-items: start; }
+    .phase time { padding-top: 15px; color: var(--tertiary); font: 11px/1.35 var(--mono); text-align: right; }
+    .phase .dot { z-index: 1; width: 9px; height: 9px; margin: 18px auto 0; border: 2px solid var(--canvas); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .phase-card { padding: 15px 18px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+    .phase-card p { margin: 4px 0 0; color: var(--secondary); font-size: 13px; }
+
+    .mobile-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 14px; }
+    .answer-card { padding: 25px; border: 1px solid rgba(79,180,119,.3); border-radius: var(--radius); background: rgba(79,180,119,.07); }
+    .answer-card .yes { color: var(--green); font: 700 46px/1 var(--mono); }
+    .answer-card h3 { margin-top: 17px; }
+    .answer-card p { margin: 0; color: var(--secondary); font-size: 13px; }
+    .matrix { padding: 5px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .matrix-row { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+    .matrix-row:last-child { border: 0; }
+    .matrix-row span:last-child { color: var(--secondary); font: 11px/1.6 var(--mono); }
+
+    .demo-strip { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .beat { min-height: 147px; padding: 16px; border-right: 1px solid var(--border-soft); }
+    .beat:last-child { border: 0; }
+    .beat time { color: var(--accent); font: 600 10px/1 var(--mono); }
+    .beat strong { display: block; margin-top: 27px; font-size: 13px; }
+    .beat p { margin: 5px 0 0; color: var(--tertiary); font-size: 11px; }
+
+    .cut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .list-card { padding: 21px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .list-card h3 { display: flex; align-items: center; gap: 8px; }
+    .list-card h3 i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .list-card.stop h3 i { background: var(--red); }
+    .list-card ul { margin: 12px 0 0; padding-left: 18px; color: var(--secondary); font-size: 13px; }
+    .list-card li { margin: 7px 0; }
+
+    .sources { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .source { display: block; min-height: 108px; padding: 16px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); text-decoration: none; }
+    .source:hover { border-color: #4a4a4a; background: var(--raised); }
+    .source small { color: var(--tertiary); font: 10px/1 var(--mono); text-transform: uppercase; }
+    .source strong { display: block; margin-top: 17px; color: var(--text); font-size: 13px; }
+    footer { padding: 35px 0 54px; color: var(--tertiary); font-size: 12px; }
+    footer .wrap { display: flex; justify-content: space-between; gap: 20px; }
+
+    @media (max-width: 1000px) {
+      .shell { grid-template-columns: 1fr; }
+      .toc { position: relative; width: 100%; height: auto; display: none; }
+      .decision-grid, .pillars { grid-template-columns: repeat(2, 1fr); }
+      .demo-strip { grid-template-columns: repeat(3, 1fr); }
+      .beat:nth-child(3) { border-right: 0; }
+      .beat:nth-child(-n+3) { border-bottom: 1px solid var(--border-soft); }
+    }
+    @media (max-width: 720px) {
+      .wrap { width: min(100% - 28px, 1180px); }
+      .hero { padding-top: 54px; }
+      section { padding: 48px 0; }
+      .section-head { grid-template-columns: 1fr; gap: 10px; }
+      .decision-grid, .pillars, .sidebar-stage, .mobile-grid, .cut-grid, .sources { grid-template-columns: 1fr; }
+      .team-flow { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); }
+      .demo-strip { grid-template-columns: 1fr 1fr; }
+      .beat:nth-child(n) { border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+      .beat:nth-child(2n) { border-right: 0; }
+      .beat:nth-last-child(-n+2) { border-bottom: 0; }
+      footer .wrap { display: block; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="toc" aria-label="Plan navigation">
+      <div class="brand">
+        <div class="brand-mark">io</div>
+        <div><strong>ion</strong><small>Waku AI IDE plan</small></div>
+      </div>
+      <div class="toc-label">Overview</div>
+      <a href="#decisions">Product decisions</a>
+      <a href="#gaps">Current gaps</a>
+      <a href="#sidebar">Information architecture</a>
+      <a href="#architecture">Target architecture</a>
+      <div class="toc-label">Execution</div>
+      <a href="#features">Feature system</a>
+      <a href="#teams">Agent teams</a>
+      <a href="#mobile">Mobile control</a>
+      <a href="#roadmap">Delivery roadmap</a>
+      <a href="#demo">Three-minute demo</a>
+      <div class="decision">
+        <span>Planning only</span>
+        <p>No application behavior is changed. This artifact explains the product and implementation direction.</p>
+      </div>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <div class="wrap">
+          <div class="eyebrow">Waku, extended directly</div>
+          <h1>AI work, in motion.</h1>
+          <p class="hero-copy">A local-first AI work IDE built on Waku’s daemon and native clients—adding durable tasks, specialist agent teams, connected apps, automations, PR/Issue workflows, voice, and secure remote decisions.</p>
+          <div class="meta">
+            <span class="chip hot">Product name · ion</span>
+            <span class="chip">Primary track · Coding &amp; Agentic Engineering</span>
+            <span class="chip">Deadline · Oct 30, 2026 · 10:00 AM PDT</span>
+            <span class="chip">Status · architecture frozen for planning</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="decisions">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">01 · Decisions</p><h2>The shape of the product</h2></div>
+            <p>Keep Waku’s strongest boundary—the local daemon—and add an explicit cloud control plane only where availability, integrations, identity, or managed compute require it.</p>
+          </div>
+          <div class="decision-grid">
+            <article class="decision-card"><span class="n">01</span><h3>Tasks over chats</h3><p>Project → Task → Run becomes the durable product model. Chat remains one surface.</p></article>
+            <article class="decision-card"><span class="n">02</span><h3>Hybrid by design</h3><p>Code and terminals stay local by default; Nebius adds models, isolation, and finite jobs.</p></article>
+            <article class="decision-card"><span class="n">03</span><h3>Authority stays human</h3><p>Models propose. Waku policy authorizes. Consequential external writes need approval.</p></article>
+            <article class="decision-card"><span class="n">04</span><h3>Mobile is control</h3><p>The phone reviews, steers, approves, and stops work running on desktop or cloud.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="gaps">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">02 · Evidence</p><h2>What exists, what changes</h2></div>
+            <p>ion extends Waku's daemon protocol, sessions, files, diffs, Git, terminals, browser surfaces, and development Cua integration. New hackathon tasks use native Nemotron through the user's own Nebius key; historical provider sessions remain readable.</p>
+          </div>
+          <div class="comparison">
+            <table>
+              <thead><tr><th>Area</th><th>Status</th><th>Reuse</th><th>Required product layer</th></tr></thead>
+              <tbody>
+                <tr><td>Coding agent</td><td><span class="state now">FOUNDATION</span></td><td>Durable Waku sessions and transcripts</td><td>Native Nebius/Nemotron execution with typed tools</td></tr>
+                <tr><td>Projects/sidebar</td><td><span class="state partial">PARTIAL</span></td><td>Project paths attached to sessions</td><td>Persist projects before chat, pinning, fixed hierarchy</td></tr>
+                <tr><td>Files, diff, Git, terminal</td><td><span class="state now">STRONG BASE</span></td><td>Daemon-backed local capabilities</td><td>Artifacts, permissions, mobile-first summaries</td></tr>
+                <tr><td>PRs and Issues</td><td><span class="state target">NEW DOMAIN</span></td><td>Git/project identity and review UI</td><td>Normalized work items, Composio/GitHub adapter, approvals</td></tr>
+                <tr><td>Agent teams</td><td><span class="state target">LATER</span></td><td>Native Nemotron tasks</td><td>Typed delegation, graph state, handoffs, isolation</td></tr>
+                <tr><td>Automations</td><td><span class="state target">NEW DOMAIN</span></td><td>Tasks and daemon execution</td><td>Durable scheduler, idempotency, run history, notifications</td></tr>
+                <tr><td>Mobile remote</td><td><span class="state partial">PARTIAL</span></td><td>iOS/Android source, tasks, files, diff, terminal</td><td>Relay, pairing, scoped grants, push, browser/Cua observation</td></tr>
+                <tr><td>Computer use</td><td><span class="state partial">DEV ONLY</span></td><td>Cua Driver integration and policies</td><td>Release gating, exact targets, approval, audit, stop</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="sidebar">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">03 · Navigation</p><h2>A fixed, legible sidebar</h2></div>
+            <p>Remove sort and grouping controls. Added projects appear immediately—even empty—and can be pinned. Keep retrieval in search and cleanup in archive rather than exposing structural knobs.</p>
+          </div>
+          <div class="sidebar-stage">
+            <div class="sidebar-mock" aria-label="Proposed sidebar mockup">
+              <div class="window-dots"><i></i><i></i><i></i></div>
+              <div class="nav-row active"><span><span class="ico">＋</span>New task</span><span></span></div>
+              <div class="nav-row"><span><span class="ico">⑂</span>Pull requests</span><span class="count">3</span></div>
+              <div class="nav-row"><span><span class="ico">◉</span>Issues</span><span class="count">8</span></div>
+              <div class="nav-row"><span><span class="ico">◷</span>Automations</span><span class="count">2</span></div>
+              <div class="nav-row"><span><span class="ico">◇</span>Apps</span><span></span></div>
+              <div class="nav-row"><span><span class="ico">✣</span>Agent teams</span><span></span></div>
+              <div class="nav-group">Pinned</div>
+              <div class="nav-row"><span><span class="ico">◆</span>Launch review</span><span></span></div>
+              <div class="nav-group">Projects</div>
+              <div class="nav-row project"><span><span class="ico">⌄</span>waku</span><span class="count">4</span></div>
+              <div class="nav-row task current">AI IDE product plan</div>
+              <div class="nav-row task">Agent team prototype</div>
+              <div class="nav-row project"><span><span class="ico">›</span>docs-site</span><span class="count">0</span></div>
+            </div>
+            <div class="annotation-stack">
+              <div class="annotation"><b>A</b><div><h3>System views stay stable</h3><p>PRs, Issues, Automations, Apps, and Teams are first-class domain views—not special chat titles.</p></div></div>
+              <div class="annotation"><b>B</b><div><h3>Pinning is explicit</h3><p>Projects and tasks may be shortcuts in Pinned. Pinning never changes permissions or execution location.</p></div></div>
+              <div class="annotation"><b>C</b><div><h3>Projects exist without chats</h3><p>A repository becomes visible at creation time. Expanded projects show a bounded recent-task window plus “View all.”</p></div></div>
+              <div class="annotation"><b>D</b><div><h3>No hidden render work</h3><p>The daemon resolves collections in the background; the native sidebar reads an in-memory projection and stays virtualized.</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">04 · Architecture</p><h2>Local execution, cloud coordination</h2></div>
+            <p>One event model spans desktop, mobile, teams, automations, tools, and approvals. Provider services never become the authority for user policy.</p>
+          </div>
+          <div class="arch">
+            <svg viewBox="0 0 1080 520" role="img" aria-labelledby="arch-title arch-desc">
+              <title id="arch-title">ion target architecture</title>
+              <desc id="arch-desc">Desktop and mobile clients connect through a cloud control plane to a Waku daemon. The daemon controls local code tools, while Nebius, Composio, and isolated computer use are policy-bound services.</desc>
+              <defs>
+                <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#5f5f5f"/></marker>
+                <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".22"/></filter>
+              </defs>
+              <rect x="22" y="28" width="1036" height="464" rx="20" fill="#151515" stroke="#2b2b2b"/>
+              <text x="54" y="66" fill="#777" font-size="12" font-family="monospace">CLIENTS</text>
+              <rect id="desktop-client" x="54" y="86" width="178" height="72" rx="12" fill="#232323" stroke="#363636"/><text x="76" y="117" fill="#e2e2e2" font-size="15">Desktop</text><text x="76" y="140" fill="#8d8d8d" font-size="11">Native work surface</text>
+              <rect id="mobile-client" x="54" y="178" width="178" height="72" rx="12" fill="#232323" stroke="#363636"/><text x="76" y="209" fill="#e2e2e2" font-size="15">iOS / Android</text><text x="76" y="232" fill="#8d8d8d" font-size="11">Review · approve · steer</text>
+
+              <text x="319" y="66" fill="#777" font-size="12" font-family="monospace">CONTROL PLANE</text>
+              <rect id="control-plane" x="319" y="86" width="280" height="258" rx="16" fill="#1d1b1a" stroke="#724334" filter="url(#soft-shadow)"/>
+              <text x="343" y="119" fill="#ef9c83" font-size="16" font-weight="600">ion cloud</text>
+              <line x1="343" y1="136" x2="575" y2="136" stroke="#34302e"/>
+              <text x="343" y="165" fill="#d0d0d0" font-size="12">Personal gateway · paired devices</text>
+              <text x="343" y="193" fill="#d0d0d0" font-size="12">Projects · tasks · run projections</text>
+              <text x="343" y="221" fill="#d0d0d0" font-size="12">Team orchestrator · approvals</text>
+              <text x="343" y="249" fill="#d0d0d0" font-size="12">Automations · free BYOK</text>
+              <text x="343" y="277" fill="#d0d0d0" font-size="12">Relay · push · integration gateway</text>
+              <rect x="343" y="298" width="206" height="25" rx="7" fill="#2b211e"/><text x="356" y="315" fill="#e2795b" font-size="10" font-family="monospace">POLICY AUTHORIZES ACTIONS</text>
+
+              <text x="678" y="66" fill="#777" font-size="12" font-family="monospace">EXECUTION PLANE</text>
+              <rect id="waku-daemon" x="678" y="86" width="324" height="174" rx="16" fill="#1b2028" stroke="#34547d" filter="url(#soft-shadow)"/>
+              <text x="703" y="119" fill="#8ab4ff" font-size="16" font-weight="600">Waku daemon</text>
+              <text x="703" y="151" fill="#d0d0d0" font-size="12">Local projects · files · Git · PTY</text>
+              <text x="703" y="179" fill="#d0d0d0" font-size="12">Native Nemotron runtime</text>
+              <text x="703" y="207" fill="#d0d0d0" font-size="12">Browser · diff · artifacts · local ASR</text>
+              <text x="703" y="235" fill="#d0d0d0" font-size="12">Cua exact-target adapter + emergency stop</text>
+
+              <rect id="nebius" x="54" y="386" width="252" height="72" rx="12" fill="#1e231f" stroke="#315a3c"/><text x="76" y="417" fill="#7bce97" font-size="14" font-weight="600">Nebius + NVIDIA</text><text x="76" y="440" fill="#8d8d8d" font-size="11">Nemotron · Sandboxes · Jobs</text>
+              <rect id="composio" x="332" y="386" width="214" height="72" rx="12" fill="#23211b" stroke="#5c4b2d"/><text x="354" y="417" fill="#e1ba67" font-size="14" font-weight="600">Composio</text><text x="354" y="440" fill="#8d8d8d" font-size="11">OAuth · app tools · webhooks</text>
+              <rect id="isolated-computer" x="572" y="386" width="214" height="72" rx="12" fill="#221c22" stroke="#5b3657"/><text x="594" y="417" fill="#d797cf" font-size="14" font-weight="600">Isolated computer</text><text x="594" y="440" fill="#8d8d8d" font-size="11">Unattended GUI workflows</text>
+              <rect id="github" x="812" y="386" width="190" height="72" rx="12" fill="#202020" stroke="#444"/><text x="834" y="417" fill="#d8d8d8" font-size="14" font-weight="600">GitHub + apps</text><text x="834" y="440" fill="#8d8d8d" font-size="11">Issues · PRs · mail · calendar</text>
+
+              <path d="M232 122H307" stroke="#5f5f5f" marker-end="url(#arrow-head)"/><path d="M232 214H283Q297 214 297 200V159Q297 145 307 145" fill="none" stroke="#5f5f5f" marker-end="url(#arrow-head)"/>
+              <path d="M599 172H666" stroke="#5f5f5f" marker-start="url(#arrow-head)" marker-end="url(#arrow-head)"/>
+              <path d="M459 344V370Q459 378 447 378H184Q174 378 174 386" fill="none" stroke="#5f5f5f" marker-end="url(#arrow-head)"/>
+              <path d="M459 344V386" stroke="#5f5f5f" marker-end="url(#arrow-head)"/>
+              <path d="M840 260V352Q840 366 824 366H692Q679 366 679 386" fill="none" stroke="#5f5f5f" marker-end="url(#arrow-head)"/>
+              <path d="M840 260V352Q840 366 857 366H907Q917 366 917 386" fill="none" stroke="#5f5f5f" marker-end="url(#arrow-head)"/>
+            </svg>
+          </div>
+          <div class="legend"><span><i style="background:#e2795b"></i>control and policy</span><span><i style="background:#3b82f6"></i>trusted local execution</span><span><i style="background:#4fb477"></i>Nebius/NVIDIA capacity</span><span><i style="background:#d5a84d"></i>connected accounts</span></div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">05 · Features</p><h2>One policy model, many surfaces</h2></div>
+            <p>Files, terminal, browser, apps, computer control, and agent delegation all emit normalized tool events. That makes approval, audit, usage, and mobile presentation consistent.</p>
+          </div>
+          <div class="pillars">
+            <article class="pillar"><span class="tag">Work</span><h3>Projects, tasks, runs</h3><p>Durable intent and evidence replace chat-title conventions.</p><ul><li>Immediate project persistence</li><li>Queue vs steer</li><li>Artifacts and retry</li></ul></article>
+            <article class="pillar"><span class="tag">GitHub</span><h3>Issues and pull requests</h3><p>Provider-neutral objects with GitHub as the first adapter.</p><ul><li>Issue → task</li><li>Review/CI state</li><li>Exact-action approval</li></ul></article>
+            <article class="pillar"><span class="tag">Apps</span><h3>Composio gateway</h3><p>OAuth and tools stay behind a server-owned identity boundary.</p><ul><li>Stable user mapping</li><li>Tool allowlists</li><li>Signed webhooks</li></ul></article>
+            <article class="pillar"><span class="tag">Voice</span><h3>Local Nemotron 3.5 ASR</h3><p>Streaming multilingual speech becomes editable composer text—not an opaque command.</p><ul><li>Hindi + 39 more locales</li><li>NeMo-Speech.cpp</li><li>Audio stays on device</li></ul></article>
+            <article class="pillar"><span class="tag">Computer</span><h3>Cua with product safety</h3><p>Existing-machine control stays exact-target, visible, and stoppable.</p><ul><li>Managed + user policy</li><li>Attended desktop mode</li><li>Isolated cloud mode</li></ul></article>
+            <article class="pillar"><span class="tag">Access</span><h3>Free BYOK</h3><p>Users supply their own Nebius Token Factory key. ion has no payments or paid feature gates.</p><ul><li>OS credential vault</li><li>Fixed Token Factory endpoint</li><li>Personal gateway later</li></ul></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="teams">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">06 · Orchestration</p><h2>Delegation is a durable contract</h2></div>
+            <p>Borrow planner/executor separation from OpenManus, not its unstable flow wholesale. A Waku-owned tool creates visible child work, applies limits, and returns structured evidence.</p>
+          </div>
+          <div class="team-flow">
+            <article class="flow-card"><strong>Lead proposes</strong><p>Nemotron turns the root task into dependency-aware work items.</p><div class="contract">objective<br>acceptanceCriteria[]<br>dependencies[]</div></article>
+            <div class="arrow">→</div>
+            <article class="flow-card"><strong>Policy dispatches</strong><p>Waku validates role edge, grants, budget, workspace, and approval.</p><div class="contract">allowedTools[]<br>maxDepth · timeout<br>worktree | sandbox</div></article>
+            <div class="arrow">→</div>
+            <article class="flow-card"><strong>Worker hands off</strong><p>Child returns status, changed files, tests, artifacts, and blockers.</p><div class="contract">structuredResult<br>artifactRefs[]<br>recommendedNextAction</div></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="mobile">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">07 · Mobile</p><h2>Remote control is feasible now—with limits</h2></div>
+            <p>The repository already contains iOS and Android clients for remote daemon tasks. Production access still needs a relay, scoped pairing, revocation, replayable events, and push.</p>
+          </div>
+          <div class="mobile-grid">
+            <article class="answer-card"><div class="yes">YES</div><h3>Use the phone as a control plane</h3><p>Start, queue, steer, review files/diffs, use a remote terminal, approve, cancel, and stop work on a reachable Waku host.</p></article>
+            <div class="matrix">
+              <div class="matrix-row"><span>Tasks, files, diff, terminal</span><span>CURRENT SOURCE</span></div>
+              <div class="matrix-row"><span>Browser and Cua observation</span><span>TARGET</span></div>
+              <div class="matrix-row"><span>Native iOS/Android app automation</span><span>OUT OF SCOPE</span></div>
+              <div class="matrix-row"><span>Public remote access with current bearer token</span><span>NOT SAFE</span></div>
+              <div class="matrix-row"><span>Outbound relay + QR + scoped device grant</span><span>PRODUCTION PATH</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">08 · Roadmap</p><h2>Five weeks, one demonstrable thread</h2></div>
+            <p>Every week ends in an integrated slice of the same issue-to-PR story. The final week is for reliability and explanation, not first integration.</p>
+          </div>
+          <div class="roadmap">
+            <div class="phase"><time>Sep 23–25</time><i class="dot"></i><div class="phase-card"><strong>Freeze the story</strong><p>Name, architecture, threat boundaries, user flow, demo script.</p></div></div>
+            <div class="phase"><time>Sep 26–Oct 2</time><i class="dot"></i><div class="phase-card"><strong>Build the product spine</strong><p>Project → Task → Run, immediate project persistence, pinning, fixed sidebar.</p></div></div>
+            <div class="phase"><time>Oct 3–9</time><i class="dot"></i><div class="phase-card"><strong>Prove Nebius execution</strong><p>Nemotron planner, Token Factory adapter, one isolated sandbox child.</p></div></div>
+            <div class="phase"><time>Oct 10–16</time><i class="dot"></i><div class="phase-card"><strong>Connect real work</strong><p>GitHub issue and draft PR through Composio with explicit approval.</p></div></div>
+            <div class="phase"><time>Oct 17–23</time><i class="dot"></i><div class="phase-card"><strong>Coordinate and repeat</strong><p>Agent team, one automation, NVIDIA voice-to-composer.</p></div></div>
+            <div class="phase"><time>Oct 24–29</time><i class="dot"></i><div class="phase-card"><strong>Control, harden, submit</strong><p>Mobile approval, performance/accessibility, rehearsal, public video and docs.</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="demo">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">09 · Demo</p><h2>Three minutes without detours</h2></div>
+            <p>The judging story is the transformation of one real issue into one reviewed artifact. Architecture appears only long enough to explain why that flow is credible.</p>
+          </div>
+          <div class="demo-strip">
+            <div class="beat"><time>0:00</time><strong>Add and pin</strong><p>Empty project appears immediately.</p></div>
+            <div class="beat"><time>0:15</time><strong>Speak the task</strong><p>Local Hindi-capable ASR + GitHub issue.</p></div>
+            <div class="beat"><time>0:30</time><strong>Plan and delegate</strong><p>Nemotron creates typed work.</p></div>
+            <div class="beat"><time>0:55</time><strong>Execute twice</strong><p>Local backend + Nebius sandbox.</p></div>
+            <div class="beat"><time>1:25</time><strong>Approve by phone</strong><p>Diff, evidence, exact action.</p></div>
+            <div class="beat"><time>2:15</time><strong>PR and automate</strong><p>Composio write + saved follow-up.</p></div>
+          </div>
+          <div class="cut-grid" style="margin-top:12px">
+            <article class="list-card"><h3><i></i>Must feel complete</h3><ul><li>One working team and one GitHub workflow</li><li>One visibly isolated Nebius execution</li><li>One voice request and one inspectable automation</li><li>One mobile review/approval moment</li></ul></article>
+            <article class="list-card stop"><h3><i></i>Do not build for the hackathon</h3><ul><li>Payments or entitlements</li><li>Arbitrary recursive organization graphs</li><li>Unattended main-desktop control</li><li>Native phone agents or broad internal rename</li></ul></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="sources">
+        <div class="wrap">
+          <div class="section-head">
+            <div><p class="section-kicker">10 · Detail</p><h2>Implementation dossiers</h2></div>
+            <p>This overview is intentionally compact. The linked chapters contain source-cited current-state evidence, domain models, trust boundaries, feature behavior, failure modes, and acceptance criteria.</p>
+          </div>
+          <div class="sources">
+            <a class="source" href="01-product-brand-ux.md"><small>Chapter 01</small><strong>Product, brand, and UX</strong></a>
+            <a class="source" href="02-current-state-gap-analysis.md"><small>Chapter 02</small><strong>Current state and gaps</strong></a>
+            <a class="source" href="03-target-architecture.md"><small>Chapter 03</small><strong>Target architecture</strong></a>
+            <a class="source" href="04-feature-plans.md"><small>Chapter 04</small><strong>Feature implementation plans</strong></a>
+            <a class="source" href="05-agent-teams-automations.md"><small>Chapter 05</small><strong>Agent teams and automations</strong></a>
+            <a class="source" href="06-mobile-remote-control.md"><small>Chapter 06</small><strong>Mobile remote control</strong></a>
+            <a class="source" href="07-hackathon-roadmap.md"><small>Chapter 07</small><strong>Hackathon roadmap</strong></a>
+            <a class="source" href="RESEARCH.md"><small>Evidence</small><strong>Primary-source research</strong></a>
+            <a class="source" href="RESEARCH-NVIDIA.md"><small>Decision research</small><strong>Nemotron, NemoClaw, and Nebius</strong></a>
+            <a class="source" href="README.md"><small>Index</small><strong>Plan entry point</strong></a>
+          </div>
+        </div>
+      </section>
+
+      <footer><div class="wrap"><span>ion is styled in lowercase. Name clearance remains required.</span><span>Waku AI IDE plan · planning artifact · 2026-09-23</span></div></footer>
+    </main>
+  </div>
+</body>
+</html>

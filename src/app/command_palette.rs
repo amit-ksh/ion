@@ -857,12 +857,26 @@ impl Waku {
             }
             commands.push(CommandPaletteItem::command(
                 PaletteSection::Settings,
-                crate::i18n::translate(label_key),
+                if page == SettingsPage::Providers
+                    && waku_protocol::distribution::DistributionProfile::current()
+                        == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+                {
+                    "Models & Speech".to_owned()
+                } else {
+                    crate::i18n::translate(label_key)
+                },
                 icon,
                 (page == SettingsPage::General)
                     .then_some(crate::platform::primary_shortcut("⌘,", "Ctrl+,")),
                 PaletteAction::OpenSettings(page),
-                keywords,
+                if page == SettingsPage::Providers
+                    && waku_protocol::distribution::DistributionProfile::current()
+                        == waku_protocol::distribution::DistributionProfile::NebiusHackathon
+                {
+                    "settings models speech nebius nemotron byok catalog credential"
+                } else {
+                    keywords
+                },
                 next(),
             ));
         }
@@ -945,6 +959,9 @@ impl Waku {
             .provider_sessions
             .iter()
             .filter(|native| {
+                waku_protocol::distribution::ProviderPolicy::allows_new_task(native.provider())
+            })
+            .filter(|native| {
                 !self.state.sessions.iter().any(|session| {
                     session.provider_cursor.as_ref().is_some_and(|cursor| {
                         cursor.provider() == native.provider()
@@ -1003,6 +1020,9 @@ impl Waku {
     fn command_palette_resume_provider_candidates(&self) -> Vec<CommandPaletteItem> {
         ProviderKind::ALL
             .into_iter()
+            .filter(|provider| {
+                waku_protocol::distribution::ProviderPolicy::allows_new_task(*provider)
+            })
             .filter(|provider| {
                 *provider == self.command_palette.resume_provider
                     || !self.state.disabled_providers.contains(provider)
@@ -1298,10 +1318,16 @@ impl Waku {
 
     fn default_resume_provider(&self) -> ProviderKind {
         self.selected_session()
+            .filter(|session| {
+                waku_protocol::distribution::ProviderPolicy::allows_new_task(session.provider)
+            })
             .map(|session| session.provider)
             .or_else(|| {
                 ProviderKind::ALL
                     .into_iter()
+                    .filter(|provider| {
+                        waku_protocol::distribution::ProviderPolicy::allows_new_task(*provider)
+                    })
                     .find(|provider| !self.state.disabled_providers.contains(provider))
             })
             .unwrap_or_default()
@@ -1323,6 +1349,9 @@ impl Waku {
         cx: &mut Context<Self>,
     ) {
         let provider = provider.unwrap_or_else(|| self.default_resume_provider());
+        if !waku_protocol::distribution::ProviderPolicy::allows_new_task(provider) {
+            return;
+        }
         self.command_palette.view = CommandPaletteView::Resume;
         self.command_palette.resume_provider = provider;
         self.command_palette.provider_sessions.clear();

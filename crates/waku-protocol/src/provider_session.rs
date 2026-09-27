@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{AgentSession, ProviderResumeCursor};
+use crate::model::{AgentSession, ProviderKind, ProviderResumeCursor};
 
 /// Daemon-host native-session operation used when no live driver can fork.
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -47,6 +47,19 @@ pub enum ProviderSessionForkRequest {
         session_id: String,
         turn_count: usize,
     },
+}
+
+impl ProviderSessionForkRequest {
+    pub fn provider(&self) -> ProviderKind {
+        match self {
+            Self::Claude { .. } => ProviderKind::Claude,
+            Self::Amp { .. } => ProviderKind::Amp,
+            Self::Cursor { .. } => ProviderKind::Cursor,
+            Self::OpenCode { .. } => ProviderKind::OpenCode,
+            Self::OpenCode2 { .. } => ProviderKind::OpenCode2,
+            Self::Grok { .. } => ProviderKind::Grok,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]

@@ -484,6 +484,7 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::SessionMessageMatches { matches })
             }
             Command::ListProviderSessions { provider, limit } => {
+                waku_protocol::distribution::ProviderPolicy::require_new_task(provider)?;
                 const MAX_PROVIDER_SESSIONS: usize = 500;
                 let limit = limit.min(MAX_PROVIDER_SESSIONS);
                 if limit == 0 {
@@ -533,6 +534,7 @@ impl Backend for WakuBackend {
                     }
                     ProviderKind::Grok => crate::grok_session::list_provider_sessions(limit)?,
                     ProviderKind::Kimi => crate::kimi_session::list_provider_sessions(limit)?,
+                    ProviderKind::Nebius => Vec::new(),
                     ProviderKind::OhMyPi | ProviderKind::Pi => {
                         crate::pi_session::list_provider_sessions(provider, limit)?
                     }
@@ -558,10 +560,14 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::ProviderSessions { sessions })
             }
             Command::LoadProviderSession { cursor, cwd } => {
+                waku_protocol::distribution::ProviderPolicy::require_new_task(cursor.provider())?;
                 // Preserve every native turn shell for exact provider turn
                 // numbering, but bound imported display text to recent turns.
                 const VISIBLE_TURN_LIMIT: usize = 100;
                 let history = match &cursor {
+                    ProviderResumeCursor::Nebius { .. } => {
+                        bail!("Nebius native session import is not available yet")
+                    }
                     ProviderResumeCursor::Amp { thread_id, .. } => {
                         let binary = self.provider_binary(ProviderKind::Amp)?;
                         crate::amp_session::provider_session_history(
@@ -707,6 +713,7 @@ impl Backend for WakuBackend {
                 })
             }
             Command::ForkProviderSession { request } => {
+                waku_protocol::distribution::ProviderPolicy::require_new_task(request.provider())?;
                 Ok(ResponsePayload::ProviderSessionForked {
                     result: fork_provider_session(request)?,
                 })
@@ -777,9 +784,10 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Ack)
             }
             Command::Start { options } => {
+                let provider = decode_enum(&options.provider)?;
+                waku_protocol::distribution::ProviderPolicy::require_new_task(provider)?;
                 let previous = self.sessions.lock().remove(&session_id);
                 drop(previous);
-                let provider = decode_enum(&options.provider)?;
                 let options = DriverStartOptions {
                     binary: options.binary,
                     cwd: options.cwd,
@@ -995,6 +1003,7 @@ impl WakuBackend {
             (source, cwd, fork_title)
         };
 
+        waku_protocol::distribution::ProviderPolicy::require_new_task(source.provider)?;
         validate_response_fork(&source, turn_count)?;
         let provider_turn_count = source
             .turns
@@ -1074,6 +1083,7 @@ impl WakuBackend {
             let cwd = source.workspace.path().unwrap_or(&project.path).to_owned();
             (source, cwd)
         };
+        waku_protocol::distribution::ProviderPolicy::require_new_task(source.provider)?;
         validate_message_rewind(&source, turn_count)?;
 
         // Resolve the executable before touching the worktree. Even native
@@ -1296,7 +1306,7 @@ impl WakuBackend {
             }
             // Unreachable through the UI, which hides branching for providers
             // that answer `supports_conversation_fork` with false.
-            ProviderKind::Fx | ProviderKind::Kimi => {
+            ProviderKind::Fx | ProviderKind::Kimi | ProviderKind::Nebius => {
                 bail!(
                     "{} cannot branch a conversation at a turn",
                     source.provider.display_name()
@@ -1523,7 +1533,7 @@ impl WakuBackend {
             )),
             // Unreachable through the UI, which hides rewinding for providers
             // that answer `supports_conversation_rollback` with false.
-            ProviderKind::Fx | ProviderKind::Kimi => {
+            ProviderKind::Fx | ProviderKind::Kimi | ProviderKind::Nebius => {
                 bail!(
                     "{} cannot rewind a conversation to a turn",
                     source.provider.display_name()

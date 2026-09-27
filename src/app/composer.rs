@@ -62,10 +62,20 @@ impl Waku {
         let permission = self.selected_runtime()?.pending_permission.as_ref()?;
         let theme = Theme::current(cx);
         let request_id = permission.request_id.clone();
+        let detail_focus = self
+            .transcript_control_focus(format!("permission-{}-detail", permission.request_id), cx);
+        let detail_key_focus = detail_focus.clone();
+        let detail_scroll = self.permission_detail_scroll.clone();
         let mut buttons = div().flex().items_center().gap(px(8.0)).mt(px(10.0));
         for option in &permission.options {
             let request_id = request_id.clone();
             let option_id = option.id.clone();
+            let key_request_id = request_id.clone();
+            let key_option_id = option_id.clone();
+            let focus = self.transcript_control_focus(
+                format!("permission-{}-{}", permission.request_id, option.id),
+                cx,
+            );
             let allow = option.allow;
             buttons = buttons.child(
                 div()
@@ -73,7 +83,10 @@ impl Waku {
                         "permission-{}-{}",
                         permission.request_id, option.id
                     )))
-                    .h(px(28.0))
+                    .track_focus(&focus)
+                    .tab_index(0)
+                    .tab_stop(true)
+                    .min_h(px(36.0))
                     .px(px(13.0))
                     .rounded(px(7.0))
                     .flex()
@@ -95,15 +108,28 @@ impl Waku {
                             .hover(|element| element.bg(theme.overlay).text_color(theme.text))
                     })
                     .active(|element| element.opacity(0.8))
+                    .focus_visible(|style| style.border_1().border_color(theme.accent))
                     .child(SharedString::from(option.label.clone()))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.respond_permission(request_id.clone(), option_id.clone(), cx);
+                    }))
+                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
+                        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                            this.respond_permission(
+                                key_request_id.clone(),
+                                key_option_id.clone(),
+                                cx,
+                            );
+                            cx.stop_propagation();
+                        }
                     })),
             );
         }
         Some(
             div().px(px(20.0)).pb(px(8.0)).child(
                 div()
+                    .tab_group()
+                    .tab_stop(false)
                     .w_full()
                     .max_w(px(CONTENT_MAX_WIDTH))
                     .mx_auto()
@@ -130,6 +156,10 @@ impl Waku {
                     .child(
                         div()
                             .id("permission-detail")
+                            .track_focus(&detail_focus)
+                            .tab_index(0)
+                            .tab_stop(true)
+                            .track_scroll(&self.permission_detail_scroll)
                             .mt(px(8.0))
                             .max_h(px(92.0))
                             .overflow_y_scroll()
@@ -141,6 +171,29 @@ impl Waku {
                             .line_height(sp(16.0))
                             .text_color(theme.text_secondary)
                             .whitespace_normal()
+                            .focus_visible(|style| style.border_1().border_color(theme.accent))
+                            .on_key_down(cx.listener(move |_, event: &KeyDownEvent, window, cx| {
+                                if !detail_key_focus.is_focused(window) {
+                                    return;
+                                }
+                                let offset = detail_scroll.offset();
+                                let max = detail_scroll.max_offset().y;
+                                let next = match event.keystroke.key.as_str() {
+                                    "up" => offset.y + px(40.0),
+                                    "down" => offset.y - px(40.0),
+                                    "pageup" => offset.y + px(92.0),
+                                    "pagedown" => offset.y - px(92.0),
+                                    "home" => Pixels::ZERO,
+                                    "end" => -max,
+                                    _ => return,
+                                }
+                                .clamp(-max, Pixels::ZERO);
+                                if next != offset.y {
+                                    detail_scroll.set_offset(point(offset.x, next));
+                                    cx.notify();
+                                }
+                                cx.stop_propagation();
+                            }))
                             .child(SharedString::from(permission.detail.clone())),
                     )
                     .child(buttons),
@@ -852,7 +905,10 @@ impl Waku {
         let locked_provider = session
             .filter(|session| !session.messages.is_empty())
             .map(|session| session.provider);
-        let picker_enabled = session.is_some_and(|session| session.can_choose_model(provider));
+        let picker_enabled = session.is_some_and(|session| {
+            waku_protocol::distribution::ProviderPolicy::allows_new_task(provider)
+                && session.can_choose_model(provider)
+        });
 
         if !picker_enabled {
             return div()
@@ -914,15 +970,14 @@ impl Waku {
                         let locked = this
                             .selected_session()
                             .is_some_and(|session| !session.messages.is_empty());
-                        let provider =
-                            if !locked && this.state.disabled_providers.contains(&provider) {
-                                ProviderKind::ALL
-                                    .into_iter()
-                                    .find(|kind| this.provider_enabled(*kind))
-                                    .unwrap_or(provider)
-                            } else {
-                                provider
-                            };
+                        let provider = if !locked && !this.provider_enabled(provider) {
+                            ProviderKind::ALL
+                                .into_iter()
+                                .find(|kind| this.provider_enabled(*kind))
+                                .unwrap_or(provider)
+                        } else {
+                            provider
+                        };
                         this.model_picker_tab = ModelPickerTab::Provider(provider);
                         // Opening re-runs the tab's catalog discovery so models
                         // authored since launch appear without a restart; the
@@ -2153,6 +2208,12 @@ impl Waku {
         // provider is available — every send route lands here, so `enter`,
         // the button, and steering are all covered by this one check.
         if self.model_picker_has_no_providers() {
+            return None;
+        }
+        if self.selected_session().is_some_and(|session| {
+            !waku_protocol::distribution::ProviderPolicy::allows_new_task(session.provider)
+        }) {
+            self.show_toast("This provider is unavailable in this ion distribution");
             return None;
         }
         for attachment in &self.composer_attachments {
@@ -3912,7 +3973,7 @@ pub(super) fn picker_rail_shows_provider(
         .iter()
         .any(|probe| probe.provider == kind && probe.installed);
     let switched_off = disabled_providers.contains(&kind) && locked_provider != Some(kind);
-    installed && !switched_off
+    waku_protocol::distribution::ProviderPolicy::allows_new_task(kind) && installed && !switched_off
 }
 
 pub(super) fn model_picker_subtitle(provider: ProviderKind, sub_provider: Option<&str>) -> String {
@@ -3967,6 +4028,7 @@ pub(super) fn visible_picker_models(
                 .map(move |model| (probe.provider, model))
         })
         .filter(|(kind, _)| locked_provider.is_none() || locked_provider == Some(*kind))
+        .filter(|(kind, _)| waku_protocol::distribution::ProviderPolicy::allows_new_task(*kind))
         // Switched-off providers keep serving the session already locked to
         // them, but offer nothing to new work — including favorites.
         .filter(|(kind, _)| !disabled_providers.contains(kind) || locked_provider == Some(*kind))

@@ -630,6 +630,7 @@ const AUTO_HEIGHT_MAX: Pixels = px(300.);
 /// paint-only syntax colouring, specialised through config rather than forks.
 pub struct TextInput {
     focus_handle: FocusHandle,
+    secure: bool,
     mode: FieldMode,
     read_only: bool,
     /// Enter submits this multi-line field instead of inserting a newline;
@@ -736,6 +737,7 @@ impl TextInput {
         ];
         Self {
             focus_handle,
+            secure: false,
             mode: FieldMode::SingleLine,
             read_only: false,
             submit_on_enter: false,
@@ -1059,6 +1061,11 @@ impl TextInput {
             .iter()
             .map(|line| line_height * (line.wrap_boundaries().len() + 1) as f32)
             .collect()
+    }
+
+    pub fn secure(mut self) -> Self {
+        self.secure = true;
+        self
     }
 
     pub fn clear(&mut self, cx: &mut Context<Self>) {
@@ -2563,7 +2570,12 @@ impl Element for InputElement {
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
         let input = self.input.read(cx);
-        let content = input.content.clone();
+        let content: SharedString = if input.secure {
+            // One ASCII mask byte per source byte keeps existing selection offsets stable.
+            "*".repeat(input.content.len()).into()
+        } else {
+            input.content.clone()
+        };
         let style = window.text_style();
         let theme = Theme::current(cx);
         let content_is_empty = content.is_empty();
