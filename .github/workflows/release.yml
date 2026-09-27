@@ -116,8 +116,14 @@ jobs:
       - name: Clear stale bundles
         run: rm -f target/release/waku-*.tar.gz
 
+      - name: Install verified NeMo-Speech.cpp runtime
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/NVIDIA/NeMo-Speech.cpp/v0.1.0/scripts/install.sh -o "$RUNNER_TEMP/install-nemo-speech.sh"
+          sh "$RUNNER_TEMP/install-nemo-speech.sh" --version 0.1.0 --backend cpu --binary-only --no-modify-path --prefix "$RUNNER_TEMP/nemo-speech"
+
       - name: Bundle
         env:
+          NEMO_SPEECH_PREFIX: ${{ runner.temp }}/nemo-speech
           WAKU_ANALYTICS_ENDPOINT: ${{ secrets.WAKU_ANALYTICS_ENDPOINT }}
           WAKU_ANALYTICS_WEBSITE_ID: ${{ secrets.WAKU_ANALYTICS_WEBSITE_ID }}
         run: ./scripts/bundle-linux.sh
@@ -179,8 +185,14 @@ jobs:
       - name: Clear stale bundles
         run: rm -f target/release/waku-*.tar.gz
 
+      - name: Install verified NeMo-Speech.cpp runtime
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/NVIDIA/NeMo-Speech.cpp/v0.1.0/scripts/install.sh -o "$RUNNER_TEMP/install-nemo-speech.sh"
+          sh "$RUNNER_TEMP/install-nemo-speech.sh" --version 0.1.0 --backend cpu --binary-only --no-modify-path --prefix "$RUNNER_TEMP/nemo-speech"
+
       - name: Bundle
         env:
+          NEMO_SPEECH_PREFIX: ${{ runner.temp }}/nemo-speech
           WAKU_ANALYTICS_ENDPOINT: ${{ secrets.WAKU_ANALYTICS_ENDPOINT }}
           WAKU_ANALYTICS_WEBSITE_ID: ${{ secrets.WAKU_ANALYTICS_WEBSITE_ID }}
         run: ./scripts/bundle-linux.sh
@@ -330,6 +342,11 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
+      - name: Install verified NeMo-Speech.cpp runtime
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/NVIDIA/NeMo-Speech.cpp/v0.1.0/scripts/install.sh -o "$RUNNER_TEMP/install-nemo-speech.sh"
+          sh "$RUNNER_TEMP/install-nemo-speech.sh" --version 0.1.0 --backend metal --binary-only --no-modify-path --prefix "$RUNNER_TEMP/nemo-speech"
+
       - uses: actions/cache@v6
         with:
           path: |
@@ -369,6 +386,7 @@ jobs:
 
       - name: Release
         env:
+          NEMO_SPEECH_PREFIX: ${{ runner.temp }}/nemo-speech
           WAKU_SIGNING_IDENTITY: ${{ secrets.WAKU_SIGNING_IDENTITY }}
           WAKU_ANALYTICS_ENDPOINT: ${{ secrets.WAKU_ANALYTICS_ENDPOINT }}
           WAKU_ANALYTICS_WEBSITE_ID: ${{ secrets.WAKU_ANALYTICS_WEBSITE_ID }}

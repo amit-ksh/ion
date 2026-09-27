@@ -1,4 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import type { AllowedTool } from './authority';
 import { startGateway } from './server';
 import { ComposioCatalog } from './composio';
@@ -18,6 +19,7 @@ if (process.env.WAKU_GATEWAY_OWNER_TOKEN || process.env.WAKU_GATEWAY_COMPOSIO_KE
 if (!databasePath || !allowlistPath || !ownerTokenPath) {
   throw new Error('Set WAKU_GATEWAY_DB, WAKU_GATEWAY_ALLOWLIST, and WAKU_GATEWAY_OWNER_TOKEN_FILE');
 }
+if (process.platform !== 'win32') process.umask(0o077);
 if (Boolean(keyPath) !== Boolean(certPath)) {
   throw new Error('Set both WAKU_GATEWAY_TLS_KEY and WAKU_GATEWAY_TLS_CERT');
 }
@@ -41,6 +43,21 @@ async function readSecret(path: string, label: string): Promise<string> {
 
 const ownerToken = await readSecret(ownerTokenPath, 'Owner token');
 const composioKey = composioKeyPath ? await readSecret(composioKeyPath, 'Composio key') : undefined;
+if (keyPath) await readSecret(keyPath, 'TLS private key');
+if (process.platform !== 'win32') {
+  const directory = await stat(dirname(databasePath));
+  if (!directory.isDirectory() || (directory.mode & 0o077) !== 0) {
+    throw new Error('Gateway database directory must be accessible only to its owner');
+  }
+  try {
+    const database = await stat(databasePath);
+    if (!database.isFile() || (database.mode & 0o077) !== 0) {
+      throw new Error('Gateway database must be readable only by its owner');
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
 
 function isAllowedTool(value: unknown): value is AllowedTool {
   if (!value || typeof value !== 'object') return false;

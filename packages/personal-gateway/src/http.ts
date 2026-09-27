@@ -3,6 +3,7 @@ import type { DurableGatewayAuthority } from './durable-authority';
 import type { DeviceGrant, ExternalEffect } from './authority';
 import type { ComposioCatalog } from './composio';
 import type { ComposioExecutor } from './composio-execution';
+import { ownerCss, ownerHtml, ownerJs } from './owner-ui';
 
 const maxBodyBytes = 70_000;
 
@@ -11,6 +12,17 @@ function json(value: unknown, status = 200): Response {
     status,
     headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
   });
+}
+
+function ownerAsset(value: string, type: string): Response {
+  return new Response(value, { headers: {
+    'Content-Type': type,
+    'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'",
+  } });
 }
 
 function bearer(request: Request): string {
@@ -102,6 +114,9 @@ export function createGatewayHandler(
       const method = request.method;
 
       if (path === '/v1/health' && method === 'GET') return json({ status: 'ok' });
+      if (path === '/owner' && method === 'GET') return ownerAsset(ownerHtml, 'text/html; charset=utf-8');
+      if (path === '/owner/style.css' && method === 'GET') return ownerAsset(ownerCss, 'text/css; charset=utf-8');
+      if (path === '/owner/app.js' && method === 'GET') return ownerAsset(ownerJs, 'text/javascript; charset=utf-8');
 
       if (path.startsWith('/v1/owner/')) {
         if (!sameSecret(bearer(request), ownerSecret)) {
@@ -112,6 +127,9 @@ export function createGatewayHandler(
         }
         if (path === '/v1/owner/proposals' && method === 'GET') {
           return json({ proposals: authority.listProposals() });
+        }
+        if (path === '/v1/owner/allowlist' && method === 'GET') {
+          return json({ tools: authority.listAllowedTools() });
         }
         if (path === '/v1/owner/connected-accounts' && method === 'GET') {
           if (!composio) return json({ error: 'Composio is not configured' }, 503);
@@ -165,6 +183,21 @@ export function createGatewayHandler(
         }
         const effect = rawEffect as ExternalEffect;
         return json(authority.propose(identity.id, identity.token, effect), 201);
+      }
+      if (path === '/v1/device/session' && method === 'GET') {
+        const identity = authorizedDevice(request, authority, 'inspect');
+        return json({ device: authority.listDevices().find((entry) => entry.id === identity.id) });
+      }
+      if (path === '/v1/device/connected-accounts' && method === 'GET') {
+        authorizedDevice(request, authority, 'inspect');
+        if (!composio) return json({ error: 'Composio is not configured' }, 503);
+        try {
+          const page = await composio.listConnectedAccounts(url.searchParams.get('cursor') ?? undefined);
+          const allowed = authority.allowedAccountIds();
+          return json({ ...page, items: page.items.filter((account) => allowed.has(account.id)) });
+        } catch {
+          return json({ error: 'Connected-account lookup failed' }, 502);
+        }
       }
       const inspect = /^\/v1\/device\/proposals\/([0-9a-f-]{36})$/.exec(path);
       if (inspect && method === 'GET') {

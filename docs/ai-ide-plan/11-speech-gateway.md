@@ -46,7 +46,8 @@ app access. These are separate resources and credentials.
 
 - [ ] On Windows, install the release package on a machine without a separate
       NeMo-Speech.cpp installation. Confirm **Dictate** can find the bundled
-      runtime. On macOS/Linux, install NeMo-Speech.cpp separately for now.
+      runtime. Linux and Apple Silicon macOS release scripts now bundle pinned
+      runtimes too; run those CI jobs and confirm each installed package.
 - [ ] While online, start **Dictate** and let ion download the verified
       `nemotron-3.5` model on first use. Then disconnect the network for the
       repeat dictation check.
@@ -64,8 +65,9 @@ app access. These are separate resources and credentials.
       lead to usable setup steps.
 - [ ] Measure first-use download/setup time, final transcription latency, and
       peak memory on target hardware; record hardware and model build.
-- [ ] Once live partial text is implemented, measure its update cadence and
-      confirm partial text can be corrected before sending.
+- [ ] Watch the provisional transcript while recording. Confirm updates are
+      readable, the final transcript can be corrected in the composer before
+      sending, and Stop or Cancel leaves no stale preview.
 
 ### Personal gateway
 
@@ -84,9 +86,15 @@ app access. These are separate resources and credentials.
 - [x] Add a mocked, approval-gated direct Composio tool call with an explicit
       connected account and pinned version. The durable claim precedes the
       network call; lost or queued results stay uncertain and cannot replay.
-- [ ] Validate remote TLS service, add owner approval UI, review the direct
-      tool path against a real Composio test account, and prepare deployment
-      instructions before provisioning any cloud resource.
+- [x] Add an owner console for one-use invites, device revocation, exact write
+      review, separate execution, and uncertain-result inspection. Add desktop
+      HTTPS pairing, vault storage, session testing, sanitized account list,
+      exact test-action submission, and proposal-status inspection.
+- [x] Validate local TLS serving with a temporary certificate and
+      certificate-verified HTTPS pairing, session, and revocation requests.
+      Prepare a deployment guide.
+- [ ] Validate the direct tool path against a real Composio test account and
+      verify the trusted certificate and network policy on the user's gateway.
 
 - [ ] In your own Nebius account, review the proposed resource, region,
       expected user-borne cost, and removal steps before provisioning.
@@ -102,6 +110,11 @@ app access. These are separate resources and credentials.
 - [ ] Propose an external write, deny it, and confirm no write occurred.
       Repeat and approve the exact target, body, and scope; confirm the
       external result and no duplicate replay after reconnect.
+      In the desktop **Personal gateway** settings, expand **Propose test
+      action**, enter the allowlisted toolkit, pinned tool version, connected
+      account ID, target, JSON arguments and scopes, then submit. Review the
+      proposal at the gateway's `/owner` page. The owner must approve and
+      execute separately; **Check proposal status** only reads the outcome.
 - [ ] Disconnect the gateway. Confirm dependent work pauses and queued
       decisions remain reviewable. Reconnect and confirm it resumes without
       silently broadening grants or replaying a write.
@@ -119,12 +132,18 @@ treated as passed.
 
 ## Implementation status and setup
 
-Milestone 4 is **in progress**. Windows release packaging now includes the
-verified NeMo-Speech.cpp 0.1.0 CPU runtime and its notices; local development
+Milestone 4 local development is implemented; live acceptance is **pending**.
+Windows release packaging includes the
+verified NeMo-Speech.cpp 0.1.0 CPU runtime and its notices; Linux and Apple
+Silicon macOS release scripts now install and bundle pinned 0.1.0 runtimes,
+but their release jobs and installed artifacts have not been verified yet. Local development
 also detects the standard per-user installation when PATH has not refreshed.
 The composer has a **Dictate** control that
 prepares the `nemotron-3.5` model on first use, records the default microphone
-locally, and stages the final transcript for review. **Stop dictation** ends
+locally, streams provisional text through a loopback-only NeMo-Speech.cpp
+realtime socket when available, and stages the final transcript for review.
+If the local preview cannot start or return a final result, the recorded WAV
+uses the existing offline transcription path. **Stop dictation** ends
 recording and starts transcription; **Cancel** discards a recording. The
 selected language is Auto, English (`en-US`), or Hindi (`hi-IN`) in **Settings
 → Models & Speech**. The same page can transcribe a selected local WAV. The
@@ -132,8 +151,8 @@ app inserts neither transcript into the task until the user chooses **Insert
 dictation** or **Insert into composer** and then presses Send. The Composio
 **Test** control now
 makes a live, read-only request to the Tools API; it requires a scoped project
-key with Tools read permission. The gateway pairing token is still only stored
-in the desktop vault.
+key with Tools read permission. A paired gateway device token is stored in the
+desktop OS vault, or only in app memory if the vault is unavailable.
 
 For a packaged Windows release, install ion and use **Dictate** directly. The
 first use downloads the model while online, then the microphone works offline.
@@ -141,7 +160,8 @@ The OS may prompt for microphone permission. A separate NeMo-Speech.cpp install
 is not needed for that Windows package. The release CI fetches the pinned 0.1.0
 CPU archive with upstream SHA-256 verification before packaging it.
 
-For development builds on Windows and current macOS/Linux packages, install
+For development builds on Windows and packages released before this bundling
+change, install
 NeMo-Speech.cpp using the [official installation guide](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/install.md).
 Then run:
 
@@ -160,23 +180,30 @@ select **Transcribe WAV…** for an existing file. Review the transcript and
 insert it into the editable composer.
 
 The Windows installer and portable ZIP include the runtime but not the model.
-macOS and Linux runtime bundling is still pending. The installer was compiled
+The installer was compiled
 but not installed, and no live microphone recording was exercised in this
 development session, so the direct-install experience still needs the checklist
 review above.
 
-Editable live partial text, gateway deployment, desktop pairing,
-desktop connected-account listing, and a live approval-gated remote tool
-execution have not been completed yet.
+The live partial preview is provisional; users edit the final text after
+inserting it into the composer. A real-model partial stream and its latency
+have not been measured in this development session. Live gateway deployment
+and a live approval-gated remote tool execution have not been completed yet.
 The new `packages/personal-gateway` policy core has transactional local SQLite
-storage and a loopback HTTP listener. It checks pairing and write decisions
-across restarts and separate connections, but is not yet connected to the
-desktop UI. An owner-only API can list sanitized Composio account summaries
+storage and an HTTP/TLS listener. It checks pairing and write decisions
+across restarts and separate connections. The owner console at `/owner` and
+desktop **Personal gateway** settings now support one-use pairing, vault
+storage, session checks, account discovery restricted to
+allowlisted connected accounts. An owner-only API can list sanitized Composio account summaries
 and execute a separately approved, pinned direct tool call when a scoped key
 and explicit execution setting are later provided. Neither call has been made
-live. Its mock tests do not count as a paired gateway demonstration. Version 1
+live. Certificate-verified local HTTPS pairing and revocation checks passed, but they do not
+verify a public deployment. Its mock tests do not count as a paired gateway
+demonstration. Version 1
 local proposals without a pinned tool version are denied on state upgrade;
-devices remain paired.
+devices remain paired. The desktop can submit an exact proposal and inspect
+its status; it cannot approve or execute it. Device revocation remains in the
+gateway owner's console.
 The microphone path has not been exercised with a real model or mic in this
 development session, so its checklist items remain unchecked.
 

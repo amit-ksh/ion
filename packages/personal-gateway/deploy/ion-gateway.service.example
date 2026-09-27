@@ -1,0 +1,24 @@
+[Unit]
+Description=ion personal gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ion-gateway
+Group=ion-gateway
+WorkingDirectory=/opt/ion
+EnvironmentFile=/home/ion-gateway/.config/ion-gateway/service.env
+ExecStart=/usr/local/bin/bun packages/personal-gateway/src/main.ts
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ion-gateway/.local/share/ion-gateway
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

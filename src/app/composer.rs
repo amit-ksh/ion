@@ -2866,7 +2866,8 @@ impl Waku {
                             .child(self.speech_feedback.clone().unwrap_or_default()),
                     )
                 })
-                .when(self.speech_transcript.is_some(), |card| {
+                .when((self.speech_transcript.is_some() || self.speech_partial.is_some())
+                    && self.speech_session_owner == self.state.selected_session, |card| {
                     card.child(
                         div()
                             .id("composer-dictation-preview")
@@ -2879,7 +2880,7 @@ impl Waku {
                             .bg(theme.inset)
                             .text_size(sp(12.0))
                             .text_color(theme.text)
-                            .child(self.speech_transcript.clone().unwrap_or_default()),
+                            .child(self.speech_transcript.clone().or(self.speech_partial.clone()).unwrap_or_default()),
                     )
                 })
                 .child(
@@ -2974,7 +2975,8 @@ impl Waku {
                                     )),
                             )
                         })
-                        .when(self.speech_transcript.is_some(), |row| {
+                        .when(self.speech_transcript.is_some()
+                            && self.speech_session_owner == self.state.selected_session, |row| {
                             row.child(
                                 div()
                                     .id("composer-insert-dictation")

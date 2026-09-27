@@ -8807,6 +8807,7 @@ dependencies = [
  "smol",
  "tar",
  "tokio",
+ "tungstenite",
  "unicode-linebreak",
  "unicode-segmentation",
  "url",
@@ -8890,6 +8891,7 @@ dependencies = [
  "anyhow",
  "reqwest 0.12.28",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

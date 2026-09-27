@@ -24,6 +24,15 @@ enum CredentialAction {
     Delete,
 }
 
+#[derive(Clone, Copy)]
+enum GatewayAction {
+    Pair,
+    Accounts,
+    ToggleProposal,
+    Propose,
+    Inspect,
+}
+
 /// The sidebar's rows in display order, each with the keyword haystack the
 /// search field filters against.
 const SETTINGS_PAGES: [(SettingsPage, &str, &str, &str); 7] = [
@@ -129,9 +138,43 @@ impl Waku {
         let language = self.speech_language;
         self.speech_busy = true;
         self.speech_transcript = None;
+        self.speech_partial = None;
         self.speech_draft_owner = self.selected_composer_draft_key();
+        self.speech_session_owner = self.state.selected_session;
         self.speech_feedback = Some("Preparing the local Nemotron 3.5 model…".into());
         cx.notify();
+        let (progress_tx, progress_rx) = crossbeam_channel::bounded(32);
+        cx.spawn(async move |waku, cx| {
+            loop {
+                let receiver = progress_rx.clone();
+                let event = cx.background_executor().spawn(async move {
+                    smol::unblock(move || receiver.recv()).await
+                }).await;
+                let Ok(event) = event else { break; };
+                let still_current = waku.update(cx, |waku, cx| {
+                    if waku.speech_generation != generation { return false; }
+                    match event {
+                        crate::speech::SpeechProgress::Ready { live_preview } => {
+                            if waku.speech_recording {
+                                waku.speech_feedback = Some(if live_preview {
+                                    "Recording locally with live transcript preview. Press Stop when finished.".into()
+                                } else {
+                                    "Recording locally. Live preview unavailable; final transcription will still run.".into()
+                                });
+                            }
+                        }
+                        crate::speech::SpeechProgress::Preview(text) => {
+                            if waku.speech_recording || waku.speech_busy {
+                                waku.speech_partial = Some(text);
+                            }
+                        }
+                    }
+                    cx.notify();
+                    true
+                }).unwrap_or(false);
+                if !still_current { break; }
+            }
+        }).detach();
         cx.spawn(async move |waku, cx| {
             let prepared = cx
                 .background_executor()
@@ -156,9 +199,7 @@ impl Waku {
                     waku.speech_busy = false;
                     waku.speech_recording = true;
                     waku.speech_stop_tx = Some(stop);
-                    waku.speech_feedback = Some(
-                        "Recording microphone audio locally. Press Stop when finished.".into(),
-                    );
+                    waku.speech_feedback = Some("Starting the local speech recognizer…".into());
                     cx.notify();
                     true
                 })
@@ -169,8 +210,10 @@ impl Waku {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    smol::unblock(move || crate::speech::record_and_transcribe(commands, language))
-                        .await
+                    smol::unblock(move || {
+                        crate::speech::record_and_transcribe(commands, language, progress_tx)
+                    })
+                    .await
                 })
                 .await;
             let _ = waku.update(cx, |waku, cx| {
@@ -180,6 +223,7 @@ impl Waku {
                 waku.speech_busy = false;
                 waku.speech_recording = false;
                 waku.speech_stop_tx = None;
+                waku.speech_partial = None;
                 match result {
                     Ok(Some(transcript)) => {
                         waku.speech_transcript = Some(transcript);
@@ -200,6 +244,7 @@ impl Waku {
             let _ = stop.send(crate::speech::RecordCommand::Cancel);
             self.speech_recording = false;
             self.speech_busy = true;
+            self.speech_partial = None;
             self.speech_feedback = Some("Canceling recording…".into());
             cx.notify();
         }
@@ -240,7 +285,9 @@ impl Waku {
         let generation = self.speech_generation;
         self.speech_feedback = None;
         self.speech_transcript = None;
+        self.speech_partial = None;
         self.speech_draft_owner = self.selected_composer_draft_key();
+        self.speech_session_owner = self.state.selected_session;
         self.speech_busy = true;
         cx.notify();
         cx.spawn(async move |waku, cx| {
@@ -331,6 +378,229 @@ impl Waku {
         .detach();
     }
 
+    fn pair_gateway(&mut self, cx: &mut Context<Self>) {
+        use crate::credentials::{CredentialKind as Kind, CredentialService};
+        let kind = Kind::GatewayPairingToken;
+        if !self.credential_busy.insert(kind) {
+            return;
+        }
+        let url = self.gateway_url_input.read(cx).content().trim().to_owned();
+        let invite = self
+            .gateway_invite_input
+            .read(cx)
+            .content()
+            .trim()
+            .to_owned();
+        if url.is_empty() || invite.is_empty() {
+            self.credential_busy.remove(&kind);
+            self.credential_feedback
+                .insert(kind, "Enter the gateway URL and one-use invite.".into());
+            cx.notify();
+            return;
+        }
+        self.gateway_invite_input
+            .update(cx, |input, cx| input.clear(cx));
+        let generation = self.credential_generation.entry(kind).or_default();
+        *generation = generation.wrapping_add(1);
+        let generation = *generation;
+        self.credential_feedback.remove(&kind);
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let service = CredentialService::global();
+                    let paired = service.pair_gateway(&url, &invite, "ion desktop");
+                    (paired, service.status(kind))
+                })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.credential_generation.get(&kind).copied() != Some(generation) {
+                    return;
+                }
+                waku.credential_busy.remove(&kind);
+                waku.credential_statuses.insert(kind, result.1);
+                if result.0.is_ok() {
+                    waku.gateway_accounts.clear();
+                    waku.gateway_last_proposal = None;
+                }
+                waku.credential_feedback.insert(
+                    kind,
+                    match result.0 {
+                        Ok(crate::credentials::CredentialStatus::StoredInVault) => {
+                            "Desktop paired. Device token saved in the OS vault.".into()
+                        }
+                        Ok(crate::credentials::CredentialStatus::MemoryOnly) => {
+                            "Desktop paired for this app session only; OS vault unavailable.".into()
+                        }
+                        Ok(crate::credentials::CredentialStatus::Missing) => {
+                            "Pairing did not save.".into()
+                        }
+                        Err(error) => error.to_string(),
+                    },
+                );
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn refresh_gateway_accounts(&mut self, cx: &mut Context<Self>) {
+        use crate::credentials::{CredentialKind as Kind, CredentialService};
+        let kind = Kind::GatewayPairingToken;
+        if !self.credential_busy.insert(kind) {
+            return;
+        }
+        let generation = self.credential_generation.entry(kind).or_default();
+        *generation = generation.wrapping_add(1);
+        let generation = *generation;
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { CredentialService::global().gateway_accounts() })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.credential_generation.get(&kind).copied() != Some(generation) {
+                    return;
+                }
+                waku.credential_busy.remove(&kind);
+                match result {
+                    Ok(accounts) => {
+                        let count = accounts.len();
+                        waku.gateway_accounts = accounts;
+                        waku.credential_feedback
+                            .insert(kind, format!("{count} connected accounts available."));
+                    }
+                    Err(error) => {
+                        waku.credential_feedback.insert(kind, error.to_string());
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn propose_gateway_action(&mut self, cx: &mut Context<Self>) {
+        use crate::credentials::{CredentialKind as Kind, CredentialService, GatewayEffect};
+        let kind = Kind::GatewayPairingToken;
+        if !self.credential_busy.insert(kind) {
+            return;
+        }
+        let field = |name: &'static str| {
+            self.gateway_effect_inputs[name]
+                .read(cx)
+                .content()
+                .trim()
+                .to_owned()
+        };
+        let body = field("body");
+        let parsed_body = serde_json::from_str::<serde_json::Value>(&body);
+        if !matches!(parsed_body, Ok(serde_json::Value::Object(_))) {
+            self.credential_busy.remove(&kind);
+            self.credential_feedback
+                .insert(kind, "Arguments must be a JSON object.".into());
+            cx.notify();
+            return;
+        }
+        let effect = GatewayEffect {
+            toolkit: field("toolkit"),
+            tool: field("tool"),
+            version: field("version"),
+            account_id: field("account"),
+            target: field("target"),
+            body,
+            scopes: field("scopes")
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        };
+        if effect.toolkit.is_empty()
+            || effect.tool.is_empty()
+            || effect.version.is_empty()
+            || effect.account_id.is_empty()
+            || effect.target.is_empty()
+        {
+            self.credential_busy.remove(&kind);
+            self.credential_feedback.insert(
+                kind,
+                "Fill in the toolkit, tool, version, account, and target.".into(),
+            );
+            cx.notify();
+            return;
+        }
+        let generation = self.credential_generation.entry(kind).or_default();
+        *generation = generation.wrapping_add(1);
+        let generation = *generation;
+        self.credential_feedback.remove(&kind);
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { CredentialService::global().gateway_propose(effect) })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.credential_generation.get(&kind).copied() != Some(generation) {
+                    return;
+                }
+                waku.credential_busy.remove(&kind);
+                match result {
+                    Ok(proposal) => {
+                        waku.credential_feedback.insert(
+                            kind,
+                            "Action submitted for owner review. It has not executed.".into(),
+                        );
+                        waku.gateway_last_proposal = Some(proposal);
+                    }
+                    Err(error) => {
+                        waku.credential_feedback.insert(kind, error.to_string());
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn inspect_gateway_action(&mut self, cx: &mut Context<Self>) {
+        use crate::credentials::{CredentialKind as Kind, CredentialService};
+        let kind = Kind::GatewayPairingToken;
+        if !self.credential_busy.insert(kind) {
+            return;
+        }
+        let Some(proposal_id) = self.gateway_last_proposal.as_ref().map(|p| p.id.clone()) else {
+            self.credential_busy.remove(&kind);
+            return;
+        };
+        let generation = self.credential_generation.entry(kind).or_default();
+        *generation = generation.wrapping_add(1);
+        let generation = *generation;
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { CredentialService::global().gateway_inspect(&proposal_id) })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.credential_generation.get(&kind).copied() != Some(generation) {
+                    return;
+                }
+                waku.credential_busy.remove(&kind);
+                match result {
+                    Ok(proposal) => waku.gateway_last_proposal = Some(proposal),
+                    Err(error) => {
+                        waku.credential_feedback.insert(kind, error.to_string());
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn run_credential_action(
         &mut self,
         kind: crate::credentials::CredentialKind,
@@ -362,46 +632,87 @@ impl Waku {
         self.credential_feedback.remove(&kind);
         cx.notify();
         cx.spawn(async move |waku, cx| {
-            let result = cx.background_executor().spawn(async move {
-                let service = CredentialService::global();
-                let result = (|| -> anyhow::Result<(String, Option<Vec<String>>)> { match action {
-                    CredentialAction::Set => {
-                        let status = service.set(kind, value.unwrap())?;
-                        let note = if status == crate::credentials::CredentialStatus::MemoryOnly {
-                            "Saved for this app session only; OS vault unavailable.".to_owned()
-                        } else { "Saved in the OS credential vault.".to_owned() };
-                        Ok((note, None))
-                    }
-                    CredentialAction::Test => match service.test(kind)? {
-                        CredentialTest::NebiusModels(models) => Ok((format!("Nebius key verified; {} models available.", models.len()), Some(models))),
-                    CredentialTest::ComposioVerified => Ok(("Composio key verified with Tools read access.".into(), None)),
-                    CredentialTest::Stored => Ok(("Pairing token is stored. Gateway validation needs a deployed personal gateway.".into(), None)),
-                    },
-                    CredentialAction::Delete => {
-                        service.delete(kind)?;
-                        Ok(("Credential deleted.".into(), None))
-                    }
-                } })();
-                (result, service.status(kind))
-            }).await;
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let service = CredentialService::global();
+                    let result = (|| -> anyhow::Result<(String, Option<Vec<String>>)> {
+                        match action {
+                            CredentialAction::Set => {
+                                let status = service.set(kind, value.unwrap())?;
+                                let note =
+                                    if status == crate::credentials::CredentialStatus::MemoryOnly {
+                                        "Saved for this app session only; OS vault unavailable."
+                                            .to_owned()
+                                    } else {
+                                        "Saved in the OS credential vault.".to_owned()
+                                    };
+                                Ok((note, None))
+                            }
+                            CredentialAction::Test => match service.test(kind)? {
+                                CredentialTest::NebiusModels(models) => Ok((
+                                    format!(
+                                        "Nebius key verified; {} models available.",
+                                        models.len()
+                                    ),
+                                    Some(models),
+                                )),
+                                CredentialTest::ComposioVerified => Ok((
+                                    "Composio key verified with Tools read access.".into(),
+                                    None,
+                                )),
+                                CredentialTest::GatewayConnected(session) => Ok((
+                                    format!(
+                                        "Gateway connected as {} ({}); grants: {}.",
+                                        session.name,
+                                        session.id,
+                                        session.grants.join(", ")
+                                    ),
+                                    None,
+                                )),
+                            },
+                            CredentialAction::Delete => {
+                                service.delete(kind)?;
+                                Ok(("Credential deleted.".into(), None))
+                            }
+                        }
+                    })();
+                    (result, service.status(kind))
+                })
+                .await;
             let _ = waku.update(cx, |waku, cx| {
-                if waku.credential_generation.get(&kind).copied() != Some(generation) { return; }
+                if waku.credential_generation.get(&kind).copied() != Some(generation) {
+                    return;
+                }
                 waku.credential_busy.remove(&kind);
                 waku.credential_statuses.insert(kind, result.1);
                 match result.0 {
                     Ok((message, catalog)) => {
                         waku.credential_feedback.insert(kind, message);
                         if kind == Kind::NebiusTokenFactoryApiKey {
-                            if let Some(catalog) = catalog { waku.nebius_catalog = catalog; }
-                            if matches!(action, CredentialAction::Delete) { waku.nebius_catalog.clear(); }
+                            if let Some(catalog) = catalog {
+                                waku.nebius_catalog = catalog;
+                            }
+                            if matches!(action, CredentialAction::Delete) {
+                                waku.nebius_catalog.clear();
+                            }
                             waku.refresh_provider_model_discovery(ProviderKind::Nebius);
                         }
+                        if kind == Kind::GatewayPairingToken
+                            && matches!(action, CredentialAction::Delete)
+                        {
+                            waku.gateway_accounts.clear();
+                            waku.gateway_last_proposal = None;
+                        }
                     }
-                    Err(error) => { waku.credential_feedback.insert(kind, error.to_string()); }
+                    Err(error) => {
+                        waku.credential_feedback.insert(kind, error.to_string());
+                    }
                 }
                 cx.notify();
             });
-        }).detach();
+        })
+        .detach();
     }
 
     fn credential_button(
@@ -449,6 +760,64 @@ impl Waku {
             .into_any_element()
     }
 
+    fn gateway_button(
+        &self,
+        action: GatewayAction,
+        label: &'static str,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = Theme::current(cx);
+        let busy = self
+            .credential_busy
+            .contains(&crate::credentials::CredentialKind::GatewayPairingToken);
+        div()
+            .id(SharedString::from(format!("gateway-{label}")))
+            .tab_group()
+            .tab_index(0)
+            .tab_stop(true)
+            .focus_visible(|style| style.border_color(theme.accent))
+            .h(px(30.0))
+            .px(px(12.0))
+            .rounded(px(7.0))
+            .border_1()
+            .border_color(theme.border_strong)
+            .flex()
+            .items_center()
+            .text_size(sp(12.5))
+            .text_color(theme.text)
+            .hover(|element| element.bg(theme.overlay))
+            .opacity(if busy { 0.5 } else { 1.0 })
+            .child(label)
+            .on_click(cx.listener(move |this, _, _, cx| match action {
+                GatewayAction::Pair => this.pair_gateway(cx),
+                GatewayAction::Accounts => this.refresh_gateway_accounts(cx),
+                GatewayAction::ToggleProposal => {
+                    this.gateway_effect_expanded = !this.gateway_effect_expanded;
+                    cx.notify();
+                }
+                GatewayAction::Propose => this.propose_gateway_action(cx),
+                GatewayAction::Inspect => this.inspect_gateway_action(cx),
+            }))
+            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
+                if !event.keystroke.modifiers.modified()
+                    && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                {
+                    match action {
+                        GatewayAction::Pair => this.pair_gateway(cx),
+                        GatewayAction::Accounts => this.refresh_gateway_accounts(cx),
+                        GatewayAction::ToggleProposal => {
+                            this.gateway_effect_expanded = !this.gateway_effect_expanded;
+                            cx.notify();
+                        }
+                        GatewayAction::Propose => this.propose_gateway_action(cx),
+                        GatewayAction::Inspect => this.inspect_gateway_action(cx),
+                    }
+                    cx.stop_propagation();
+                }
+            }))
+            .into_any_element()
+    }
+
     fn render_models_speech_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         use crate::credentials::{CredentialKind as Kind, CredentialStatus};
         let theme = Theme::current(cx);
@@ -463,11 +832,6 @@ impl Waku {
                 Kind::ComposioScopedProjectKey,
                 "Composio project",
                 "Scoped project key for your personal gateway. Test verifies Tools read access without exposing the key.",
-            ),
-            (
-                Kind::GatewayPairingToken,
-                "Gateway pairing",
-                "Optional pairing token for a later personal Nebius gateway.",
             ),
         ] {
             let status = match self
@@ -645,21 +1009,25 @@ impl Waku {
                     .child(feedback.clone()),
             );
         }
-        if let Some(transcript) = &self.speech_transcript {
-            speech = speech
-                .child(
-                    div()
-                        .id("speech-transcript")
-                        .max_h(px(140.0))
-                        .overflow_y_scroll()
-                        .p(px(8.0))
-                        .rounded(px(7.0))
-                        .bg(theme.inset)
-                        .text_size(sp(12.5))
-                        .text_color(theme.text)
-                        .child(transcript.clone()),
-                )
-                .child(
+        if let Some(transcript) = self
+            .speech_transcript
+            .as_ref()
+            .or(self.speech_partial.as_ref())
+        {
+            speech = speech.child(
+                div()
+                    .id("speech-transcript")
+                    .max_h(px(140.0))
+                    .overflow_y_scroll()
+                    .p(px(8.0))
+                    .rounded(px(7.0))
+                    .bg(theme.inset)
+                    .text_size(sp(12.5))
+                    .text_color(theme.text)
+                    .child(transcript.clone()),
+            );
+            if self.speech_transcript.is_some() {
+                speech = speech.child(
                     div()
                         .id("speech-insert-transcript")
                         .tab_group()
@@ -688,8 +1056,108 @@ impl Waku {
                             }
                         })),
                 );
+            }
         }
         content = content.child(speech);
+        let gateway_kind = Kind::GatewayPairingToken;
+        let gateway_status = match self
+            .credential_statuses
+            .get(&gateway_kind)
+            .copied()
+            .unwrap_or(CredentialStatus::Missing)
+        {
+            CredentialStatus::Missing => "Not paired",
+            CredentialStatus::StoredInVault => "Device token stored in OS vault",
+            CredentialStatus::MemoryOnly => "Paired for this app session only",
+        };
+        let mut gateway = div()
+            .w_full().p(px(18.0)).rounded(px(12.0)).bg(theme.raised)
+            .flex().flex_col().gap(px(8.0))
+            .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Personal gateway"))
+            .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
+                .child("Open /owner on your gateway, create a one-use invite, then pair this desktop. Remote gateways require HTTPS. The device token uses your OS vault when available."))
+            .child(TextField::new("gateway-url", self.gateway_url_input.clone()).w_full())
+            .child(TextField::new("gateway-invite", self.gateway_invite_input.clone()).w_full())
+            .child(div().flex().flex_wrap().gap(px(8.0))
+                .child(self.gateway_button(GatewayAction::Pair, "Pair desktop", cx))
+                .child(self.credential_button(gateway_kind, CredentialAction::Test, "Test pairing", cx))
+                .child(self.gateway_button(GatewayAction::Accounts, "List accounts", cx))
+                .child(self.credential_button(gateway_kind, CredentialAction::Delete, "Remove pairing", cx)))
+            .child(self.gateway_button(
+                GatewayAction::ToggleProposal,
+                if self.gateway_effect_expanded { "Hide action form" } else { "Propose test action" },
+                cx,
+            ))
+            .child(div().text_size(sp(12.0)).text_color(theme.text_secondary).child(gateway_status));
+        if let Some(feedback) = self.credential_feedback.get(&gateway_kind) {
+            gateway = gateway.child(
+                div()
+                    .text_size(sp(12.0))
+                    .text_color(theme.text_secondary)
+                    .child(feedback.clone()),
+            );
+        }
+        for account in &self.gateway_accounts {
+            gateway = gateway.child(div().text_size(sp(12.0)).text_color(theme.text).child(
+                format!("{} · {} · {}", account.toolkit, account.id, account.status),
+            ));
+        }
+        if self.gateway_effect_expanded {
+            let mut form = div()
+                .w_full()
+                .flex()
+                .flex_col()
+                .gap(px(8.0))
+                .child(div().text_size(sp(12.0)).text_color(theme.text_secondary)
+                    .child("Submit an exact test action to your gateway. The owner must review and execute it separately in /owner. Use a disposable account and a harmless target."));
+            for (name, label) in [
+                ("toolkit", "Toolkit"),
+                ("tool", "Tool slug"),
+                ("version", "Pinned tool version"),
+                ("account", "Connected account ID"),
+                ("target", "Exact target"),
+                ("body", "JSON arguments object"),
+                ("scopes", "Requested scopes, comma separated"),
+            ] {
+                form = form.child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.0))
+                        .child(
+                            div()
+                                .text_size(sp(12.0))
+                                .text_color(theme.text)
+                                .child(label),
+                        )
+                        .child(
+                            TextField::new(
+                                SharedString::from(format!("gateway-effect-{name}")),
+                                self.gateway_effect_inputs[name].clone(),
+                            )
+                            .w_full(),
+                        ),
+                );
+            }
+            form = form.child(self.gateway_button(
+                GatewayAction::Propose,
+                "Submit for owner review",
+                cx,
+            ));
+            gateway = gateway.child(form);
+        }
+        if let Some(proposal) = &self.gateway_last_proposal {
+            gateway = gateway
+                .child(
+                    div()
+                        .text_size(sp(12.0))
+                        .text_color(theme.text)
+                        .child(format!("Proposal {} · {}", proposal.id, proposal.status)),
+                )
+                .child(self.gateway_button(GatewayAction::Inspect, "Check proposal status", cx));
+        }
+        content = content.child(gateway);
         content.into_any_element()
     }
 

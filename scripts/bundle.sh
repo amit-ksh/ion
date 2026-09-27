@@ -166,6 +166,23 @@ fi
 rm -rf "$bundle"
 mkdir -p "$contents/MacOS" "$contents/Resources/computer-use" "$contents/Resources/skills/waku-computer-use" "$contents/Helpers"
 cp "$cargo_target_dir/$profile/waku" "$contents/MacOS/$app_name"
+if [ "$profile" = "release" ]; then
+  nemo_prefix="${NEMO_SPEECH_PREFIX:-}"
+  if [ -z "$nemo_prefix" ] || [ ! -x "$nemo_prefix/bin/nemo-speech" ] || \
+     [ ! -f "$nemo_prefix/.nemo-speech-install" ] || \
+     [ ! -d "$nemo_prefix/lib" ] || \
+     [ ! -f "$nemo_prefix/share/licenses/nemo-speech/LICENSE" ]; then
+    echo "NEMO_SPEECH_PREFIX must contain a verified NeMo-Speech.cpp 0.1.0 Metal install" >&2
+    exit 1
+  fi
+  case "$(head -n 1 "$nemo_prefix/.nemo-speech-install")" in
+    "0.1.0 macos aarch64 metal") ;;
+    *) echo "Unexpected NeMo-Speech.cpp release identity" >&2; exit 1 ;;
+  esac
+  mkdir -p "$contents/MacOS/nemo-speech"
+  cp -R "$nemo_prefix"/. "$contents/MacOS/nemo-speech/"
+  "$contents/MacOS/nemo-speech/bin/nemo-speech" --version | grep -F '0.1.0' >/dev/null
+fi
 cp "$cargo_target_dir/$profile/waku_js_repl" "$repl_executable"
 chmod 755 "$repl_executable"
 if [ "$profile" = "release" ]; then
@@ -195,6 +212,22 @@ cp -R "$cached_helper_bundle" "$helper_bundle"
 # Finder info and resource forks on copied resources make codesign reject the
 # bundle as "detritus"; strip extended attributes before signing.
 xattr -cr "$bundle"
+if [ "$profile" = "release" ]; then
+  # The hardened app may only load signed sibling libraries. Sign the NeMo
+  # binary and its dylibs before signing the enclosing app bundle.
+  find "$contents/MacOS/nemo-speech/lib" -type f -name '*.dylib' -print | while IFS= read -r library; do
+    if [ "$codesign_identity" = "-" ]; then
+      codesign --force --sign - "$library"
+    else
+      codesign --force --options runtime --timestamp --sign "$codesign_identity" "$library"
+    fi
+  done
+  if [ "$codesign_identity" = "-" ]; then
+    codesign --force --sign - "$contents/MacOS/nemo-speech/bin/nemo-speech"
+  else
+    codesign --force --options runtime --timestamp --sign "$codesign_identity" "$contents/MacOS/nemo-speech/bin/nemo-speech"
+  fi
+fi
 # Sparkle's nested executables sign first, then the framework, then the app.
 # The app's hardened runtime enforces library validation, so the framework must
 # carry the same identity as the app or dlopen rejects it at launch.

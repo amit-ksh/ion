@@ -44,6 +44,11 @@ describe('personal gateway HTTP boundary', () => {
     try {
       const health = await fetch(new URL('/v1/health', running.server.url));
       expect(health.status).toBe(200);
+      const consolePage = await call('/owner', 'GET');
+      expect(consolePage.status).toBe(200);
+      expect(consolePage.headers.get('content-security-policy')).toContain("script-src 'self'");
+      expect(await consolePage.text()).toContain('Pending approvals');
+      expect((await call('/owner/app.js', 'GET')).status).toBe(200);
       const inviteResponse = await call('/v1/owner/invites', 'POST', ownerToken, {
         grants: ['inspect', 'propose'],
       });
@@ -56,6 +61,11 @@ describe('personal gateway HTTP boundary', () => {
       const device = await pairedResponse.json() as { id: string; token: string };
       expect((await call('/v1/pair', 'POST', undefined, { invite, name: 'Replay' })).status).toBe(403);
       expect((await call('/v1/owner/devices', 'GET', device.token)).status).toBe(401);
+      expect((await call('/v1/owner/allowlist', 'GET', device.token)).status).toBe(401);
+      expect(await (await call('/v1/owner/allowlist', 'GET', ownerToken)).json()).toEqual({ tools: allowedTools });
+      const session = await call('/v1/device/session', 'GET', device.token, undefined, device.id);
+      expect((await session.json() as { device: { id: string } }).device.id).toBe(device.id);
+      expect((await call('/v1/device/session', 'GET', ownerToken, undefined, device.id)).status).toBe(401);
 
       const proposed = await call('/v1/device/proposals', 'POST', device.token, { effect }, device.id);
       expect(proposed.status).toBe(201);
@@ -97,9 +107,9 @@ describe('personal gateway HTTP boundary', () => {
       keyHeader = new Headers(init?.headers).get('x-api-key') ?? '';
       return Response.json({
         items: [{
-          id: 'ca_test', toolkit: { slug: 'github' }, status: 'ACTIVE',
+          id: 'test-account', toolkit: { slug: 'github' }, status: 'ACTIVE',
           state: { val: { oauth_token: 'never-expose-this' } },
-        }],
+        }, { id: 'ungranted-account', toolkit: { slug: 'slack' }, status: 'ACTIVE' }],
         next_cursor: 'next-page',
       });
     }) as typeof fetch;
@@ -113,12 +123,27 @@ describe('personal gateway HTTP boundary', () => {
       const response = await running.server.fetch(request('/v1/owner/connected-accounts', 'GET', ownerToken));
       const result = await response.json();
       expect(result).toEqual({
-        items: [{ id: 'ca_test', toolkit: 'github', status: 'ACTIVE' }],
+        items: [
+          { id: 'test-account', toolkit: 'github', status: 'ACTIVE' },
+          { id: 'ungranted-account', toolkit: 'slack', status: 'ACTIVE' },
+        ],
         nextCursor: 'next-page',
       });
       expect(JSON.stringify(result)).not.toContain('never-expose-this');
       expect(requestedUrl).toBe('https://backend.composio.dev/api/v3.1/connected_accounts?limit=100');
       expect(keyHeader).toBe('test-project-key');
+      const { invite } = await (await running.server.fetch(request('/v1/owner/invites', 'POST', ownerToken, {
+        grants: ['inspect'],
+      }))).json() as { invite: string };
+      const device = await (await running.server.fetch(request('/v1/pair', 'POST', undefined, {
+        invite, name: 'Account viewer',
+      }))).json() as { id: string; token: string };
+      const deviceResponse = await running.server.fetch(request('/v1/device/connected-accounts', 'GET', device.token, undefined, device.id));
+      expect(await deviceResponse.json()).toEqual({
+        items: [{ id: 'test-account', toolkit: 'github', status: 'ACTIVE' }],
+        nextCursor: 'next-page',
+      });
+      expect((await running.server.fetch(request('/v1/device/connected-accounts', 'GET', ownerToken, undefined, device.id))).status).toBe(401);
     } finally {
       await running.close();
     }

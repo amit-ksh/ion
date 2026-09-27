@@ -95,6 +95,15 @@ export class DurableGatewayAuthority {
     return this.read((authority) => authority.listProposals());
   }
 
+  /** Account identifiers explicitly named by this gateway's tool grants. */
+  allowedAccountIds(): Set<string> {
+    return new Set(this.allowedTools.map((entry) => entry.accountId));
+  }
+
+  listAllowedTools(): AllowedTool[] {
+    return this.allowedTools.map((entry) => ({ ...entry, scopes: [...entry.scopes] }));
+  }
+
   propose(id: string, secret: string, effect: ExternalEffect): ProposalView {
     return this.write((authority) => authority.propose(id, secret, effect));
   }

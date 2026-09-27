@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
 use anyhow::{Context as _, Result, bail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
 const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
@@ -41,7 +41,87 @@ pub enum CredentialStatus {
 pub enum CredentialTest {
     NebiusModels(Vec<String>),
     ComposioVerified,
-    Stored,
+    GatewayConnected(GatewaySession),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayPairing {
+    pub base_url: String,
+    pub device_id: String,
+    token: String,
+    pub expires_at: u64,
+}
+
+#[cfg(test)]
+mod gateway_url_tests {
+    use super::gateway_base_url;
+
+    #[test]
+    fn requires_https_outside_loopback_and_rejects_url_secrets() {
+        assert!(gateway_base_url("https://gateway.example/").is_ok());
+        assert!(gateway_base_url("http://127.0.0.1:8787/").is_ok());
+        assert!(gateway_base_url("http://gateway.example/").is_err());
+        assert!(gateway_base_url("https://token@gateway.example/").is_err());
+        assert!(gateway_base_url("https://gateway.example/path").is_err());
+        assert!(gateway_base_url("https://gateway.example/?token=secret").is_err());
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GatewaySession {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "expiresAt")]
+    pub expires_at: u64,
+    pub grants: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GatewayAccount {
+    pub id: String,
+    pub toolkit: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayEffect {
+    pub toolkit: String,
+    pub tool: String,
+    pub version: String,
+    pub account_id: String,
+    pub target: String,
+    pub body: String,
+    pub scopes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GatewayProposal {
+    pub id: String,
+    pub status: String,
+}
+
+fn gateway_base_url(value: &str) -> Result<reqwest::Url> {
+    let url = reqwest::Url::parse(value.trim()).context("Enter a valid gateway URL")?;
+    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "::1" | "localhost"));
+    if !(url.scheme() == "https" || (url.scheme() == "http" && loopback))
+        || url.username() != ""
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.path() != "/"
+    {
+        bail!("Use an HTTPS gateway URL, or HTTP on localhost, without a path or credentials");
+    }
+    Ok(url)
+}
+
+fn gateway_client() -> Result<reqwest::blocking::Client> {
+    Ok(reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(12))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?)
 }
 
 pub struct CredentialService {
@@ -105,6 +185,174 @@ impl CredentialService {
             .context("Save a Nebius key in the OS vault before starting a task")
     }
 
+    /// Consume a one-use invite. The returned device token is saved only in
+    /// the OS vault (or this process's memory when the vault is unavailable).
+    /// Call on the background executor, never from a GPUI frame.
+    pub fn pair_gateway(
+        &self,
+        base_url: &str,
+        invite: &str,
+        name: &str,
+    ) -> Result<CredentialStatus> {
+        let url = gateway_base_url(base_url)?;
+        if invite.trim().is_empty() || name.trim().is_empty() {
+            bail!("Enter a pairing invite and device name");
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct PairResponse {
+            id: String,
+            token: String,
+            expires_at: u64,
+        }
+        let response = gateway_client()?
+            .post(url.join("v1/pair")?)
+            .json(&serde_json::json!({ "invite": invite.trim(), "name": name.trim() }))
+            .send()
+            .context("Could not reach the personal gateway")?;
+        if !response.status().is_success() {
+            bail!(
+                "Gateway pairing failed (HTTP {}). Check the invite and gateway URL.",
+                response.status()
+            );
+        }
+        let paired: PairResponse = response
+            .json()
+            .context("Gateway returned an invalid pairing response")?;
+        if paired.id.is_empty() || paired.token.len() < 32 {
+            bail!("Gateway returned an invalid pairing token");
+        }
+        let pairing = GatewayPairing {
+            base_url: url.to_string(),
+            device_id: paired.id,
+            token: paired.token,
+            expires_at: paired.expires_at,
+        };
+        self.set(
+            CredentialKind::GatewayPairingToken,
+            serde_json::to_string(&pairing)?,
+        )
+    }
+
+    fn gateway_pairing(&self) -> Result<GatewayPairing> {
+        let pairing: GatewayPairing =
+            serde_json::from_str(&self.secret(CredentialKind::GatewayPairingToken)?)
+                .context("Pair this desktop from the personal gateway owner console")?;
+        gateway_base_url(&pairing.base_url)?;
+        Ok(pairing)
+    }
+
+    pub fn gateway_session(&self) -> Result<GatewaySession> {
+        let pairing = self.gateway_pairing()?;
+        let url = gateway_base_url(&pairing.base_url)?;
+        let response = gateway_client()?
+            .get(url.join("v1/device/session")?)
+            .bearer_auth(&pairing.token)
+            .header("x-waku-device-id", &pairing.device_id)
+            .send()
+            .context("Could not reach the personal gateway")?;
+        if !response.status().is_success() {
+            bail!(
+                "Gateway pairing is no longer valid (HTTP {}). Pair again from the owner console.",
+                response.status()
+            );
+        }
+        #[derive(Deserialize)]
+        struct SessionResponse {
+            device: GatewaySession,
+        }
+        let session: SessionResponse = response
+            .json()
+            .context("Gateway returned an invalid session")?;
+        if session.device.id != pairing.device_id {
+            bail!("Gateway returned a mismatched device session");
+        }
+        Ok(session.device)
+    }
+
+    pub fn gateway_accounts(&self) -> Result<Vec<GatewayAccount>> {
+        let pairing = self.gateway_pairing()?;
+        let url = gateway_base_url(&pairing.base_url)?;
+        let response = gateway_client()?
+            .get(url.join("v1/device/connected-accounts")?)
+            .bearer_auth(&pairing.token)
+            .header("x-waku-device-id", &pairing.device_id)
+            .send()
+            .context("Could not reach the personal gateway")?;
+        if !response.status().is_success() {
+            bail!(
+                "Could not list gateway accounts (HTTP {}).",
+                response.status()
+            );
+        }
+        #[derive(Deserialize)]
+        struct AccountPage {
+            items: Vec<GatewayAccount>,
+        }
+        let page: AccountPage = response
+            .json()
+            .context("Gateway returned an invalid account list")?;
+        Ok(page.items)
+    }
+
+    /// Submit an exact action to the gateway's durable owner-approval queue.
+    /// This never executes the action; only the owner can decide and execute.
+    pub fn gateway_propose(&self, effect: GatewayEffect) -> Result<GatewayProposal> {
+        let pairing = self.gateway_pairing()?;
+        let url = gateway_base_url(&pairing.base_url)?;
+        let response = gateway_client()?
+            .post(url.join("v1/device/proposals")?)
+            .bearer_auth(&pairing.token)
+            .header("x-waku-device-id", &pairing.device_id)
+            .json(&serde_json::json!({ "effect": effect }))
+            .send()
+            .context("Could not reach the personal gateway")?;
+        if !response.status().is_success() {
+            bail!(
+                "Gateway rejected the proposed action (HTTP {}). Check the tool, account, version, and scopes against its allowlist.",
+                response.status()
+            );
+        }
+        let proposal: GatewayProposal = response
+            .json()
+            .context("Gateway returned an invalid proposal")?;
+        if proposal.id.len() != 36 || proposal.status != "pending" {
+            bail!("Gateway returned an invalid proposal state");
+        }
+        Ok(proposal)
+    }
+
+    pub fn gateway_inspect(&self, proposal_id: &str) -> Result<GatewayProposal> {
+        if proposal_id.len() != 36
+            || !proposal_id
+                .chars()
+                .all(|ch| ch.is_ascii_hexdigit() || ch == '-')
+        {
+            bail!("Invalid gateway proposal ID");
+        }
+        let pairing = self.gateway_pairing()?;
+        let url = gateway_base_url(&pairing.base_url)?;
+        let response = gateway_client()?
+            .get(url.join(&format!("v1/device/proposals/{proposal_id}"))?)
+            .bearer_auth(&pairing.token)
+            .header("x-waku-device-id", &pairing.device_id)
+            .send()
+            .context("Could not reach the personal gateway")?;
+        if !response.status().is_success() {
+            bail!(
+                "Could not inspect gateway proposal (HTTP {}).",
+                response.status()
+            );
+        }
+        let proposal: GatewayProposal = response
+            .json()
+            .context("Gateway returned an invalid proposal")?;
+        if proposal.id != proposal_id {
+            bail!("Gateway returned a mismatched proposal");
+        }
+        Ok(proposal)
+    }
+
     pub fn nebius_model_ids(&self) -> Result<Vec<String>> {
         let secret = self.secret(CredentialKind::NebiusTokenFactoryApiKey)?;
         #[derive(Deserialize)]
@@ -159,8 +407,7 @@ impl CredentialService {
                 Ok(CredentialTest::ComposioVerified)
             }
             CredentialKind::GatewayPairingToken => {
-                self.secret(kind)?;
-                Ok(CredentialTest::Stored)
+                Ok(CredentialTest::GatewayConnected(self.gateway_session()?))
             }
         }
     }

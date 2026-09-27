@@ -1118,6 +1118,12 @@ pub struct Waku {
     expanded_provider_settings: Option<ProviderKind>,
     provider_path_input: Entity<TextInput>,
     credential_inputs: HashMap<crate::credentials::CredentialKind, Entity<TextInput>>,
+    gateway_url_input: Entity<TextInput>,
+    gateway_invite_input: Entity<TextInput>,
+    gateway_accounts: Vec<crate::credentials::GatewayAccount>,
+    gateway_effect_inputs: HashMap<&'static str, Entity<TextInput>>,
+    gateway_effect_expanded: bool,
+    gateway_last_proposal: Option<crate::credentials::GatewayProposal>,
     credential_statuses:
         HashMap<crate::credentials::CredentialKind, crate::credentials::CredentialStatus>,
     credential_feedback: HashMap<crate::credentials::CredentialKind, String>,
@@ -1131,7 +1137,9 @@ pub struct Waku {
     speech_stop_tx: Option<Sender<crate::speech::RecordCommand>>,
     speech_generation: u64,
     speech_transcript: Option<String>,
+    speech_partial: Option<String>,
     speech_draft_owner: Option<crate::persistence::ComposerDraftKey>,
+    speech_session_owner: Option<Uuid>,
     speech_feedback: Option<String>,
     permission_detail_scroll: ScrollHandle,
     computer_permissions: ComputerPermissions,
@@ -2074,16 +2082,36 @@ impl Waku {
                 crate::credentials::CredentialKind::ComposioScopedProjectKey,
                 "Composio scoped project key",
             ),
-            (
-                crate::credentials::CredentialKind::GatewayPairingToken,
-                "Gateway pairing token",
-            ),
         ]
         .into_iter()
         .map(|(kind, placeholder)| {
             (
                 kind,
                 cx.new(|cx| TextInput::new(window, cx).secure().placeholder(placeholder)),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+        let gateway_url_input =
+            cx.new(|cx| TextInput::new(window, cx).placeholder("https://your-gateway.example"));
+        let gateway_invite_input = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .secure()
+                .placeholder("One-use pairing invite")
+        });
+        let gateway_effect_inputs = [
+            ("toolkit", "Toolkit slug, for example github"),
+            ("tool", "Exact tool slug"),
+            ("version", "Pinned tool version"),
+            ("account", "Connected account ID"),
+            ("target", "Exact target"),
+            ("body", "JSON arguments object"),
+            ("scopes", "Exact scopes, comma separated"),
+        ]
+        .into_iter()
+        .map(|(field, placeholder)| {
+            (
+                field,
+                cx.new(|cx| TextInput::new(window, cx).placeholder(placeholder)),
             )
         })
         .collect::<HashMap<_, _>>();
@@ -2826,6 +2854,12 @@ impl Waku {
                 expanded_provider_settings: None,
                 provider_path_input,
                 credential_inputs,
+                gateway_url_input,
+                gateway_invite_input,
+                gateway_accounts: Vec::new(),
+                gateway_effect_inputs,
+                gateway_effect_expanded: false,
+                gateway_last_proposal: None,
                 credential_statuses: HashMap::new(),
                 credential_feedback: HashMap::new(),
                 credential_busy: HashSet::new(),
@@ -2838,7 +2872,9 @@ impl Waku {
                 speech_stop_tx: None,
                 speech_generation: 0,
                 speech_transcript: None,
+                speech_partial: None,
                 speech_draft_owner: None,
+                speech_session_owner: None,
                 speech_feedback: None,
                 permission_detail_scroll: ScrollHandle::new(),
                 computer_permissions: ComputerPermissions::default(),
