@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { DurableGatewayAuthority } from './durable-authority';
 import type { DeviceGrant, ExternalEffect } from './authority';
 import type { ComposioCatalog } from './composio';
+import type { ComposioExecutor } from './composio-execution';
 
 const maxBodyBytes = 70_000;
 
@@ -88,6 +89,7 @@ export function createGatewayHandler(
   authority: DurableGatewayAuthority,
   ownerSecret: string,
   composio?: ComposioCatalog,
+  executor?: ComposioExecutor,
 ) {
   if (ownerSecret.length < 32 || !/^[A-Za-z0-9_-]+$/.test(ownerSecret)) {
     throw new Error('Owner token must be at least 32 URL-safe characters');
@@ -136,6 +138,12 @@ export function createGatewayHandler(
           const input = await body(request);
           if (typeof input.approve !== 'boolean') throw new HttpFailure(400, 'Invalid decision');
           return json(authority.decide(decide[1]!, string(input.fingerprint), input.approve));
+        }
+        const execute = /^\/v1\/owner\/proposals\/([0-9a-f-]{36})\/execute$/.exec(path);
+        if (execute && method === 'POST') {
+          if (!executor) return json({ error: 'Composio is not configured' }, 503);
+          const outcome = await executor.executeApproved(authority, execute[1]!);
+          return json(outcome, outcome.status === 'succeeded' ? 200 : 409);
         }
       }
 

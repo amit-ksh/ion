@@ -2,12 +2,14 @@ import type { AllowedTool } from './authority';
 import { DurableGatewayAuthority } from './durable-authority';
 import { createGatewayHandler } from './http';
 import type { ComposioCatalog } from './composio';
+import type { ComposioExecutor } from './composio-execution';
 
 export interface GatewayServerOptions {
   databasePath: string;
   ownerToken: string;
   allowedTools: AllowedTool[];
   composio?: ComposioCatalog;
+  executor?: ComposioExecutor;
   hostname?: string;
   port?: number;
   tls?: { key: Bun.BunFile; cert: Bun.BunFile };
@@ -28,7 +30,7 @@ export function startGateway(options: GatewayServerOptions): {
       port: options.port ?? 0,
       tls: options.tls,
       maxRequestBodySize: 70_000,
-      fetch: createGatewayHandler(authority, options.ownerToken, options.composio),
+      fetch: createGatewayHandler(authority, options.ownerToken, options.composio, options.executor),
       error: () => Response.json({ error: 'Request rejected' }, { status: 500 }),
     });
     return {

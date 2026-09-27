@@ -38,6 +38,9 @@ vault and Composio project key stay outside model context. The wizard must
 show which Nebius resource will run, expected user-borne cost, scope, and
 deletion path before provisioning. Pairing stores only its token in the OS
 vault. Mobile pairs to that personal gateway with scoped device grants.
+The standalone gateway launcher accepts paths to owner and Composio secret
+files, rather than raw secret values in environment variables. The desktop
+must never pass its vault entries into a gateway child process.
 
 ## Primary development resources
 

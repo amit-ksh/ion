@@ -4,14 +4,15 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { startGateway } from './server';
 import { ComposioCatalog } from './composio';
+import { ComposioExecutor } from './composio-execution';
 
 const ownerToken = 'owner_' + 'a'.repeat(48);
 const effect = {
-  toolkit: 'github', tool: 'GITHUB_CREATE_ISSUE', accountId: 'test-account',
-  target: 'owner/repository', body: 'Exact issue body', scopes: ['issues:write'],
+  toolkit: 'github', tool: 'GITHUB_CREATE_ISSUE', version: '20251027_00', accountId: 'test-account',
+  target: 'owner/repository', body: '{"title":"Exact issue body"}', scopes: ['issues:write'],
 };
 const allowedTools = [{
-  toolkit: effect.toolkit, tool: effect.tool, accountId: effect.accountId,
+  toolkit: effect.toolkit, tool: effect.tool, version: effect.version, accountId: effect.accountId,
   scopes: [...effect.scopes],
 }];
 const directories: string[] = [];
@@ -118,6 +119,41 @@ describe('personal gateway HTTP boundary', () => {
       expect(JSON.stringify(result)).not.toContain('never-expose-this');
       expect(requestedUrl).toBe('https://backend.composio.dev/api/v3.1/connected_accounts?limit=100');
       expect(keyHeader).toBe('test-project-key');
+    } finally {
+      await running.close();
+    }
+  });
+
+  test('only the owner can execute an approved proposal once', async () => {
+    let calls = 0;
+    const executor = new ComposioExecutor('test-project-key', (async () => {
+      calls++;
+      return Response.json({ successful: true, log_id: 'log_http' });
+    }));
+    const running = startGateway({ databasePath: databasePath(), ownerToken, allowedTools, executor });
+    const call = (path: string, method: string, token?: string, data?: unknown, deviceId?: string) =>
+      running.server.fetch(request(path, method, token, data, deviceId));
+    try {
+      const { invite } = await (await call('/v1/owner/invites', 'POST', ownerToken, {
+        grants: ['inspect', 'propose'],
+      })).json() as { invite: string };
+      const device = await (await call('/v1/pair', 'POST', undefined, {
+        invite, name: 'Test desktop',
+      })).json() as { id: string; token: string };
+      const proposal = await (await call('/v1/device/proposals', 'POST', device.token, {
+        effect,
+      }, device.id)).json() as { id: string; fingerprint: string };
+      const path = `/v1/owner/proposals/${proposal.id}/execute`;
+      expect((await call(path, 'POST', device.token)).status).toBe(401);
+      expect(calls).toBe(0);
+      expect((await call(`/v1/owner/proposals/${proposal.id}/decision`, 'POST', ownerToken, {
+        fingerprint: proposal.fingerprint, approve: true,
+      })).status).toBe(200);
+      const executed = await call(path, 'POST', ownerToken);
+      expect(executed.status).toBe(200);
+      expect(await executed.json()).toEqual({ status: 'succeeded', resultReference: 'log_http' });
+      expect((await call(path, 'POST', ownerToken)).status).toBe(400);
+      expect(calls).toBe(1);
     } finally {
       await running.close();
     }

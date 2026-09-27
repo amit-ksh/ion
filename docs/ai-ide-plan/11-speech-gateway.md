@@ -2,7 +2,7 @@
 
 Milestone 4 adds local NVIDIA Nemotron 3.5 ASR Streaming 0.6B through
 NeMo-Speech.cpp and a guided setup for a gateway owned by the user. The
-gateway's Composio key must be scoped to the tools and session operations it
+gateway's Composio key must be scoped to the account and tool operations it
 needs. Speech audio stays on the desktop. The gateway and Composio credentials
 must not enter model context, task journals, or project files.
 
@@ -35,8 +35,8 @@ open too.
       network exposure, and deletion plan before provisioning the gateway.
 - [ ] Later, create a Composio project and connect only a disposable test
       account with the OAuth scopes needed for a read and one reviewable write.
-      Create a scoped project key for the gateway only after its required
-      session/tool permissions are finalized. Do not paste it into chat.
+      Then create a scoped project key with the account read and direct tool
+      execution permissions listed below. Do not paste it into chat.
 
 The Nebius Token Factory key is for model inference. The later Nebius cloud
 project runs the personal gateway. The Composio project key grants connected
@@ -76,20 +76,24 @@ app access. These are separate resources and credentials.
       pairing and write claims. Restart and separate-connection checks pass.
 - [x] Run a loopback gateway API with separate owner and paired-device bearer
       access. Local tests cover invitation, proposal, denial, revocation, and
-      rejection of owner routes with a device token.
+      rejection of owner routes with a device token. The standalone launcher
+      also served `/v1/health` with fake, file-mounted secrets.
 - [x] Add a read-only Composio connected-account adapter that returns only ID,
       toolkit, and status. Its credential stripping is covered by a mock test;
       live lookup waits for a scoped key and test account.
-- [ ] Validate remote TLS service, add owner approval UI and an
-      approval-gated Composio execution adapter,
-      and deployment instructions. Review these locally before provisioning
-      any cloud resource.
+- [x] Add a mocked, approval-gated direct Composio tool call with an explicit
+      connected account and pinned version. The durable claim precedes the
+      network call; lost or queued results stay uncertain and cannot replay.
+- [ ] Validate remote TLS service, add owner approval UI, review the direct
+      tool path against a real Composio test account, and prepare deployment
+      instructions before provisioning any cloud resource.
 
 - [ ] In your own Nebius account, review the proposed resource, region,
       expected user-borne cost, and removal steps before provisioning.
-- [ ] Create a Composio **scoped project API key** with only the session and
-      tool permissions the gateway needs. Connect a test account with the
-      narrow OAuth scopes needed for the demonstration.
+- [ ] Create a Composio **scoped project API key** with **Connected accounts:
+      Read only** and, if enabling the direct write check, **Tool execution
+      (Legacy): Write only**. Connect a test account with the narrow OAuth
+      scopes needed for the demonstration. Keep execution disabled until then.
 - [ ] Complete the guided gateway setup and pair this desktop with a
       short-lived token. Confirm a bad or expired token is rejected and a
       revoked device cannot reconnect.
@@ -162,14 +166,17 @@ development session, so the direct-install experience still needs the checklist
 review above.
 
 Editable live partial text, gateway deployment, desktop pairing,
-desktop connected-account listing, and approval-gated remote tool execution
-are not implemented yet.
+desktop connected-account listing, and a live approval-gated remote tool
+execution have not been completed yet.
 The new `packages/personal-gateway` policy core has transactional local SQLite
 storage and a loopback HTTP listener. It checks pairing and write decisions
 across restarts and separate connections, but is not yet connected to the
 desktop UI. An owner-only API can list sanitized Composio account summaries
-when a scoped key is later provided; no live request has been made. Its local
-tests do not count as a paired gateway demonstration.
+and execute a separately approved, pinned direct tool call when a scoped key
+and explicit execution setting are later provided. Neither call has been made
+live. Its mock tests do not count as a paired gateway demonstration. Version 1
+local proposals without a pinned tool version are denied on state upgrade;
+devices remain paired.
 The microphone path has not been exercised with a real model or mic in this
 development session, so its checklist items remain unchecked.
 
@@ -179,4 +186,5 @@ development session, so its checklist items remain unchecked.
   [CLI](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/cli.md), and
   [Nemotron 3.5 model](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/asr/models.md)
 - [Composio scoped project key permissions](https://docs.composio.dev/reference/authenticating-to-composio/project-api-key-permissions)
+- [Composio direct tool execution](https://docs.composio.dev/reference/api-reference/tools/postToolsExecuteByToolSlug)
 - [Composio session configuration](https://docs.composio.dev/docs/configuring-sessions)

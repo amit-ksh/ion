@@ -6,11 +6,11 @@ import { tmpdir } from 'node:os';
 import { DurableGatewayAuthority } from './durable-authority';
 
 const effect = {
-  toolkit: 'github', tool: 'GITHUB_CREATE_ISSUE', accountId: 'test-account',
-  target: 'owner/repository', body: 'Exact issue body', scopes: ['issues:write'],
+  toolkit: 'github', tool: 'GITHUB_CREATE_ISSUE', version: '20251027_00', accountId: 'test-account',
+  target: 'owner/repository', body: '{"title":"Exact issue body"}', scopes: ['issues:write'],
 };
 const allowedTools = [{
-  toolkit: effect.toolkit, tool: effect.tool, accountId: effect.accountId,
+  toolkit: effect.toolkit, tool: effect.tool, version: effect.version, accountId: effect.accountId,
   scopes: [...effect.scopes],
 }];
 

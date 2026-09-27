@@ -13,6 +13,7 @@ export type EffectStatus = 'pending' | 'denied' | 'approved' | 'uncertain' | 'su
 export interface ExternalEffect {
   toolkit: string;
   tool: string;
+  version: string;
   accountId: string;
   target: string;
   body: string;
@@ -22,6 +23,7 @@ export interface ExternalEffect {
 export interface AllowedTool {
   toolkit: string;
   tool: string;
+  version: string;
   accountId: string;
   scopes: string[];
 }
@@ -52,10 +54,15 @@ interface Proposal {
 }
 
 export interface AuthoritySnapshot {
-  version: 1;
+  version: 2;
   invites: Array<{ key: string; digest: string; expiresAt: number; deviceLifetimeMs: number; grants: DeviceGrant[] }>;
   devices: Array<Omit<Device, 'digest'> & { digest: string }>;
   proposals: Proposal[];
+}
+
+interface LegacyAuthoritySnapshot extends Omit<AuthoritySnapshot, 'version' | 'proposals'> {
+  version: 1;
+  proposals: Array<Omit<Proposal, 'effect'> & { effect: Omit<ExternalEffect, 'version'> }>;
 }
 
 export interface ProposalView {
@@ -112,8 +119,8 @@ export class GatewayAuthority {
     this.allowedTools = allowedTools.map((entry) => ({ ...entry, scopes: [...entry.scopes] }));
   }
 
-  static restore(allowedTools: AllowedTool[], state: AuthoritySnapshot, now: () => number = Date.now): GatewayAuthority {
-    if (state?.version !== 1 || !Array.isArray(state.invites) ||
+  static restore(allowedTools: AllowedTool[], state: AuthoritySnapshot | LegacyAuthoritySnapshot, now: () => number = Date.now): GatewayAuthority {
+    if ((state?.version !== 1 && state?.version !== 2) || !Array.isArray(state.invites) ||
         !Array.isArray(state.devices) || !Array.isArray(state.proposals)) {
       throw new Error('Unsupported or corrupt gateway state');
     }
@@ -125,8 +132,23 @@ export class GatewayAuthority {
       authority.devices.set(device.id, { ...device, digest: Buffer.from(device.digest, 'hex'), grants: [...device.grants] });
     }
     for (const proposal of state.proposals) {
+      const legacy = state.version === 1;
+      if (!proposal.effect || !Array.isArray(proposal.effect.scopes) ||
+          (!legacy && digest(JSON.stringify(proposal.effect)).toString('hex') !== proposal.fingerprint)) {
+        throw new Error('Corrupt gateway proposal snapshot');
+      }
+      const restoredEffect: ExternalEffect = {
+        ...proposal.effect,
+        version: legacy ? '' : (proposal.effect as ExternalEffect).version,
+        scopes: [...proposal.effect.scopes],
+      };
       authority.proposals.set(proposal.id, {
-        ...proposal, effect: { ...proposal.effect, scopes: [...proposal.effect.scopes] },
+        ...proposal,
+        // Old proposals did not bind a tool version. Deny unclaimed writes on
+        // migration; an uncertain external call still needs owner review.
+        status: legacy && ['pending', 'approved'].includes(proposal.status) ? 'denied' : proposal.status,
+        effect: restoredEffect,
+        fingerprint: legacy ? digest(JSON.stringify(restoredEffect)).toString('hex') : proposal.fingerprint,
       });
     }
     return authority;
@@ -134,7 +156,7 @@ export class GatewayAuthority {
 
   snapshot(): AuthoritySnapshot {
     return {
-      version: 1,
+      version: 2,
       invites: [...this.invites].map(([key, invite]) => ({
         ...invite, key, digest: invite.digest.toString('hex'), grants: [...invite.grants],
       })),
@@ -161,6 +183,7 @@ export class GatewayAuthority {
   private isAllowed(effect: ExternalEffect): boolean {
     return this.allowedTools.some((entry) =>
       entry.toolkit === effect.toolkit && entry.tool === effect.tool &&
+      entry.version === effect.version &&
       entry.accountId === effect.accountId &&
       effect.scopes.length === entry.scopes.length &&
       new Set(effect.scopes).size === entry.scopes.length &&
@@ -242,10 +265,22 @@ export class GatewayAuthority {
 
   propose(id: string, secret: string, effect: ExternalEffect): ProposalView {
     this.authenticate(id, secret, 'propose');
-    if (![effect.toolkit, effect.tool, effect.accountId, effect.target, effect.body]
+    if (![effect.toolkit, effect.tool, effect.version, effect.accountId, effect.target, effect.body]
       .every((value) => typeof value === 'string' && value.trim()) ||
       !Array.isArray(effect.scopes) || effect.scopes.some((scope) => typeof scope !== 'string')) {
-      throw new Error('External effect needs an exact toolkit, tool, account, target, body, and scopes');
+      throw new Error('External effect needs an exact toolkit, tool, version, account, target, body, and scopes');
+    }
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(effect.toolkit) ||
+        !/^[A-Z][A-Z0-9_]{0,127}$/.test(effect.tool) ||
+        !effect.tool.startsWith(`${effect.toolkit.toUpperCase()}_`) ||
+        !/^[A-Za-z0-9._-]{1,80}$/.test(effect.version) || effect.version === 'latest' ||
+        effect.accountId === 'hosted_account') {
+      throw new Error('Use a concrete toolkit tool, pinned version, and connected account');
+    }
+    let argumentsValue: unknown;
+    try { argumentsValue = JSON.parse(effect.body); } catch { /* handled below */ }
+    if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
+      throw new Error('External effect body must be a JSON arguments object');
     }
     if (effect.body.length > 65_536 || effect.target.length > 2_048 || effect.scopes.length > 32) {
       throw new Error('External effect exceeds the review limit');
