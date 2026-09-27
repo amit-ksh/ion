@@ -102,6 +102,154 @@ pub struct GatewayProposal {
     pub status: String,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayRelayTask {
+    pub id: String,
+    pub project_id: String,
+    pub project_name: String,
+    pub title: String,
+    pub provider: String,
+    pub status: String,
+    pub runtime_id: Option<String>,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayRelayCommand {
+    pub id: String,
+    pub task_id: String,
+    pub runtime_id: String,
+    pub kind: String,
+    pub payload: HashMap<String, String>,
+    pub status: String,
+}
+
+/// A short-lived client for the desktop's outbound task bridge. It never
+/// exposes its bearer token or sends it through a redirect.
+pub struct GatewayApi {
+    url: reqwest::Url,
+    device_id: String,
+    token: String,
+    client: reqwest::blocking::Client,
+}
+
+impl GatewayApi {
+    pub fn identity(&self) -> (&str, &str) {
+        (self.url.as_str(), &self.device_id)
+    }
+
+    fn request<T: serde::de::DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<serde_json::Value>,
+    ) -> Result<T> {
+        let mut request = self
+            .client
+            .request(method, self.url.join(path)?)
+            .bearer_auth(&self.token)
+            .header("x-waku-device-id", &self.device_id);
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        let response = request
+            .send()
+            .context("Could not reach the personal gateway")?;
+        if !response.status().is_success() {
+            bail!(
+                "Personal gateway request failed (HTTP {})",
+                response.status()
+            );
+        }
+        response
+            .json()
+            .context("Gateway returned an invalid response")
+    }
+
+    pub fn has_publish_grant(&self) -> Result<bool> {
+        #[derive(Deserialize)]
+        struct Session {
+            device: GatewaySession,
+        }
+        let session: Session = self.request(reqwest::Method::GET, "v1/device/session", None)?;
+        Ok(session.device.id == self.device_id
+            && session.device.grants.iter().any(|grant| grant == "publish"))
+    }
+
+    pub fn publish_task(&self, task: &GatewayRelayTask) -> Result<()> {
+        let path = format!("v1/device/tasks/{}", task.id);
+        let _: serde_json::Value = self.request(
+            reqwest::Method::PUT,
+            &path,
+            Some(serde_json::json!({ "task": task })),
+        )?;
+        Ok(())
+    }
+
+    pub fn reconcile_tasks(&self, active_ids: &[String]) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            "v1/device/tasks/reconcile",
+            Some(serde_json::json!({ "activeIds": active_ids })),
+        )?;
+        Ok(())
+    }
+
+    pub fn heartbeat(&self) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            "v1/device/heartbeat",
+            Some(serde_json::json!({})),
+        )?;
+        Ok(())
+    }
+
+    pub fn publish_event(
+        &self,
+        event_id: &str,
+        task_id: &str,
+        kind: &str,
+        text: &str,
+        at: u64,
+    ) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            "v1/device/events",
+            Some(serde_json::json!({ "eventId": event_id, "taskId": task_id,
+                "kind": kind, "text": text, "at": at })),
+        )?;
+        Ok(())
+    }
+
+    pub fn pending_commands(&self) -> Result<Vec<GatewayRelayCommand>> {
+        #[derive(Deserialize)]
+        struct Commands {
+            commands: Vec<GatewayRelayCommand>,
+        }
+        Ok(self
+            .request::<Commands>(reqwest::Method::GET, "v1/device/commands", None)?
+            .commands)
+    }
+
+    pub fn claim_command(&self, id: &str) -> Result<GatewayRelayCommand> {
+        self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/commands/{id}/claim"),
+            Some(serde_json::json!({})),
+        )
+    }
+
+    pub fn settle_command(&self, id: &str, applied: bool) -> Result<GatewayRelayCommand> {
+        self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/commands/{id}/settle"),
+            Some(serde_json::json!({ "applied": applied })),
+        )
+    }
+}
+
 fn gateway_base_url(value: &str) -> Result<reqwest::Url> {
     let url = reqwest::Url::parse(value.trim()).context("Enter a valid gateway URL")?;
     let loopback = matches!(url.host_str(), Some("127.0.0.1" | "::1" | "localhost"));
@@ -240,6 +388,16 @@ impl CredentialService {
                 .context("Pair this desktop from the personal gateway owner console")?;
         gateway_base_url(&pairing.base_url)?;
         Ok(pairing)
+    }
+
+    pub fn gateway_api(&self) -> Result<GatewayApi> {
+        let pairing = self.gateway_pairing()?;
+        Ok(GatewayApi {
+            url: gateway_base_url(&pairing.base_url)?,
+            device_id: pairing.device_id,
+            token: pairing.token,
+            client: gateway_client()?,
+        })
     }
 
     pub fn gateway_session(&self) -> Result<GatewaySession> {

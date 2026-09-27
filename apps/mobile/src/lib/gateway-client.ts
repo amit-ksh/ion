@@ -23,6 +23,36 @@ export interface GatewayProposal {
   reviewedBy?: string;
 }
 
+export interface GatewayTask {
+  id: string;
+  projectId: string;
+  projectName: string;
+  title: string;
+  provider: string;
+  status: string;
+  runtimeId: string | null;
+  updatedAt: number;
+  publisherSeenAt?: number | null;
+}
+
+export interface GatewayTaskEvent {
+  cursor: number;
+  taskId: string;
+  kind: 'message' | 'activity' | 'artifact' | 'diff' | 'approval' | 'status';
+  text: string;
+  at: number;
+}
+
+export interface GatewayTaskCommand {
+  id: string;
+  taskId: string;
+  runtimeId: string;
+  kind: 'stop' | 'steer';
+  status: 'queued' | 'uncertain' | 'applied' | 'rejected';
+  createdAt: number;
+  updatedAt: number;
+}
+
 export function gatewayBaseUrl(input: string): string {
   let url: URL;
   try { url = new URL(input.trim()); }
@@ -91,4 +121,33 @@ export async function gatewayReviewStatus(
     pairing.baseUrl, `/v1/device/reviews/${proposalId}`,
     { headers: deviceHeaders(pairing) },
   );
+}
+
+export async function gatewayTasks(pairing: GatewayPairing): Promise<{
+  tasks: GatewayTask[]; publishedAt: number | null;
+}> {
+  return request(pairing.baseUrl, '/v1/device/tasks', { headers: deviceHeaders(pairing) });
+}
+
+export async function gatewayTaskEvents(pairing: GatewayPairing, after: number): Promise<{
+  events: GatewayTaskEvent[]; nextCursor: number; resetRequired: boolean;
+}> {
+  if (!Number.isSafeInteger(after) || after < 0) throw new Error('Invalid event cursor');
+  return request(pairing.baseUrl, `/v1/device/events?after=${after}`, { headers: deviceHeaders(pairing) });
+}
+
+export async function enqueueGatewayTaskCommand(pairing: GatewayPairing, input: {
+  idempotencyKey: string; taskId: string; runtimeId: string;
+  kind: 'stop' | 'steer'; payload: Record<string, string>;
+}): Promise<GatewayTaskCommand> {
+  return request(pairing.baseUrl, '/v1/device/commands', {
+    method: 'POST',
+    headers: { ...deviceHeaders(pairing), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function gatewayTaskCommand(pairing: GatewayPairing, id: string): Promise<GatewayTaskCommand> {
+  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error('Invalid task command ID');
+  return request(pairing.baseUrl, `/v1/device/commands/${id}`, { headers: deviceHeaders(pairing) });
 }

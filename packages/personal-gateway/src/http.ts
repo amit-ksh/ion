@@ -4,6 +4,7 @@ import type { DeviceGrant, ExternalEffect } from './authority';
 import type { ComposioCatalog } from './composio';
 import type { ComposioExecutor } from './composio-execution';
 import { ownerCss, ownerHtml, ownerJs } from './owner-ui';
+import { DurableTaskRelay, type RelayCommandKind, type RelayEvent, type RelayTask } from './task-relay';
 
 const maxBodyBytes = 70_000;
 
@@ -100,6 +101,7 @@ function authorizedDevice(
 export function createGatewayHandler(
   authority: DurableGatewayAuthority,
   ownerSecret: string,
+  relay: DurableTaskRelay,
   composio?: ComposioCatalog,
   executor?: ComposioExecutor,
 ) {
@@ -184,6 +186,73 @@ export function createGatewayHandler(
         const effect = rawEffect as ExternalEffect;
         return json(authority.propose(identity.id, identity.token, effect), 201);
       }
+      if (path === '/v1/device/tasks' && method === 'GET') {
+        authorizedDevice(request, authority, 'taskRead');
+        return json(relay.listTasks());
+      }
+      if (path === '/v1/device/heartbeat' && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        return json(relay.heartbeat(identity.id));
+      }
+      const publishTask = /^\/v1\/device\/tasks\/([0-9a-f-]{36})$/.exec(path);
+      if (publishTask && method === 'PUT') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        const task = input.task as RelayTask;
+        if (!task || task.id !== publishTask[1]) throw new HttpFailure(400, 'Invalid task');
+        return json(relay.publishTask(task, identity.id));
+      }
+      if (path === '/v1/device/tasks/reconcile' && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        if (!Array.isArray(input.activeIds)) throw new HttpFailure(400, 'Invalid task snapshot');
+        return json(relay.reconcileTasks(identity.id, input.activeIds as string[]));
+      }
+      if (path === '/v1/device/events' && method === 'GET') {
+        authorizedDevice(request, authority, 'taskRead');
+        const after = Number(url.searchParams.get('after') ?? '0');
+        return json(relay.events(after));
+      }
+      if (path === '/v1/device/events' && method === 'POST') {
+        authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        return json(relay.appendEvent(
+          string(input.eventId), string(input.taskId), string(input.kind) as RelayEvent['kind'],
+          string(input.text), Number(input.at),
+        ), 201);
+      }
+      if (path === '/v1/device/commands' && method === 'GET') {
+        authorizedDevice(request, authority, 'publish');
+        return json({ commands: relay.pendingCommands() });
+      }
+      if (path === '/v1/device/commands' && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'taskControl');
+        const input = await body(request);
+        return json(relay.enqueue(
+          identity.id, string(input.idempotencyKey), string(input.taskId),
+          string(input.runtimeId), string(input.kind) as RelayCommandKind,
+          input.payload as Record<string, string>,
+        ), 201);
+      }
+      const readCommand = /^\/v1\/device\/commands\/([0-9a-f-]{36})$/.exec(path);
+      if (readCommand && method === 'GET') {
+        const identity = authorizedDevice(request, authority, 'taskControl');
+        const command = relay.command(readCommand[1]!);
+        if (!command || command.deviceId !== identity.id) throw new HttpFailure(404, 'Command not found');
+        return json(command);
+      }
+      const claimCommand = /^\/v1\/device\/commands\/([0-9a-f-]{36})\/claim$/.exec(path);
+      if (claimCommand && method === 'POST') {
+        authorizedDevice(request, authority, 'publish');
+        return json(relay.claim(claimCommand[1]!));
+      }
+      const settleCommand = /^\/v1\/device\/commands\/([0-9a-f-]{36})\/settle$/.exec(path);
+      if (settleCommand && method === 'POST') {
+        authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        if (typeof input.applied !== 'boolean') throw new HttpFailure(400, 'Invalid command result');
+        return json(relay.settle(settleCommand[1]!, input.applied));
+      }
       if (path === '/v1/device/review-queue' && method === 'GET') {
         const identity = authorizedDevice(request, authority, 'review');
         return json({ proposals: authority.reviewQueue(identity.id, identity.token) });
@@ -206,7 +275,7 @@ export function createGatewayHandler(
         const identity = device(request);
         // Session inspection is available to any currently paired device,
         // including review-only phones.
-        const grants: DeviceGrant[] = ['inspect', 'propose', 'review'];
+        const grants: DeviceGrant[] = ['inspect', 'propose', 'review', 'publish', 'taskRead', 'taskControl'];
         if (!grants.some((grant) => {
           try { authority.authenticate(identity.id, identity.token, grant); return true; }
           catch { return false; }

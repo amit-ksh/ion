@@ -1045,6 +1045,9 @@ pub struct Waku {
     /// app entity. Debug builds can replace it independently after a rebuild;
     /// all live driver handles below are lightweight RPC proxies.
     daemon: waku_client::DaemonSupervisor,
+    /// Publishes task summaries and dispatches one-shot phone controls from
+    /// the paired gateway on a dedicated worker thread.
+    _gateway_bridge: Option<crate::gateway_bridge::GatewayBridge>,
     /// Cached once at construction for the Daemon settings connection URL;
     /// rendering must not query account or network configuration.
     daemon_hostname: String,
@@ -2798,8 +2801,10 @@ impl Waku {
                 })
             };
 
+            let gateway_bridge = crate::gateway_bridge::GatewayBridge::start(daemon.clone()).ok();
             Self {
                 daemon,
+                _gateway_bridge: gateway_bridge,
                 daemon_hostname,
                 session_hydrations: HashSet::new(),
                 pending_session_activation: None,

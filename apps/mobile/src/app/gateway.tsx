@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -6,9 +6,10 @@ import {
 
 import { useTheme } from '@/hooks/use-theme';
 import {
-  decideGatewayProposal, gatewayReviewQueue, gatewayReviewStatus, pairGateway,
-  type GatewayPairing, type GatewayProposal,
+  decideGatewayProposal, gatewayReviewQueue, gatewayReviewStatus, gatewayTasks, pairGateway,
+  type GatewayPairing, type GatewayProposal, type GatewayTask,
 } from '@/lib/gateway-client';
+import { clearCachedGatewayTasks, readCachedGatewayTasks, writeCachedGatewayTasks } from '@/lib/gateway-cache';
 import { deleteGatewayPairing, readGatewayPairing, writeGatewayPairing } from '@/lib/gateway-storage';
 
 export default function GatewayScreen() {
@@ -17,6 +18,9 @@ export default function GatewayScreen() {
   const [url, setUrl] = useState('');
   const [invite, setInvite] = useState('');
   const [proposals, setProposals] = useState<GatewayProposal[]>([]);
+  const [tasks, setTasks] = useState<GatewayTask[]>([]);
+  const [tasksStale, setTasksStale] = useState(true);
+  const [taskMessage, setTaskMessage] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(false);
@@ -30,11 +34,38 @@ export default function GatewayScreen() {
       setUrl(saved?.baseUrl ?? '');
       setLoaded(true);
       if (saved?.grants.includes('review')) void refresh(saved);
+      if (saved?.grants.includes('taskRead')) void refreshTasks(saved);
     }).catch((error) => {
       if (active) { setMessage(describe(error)); setLoaded(true); }
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!pairing) return;
+    const timer = setInterval(() => {
+      if (pairing.grants.includes('taskRead')) void refreshTasks(pairing);
+      if (pairing.grants.includes('review')) void refresh(pairing);
+    }, 8_000);
+    return () => clearInterval(timer);
+  }, [pairing]);
+
+  async function refreshTasks(current = pairing) {
+    if (!current?.grants.includes('taskRead')) return;
+    const identity = `${current.baseUrl}:${current.id}`;
+    try {
+      const feed = await gatewayTasks(current);
+      setTasks(feed.tasks);
+      setTasksStale(feed.publishedAt === null || feed.tasks.some((task) =>
+        !task.publisherSeenAt || Date.now() - task.publisherSeenAt > 60_000));
+      setTaskMessage(feed.publishedAt === null ? 'Desktop has not published tasks yet.' : null);
+      void writeCachedGatewayTasks(identity, feed.tasks);
+    } catch {
+      setTasksStale(true);
+      setTaskMessage('Gateway task feed unavailable. Cached task metadata is shown without controls.');
+      setTasks(await readCachedGatewayTasks(identity));
+    }
+  }
 
   async function refresh(current = pairing) {
     if (!current?.grants.includes('review')) return;
@@ -61,6 +92,7 @@ export default function GatewayScreen() {
       setInvite('');
       setMessage('Phone paired. The device grant expires automatically; the owner can revoke it sooner.');
       if (result.grants.includes('review')) await refresh(result);
+      if (result.grants.includes('taskRead')) await refreshTasks(result);
     } catch (error) { setMessage(describe(error)); }
     finally { setBusy(false); }
   }
@@ -69,6 +101,9 @@ export default function GatewayScreen() {
     await deleteGatewayPairing();
     setPairing(null);
     setProposals([]);
+    setTasks([]);
+    setTasksStale(true);
+    await clearCachedGatewayTasks();
     setOnline(false);
     setMessage('Pairing removed from this phone. Revoke the device in /owner too.');
   }
@@ -144,6 +179,27 @@ export default function GatewayScreen() {
         </View>
       )}
       {message && <Text accessibilityRole="alert" style={[styles.message, { color: theme.textSecondary }]}>{message}</Text>}
+      {pairing?.grants.includes('taskRead') && (
+        <View style={styles.section}>
+          <Text style={[styles.tool, { color: theme.text }]}>Desktop tasks</Text>
+          <Text style={[styles.meta, { color: tasksStale ? theme.warning : theme.textSecondary }]}>
+            {tasksStale ? 'Stale or offline · controls unavailable' : 'Connected · updates from the desktop'}
+          </Text>
+          {taskMessage && <Text style={[styles.meta, { color: theme.textSecondary }]}>{taskMessage}</Text>}
+          <Action label="Refresh tasks" disabled={busy} onPress={() => void refreshTasks()} color={theme.accent} />
+          {tasks.slice(0, 20).map((task) => (
+            <Pressable key={task.id} accessibilityRole="button"
+              accessibilityLabel={`Open ${task.title}, ${task.status}`}
+              onPress={() => router.push({ pathname: '/gateway-task/[id]', params: { id: task.id } })}
+              style={[styles.card, { backgroundColor: theme.raised, borderColor: theme.borderStrong }]}>
+              <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.projectName} · {task.provider}</Text>
+              <Text style={[styles.tool, { color: theme.text }]}>{task.title}</Text>
+              <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.status} · {task.publisherSeenAt && Date.now() - task.publisherSeenAt <= 60_000 ? 'Live feed' : 'Stale feed'}</Text>
+            </Pressable>
+          ))}
+          {tasks.length > 20 && <Text style={[styles.meta, { color: theme.textSecondary }]}>Showing 20 of {tasks.length} tasks.</Text>}
+        </View>
+      )}
       {pairing?.grants.includes('review') && proposals.map((proposal) => {
         const effect = proposal.effect;
         return (

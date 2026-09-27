@@ -135,6 +135,56 @@ describe('personal gateway HTTP boundary', () => {
     }
   });
 
+  test('desktop publish and phone task grants stay separate at the HTTP boundary', async () => {
+    const running = startGateway({ databasePath: databasePath(), ownerToken, allowedTools });
+    const call = (path: string, method: string, token?: string, data?: unknown, deviceId?: string) =>
+      running.server.fetch(request(path, method, token, data, deviceId));
+    try {
+      const pair = async (grants: string[]) => {
+        const { invite } = await (await call('/v1/owner/invites', 'POST', ownerToken, { grants })).json() as { invite: string };
+        return (await (await call('/v1/pair', 'POST', undefined, { invite, name: grants.join('-') })).json()) as { id: string; token: string };
+      };
+      const desktop = await pair(['publish']);
+      const phone = await pair(['taskRead', 'taskControl']);
+      expect((await call('/v1/device/session', 'GET', desktop.token, undefined, desktop.id)).status).toBe(200);
+      expect((await call('/v1/device/session', 'GET', phone.token, undefined, phone.id)).status).toBe(200);
+      const task = {
+        id: '11111111-1111-4111-8111-111111111111', projectId: '22222222-2222-4222-8222-222222222222',
+        projectName: 'Test project', title: 'Live task', provider: 'nebius', status: 'running',
+        runtimeId: '33333333-3333-4333-8333-333333333333', updatedAt: 10,
+      };
+      expect((await call(`/v1/device/tasks/${task.id}`, 'PUT', phone.token, { task }, phone.id)).status).toBe(401);
+      expect((await call(`/v1/device/tasks/${task.id}`, 'PUT', desktop.token, { task }, desktop.id)).status).toBe(200);
+      expect((await call('/v1/device/heartbeat', 'POST', phone.token, {}, phone.id)).status).toBe(401);
+      expect((await call('/v1/device/heartbeat', 'POST', desktop.token, {}, desktop.id)).status).toBe(200);
+      expect((await call('/v1/device/tasks', 'GET', desktop.token, undefined, desktop.id)).status).toBe(401);
+      expect(await (await call('/v1/device/tasks', 'GET', phone.token, undefined, phone.id)).json()).toEqual({ tasks: [{ ...task, publisherSeenAt: expect.any(Number) }], publishedAt: expect.any(Number) });
+      const event = await call('/v1/device/events', 'POST', desktop.token, {
+        eventId: 'runtime:1', taskId: task.id, kind: 'artifact', text: 'Review result', at: 11,
+      }, desktop.id);
+      expect(event.status).toBe(201);
+      const feed = await (await call('/v1/device/events?after=0', 'GET', phone.token, undefined, phone.id)).json() as { events: Array<{ kind: string }> };
+      expect(feed.events.map((entry) => entry.kind)).toEqual(['status', 'artifact']);
+      const commandResponse = await call('/v1/device/commands', 'POST', phone.token, {
+        idempotencyKey: '44444444-4444-4444-8444-444444444444', taskId: task.id,
+        runtimeId: task.runtimeId, kind: 'stop', payload: {},
+      }, phone.id);
+      expect(commandResponse.status).toBe(201);
+      const command = await commandResponse.json() as { id: string; status: string };
+      expect(command.status).toBe('queued');
+      expect((await call('/v1/device/commands', 'GET', phone.token, undefined, phone.id)).status).toBe(401);
+      expect((await call(`/v1/device/commands/${command.id}/claim`, 'POST', phone.token, {}, phone.id)).status).toBe(401);
+      expect((await call(`/v1/device/commands/${command.id}/claim`, 'POST', desktop.token, {}, desktop.id)).status).toBe(200);
+      expect((await (await call(`/v1/device/commands/${command.id}`, 'GET', phone.token, undefined, phone.id)).json() as { status: string }).status).toBe('uncertain');
+      expect((await call(`/v1/device/commands/${command.id}/claim`, 'POST', desktop.token, {}, desktop.id)).status).toBe(400);
+      expect((await call('/v1/device/tasks/reconcile', 'POST', phone.token, { activeIds: [] }, phone.id)).status).toBe(401);
+      expect((await call('/v1/device/tasks/reconcile', 'POST', desktop.token, { activeIds: [] }, desktop.id)).status).toBe(200);
+      expect((await (await call('/v1/device/tasks', 'GET', phone.token, undefined, phone.id)).json() as { tasks: unknown[] }).tasks).toEqual([]);
+    } finally {
+      await running.close();
+    }
+  });
+
   test('connected-account lookup strips credential state and remains owner-only', async () => {
     let requestedUrl = '';
     let keyHeader = '';

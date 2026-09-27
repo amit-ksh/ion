@@ -1,6 +1,7 @@
 import type { AllowedTool } from './authority';
 import { DurableGatewayAuthority } from './durable-authority';
 import { createGatewayHandler } from './http';
+import { DurableTaskRelay } from './task-relay';
 import type { ComposioCatalog } from './composio';
 import type { ComposioExecutor } from './composio-execution';
 
@@ -24,23 +25,26 @@ export function startGateway(options: GatewayServerOptions): {
     throw new Error('A non-loopback gateway requires TLS');
   }
   const authority = new DurableGatewayAuthority(options.databasePath, options.allowedTools);
+  const relay = new DurableTaskRelay(options.databasePath);
   try {
     const server = Bun.serve({
       hostname,
       port: options.port ?? 0,
       tls: options.tls,
       maxRequestBodySize: 70_000,
-      fetch: createGatewayHandler(authority, options.ownerToken, options.composio, options.executor),
+      fetch: createGatewayHandler(authority, options.ownerToken, relay, options.composio, options.executor),
       error: () => Response.json({ error: 'Request rejected' }, { status: 500 }),
     });
     return {
       server,
       close: async () => {
         await server.stop();
+        relay.close();
         authority.close();
       },
     };
   } catch (error) {
+    relay.close();
     authority.close();
     throw error;
   }

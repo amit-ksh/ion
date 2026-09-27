@@ -33,6 +33,7 @@ mod app;
 mod assets;
 mod browser;
 mod computer_use;
+mod gateway_bridge;
 use waku_credentials as credentials;
 pub mod daemon;
 mod driver;

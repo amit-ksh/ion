@@ -7,7 +7,7 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-export type DeviceGrant = 'inspect' | 'propose' | 'review';
+export type DeviceGrant = 'inspect' | 'propose' | 'review' | 'publish' | 'taskRead' | 'taskControl';
 export type EffectStatus = 'pending' | 'denied' | 'approved' | 'uncertain' | 'succeeded';
 
 export interface ExternalEffect {
@@ -202,7 +202,8 @@ export class GatewayAuthority {
     if (lifetimeMs <= 0 || lifetimeMs > 5 * 60_000) {
       throw new Error('Pairing invite lifetime must be at most five minutes');
     }
-    if (!grants.length || grants.some((grant) => !['inspect', 'propose', 'review'].includes(grant))) {
+    if (!grants.length || grants.some((grant) =>
+      !['inspect', 'propose', 'review', 'publish', 'taskRead', 'taskControl'].includes(grant))) {
       throw new Error('Choose explicit device grants');
     }
     if (deviceLifetimeMs <= 0 || deviceLifetimeMs > 24 * 60 * 60_000) {

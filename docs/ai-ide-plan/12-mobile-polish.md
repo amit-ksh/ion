@@ -2,8 +2,8 @@
 
 The user authorized Milestone 5 development while Milestones 2–4 await live
 review. Their unchecked acceptance items stay open. This milestone is **in
-progress**; the first implemented slice is phone pairing and exact gateway
-approval review.
+progress**. Phone pairing, exact external-action review, and the first task
+mirror/control slice are implemented locally.
 
 ## Development checklist
 
@@ -21,10 +21,17 @@ approval review.
       pending task approvals to the paired gateway with narrow, device-specific
       read grants. The existing mobile daemon connection supports task views,
       but uses a full daemon token and is not this gateway path.
+- [x] Publish bounded desktop task summaries, complete visible messages, tool
+      activity, and diffs through a background bridge. Separate `publish`,
+      `taskRead`, and `taskControl` grants isolate the desktop and phone. Task
+      deletion reconciles against the publisher's latest snapshot.
 - [ ] Add gateway-mediated answer, steer, and stop commands with durable
       acknowledgements and idempotent replay rules. Show the active target and
       an emergency stop for any computer-control flow.
-- [ ] Add monotonic event cursors and a nonsecret offline cache for gateway
+- [x] Add durable, single-claim steer and stop commands. A lost desktop
+      acknowledgement stays `uncertain` and is never replayed as a new action.
+      The phone disables controls when the owning desktop's heartbeat is stale.
+- [x] Add monotonic event cursors and a nonsecret offline cache for gateway
       task inspection. A stale view must never enable a write decision.
 - [ ] Add mobile notifications and optional phone dictation transfer to the
       paired desktop only after the connection and consent controls work.
@@ -32,6 +39,24 @@ approval review.
       and narrated demo/submission assets.
 
 ## User review checklist
+
+- [ ] On `/owner`, create one desktop invite with **Publish desktop state** and a
+      separate phone invite with **Read tasks** and **Control tasks**. Uncheck
+      the default **Inspect own actions** grant if it is not needed. Pair the
+      desktop in Settings → Models & Speech → Personal gateway;
+      pair the phone in its Personal gateway screen. Confirm the desktop device
+      cannot use phone read/control routes and the phone cannot publish.
+- [ ] Start a desktop task, open it on the phone, and compare ordered messages,
+      activity, and diffs. Confirm the phone shows the active project, provider,
+      task, and runtime status. Steer the running task once, then stop another
+      task and confirm computer control and the turn stop on the desktop.
+- [ ] Disconnect the desktop or revoke its publisher grant. After a minute,
+      confirm the phone marks that publisher's tasks stale and disables steer
+      and stop. Reconnect and confirm the cursor resumes without duplicating
+      events. Delete a desktop task and confirm it disappears from the phone.
+- [ ] Disconnect the phone during a queued command. Reconnect and confirm the
+      durable command status is shown. An `uncertain` outcome requires desktop
+      inspection and must not replay the command automatically.
 
 - [ ] On the deployed gateway's `/owner` page, create a one-use invite with
       **Review approvals**. Pair an iOS or Android phone through **Personal
@@ -49,4 +74,8 @@ approval review.
 - [ ] Review the later task-control, offline, performance, accessibility, and
       demo items above when implemented, then explicitly approve Milestone 5.
 
-No live phone or deployed gateway was available for this development pass.
+The task mirror and controls passed local gateway tests, TypeScript checks,
+and desktop compilation. A live phone, deployed gateway, and provider task
+are still needed for the review items above. Pending task approvals, answer
+commands, notifications, phone dictation, packaging, and demo assets remain
+development work.

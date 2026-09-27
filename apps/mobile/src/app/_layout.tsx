@@ -162,6 +162,7 @@ function AppNavigator() {
         }}
       />
       <Stack.Screen name="gateway" options={{ title: 'Personal gateway' }} />
+      <Stack.Screen name="gateway-task/[id]" options={{ title: 'Gateway task' }} />
     </Stack>
   );
 }
