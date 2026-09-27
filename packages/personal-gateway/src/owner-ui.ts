@@ -7,7 +7,7 @@ export const ownerHtml = `<!doctype html>
   <section id="sign-in"><h2>Owner access</h2><label for="owner-token">Owner token</label><div class="inline"><input id="owner-token" type="password" autocomplete="off" spellcheck="false"><button id="connect">Unlock</button></div><p>Your token stays in this tab's memory. Closing the tab clears it.</p></section>
   <div id="console" hidden>
     <nav><button id="refresh">Refresh</button><button id="lock">Lock</button></nav><p id="notice" role="status" aria-live="polite"></p>
-    <section><h2>Pair a device</h2><p>Create a one-use invite valid for five minutes. Share it with the desktop only over a trusted channel.</p><div class="inline"><label><input id="inspect" type="checkbox" checked> Inspect</label><label><input id="propose" type="checkbox"> Propose writes</label><button id="invite">Create invite</button></div><div id="invite-result" hidden><label for="invite-secret">Copy this invite now</label><input id="invite-secret" readonly><p>It will disappear when you lock or refresh this tab.</p></div></section>
+    <section><h2>Pair a device</h2><p>Create a one-use invite valid for five minutes. Share it with the device only over a trusted channel. Give a phone Review approval only when you want it to decide pending actions.</p><div class="inline"><label><input id="inspect" type="checkbox" checked> Inspect own actions</label><label><input id="propose" type="checkbox"> Propose writes</label><label><input id="review" type="checkbox"> Review approvals</label><button id="invite">Create invite</button></div><div id="invite-result" hidden><label for="invite-secret">Copy this invite now</label><input id="invite-secret" readonly><p>It will disappear when you lock or refresh this tab.</p></div></section>
     <section><h2>Pending approvals</h2><p>Check the connected account, target, arguments and scopes before allowing an action.</p><div id="proposals"></div></section>
     <section><h2>Action history</h2><div id="history"></div></section>
     <section><h2>Paired devices</h2><div id="devices"></div></section>
@@ -48,7 +48,7 @@ async function refresh() {
   const approved = proposals.value.proposals.filter(p => p.status === 'approved');
   for (const p of approved) {
     const e = p.effect;
-    const item = row($('proposals'), 'Approved · ' + e.tool, ['Account: ' + e.accountId, 'Toolkit: ' + e.toolkit + ' · Version: ' + e.version, 'Target: ' + e.target, 'Scopes: ' + e.scopes.join(', '), 'Proposed by device: ' + p.deviceId]);
+    const item = row($('proposals'), 'Approved · ' + e.tool, ['Account: ' + e.accountId, 'Toolkit: ' + e.toolkit + ' · Version: ' + e.version, 'Target: ' + e.target, 'Scopes: ' + e.scopes.join(', '), 'Proposed by device: ' + p.deviceId, 'Reviewed by: ' + (p.reviewedBy || 'Unknown')]);
     item.append(node('pre', e.body));
     item.append(button('Execute once', async () => { if (!confirm('Send this approved action to Composio once? An interrupted response cannot be retried automatically.')) return; const result = await api('/v1/owner/proposals/' + p.id + '/execute', 'POST'); await refresh(); notice(result.status === 'uncertain' ? 'Result uncertain. Check the connected account before any new action.' : 'Executed. Log ID: ' + result.resultReference); }));
   }
@@ -58,7 +58,7 @@ async function refresh() {
   if (!history.length) $('history').append(node('p', 'No completed decisions yet.'));
   for (const p of history) {
     const e = p.effect;
-    row($('history'), p.status + ' · ' + e.tool, ['Account: ' + e.accountId, 'Target: ' + e.target, 'Version: ' + e.version, 'Log ID: ' + (p.resultReference || 'None')]);
+    row($('history'), p.status + ' · ' + e.tool, ['Account: ' + e.accountId, 'Target: ' + e.target, 'Version: ' + e.version, 'Reviewed by: ' + (p.reviewedBy || 'Unknown'), 'Log ID: ' + (p.resultReference || 'None')]);
   }
   if (!devices.value.devices.length) $('devices').append(node('p', 'No paired devices.'));
   for (const d of devices.value.devices) {
@@ -77,4 +77,4 @@ $('connect').addEventListener('click', async () => { token = $('owner-token').va
 $('owner-token').addEventListener('keydown', e => { if (e.key === 'Enter') $('connect').click(); });
 $('lock').addEventListener('click', () => { token = ''; $('invite-secret').value = ''; $('invite-result').hidden = true; $('console').hidden = true; $('sign-in').hidden = false; $('owner-token').focus(); });
 $('refresh').addEventListener('click', () => { $('invite-secret').value = ''; $('invite-result').hidden = true; refresh().catch(e => notice(e.message)); });
-$('invite').addEventListener('click', async () => { const grants = []; if ($('inspect').checked) grants.push('inspect'); if ($('propose').checked) grants.push('propose'); try { const result = await api('/v1/owner/invites', 'POST', { grants }); $('invite-secret').value = result.invite; $('invite-result').hidden = false; notice('Invite created. It expires in five minutes.'); } catch (e) { notice(e.message); } });`;
+$('invite').addEventListener('click', async () => { const grants = []; if ($('inspect').checked) grants.push('inspect'); if ($('propose').checked) grants.push('propose'); if ($('review').checked) grants.push('review'); try { const result = await api('/v1/owner/invites', 'POST', { grants }); $('invite-secret').value = result.invite; $('invite-result').hidden = false; notice('Invite created. It expires in five minutes.'); } catch (e) { notice(e.message); } });`;

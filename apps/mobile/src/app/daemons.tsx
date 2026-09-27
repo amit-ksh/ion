@@ -71,6 +71,12 @@ export default function DaemonsScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}>
         <ConnectionBanner />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/gateway')}
+          style={[styles.gatewayLink, { borderColor: theme.borderStrong }]}>
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Personal gateway approvals</Text>
+        </Pressable>
         {daemon.profiles.length ? (
           <>
             <Text style={[styles.sectionTitle, { color: theme.textTertiary }]}>Daemons</Text>
@@ -109,6 +115,7 @@ export default function DaemonsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   listContent: { paddingBottom: 36, paddingHorizontal: 16 },
+  gatewayLink: { borderWidth: 1, borderRadius: 9, minHeight: 46, justifyContent: 'center', paddingHorizontal: 14, marginBottom: 10 },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '500',

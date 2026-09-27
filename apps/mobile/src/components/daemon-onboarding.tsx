@@ -4,7 +4,7 @@ import { AppSymbol } from '@/components/app-symbol';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export function DaemonOnboarding({ onAddDaemon }: { onAddDaemon: () => void }) {
+export function DaemonOnboarding({ onAddDaemon, onPairGateway }: { onAddDaemon: () => void; onPairGateway: () => void }) {
   const theme = useTheme();
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
@@ -32,6 +32,9 @@ export function DaemonOnboarding({ onAddDaemon }: { onAddDaemon: () => void }) {
           tintColor={theme.onInverse}
         />
         <Text style={[styles.primaryButtonText, { color: theme.onInverse }]}>Add a daemon</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Pair personal gateway" onPress={onPairGateway} style={styles.gatewayButton}>
+        <Text style={[styles.gatewayButtonText, { color: theme.text }]}>Pair personal gateway</Text>
       </Pressable>
       <View style={styles.securityNote}>
         <AppSymbol
@@ -74,6 +77,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   primaryButtonText: { fontSize: 16, fontWeight: '700' },
+  gatewayButton: { justifyContent: 'center', minHeight: 46, marginTop: 10, paddingHorizontal: 18 },
+  gatewayButtonText: { fontSize: 15, fontWeight: '600' },
   securityNote: {
     alignItems: 'flex-start',
     flexDirection: 'row',

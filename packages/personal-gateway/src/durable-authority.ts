@@ -112,6 +112,18 @@ export class DurableGatewayAuthority {
     return this.write((authority) => authority.decide(proposalId, fingerprint, approve));
   }
 
+  reviewQueue(id: string, secret: string): ProposalView[] {
+    return this.read((authority) => authority.reviewQueue(id, secret));
+  }
+
+  reviewStatus(id: string, secret: string, proposalId: string): ProposalView {
+    return this.read((authority) => authority.reviewStatus(id, secret, proposalId));
+  }
+
+  review(id: string, secret: string, proposalId: string, fingerprint: string, approve: boolean): ProposalView {
+    return this.write((authority) => authority.review(id, secret, proposalId, fingerprint, approve));
+  }
+
   /** The uncertain claim is committed before this method returns the effect. */
   beginExecution(proposalId: string): ExternalEffect {
     return this.write((authority) => authority.beginExecution(proposalId));

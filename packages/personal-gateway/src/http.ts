@@ -184,8 +184,33 @@ export function createGatewayHandler(
         const effect = rawEffect as ExternalEffect;
         return json(authority.propose(identity.id, identity.token, effect), 201);
       }
+      if (path === '/v1/device/review-queue' && method === 'GET') {
+        const identity = authorizedDevice(request, authority, 'review');
+        return json({ proposals: authority.reviewQueue(identity.id, identity.token) });
+      }
+      const reviewStatus = /^\/v1\/device\/reviews\/([0-9a-f-]{36})$/.exec(path);
+      if (reviewStatus && method === 'GET') {
+        const identity = authorizedDevice(request, authority, 'review');
+        return json(authority.reviewStatus(identity.id, identity.token, reviewStatus[1]!));
+      }
+      const deviceDecision = /^\/v1\/device\/proposals\/([0-9a-f-]{36})\/decision$/.exec(path);
+      if (deviceDecision && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'review');
+        const input = await body(request);
+        if (typeof input.approve !== 'boolean') throw new HttpFailure(400, 'Invalid decision');
+        return json(authority.review(
+          identity.id, identity.token, deviceDecision[1]!, string(input.fingerprint), input.approve,
+        ));
+      }
       if (path === '/v1/device/session' && method === 'GET') {
-        const identity = authorizedDevice(request, authority, 'inspect');
+        const identity = device(request);
+        // Session inspection is available to any currently paired device,
+        // including review-only phones.
+        const grants: DeviceGrant[] = ['inspect', 'propose', 'review'];
+        if (!grants.some((grant) => {
+          try { authority.authenticate(identity.id, identity.token, grant); return true; }
+          catch { return false; }
+        })) throw new HttpFailure(401, 'Device authorization required');
         return json({ device: authority.listDevices().find((entry) => entry.id === identity.id) });
       }
       if (path === '/v1/device/connected-accounts' && method === 'GET') {

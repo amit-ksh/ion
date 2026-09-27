@@ -9,6 +9,9 @@ owner console at `/owner` creates single-use pairing invites lasting at most fiv
 Paired device tokens last at most one day, are stored only as SHA-256 digests,
 and can be revoked. A paired device can inspect or propose only according to
 its grants. External effects have an immutable review snapshot and fingerprint.
+The separate `review` grant permits a paired phone to see pending proposals
+and decide an exact fingerprint, but never to execute it. A reviewer cannot
+decide its own proposal.
 The snapshot binds a concrete toolkit, tool, pinned version, connected account,
 target, JSON arguments body, and declared scopes.
 The owner must approve that exact fingerprint. Execution changes the proposal

@@ -79,6 +79,7 @@ remain intact for the Full profile after the event.
 9. [Native Nebius runtime and manual check](09-native-nebius-runtime.md)
 10. [Workflows and GitHub review check](10-workflows-github.md)
 11. [Local speech and personal gateway review check](11-speech-gateway.md)
+12. [Mobile control and polish](12-mobile-polish.md)
 
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.

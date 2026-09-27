@@ -161,6 +161,7 @@ function AppNavigator() {
           title: "Add Daemon",
         }}
       />
+      <Stack.Screen name="gateway" options={{ title: 'Personal gateway' }} />
     </Stack>
   );
 }

@@ -99,6 +99,42 @@ describe('personal gateway HTTP boundary', () => {
     })).toThrow('requires TLS');
   });
 
+  test('a review-only phone can decide an exact proposal but cannot execute it', async () => {
+    const running = startGateway({ databasePath: databasePath(), ownerToken, allowedTools });
+    const call = (path: string, method: string, token?: string, data?: unknown, deviceId?: string) =>
+      running.server.fetch(request(path, method, token, data, deviceId));
+    try {
+      const pair = async (grants: string[], name: string) => {
+        const { invite } = await (await call('/v1/owner/invites', 'POST', ownerToken, { grants })).json() as { invite: string };
+        return (await (await call('/v1/pair', 'POST', undefined, { invite, name })).json()) as { id: string; token: string };
+      };
+      const desktop = await pair(['inspect', 'propose'], 'Desktop');
+      const phone = await pair(['review'], 'Phone');
+      const proposal = await (await call('/v1/device/proposals', 'POST', desktop.token, { effect }, desktop.id)).json() as { id: string; fingerprint: string };
+      expect((await call('/v1/device/review-queue', 'GET', desktop.token, undefined, desktop.id)).status).toBe(401);
+      expect((await call('/v1/device/proposals', 'POST', phone.token, { effect }, phone.id)).status).toBe(401);
+      expect((await call('/v1/device/session', 'GET', phone.token, undefined, phone.id)).status).toBe(200);
+      const queue = await (await call('/v1/device/review-queue', 'GET', phone.token, undefined, phone.id)).json() as { proposals: Array<{ id: string; effect: typeof effect }> };
+      expect(queue.proposals).toEqual([expect.objectContaining({ id: proposal.id, effect })]);
+      expect((await call(`/v1/device/proposals/${proposal.id}/decision`, 'POST', phone.token, {
+        fingerprint: '0'.repeat(64), approve: true,
+      }, phone.id)).status).toBe(400);
+      const decided = await call(`/v1/device/proposals/${proposal.id}/decision`, 'POST', phone.token, {
+        fingerprint: proposal.fingerprint, approve: true,
+      }, phone.id);
+      expect((await decided.json() as { status: string; reviewedBy: string }).status).toBe('approved');
+      expect((await call(`/v1/device/proposals/${proposal.id}/decision`, 'POST', phone.token, {
+        fingerprint: proposal.fingerprint, approve: true,
+      }, phone.id)).status).toBe(200);
+      expect((await call(`/v1/owner/proposals/${proposal.id}/execute`, 'POST', phone.token, undefined, phone.id)).status).toBe(401);
+      expect((await (await call('/v1/device/review-queue', 'GET', phone.token, undefined, phone.id)).json() as { proposals: unknown[] }).proposals).toEqual([]);
+      await call(`/v1/owner/devices/${phone.id}/revoke`, 'POST', ownerToken);
+      expect((await call('/v1/device/review-queue', 'GET', phone.token, undefined, phone.id)).status).toBe(401);
+    } finally {
+      await running.close();
+    }
+  });
+
   test('connected-account lookup strips credential state and remains owner-only', async () => {
     let requestedUrl = '';
     let keyHeader = '';

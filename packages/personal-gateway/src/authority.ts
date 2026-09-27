@@ -7,7 +7,7 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-export type DeviceGrant = 'inspect' | 'propose';
+export type DeviceGrant = 'inspect' | 'propose' | 'review';
 export type EffectStatus = 'pending' | 'denied' | 'approved' | 'uncertain' | 'succeeded';
 
 export interface ExternalEffect {
@@ -51,6 +51,7 @@ interface Proposal {
   fingerprint: string;
   status: EffectStatus;
   resultReference?: string;
+  reviewedBy?: string;
 }
 
 export interface AuthoritySnapshot {
@@ -72,6 +73,7 @@ export interface ProposalView {
   fingerprint: string;
   status: EffectStatus;
   resultReference?: string;
+  reviewedBy?: string;
 }
 
 export interface DeviceView {
@@ -102,6 +104,7 @@ function publicProposal(proposal: Proposal): ProposalView {
     fingerprint: proposal.fingerprint,
     status: proposal.status,
     resultReference: proposal.resultReference,
+    reviewedBy: proposal.reviewedBy,
   };
 }
 
@@ -199,7 +202,7 @@ export class GatewayAuthority {
     if (lifetimeMs <= 0 || lifetimeMs > 5 * 60_000) {
       throw new Error('Pairing invite lifetime must be at most five minutes');
     }
-    if (!grants.length || grants.some((grant) => grant !== 'inspect' && grant !== 'propose')) {
+    if (!grants.length || grants.some((grant) => !['inspect', 'propose', 'review'].includes(grant))) {
       throw new Error('Choose explicit device grants');
     }
     if (deviceLifetimeMs <= 0 || deviceLifetimeMs > 24 * 60 * 60_000) {
@@ -309,6 +312,49 @@ export class GatewayAuthority {
       throw new Error('Tool, account, or scope is outside the gateway grant');
     }
     proposal.status = approve ? 'approved' : 'denied';
+    proposal.reviewedBy = 'owner';
+    return publicProposal(proposal);
+  }
+
+  /** A separately paired reviewer can decide an exact proposal, never execute it. */
+  review(id: string, secret: string, proposalId: string, fingerprint: string, approve: boolean): ProposalView {
+    this.authenticate(id, secret, 'review');
+    const proposal = this.proposals.get(proposalId);
+    if (!proposal || proposal.deviceId === id || proposal.fingerprint !== fingerprint) {
+      throw new Error('Proposal is unavailable for review');
+    }
+    if (proposal.status !== 'pending') {
+      if (proposal.reviewedBy === id && proposal.status === (approve ? 'approved' : 'denied')) {
+        return publicProposal(proposal);
+      }
+      throw new Error('Proposal is no longer pending');
+    }
+    const proposer = this.devices.get(proposal.deviceId);
+    if (!proposer || proposer.revoked || this.now() >= proposer.expiresAt ||
+        (approve && !this.isAllowed(proposal.effect))) {
+      throw new Error('Proposed action is no longer authorized');
+    }
+    proposal.status = approve ? 'approved' : 'denied';
+    proposal.reviewedBy = id;
+    return publicProposal(proposal);
+  }
+
+  reviewQueue(id: string, secret: string): ProposalView[] {
+    this.authenticate(id, secret, 'review');
+    return [...this.proposals.values()]
+      .filter((proposal) => {
+        const proposer = this.devices.get(proposal.deviceId);
+        return proposal.status === 'pending' && proposal.deviceId !== id &&
+          !!proposer && !proposer.revoked && this.now() < proposer.expiresAt &&
+          this.isAllowed(proposal.effect);
+      })
+      .map(publicProposal);
+  }
+
+  reviewStatus(id: string, secret: string, proposalId: string): ProposalView {
+    this.authenticate(id, secret, 'review');
+    const proposal = this.proposals.get(proposalId);
+    if (!proposal || proposal.deviceId === id) throw new Error('Proposal is unavailable for review');
     return publicProposal(proposal);
   }
 
