@@ -24,6 +24,8 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>ion records your voice locally when you choose Dictate, then transcribes it with the on-device Nemotron speech model.</string>
     <!-- Sparkle auto-update configuration. The appcast feed lives in the
          waku-releases Cloudflare R2 bucket behind releases.waku.sh, and the
          private half of SUPublicEDKey signs each archive from the login

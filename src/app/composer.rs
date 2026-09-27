@@ -2856,6 +2856,32 @@ impl Waku {
                     card.child(self.render_composer_attachments(cx))
                 })
                 .child(div().pt(px(2.0)).child(self.composer.clone()))
+                .when(self.speech_feedback.is_some(), |card| {
+                    card.child(
+                        div()
+                            .px(px(12.0))
+                            .pt(px(5.0))
+                            .text_size(sp(11.5))
+                            .text_color(theme.text_secondary)
+                            .child(self.speech_feedback.clone().unwrap_or_default()),
+                    )
+                })
+                .when(self.speech_transcript.is_some(), |card| {
+                    card.child(
+                        div()
+                            .id("composer-dictation-preview")
+                            .mx(px(12.0))
+                            .mt(px(5.0))
+                            .max_h(px(100.0))
+                            .overflow_y_scroll()
+                            .p(px(8.0))
+                            .rounded(px(7.0))
+                            .bg(theme.inset)
+                            .text_size(sp(12.0))
+                            .text_color(theme.text)
+                            .child(self.speech_transcript.clone().unwrap_or_default()),
+                    )
+                })
                 .child(
                     div()
                         .mt(px(8.0))
@@ -2870,6 +2896,118 @@ impl Waku {
                         .children(self.render_agent_preset_control(cx))
                         .child(self.render_access_control(cx))
                         .children(self.render_goal_control(cx))
+                        .child(
+                            div()
+                                .id("composer-dictate")
+                                .tab_group()
+                                .tab_index(0)
+                                .tab_stop(true)
+                                .focus_visible(|style| style.border_color(theme.accent))
+                                .min_h(px(28.0))
+                                .px(px(9.0))
+                                .rounded(px(7.0))
+                                .border_1()
+                                .border_color(if self.speech_recording {
+                                    theme.accent
+                                } else {
+                                    theme.border_strong
+                                })
+                                .flex()
+                                .items_center()
+                                .text_size(sp(11.5))
+                                .text_color(theme.text)
+                                .tooltip(Tooltip::text(if self.speech_recording {
+                                    "Stop and transcribe local recording"
+                                } else {
+                                    "Record locally with Nemotron 3.5; first use downloads about 742 MB"
+                                }))
+                                .child(if self.speech_recording {
+                                    "Stop dictation"
+                                } else if self.speech_busy {
+                                    "Preparing speech…"
+                                } else {
+                                    "Dictate"
+                                })
+                                .on_click(
+                                    cx.listener(|this, _, _, cx| this.toggle_speech_recording(cx)),
+                                )
+                                .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                                    if !event.keystroke.modifiers.modified()
+                                        && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                                    {
+                                        this.toggle_speech_recording(cx);
+                                        cx.stop_propagation();
+                                    }
+                                })),
+                        )
+                        .when(self.speech_recording, |row| {
+                            row.child(
+                                div()
+                                    .id("composer-cancel-dictation")
+                                    .tab_group()
+                                    .tab_index(0)
+                                    .tab_stop(true)
+                                    .focus_visible(|style| style.border_color(theme.accent))
+                                    .min_h(px(28.0))
+                                    .px(px(8.0))
+                                    .rounded(px(7.0))
+                                    .text_size(sp(11.5))
+                                    .text_color(theme.text_secondary)
+                                    .flex()
+                                    .items_center()
+                                    .child("Cancel")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.cancel_speech_recording(cx)
+                                    }))
+                                    .on_key_down(cx.listener(
+                                        |this, event: &KeyDownEvent, _, cx| {
+                                            if !event.keystroke.modifiers.modified()
+                                                && matches!(
+                                                    event.keystroke.key.as_str(),
+                                                    "enter" | "space"
+                                                )
+                                            {
+                                                this.cancel_speech_recording(cx);
+                                                cx.stop_propagation();
+                                            }
+                                        },
+                                    )),
+                            )
+                        })
+                        .when(self.speech_transcript.is_some(), |row| {
+                            row.child(
+                                div()
+                                    .id("composer-insert-dictation")
+                                    .tab_group()
+                                    .tab_index(0)
+                                    .tab_stop(true)
+                                    .focus_visible(|style| style.border_color(theme.accent))
+                                    .min_h(px(28.0))
+                                    .px(px(8.0))
+                                    .rounded(px(7.0))
+                                    .text_size(sp(11.5))
+                                    .text_color(theme.text)
+                                    .flex()
+                                    .items_center()
+                                    .child("Insert dictation")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.insert_speech_transcript(window, cx)
+                                    }))
+                                    .on_key_down(cx.listener(
+                                        |this, event: &KeyDownEvent, window, cx| {
+                                            if !event.keystroke.modifiers.modified()
+                                                && matches!(
+                                                    event.keystroke.key.as_str(),
+                                                    "enter" | "space"
+                                                )
+                                            {
+                                                this.insert_speech_transcript(window, cx);
+                                                cx.stop_propagation();
+                                            }
+                                        },
+                                    )),
+                            )
+                        })
                         .child(div().flex_1())
                         .child(match submit_action {
                             ComposerSubmitAction::Preparing => div()

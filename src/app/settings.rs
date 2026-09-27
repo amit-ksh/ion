@@ -110,6 +110,101 @@ pub(super) fn visible_settings_pages(
 }
 
 impl Waku {
+    pub(super) fn toggle_speech_recording(&mut self, cx: &mut Context<Self>) {
+        if self.speech_recording {
+            if let Some(stop) = self.speech_stop_tx.take() {
+                let _ = stop.send(crate::speech::RecordCommand::Stop);
+            }
+            self.speech_recording = false;
+            self.speech_busy = true;
+            self.speech_feedback = Some("Transcribing local microphone audio…".into());
+            cx.notify();
+            return;
+        }
+        if self.speech_busy {
+            return;
+        }
+        self.speech_generation = self.speech_generation.wrapping_add(1);
+        let generation = self.speech_generation;
+        let language = self.speech_language;
+        self.speech_busy = true;
+        self.speech_transcript = None;
+        self.speech_draft_owner = self.selected_composer_draft_key();
+        self.speech_feedback = Some("Preparing the local Nemotron 3.5 model…".into());
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let prepared = cx
+                .background_executor()
+                .spawn(async { smol::unblock(crate::speech::prepare_model).await })
+                .await;
+            if let Err(error) = prepared {
+                let _ = waku.update(cx, |waku, cx| {
+                    if waku.speech_generation == generation {
+                        waku.speech_busy = false;
+                        waku.speech_feedback = Some(error.to_string());
+                        cx.notify();
+                    }
+                });
+                return;
+            }
+            let (stop, commands) = crossbeam_channel::unbounded();
+            let started = waku
+                .update(cx, |waku, cx| {
+                    if waku.speech_generation != generation {
+                        return false;
+                    }
+                    waku.speech_busy = false;
+                    waku.speech_recording = true;
+                    waku.speech_stop_tx = Some(stop);
+                    waku.speech_feedback = Some(
+                        "Recording microphone audio locally. Press Stop when finished.".into(),
+                    );
+                    cx.notify();
+                    true
+                })
+                .unwrap_or(false);
+            if !started {
+                return;
+            }
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    smol::unblock(move || crate::speech::record_and_transcribe(commands, language))
+                        .await
+                })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.speech_generation != generation {
+                    return;
+                }
+                waku.speech_busy = false;
+                waku.speech_recording = false;
+                waku.speech_stop_tx = None;
+                match result {
+                    Ok(Some(transcript)) => {
+                        waku.speech_transcript = Some(transcript);
+                        waku.speech_feedback =
+                            Some("Dictation is ready to insert into the composer.".into());
+                    }
+                    Ok(None) => waku.speech_feedback = Some("Recording canceled.".into()),
+                    Err(error) => waku.speech_feedback = Some(error.to_string()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub(super) fn cancel_speech_recording(&mut self, cx: &mut Context<Self>) {
+        if let Some(stop) = self.speech_stop_tx.take() {
+            let _ = stop.send(crate::speech::RecordCommand::Cancel);
+            self.speech_recording = false;
+            self.speech_busy = true;
+            self.speech_feedback = Some("Canceling recording…".into());
+            cx.notify();
+        }
+    }
+
     pub(super) fn refresh_speech_runtime_status(&mut self, cx: &mut Context<Self>) {
         let generation = self.speech_generation;
         cx.spawn(async move |waku, cx| {
@@ -131,7 +226,7 @@ impl Waku {
     }
 
     fn choose_speech_wav(&mut self, cx: &mut Context<Self>) {
-        if self.speech_busy {
+        if self.speech_busy || self.speech_recording {
             return;
         }
         let receiver = cx.prompt_for_paths(PathPromptOptions {
@@ -145,6 +240,7 @@ impl Waku {
         let generation = self.speech_generation;
         self.speech_feedback = None;
         self.speech_transcript = None;
+        self.speech_draft_owner = self.selected_composer_draft_key();
         self.speech_busy = true;
         cx.notify();
         cx.spawn(async move |waku, cx| {
@@ -180,7 +276,13 @@ impl Waku {
         .detach();
     }
 
-    fn insert_speech_transcript(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn insert_speech_transcript(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.speech_draft_owner != self.selected_composer_draft_key() {
+            self.speech_feedback =
+                Some("Return to the task where dictation started before inserting it.".into());
+            cx.notify();
+            return;
+        }
         let Some(transcript) = self.speech_transcript.take() else {
             return;
         };
@@ -506,7 +608,7 @@ impl Waku {
             .gap(px(8.0))
             .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Local speech"))
             .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
-                .child("NVIDIA Nemotron 3.5 ASR through NeMo-Speech.cpp. Choose a local WAV recording to insert editable text into the composer. No speech key is needed."))
+                .child("Use Dictate in the composer to record your microphone, or choose a local WAV here. First use downloads the verified Nemotron 3.5 model (about 742 MB). No speech key is needed."))
             .child(div().text_size(sp(12.0)).text_color(theme.text_secondary)
                 .child(self.speech_runtime_status.clone().unwrap_or_else(|| "Checking NeMo-Speech.cpp…".into())))
             .child(languages)

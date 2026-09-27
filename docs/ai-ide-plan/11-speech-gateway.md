@@ -16,24 +16,28 @@ open too.
 
 ### Local speech
 
-- [ ] Install the official NeMo-Speech.cpp runtime for this OS and run
-      `nemo-speech doctor`. Download `nemotron-3.5` while online with
-      `nemo-speech pull nemotron-3.5`; then disconnect the network for the
-      dictation check.
+- [ ] On Windows, install the release package on a machine without a separate
+      NeMo-Speech.cpp installation. Confirm **Dictate** can find the bundled
+      runtime. On macOS/Linux, install NeMo-Speech.cpp separately for now.
+- [ ] While online, start **Dictate** and let ion download the verified
+      `nemotron-3.5` model on first use. Then disconnect the network for the
+      repeat dictation check.
 - [ ] In **Settings → Models & Speech**, confirm local speech reports the
       runtime and model state, offers an explicit language choice, and asks for
       no API key.
-- [ ] Dictate an English prompt from the default microphone. Confirm the
-      transcript appears in the composer as editable text and is not sent to
-      the agent until you press Send.
-- [ ] Repeat with Hindi (`hi-IN`). Check partial and final text, correction,
-      cancel, and a second recording. Confirm the first recording cannot
-      overwrite a newer draft.
+- [ ] Dictate an English prompt from the default microphone. Confirm a final
+      transcript preview appears, then **Insert dictation** puts editable text
+      in the composer. Nothing should be sent until you press Send.
+- [ ] Repeat with Hindi (`hi-IN`). Check correction in the composer, cancel,
+      and a second recording. Switch tasks before inserting and confirm the
+      transcript cannot enter the wrong task.
 - [ ] With the network disconnected, confirm both languages still work and
       audio is not uploaded. Check microphone-denied and missing-model errors
       lead to usable setup steps.
-- [ ] Measure first-use startup time, live text cadence, and peak memory on
-      target hardware; record hardware and model build alongside results.
+- [ ] Measure first-use download/setup time, final transcription latency, and
+      peak memory on target hardware; record hardware and model build.
+- [ ] Once live partial text is implemented, measure its update cadence and
+      confirm partial text can be corrected before sending.
 
 ### Personal gateway
 
@@ -67,18 +71,31 @@ treated as passed.
 
 ## Implementation status and setup
 
-Milestone 4 is **in progress**. The desktop currently detects the installed
-`nemo-speech` executable and can transcribe a selected local WAV with
-`nemotron-3.5` in Auto, English (`en-US`), or Hindi (`hi-IN`) mode. The full
-transcript is reviewable before it is inserted into the editable composer. The
-app does not send it as a task automatically. The Composio **Test** control now
+Milestone 4 is **in progress**. Windows release packaging now includes the
+verified NeMo-Speech.cpp 0.1.0 CPU runtime and its notices; local development
+also detects the standard per-user installation when PATH has not refreshed.
+The composer has a **Dictate** control that
+prepares the `nemotron-3.5` model on first use, records the default microphone
+locally, and stages the final transcript for review. **Stop dictation** ends
+recording and starts transcription; **Cancel** discards a recording. The
+selected language is Auto, English (`en-US`), or Hindi (`hi-IN`) in **Settings
+→ Models & Speech**. The same page can transcribe a selected local WAV. The
+app inserts neither transcript into the task until the user chooses **Insert
+dictation** or **Insert into composer** and then presses Send. The Composio
+**Test** control now
 makes a live, read-only request to the Tools API; it requires a scoped project
 key with Tools read permission. The gateway pairing token is still only stored
 in the desktop vault.
 
-Install NeMo-Speech.cpp using the [official installation guide](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/install.md).
-For Windows, the installer is a PowerShell script; review it before running it.
-For macOS or Linux, use the documented shell installer. Then run:
+For a packaged Windows release, install ion and use **Dictate** directly. The
+first use downloads the model while online, then the microphone works offline.
+The OS may prompt for microphone permission. A separate NeMo-Speech.cpp install
+is not needed for that Windows package. The release CI fetches the pinned 0.1.0
+CPU archive with upstream SHA-256 verification before packaging it.
+
+For development builds on Windows and current macOS/Linux packages, install
+NeMo-Speech.cpp using the [official installation guide](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/install.md).
+Then run:
 
 ```text
 nemo-speech --version
@@ -86,14 +103,23 @@ nemo-speech doctor
 nemo-speech pull nemotron-3.5
 ```
 
-The pull needs internet access once and verifies the model artifact. After it
-finishes, a local WAV can be transcribed while offline. In ion, open
-**Settings → Models & Speech**, choose the language, and select **Transcribe
-WAV…**. Review the transcript and choose **Insert into composer**.
+The model pull needs internet access once and verifies the roughly 742 MB GGUF
+artifact. The app also runs the same preparation when **Dictate** is used,
+showing a preparation message before it turns on the microphone. After it finishes,
+recording and transcription can work offline. In ion, open **Settings → Models
+& Speech** to choose the language. Then use **Dictate** in the composer, or
+select **Transcribe WAV…** for an existing file. Review the transcript and
+insert it into the editable composer.
 
-Live microphone capture, editable partial text, gateway deployment, pairing,
-connected-account listing, and approval-gated remote tool execution are not
-implemented yet. Their checklist items stay unchecked.
+The Windows installer and portable ZIP include the runtime but not the model.
+macOS and Linux runtime bundling is still pending. No packaged installer or
+live microphone recording was exercised in this development session, so the
+direct-install experience still needs the checklist review above.
+
+Editable live partial text, gateway deployment, pairing, connected-account
+listing, and approval-gated remote tool execution are not implemented yet.
+The microphone path has not been exercised with a real model or mic in this
+development session, so its checklist items remain unchecked.
 
 ## Primary references
 

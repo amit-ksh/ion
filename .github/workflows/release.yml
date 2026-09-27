@@ -227,8 +227,16 @@ jobs:
       - name: Clear stale bundles
         run: Remove-Item -Force -ErrorAction SilentlyContinue target/release/waku-*.zip, target/release/Waku-*-Setup.exe
 
+      - name: Install verified NeMo-Speech.cpp runtime
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'install-nemo-speech.ps1'
+          Invoke-WebRequest 'https://raw.githubusercontent.com/NVIDIA/NeMo-Speech.cpp/v0.1.0/scripts/install.ps1' -OutFile $installer
+          & $installer -Version 0.1.0 -Backend cpu -BinaryOnly -NoModifyPath -Prefix (Join-Path $env:RUNNER_TEMP 'nemo-speech')
+
       - name: Bundle
         env:
+          NEMO_SPEECH_PREFIX: ${{ runner.temp }}\nemo-speech
           WAKU_ANALYTICS_ENDPOINT: ${{ secrets.WAKU_ANALYTICS_ENDPOINT }}
           WAKU_ANALYTICS_WEBSITE_ID: ${{ secrets.WAKU_ANALYTICS_WEBSITE_ID }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -279,8 +287,16 @@ jobs:
       - name: Clear stale bundles
         run: Remove-Item -Force -ErrorAction SilentlyContinue target/release/waku-*.zip, target/release/Waku-*-Setup.exe
 
+      - name: Install verified NeMo-Speech.cpp runtime
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'install-nemo-speech.ps1'
+          Invoke-WebRequest 'https://raw.githubusercontent.com/NVIDIA/NeMo-Speech.cpp/v0.1.0/scripts/install.ps1' -OutFile $installer
+          & $installer -Version 0.1.0 -Backend cpu -BinaryOnly -NoModifyPath -Prefix (Join-Path $env:RUNNER_TEMP 'nemo-speech')
+
       - name: Bundle
         env:
+          NEMO_SPEECH_PREFIX: ${{ runner.temp }}\nemo-speech
           WAKU_ANALYTICS_ENDPOINT: ${{ secrets.WAKU_ANALYTICS_ENDPOINT }}
           WAKU_ANALYTICS_WEBSITE_ID: ${{ secrets.WAKU_ANALYTICS_WEBSITE_ID }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}

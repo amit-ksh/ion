@@ -9,6 +9,10 @@ installs per-user into `%LOCALAPPDATA%\Programs\Waku`, so it never asks for
 administrator rights — which is also what lets Waku update itself later
 without a UAC prompt.
 
+The installer includes the local NeMo-Speech.cpp CPU runtime for **Dictate**.
+No separate NeMo installation is needed. First use downloads the Nemotron 3.5
+speech model (about 742 MB) while online; later recordings can run offline.
+
 `https://releases.waku.sh/latest-windows.txt` names the current version if you
 want to script the download.
 
@@ -18,8 +22,8 @@ want to script the download.
 anywhere and run `waku.exe`.
 
 **Keep the installation folder intact.** Waku launches its daemon and
-Computer Use helpers from this directory and loads the bundled SDK DLL and
-`resources/` files. Moving `waku.exe` out on its own leaves those unavailable.
+Computer Use helpers from this directory and loads the bundled SDK DLL,
+`nemo-speech/`, and `resources/` files. Moving `waku.exe` out on its own leaves those unavailable.
 A shortcut is fine.
 
 A portable copy still updates itself: the updater passes the running

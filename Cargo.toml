@@ -62,6 +62,7 @@ futures-lite = "2"
 futures = "0.3"
 nucleo-matcher = "0.3.1"
 tokio = { version = "1", features = ["rt"] }
+cpal = { version = "0.18.2", default-features = false }
 
 # `test-support` has to stay test-only. It compiles a loop into gpui's
 # `flush_effects` that draws every dirty window right there, so with the

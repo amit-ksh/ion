@@ -11,10 +11,11 @@
 //   CARGO_TARGET_DIR              cargo target directory (default: target)
 //   WINDOWS_CERTIFICATE           base64 Authenticode .pfx (optional)
 //   WINDOWS_CERTIFICATE_PASSWORD  password for it
+//   NEMO_SPEECH_PREFIX          verified NeMo-Speech.cpp CPU install prefix
 import { $ } from "bun";
 import { bundleComputerUse } from "./cua-driver";
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -98,6 +99,31 @@ if (process.platform !== "win32") {
 
 const targetDirectory = resolve(process.env.CARGO_TARGET_DIR || "target");
 const releaseDirectory = join(targetDirectory, "release");
+const nemoPrefix = resolve(
+  process.env.NEMO_SPEECH_PREFIX ||
+    join(process.env.LOCALAPPDATA || "", "Programs", "NeMoSpeech"),
+);
+
+async function bundleSpeech(destination: string, architecture: string): Promise<void> {
+  const executable = join(nemoPrefix, "bin", "nemo-speech.exe");
+  const metadata = join(nemoPrefix, ".nemo-speech-install");
+  const licenses = join(nemoPrefix, "share", "licenses", "nemo-speech", "LICENSE");
+  const modelIndex = join(nemoPrefix, "share", "nemo-speech", "model-index.json");
+  for (const path of [executable, metadata, licenses, modelIndex]) {
+    if (!existsSync(path)) throw new Error(`NeMo-Speech.cpp release input is missing: ${path}`);
+  }
+  const identity = (await Bun.file(metadata).text()).trim();
+  if (identity !== `0.1.0 windows ${architecture} cpu`) {
+    throw new Error(`Expected NeMo-Speech.cpp 0.1.0 ${architecture} CPU release, found ${identity}`);
+  }
+  const runtime = join(destination, "nemo-speech");
+  await cp(join(nemoPrefix, "bin"), join(runtime, "bin"), { recursive: true });
+  await cp(join(nemoPrefix, "share"), join(runtime, "share"), { recursive: true });
+  const bundled = join(runtime, "bin", "nemo-speech.exe");
+  const version = await $`${bundled} --version`.quiet().text();
+  if (!version.includes("0.1.0")) throw new Error(`Bundled NeMo-Speech.cpp failed version check: ${version}`);
+  console.log(`Bundled NeMo-Speech.cpp ${identity}`);
+}
 
 const metadata = JSON.parse(
   await $`cargo metadata --no-deps --format-version 1`.quiet().text(),
@@ -143,6 +169,7 @@ try {
   for (const file of ["waku.exe", "waku-daemon.exe"]) {
     await copyFile(join(releaseDirectory, file), join(packageDirectory, file));
   }
+  await bundleSpeech(packageDirectory, architecture);
   await copyFile(
     join(projectRoot, "LICENSE"),
     join(packageDirectory, "LICENSE"),

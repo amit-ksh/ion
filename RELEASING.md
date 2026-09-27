@@ -178,6 +178,12 @@ installer with Authenticode when `WINDOWS_CERTIFICATE` and
 so a fork without a certificate can still cut a release at the cost of a
 SmartScreen warning.
 
+Windows CI installs the pinned NeMo-Speech.cpp 0.1.0 CPU release after upstream
+SHA-256 verification. Both installer and portable ZIP bundle its `bin/` and
+`share/` trees, including third-party notices. A local release build needs the
+same CPU installation at `%LOCALAPPDATA%\Programs\NeMoSpeech`, or its prefix in
+`NEMO_SPEECH_PREFIX`. The Nemotron model is downloaded by ion on first Dictate.
+
 **Never change `AppId` in `waku.iss`.** It is how Windows recognizes an
 existing install; a new one turns every update into a second copy in
 Add/Remove Programs.

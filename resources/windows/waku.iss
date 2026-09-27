@@ -83,6 +83,7 @@ Source: "{#StageDir}\waku_computer_use.exe"; DestDir: "{app}"; Flags: ignorevers
 Source: "{#StageDir}\cua_driver_sdk.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\cua-driver-uia.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StageDir}\nemo-speech\*"; DestDir: "{app}\nemo-speech"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StageDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
