@@ -77,7 +77,11 @@ app access. These are separate resources and credentials.
 - [x] Run a loopback gateway API with separate owner and paired-device bearer
       access. Local tests cover invitation, proposal, denial, revocation, and
       rejection of owner routes with a device token.
-- [ ] Validate remote TLS service, add owner approval UI, Composio adapter,
+- [x] Add a read-only Composio connected-account adapter that returns only ID,
+      toolkit, and status. Its credential stripping is covered by a mock test;
+      live lookup waits for a scoped key and test account.
+- [ ] Validate remote TLS service, add owner approval UI and an
+      approval-gated Composio execution adapter,
       and deployment instructions. Review these locally before provisioning
       any cloud resource.
 
@@ -157,13 +161,15 @@ but not installed, and no live microphone recording was exercised in this
 development session, so the direct-install experience still needs the checklist
 review above.
 
-Editable live partial text, gateway deployment, pairing, connected-account
-listing, and approval-gated remote tool execution are not implemented yet.
+Editable live partial text, gateway deployment, desktop pairing,
+desktop connected-account listing, and approval-gated remote tool execution
+are not implemented yet.
 The new `packages/personal-gateway` policy core has transactional local SQLite
 storage and a loopback HTTP listener. It checks pairing and write decisions
 across restarts and separate connections, but is not yet connected to the
-desktop UI or Composio. Its local tests do not count as a paired gateway
-demonstration.
+desktop UI. An owner-only API can list sanitized Composio account summaries
+when a scoped key is later provided; no live request has been made. Its local
+tests do not count as a paired gateway demonstration.
 The microphone path has not been exercised with a real model or mic in this
 development session, so its checklist items remain unchecked.
 

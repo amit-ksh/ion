@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { startGateway } from './server';
+import { ComposioCatalog } from './composio';
 
 const ownerToken = 'owner_' + 'a'.repeat(48);
 const effect = {
@@ -85,5 +86,40 @@ describe('personal gateway HTTP boundary', () => {
     expect(() => startGateway({
       databasePath: databasePath(), ownerToken, allowedTools, hostname: '0.0.0.0',
     })).toThrow('requires TLS');
+  });
+
+  test('connected-account lookup strips credential state and remains owner-only', async () => {
+    let requestedUrl = '';
+    let keyHeader = '';
+    const mockFetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      requestedUrl = String(input);
+      keyHeader = new Headers(init?.headers).get('x-api-key') ?? '';
+      return Response.json({
+        items: [{
+          id: 'ca_test', toolkit: { slug: 'github' }, status: 'ACTIVE',
+          state: { val: { oauth_token: 'never-expose-this' } },
+        }],
+        next_cursor: 'next-page',
+      });
+    }) as typeof fetch;
+    const running = startGateway({
+      databasePath: databasePath(), ownerToken, allowedTools,
+      composio: new ComposioCatalog('test-project-key', mockFetch),
+    });
+    try {
+      const unauthorized = await running.server.fetch(request('/v1/owner/connected-accounts', 'GET'));
+      expect(unauthorized.status).toBe(401);
+      const response = await running.server.fetch(request('/v1/owner/connected-accounts', 'GET', ownerToken));
+      const result = await response.json();
+      expect(result).toEqual({
+        items: [{ id: 'ca_test', toolkit: 'github', status: 'ACTIVE' }],
+        nextCursor: 'next-page',
+      });
+      expect(JSON.stringify(result)).not.toContain('never-expose-this');
+      expect(requestedUrl).toBe('https://backend.composio.dev/api/v3.1/connected_accounts?limit=100');
+      expect(keyHeader).toBe('test-project-key');
+    } finally {
+      await running.close();
+    }
   });
 });

@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { DurableGatewayAuthority } from './durable-authority';
 import type { DeviceGrant, ExternalEffect } from './authority';
+import type { ComposioCatalog } from './composio';
 
 const maxBodyBytes = 70_000;
 
@@ -83,7 +84,11 @@ function authorizedDevice(
 }
 
 /** Owner routes require a separate 32+ character secret; device tokens cannot use them. */
-export function createGatewayHandler(authority: DurableGatewayAuthority, ownerSecret: string) {
+export function createGatewayHandler(
+  authority: DurableGatewayAuthority,
+  ownerSecret: string,
+  composio?: ComposioCatalog,
+) {
   if (ownerSecret.length < 32 || !/^[A-Za-z0-9_-]+$/.test(ownerSecret)) {
     throw new Error('Owner token must be at least 32 URL-safe characters');
   }
@@ -105,6 +110,14 @@ export function createGatewayHandler(authority: DurableGatewayAuthority, ownerSe
         }
         if (path === '/v1/owner/proposals' && method === 'GET') {
           return json({ proposals: authority.listProposals() });
+        }
+        if (path === '/v1/owner/connected-accounts' && method === 'GET') {
+          if (!composio) return json({ error: 'Composio is not configured' }, 503);
+          try {
+            return json(await composio.listConnectedAccounts(url.searchParams.get('cursor') ?? undefined));
+          } catch {
+            return json({ error: 'Connected-account lookup failed' }, 502);
+          }
         }
         if (path === '/v1/owner/invites' && method === 'POST') {
           const input = await body(request);

@@ -45,6 +45,15 @@ requires both `WAKU_GATEWAY_TLS_KEY` and `WAKU_GATEWAY_TLS_CERT`; this option ha
 not yet been reviewed for cloud deployment. `WAKU_GATEWAY_HOST` and
 `WAKU_GATEWAY_PORT` override the bind address.
 
+Optionally inject a scoped Composio project key as
+`WAKU_GATEWAY_COMPOSIO_KEY` from the gateway host's secret manager. The current
+adapter only calls `GET /api/v3.1/connected_accounts`, so this key needs
+**Connected accounts: Read only**. The owner-only
+`GET /v1/owner/connected-accounts` route returns only account ID, toolkit,
+status, and pagination cursor. It strips Composio's credential-bearing account
+state. Without the key, that route returns `503`; no other local gateway flow
+requires it.
+
 The owner API supports device listing, proposal listing, one-time invites,
 revocation, and exact-fingerprint decisions under `/v1/owner/`. Its bearer
 token is separate from paired-device tokens. `/v1/pair` consumes an invite;
@@ -59,9 +68,9 @@ bun test packages/personal-gateway/src
 bun node_modules/typescript/bin/tsc --noEmit -p packages/personal-gateway/tsconfig.json
 ```
 
-Before remote use, add an owner approval UI, validate TLS operation, add a
-restricted Composio adapter, and prepare a deployment definition reviewed
-against the user's Nebius project and budget. The deployed gateway
+Before remote use, add an owner approval UI, validate TLS operation, add the
+approval-gated Composio execution adapter, and prepare a deployment definition
+reviewed against the user's Nebius project and budget. The deployed gateway
 must load the Composio key from its own secret store, never from a client
 request or model prompt. The current desktop Composio **Test** is a separate
 development catalog check and does not configure this gateway.

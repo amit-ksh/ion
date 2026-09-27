@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { AllowedTool } from './authority';
 import { startGateway } from './server';
+import { ComposioCatalog } from './composio';
 
 const databasePath = process.env.WAKU_GATEWAY_DB;
 const allowlistPath = process.env.WAKU_GATEWAY_ALLOWLIST;
@@ -34,6 +35,9 @@ const running = startGateway({
   databasePath,
   ownerToken,
   allowedTools: raw as AllowedTool[],
+  composio: process.env.WAKU_GATEWAY_COMPOSIO_KEY
+    ? new ComposioCatalog(process.env.WAKU_GATEWAY_COMPOSIO_KEY)
+    : undefined,
   hostname: process.env.WAKU_GATEWAY_HOST ?? '127.0.0.1',
   port,
   tls: keyPath && certPath ? { key: Bun.file(keyPath), cert: Bun.file(certPath) } : undefined,
