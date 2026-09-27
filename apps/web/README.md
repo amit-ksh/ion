@@ -1,4 +1,4 @@
-# Waku Web
+# ion Web
 
 Browser client for an existing Waku daemon. The Cloudflare Worker serves the
 TanStack Start application only; it does not start, proxy, or store credentials

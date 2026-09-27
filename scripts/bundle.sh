@@ -39,12 +39,14 @@ fi
 case "$profile" in
   debug)
     app_name="Waku Debug"
+    display_name="Waku Debug"
     helper_name="Waku Debug Computer Use"
     bundle_identifier="sh.waku.dev"
     icon_file="AppIconDev.icns"
     ;;
   release)
     app_name="Waku"
+    display_name="ion"
     helper_name="Waku Computer Use"
     bundle_identifier="sh.waku"
     icon_file="AppIcon.icns"
@@ -185,7 +187,7 @@ for sparkle_extra in XPCServices Headers PrivateHeaders Modules; do
   rm -rf "$sparkle_framework/$sparkle_extra" \
     "$sparkle_framework/Versions/B/$sparkle_extra"
 done
-plutil -replace CFBundleDisplayName -string "$app_name" "$contents/Info.plist"
+plutil -replace CFBundleDisplayName -string "$display_name" "$contents/Info.plist"
 plutil -replace CFBundleExecutable -string "$app_name" "$contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$bundle_identifier" "$contents/Info.plist"
 plutil -replace CFBundleName -string "$app_name" "$contents/Info.plist"

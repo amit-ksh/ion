@@ -9,7 +9,7 @@ export function DaemonOnboarding({ onAddDaemon }: { onAddDaemon: () => void }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <Image
-        accessibilityLabel="Waku"
+        accessibilityLabel="ion"
         source={require('@/assets/images/icon.png')}
         style={styles.appIcon}
       />

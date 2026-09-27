@@ -1,8 +1,8 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Waku
-Comment=A native control plane for local coding agents
+Name=ion
+Comment=A native AI work IDE with Nebius BYOK
 Exec=waku
 Icon=sh.waku
 Terminal=false

@@ -1,8 +1,14 @@
-# Waku
+# ion (Waku foundation)
 
-Waku is a fast, native desktop app for working with local coding agents. It is
-built in Rust with [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui)
-and keeps projects, sessions, transcripts on your machine.
+ion is an AI work IDE that coordinates code, apps, and computers through
+reviewable tasks. It is the Nebius-first, free/BYOK evolution of Waku. See the
+[canonical product plan](docs/ai-ide-plan/README.md) for the hackathon scope
+and milestone approval workflow. Existing Waku releases and compatibility
+identifiers remain in place while this work is built.
+
+It is built in Rust with
+[GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui) and keeps
+projects, sessions, and transcripts on your machine.
 
 ## Install
 
