@@ -110,6 +110,95 @@ pub(super) fn visible_settings_pages(
 }
 
 impl Waku {
+    pub(super) fn refresh_speech_runtime_status(&mut self, cx: &mut Context<Self>) {
+        let generation = self.speech_generation;
+        cx.spawn(async move |waku, cx| {
+            let status = cx
+                .background_executor()
+                .spawn(async { crate::speech::runtime_version() })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.speech_generation == generation {
+                    waku.speech_runtime_status = Some(match status {
+                        Ok(version) => format!("Installed: {version}"),
+                        Err(error) => error.to_string(),
+                    });
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+
+    fn choose_speech_wav(&mut self, cx: &mut Context<Self>) {
+        if self.speech_busy {
+            return;
+        }
+        let receiver = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Choose a WAV recording".into()),
+        });
+        let language = self.speech_language;
+        self.speech_generation = self.speech_generation.wrapping_add(1);
+        let generation = self.speech_generation;
+        self.speech_feedback = None;
+        self.speech_transcript = None;
+        self.speech_busy = true;
+        cx.notify();
+        cx.spawn(async move |waku, cx| {
+            let path = match receiver.await {
+                Ok(Ok(Some(paths))) => paths.into_iter().next(),
+                _ => None,
+            };
+            let result = if let Some(path) = path {
+                Some(
+                    cx.background_executor()
+                        .spawn(async move { crate::speech::transcribe_wav(&path, language) })
+                        .await,
+                )
+            } else {
+                None
+            };
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.speech_generation != generation {
+                    return;
+                }
+                waku.speech_busy = false;
+                match result {
+                    Some(Ok(transcript)) => {
+                        waku.speech_transcript = Some(transcript);
+                        waku.speech_feedback = Some("Local transcript is ready to insert.".into());
+                    }
+                    Some(Err(error)) => waku.speech_feedback = Some(error.to_string()),
+                    None => {}
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn insert_speech_transcript(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(transcript) = self.speech_transcript.take() else {
+            return;
+        };
+        let current = self.composer.read(cx).content(cx).to_owned();
+        let content = if current.trim().is_empty() {
+            transcript
+        } else {
+            format!("{current}\n{transcript}")
+        };
+        self.composer
+            .update(cx, |composer, cx| composer.set_content(content, cx));
+        self.schedule_composer_draft_save(cx);
+        self.speech_feedback = None;
+        self.settings_page = None;
+        self.composer.read(cx).focus().focus(window, cx);
+        cx.notify();
+    }
+
     pub(super) fn refresh_credential_statuses(&mut self, cx: &mut Context<Self>) {
         use crate::credentials::{CredentialKind as Kind, CredentialService};
         let kinds = [
@@ -183,7 +272,8 @@ impl Waku {
                     }
                     CredentialAction::Test => match service.test(kind)? {
                         CredentialTest::NebiusModels(models) => Ok((format!("Nebius key verified; {} models available.", models.len()), Some(models))),
-                        CredentialTest::Stored => Ok(("Credential is stored. Gateway validation becomes available with its integration.".into(), None)),
+                    CredentialTest::ComposioVerified => Ok(("Composio key verified with Tools read access.".into(), None)),
+                    CredentialTest::Stored => Ok(("Pairing token is stored. Gateway validation needs a deployed personal gateway.".into(), None)),
                     },
                     CredentialAction::Delete => {
                         service.delete(kind)?;
@@ -270,7 +360,7 @@ impl Waku {
             (
                 Kind::ComposioScopedProjectKey,
                 "Composio project",
-                "Optional scoped project key for the later personal integration gateway.",
+                "Scoped project key for your personal gateway. Test verifies Tools read access without exposing the key.",
             ),
             (
                 Kind::GatewayPairingToken,
@@ -361,11 +451,143 @@ impl Waku {
             }
             content = content.child(card);
         }
-        content = content.child(div().w_full().p(px(18.0)).rounded(px(12.0)).bg(theme.raised)
-            .flex().flex_col().gap(px(5.0))
+        let mut languages = div().flex().gap(px(8.0));
+        for language in [
+            crate::speech::SpeechLanguage::Auto,
+            crate::speech::SpeechLanguage::English,
+            crate::speech::SpeechLanguage::Hindi,
+        ] {
+            languages = languages.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "speech-language-{}",
+                        language.code()
+                    )))
+                    .tab_group()
+                    .tab_index(0)
+                    .tab_stop(true)
+                    .focus_visible(|style| style.border_color(theme.accent))
+                    .h(px(30.0))
+                    .px(px(12.0))
+                    .rounded(px(7.0))
+                    .border_1()
+                    .border_color(if self.speech_language == language {
+                        theme.accent
+                    } else {
+                        theme.border_strong
+                    })
+                    .flex()
+                    .items_center()
+                    .text_size(sp(12.5))
+                    .text_color(theme.text)
+                    .child(language.label())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.speech_language = language;
+                        cx.notify();
+                    }))
+                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
+                        if !event.keystroke.modifiers.modified()
+                            && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                        {
+                            this.speech_language = language;
+                            cx.notify();
+                            cx.stop_propagation();
+                        }
+                    })),
+            );
+        }
+        let mut speech = div()
+            .w_full()
+            .p(px(18.0))
+            .rounded(px(12.0))
+            .bg(theme.raised)
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
             .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Local speech"))
             .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
-                .child("NVIDIA Nemotron 3.5 ASR Streaming 0.6B through NeMo-Speech.cpp. Local setup arrives in a later milestone; no speech credential is needed.")));
+                .child("NVIDIA Nemotron 3.5 ASR through NeMo-Speech.cpp. Choose a local WAV recording to insert editable text into the composer. No speech key is needed."))
+            .child(div().text_size(sp(12.0)).text_color(theme.text_secondary)
+                .child(self.speech_runtime_status.clone().unwrap_or_else(|| "Checking NeMo-Speech.cpp…".into())))
+            .child(languages)
+            .child(div()
+                .id("speech-choose-wav")
+                .tab_group()
+                .tab_index(0)
+                .tab_stop(true)
+                .focus_visible(|style| style.border_color(theme.accent))
+                .h(px(34.0))
+                .px(px(12.0))
+                .rounded(px(7.0))
+                .border_1()
+                .border_color(theme.border_strong)
+                .flex()
+                .items_center()
+                .text_size(sp(12.5))
+                .text_color(theme.text)
+                .child(if self.speech_busy { "Transcribing…" } else { "Transcribe WAV…" })
+                .on_click(cx.listener(|this, _, _, cx| this.choose_speech_wav(cx)))
+                .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                    if !event.keystroke.modifiers.modified()
+                        && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                    {
+                        this.choose_speech_wav(cx);
+                        cx.stop_propagation();
+                    }
+                })));
+        if let Some(feedback) = &self.speech_feedback {
+            speech = speech.child(
+                div()
+                    .text_size(sp(12.0))
+                    .text_color(theme.text_secondary)
+                    .child(feedback.clone()),
+            );
+        }
+        if let Some(transcript) = &self.speech_transcript {
+            speech = speech
+                .child(
+                    div()
+                        .id("speech-transcript")
+                        .max_h(px(140.0))
+                        .overflow_y_scroll()
+                        .p(px(8.0))
+                        .rounded(px(7.0))
+                        .bg(theme.inset)
+                        .text_size(sp(12.5))
+                        .text_color(theme.text)
+                        .child(transcript.clone()),
+                )
+                .child(
+                    div()
+                        .id("speech-insert-transcript")
+                        .tab_group()
+                        .tab_index(0)
+                        .tab_stop(true)
+                        .focus_visible(|style| style.border_color(theme.accent))
+                        .h(px(34.0))
+                        .px(px(12.0))
+                        .rounded(px(7.0))
+                        .border_1()
+                        .border_color(theme.border_strong)
+                        .flex()
+                        .items_center()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text)
+                        .child("Insert into composer")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.insert_speech_transcript(window, cx)
+                        }))
+                        .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                            if !event.keystroke.modifiers.modified()
+                                && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                            {
+                                this.insert_speech_transcript(window, cx);
+                                cx.stop_propagation();
+                            }
+                        })),
+                );
+        }
+        content = content.child(speech);
         content.into_any_element()
     }
 

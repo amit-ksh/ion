@@ -57,6 +57,7 @@ impl Waku {
                 == waku_protocol::distribution::DistributionProfile::NebiusHackathon
         {
             self.refresh_credential_statuses(cx);
+            self.refresh_speech_runtime_status(cx);
         }
         cx.notify();
     }

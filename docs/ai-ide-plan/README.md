@@ -7,6 +7,9 @@ boundaries. Milestone 2 implements the native coding runtime; its live provider
 acceptance check remains pending until a Nebius key is available.
 The user explicitly authorized Milestone 3 implementation before that live
 check; Milestone 2 acceptance remains open for later review.
+The user subsequently authorized Milestone 4 implementation while deferring
+Milestone 2 and 3 review until a Nebius key is available. All three checklists
+remain open until their evidence is reviewed.
 
 ## Locked decisions
 
@@ -75,6 +78,7 @@ remain intact for the Full profile after the event.
 8. [BYOK, Nebius, and development resources](08-byok-nebius-development-resources.md)
 9. [Native Nebius runtime and manual check](09-native-nebius-runtime.md)
 10. [Workflows and GitHub review check](10-workflows-github.md)
+11. [Local speech and personal gateway review check](11-speech-gateway.md)
 
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.

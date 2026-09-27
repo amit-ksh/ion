@@ -7,6 +7,7 @@ use anyhow::{Context as _, Result, bail};
 use serde::Deserialize;
 
 pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
+const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
 #[cfg_attr(target_os = "macos", path = "credentials/macos.rs")]
@@ -39,6 +40,7 @@ pub enum CredentialStatus {
 
 pub enum CredentialTest {
     NebiusModels(Vec<String>),
+    ComposioVerified,
     Stored,
 }
 
@@ -138,7 +140,25 @@ impl CredentialService {
             CredentialKind::NebiusTokenFactoryApiKey => {
                 Ok(CredentialTest::NebiusModels(self.nebius_model_ids()?))
             }
-            CredentialKind::ComposioScopedProjectKey | CredentialKind::GatewayPairingToken => {
+            CredentialKind::ComposioScopedProjectKey => {
+                let secret = self.secret(kind)?;
+                let response = reqwest::blocking::Client::builder()
+                    .timeout(std::time::Duration::from_secs(12))
+                    .build()?
+                    .get(COMPOSIO_TOOLS_URL)
+                    .query(&[("limit", "1")])
+                    .header("x-api-key", secret)
+                    .send()
+                    .context("Could not reach Composio")?;
+                if !response.status().is_success() {
+                    bail!(
+                        "Composio rejected the scoped key or Tools read permission (HTTP {})",
+                        response.status()
+                    );
+                }
+                Ok(CredentialTest::ComposioVerified)
+            }
+            CredentialKind::GatewayPairingToken => {
                 self.secret(kind)?;
                 Ok(CredentialTest::Stored)
             }

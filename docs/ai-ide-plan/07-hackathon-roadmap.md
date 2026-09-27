@@ -32,6 +32,12 @@ The user authorized Milestone 3 implementation while deferring the Milestone 2
 live Nebius check. This is an explicit exception to the implementation order,
 not a passed Milestone 2 acceptance result. Both live gates remain open until
 the user reviews the real provider runs.
+The user also authorized Milestone 4 implementation while deferring those
+reviews until a Nebius key is available. This does not pass any live gate;
+use the [Milestone 2](09-native-nebius-runtime.md#milestone-2-acceptance-checklist),
+[Milestone 3](10-workflows-github.md#milestone-3-review-checklist), and
+[Milestone 4](11-speech-gateway.md#milestone-4-review-checklist) checklists
+for later review.
 
 ## Milestone 1 acceptance
 

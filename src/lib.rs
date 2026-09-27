@@ -41,6 +41,7 @@ mod md;
 mod platform;
 mod query;
 mod review_diff;
+mod speech;
 mod terminal;
 mod theme;
 mod ui;
