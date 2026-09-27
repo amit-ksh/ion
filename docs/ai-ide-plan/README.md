@@ -5,6 +5,8 @@ chapters below expand it; if older research notes conflict, this page wins.
 Milestone 1 established the distribution, credential, branding, and planning
 boundaries. Milestone 2 implements the native coding runtime; its live provider
 acceptance check remains pending until a Nebius key is available.
+The user explicitly authorized Milestone 3 implementation before that live
+check; Milestone 2 acceptance remains open for later review.
 
 ## Locked decisions
 
@@ -72,6 +74,7 @@ remain intact for the Full profile after the event.
 7. [Hackathon roadmap and milestone gates](07-hackathon-roadmap.md)
 8. [BYOK, Nebius, and development resources](08-byok-nebius-development-resources.md)
 9. [Native Nebius runtime and manual check](09-native-nebius-runtime.md)
+10. [Workflows and GitHub review check](10-workflows-github.md)
 
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.

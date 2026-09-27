@@ -28,6 +28,11 @@ work, runs proportional checks, reports changes and limitations with a manual
 checklist, and stops. The user tests and explicitly approves before the next
 milestone starts. A requested fix stays in the current milestone.
 
+The user authorized Milestone 3 implementation while deferring the Milestone 2
+live Nebius check. This is an explicit exception to the implementation order,
+not a passed Milestone 2 acceptance result. Both live gates remain open until
+the user reviews the real provider runs.
+
 ## Milestone 1 acceptance
 
 - The README and chapters contain the free/BYOK, native Nemotron, local ASR,

@@ -49,7 +49,8 @@ is absent.
       work starts on Milestone 3.
 
 The live check is pending because no Nebius key is available in this
-development environment. Milestone 3 remains gated on the user's review.
+development environment. The user authorized Milestone 3 implementation while
+deferring this acceptance check; this checklist remains open for later review.
 
 [Nebius function calling documentation](https://docs.tokenfactory.nebius.com/ai-models-inference/function-calling)
 describes the OpenAI-compatible tool message loop used here.

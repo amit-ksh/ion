@@ -469,10 +469,23 @@ async function drainBuildQueue(): Promise<void> {
       queuedBuild = undefined;
       const buildAppRevision = appChangeRevision;
       const buildDaemonRevision = daemonChangeRevision;
-      if (!(await build(target)) || stopping) continue;
+      // Windows keeps a running .exe locked, so Cargo cannot relink the daemon
+      // while the desktop's supervised child is alive. Let the watcher own the
+      // stop/relaunch sequence instead of leaving a stale daemon running.
+      const restartForWindows = process.platform === "win32" && app?.exitCode === null;
+      if (restartForWindows) {
+        await stopApp();
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      }
+      if (!(await build(target)) || stopping) {
+        if (restartForWindows && !stopping) app = launchApp();
+        continue;
+      }
 
       if (target === "daemon") {
-        if (daemonChangeRevision === buildDaemonRevision) {
+        if (restartForWindows) {
+          app = launchApp();
+        } else if (daemonChangeRevision === buildDaemonRevision) {
           console.log(
             "[waku-dev] Daemon rebuilt; Waku will swap the process without relaunching.",
           );
