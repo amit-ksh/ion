@@ -14,6 +14,34 @@ open too.
 
 ## Milestone 4 review checklist
 
+### Your setup before review
+
+- [x] Install Inno Setup 6 locally. `ISCC.exe` was found at
+      `C:\Program Files (x86)\Inno Setup 6\ISCC.exe` on September 27, 2026.
+- [x] Build the Windows release with `bun scripts/bundle-windows.ts`.
+      Inno Setup 6.7.1 compiled `Waku-0.1.19-x86_64-Setup.exe` and the portable
+      ZIP in `target/release/`; the script verified the bundled NeMo 0.1.0
+      executable. The ZIP contains the app, daemon, NeMo executable, and model
+      index. This local build is unsigned.
+- [ ] Install the locally built Windows release package on a separate test
+      machine or after saving any running work. The installer closes an existing
+      ion process during installation. Do not install over the active debug app
+      while its development watcher owns it.
+- [ ] When available, save and **Test** your Nebius Token Factory key in
+      **Settings → Models & Speech**. This unlocks the deferred Milestone 2 and
+      3 live reviews. Keep the key out of chat, source files, and screenshots.
+- [ ] Later, create your own Nebius cloud project with billing and choose a
+      region and personal budget. Review the exact VM/service, estimated cost,
+      network exposure, and deletion plan before provisioning the gateway.
+- [ ] Later, create a Composio project and connect only a disposable test
+      account with the OAuth scopes needed for a read and one reviewable write.
+      Create a scoped project key for the gateway only after its required
+      session/tool permissions are finalized. Do not paste it into chat.
+
+The Nebius Token Factory key is for model inference. The later Nebius cloud
+project runs the personal gateway. The Composio project key grants connected
+app access. These are separate resources and credentials.
+
 ### Local speech
 
 - [ ] On Windows, install the release package on a machine without a separate
@@ -40,6 +68,13 @@ open too.
       confirm partial text can be corrected before sending.
 
 ### Personal gateway
+
+- [x] Local authorization core rejects expired/reused pairing invites,
+      revoked devices, out-of-grant tools/scopes, mismatched write approval,
+      and duplicate execution claims in automated policy checks.
+- [ ] Add durable device/proposal storage, TLS service, owner approval UI,
+      Composio adapter, and deployment instructions. Review these locally
+      before provisioning any cloud resource.
 
 - [ ] In your own Nebius account, review the proposed resource, region,
       expected user-borne cost, and removal steps before provisioning.
@@ -112,12 +147,17 @@ select **Transcribe WAV…** for an existing file. Review the transcript and
 insert it into the editable composer.
 
 The Windows installer and portable ZIP include the runtime but not the model.
-macOS and Linux runtime bundling is still pending. No packaged installer or
-live microphone recording was exercised in this development session, so the
-direct-install experience still needs the checklist review above.
+macOS and Linux runtime bundling is still pending. The installer was compiled
+but not installed, and no live microphone recording was exercised in this
+development session, so the direct-install experience still needs the checklist
+review above.
 
 Editable live partial text, gateway deployment, pairing, connected-account
 listing, and approval-gated remote tool execution are not implemented yet.
+The new `packages/personal-gateway` policy core is local and in-memory. It
+checks pairing and write decisions but is not yet connected to the app, a
+network listener, persistent storage, or Composio. Its local tests do not count
+as a paired gateway demonstration.
 The microphone path has not been exercised with a real model or mic in this
 development session, so its checklist items remain unchecked.
 

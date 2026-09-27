@@ -26,8 +26,8 @@ vault is unavailable, the value lives only in process memory and the UI says
 so. Do not put any secret in `settings.json`, SQLite, logs, transcripts,
 telemetry, model context, CLI arguments, or a child process environment.
 The daemon and the model receive authorized results, not raw credentials.
-Composio and pairing validation become network checks when their integrations
-exist; until then their test operation reports local storage status only.
+Composio **Test** now makes a read-only Tools catalog request. Gateway pairing
+**Test** only confirms local storage until a deployed gateway exists.
 
 ## Guided personal Nebius gateway
 
