@@ -74,8 +74,12 @@ app access. These are separate resources and credentials.
       and duplicate execution claims in automated policy checks.
 - [x] Persist device/proposal state locally with transactional single-use
       pairing and write claims. Restart and separate-connection checks pass.
-- [ ] Add TLS service, owner approval UI, Composio adapter, and deployment
-      instructions. Review these locally before provisioning any cloud resource.
+- [x] Run a loopback gateway API with separate owner and paired-device bearer
+      access. Local tests cover invitation, proposal, denial, revocation, and
+      rejection of owner routes with a device token.
+- [ ] Validate remote TLS service, add owner approval UI, Composio adapter,
+      and deployment instructions. Review these locally before provisioning
+      any cloud resource.
 
 - [ ] In your own Nebius account, review the proposed resource, region,
       expected user-borne cost, and removal steps before provisioning.
@@ -156,9 +160,10 @@ review above.
 Editable live partial text, gateway deployment, pairing, connected-account
 listing, and approval-gated remote tool execution are not implemented yet.
 The new `packages/personal-gateway` policy core has transactional local SQLite
-storage. It checks pairing and write decisions across restarts and separate
-connections, but is not yet connected to the app, a network listener, or
-Composio. Its local tests do not count as a paired gateway demonstration.
+storage and a loopback HTTP listener. It checks pairing and write decisions
+across restarts and separate connections, but is not yet connected to the
+desktop UI or Composio. Its local tests do not count as a paired gateway
+demonstration.
 The microphone path has not been exercised with a real model or mic in this
 development session, so its checklist items remain unchecked.
 

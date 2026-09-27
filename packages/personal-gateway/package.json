@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "bun test"
+    "test": "bun test",
+    "start": "bun src/main.ts"
   }
 }

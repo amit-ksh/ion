@@ -1,7 +1,7 @@
 # Personal gateway authority core
 
-This package holds the local authorization rules for Milestone 4. It is not a
-deployed gateway. It has no HTTP listener or Composio calls.
+This package holds the local authorization rules and a loopback HTTP service
+for Milestone 4. It is not a deployed gateway and makes no Composio calls.
 
 `GatewayAuthority` accepts an explicit tool/account/scope allowlist. A trusted
 owner surface creates single-use pairing invites lasting at most five minutes.
@@ -21,6 +21,37 @@ approval. The database contains device token digests and proposed write bodies;
 place it in an owner-only directory and back it up as sensitive application data.
 No Composio or Nebius key belongs in this database.
 
+## Run the local service
+
+Create a private directory for the database and a JSON allowlist, for example:
+
+```json
+[
+  {
+    "toolkit": "github",
+    "tool": "GITHUB_CREATE_ISSUE",
+    "accountId": "replace-with-connected-account-id",
+    "scopes": ["issues:write"]
+  }
+]
+```
+
+Set `WAKU_GATEWAY_DB` to a database path inside that directory,
+`WAKU_GATEWAY_ALLOWLIST` to the JSON file, and
+`WAKU_GATEWAY_OWNER_TOKEN` to a fresh random URL-safe token of at least 32
+characters. Then run `bun packages/personal-gateway/src/main.ts` from the
+repository root. The default listener is `127.0.0.1:8787`. Non-loopback binding
+requires both `WAKU_GATEWAY_TLS_KEY` and `WAKU_GATEWAY_TLS_CERT`; this option has
+not yet been reviewed for cloud deployment. `WAKU_GATEWAY_HOST` and
+`WAKU_GATEWAY_PORT` override the bind address.
+
+The owner API supports device listing, proposal listing, one-time invites,
+revocation, and exact-fingerprint decisions under `/v1/owner/`. Its bearer
+token is separate from paired-device tokens. `/v1/pair` consumes an invite;
+paired devices can propose and inspect only their own effects under
+`/v1/device/`. Responses disable caching, and the service exposes no CORS
+headers. There is no execution endpoint: approval only records a decision.
+
 Run the local policy checks with:
 
 ```sh
@@ -28,9 +59,9 @@ bun test packages/personal-gateway/src
 bun node_modules/typescript/bin/tsc --noEmit -p packages/personal-gateway/tsconfig.json
 ```
 
-Before remote use, add an authenticated owner control surface, TLS transport,
-a restricted Composio adapter, and a deployment definition reviewed against the
-user's Nebius project and budget. The deployed gateway
+Before remote use, add an owner approval UI, validate TLS operation, add a
+restricted Composio adapter, and prepare a deployment definition reviewed
+against the user's Nebius project and budget. The deployed gateway
 must load the Composio key from its own secret store, never from a client
 request or model prompt. The current desktop Composio **Test** is a separate
 development catalog check and does not configure this gateway.
