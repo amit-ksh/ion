@@ -72,9 +72,10 @@ app access. These are separate resources and credentials.
 - [x] Local authorization core rejects expired/reused pairing invites,
       revoked devices, out-of-grant tools/scopes, mismatched write approval,
       and duplicate execution claims in automated policy checks.
-- [ ] Add durable device/proposal storage, TLS service, owner approval UI,
-      Composio adapter, and deployment instructions. Review these locally
-      before provisioning any cloud resource.
+- [x] Persist device/proposal state locally with transactional single-use
+      pairing and write claims. Restart and separate-connection checks pass.
+- [ ] Add TLS service, owner approval UI, Composio adapter, and deployment
+      instructions. Review these locally before provisioning any cloud resource.
 
 - [ ] In your own Nebius account, review the proposed resource, region,
       expected user-borne cost, and removal steps before provisioning.
@@ -154,10 +155,10 @@ review above.
 
 Editable live partial text, gateway deployment, pairing, connected-account
 listing, and approval-gated remote tool execution are not implemented yet.
-The new `packages/personal-gateway` policy core is local and in-memory. It
-checks pairing and write decisions but is not yet connected to the app, a
-network listener, persistent storage, or Composio. Its local tests do not count
-as a paired gateway demonstration.
+The new `packages/personal-gateway` policy core has transactional local SQLite
+storage. It checks pairing and write decisions across restarts and separate
+connections, but is not yet connected to the app, a network listener, or
+Composio. Its local tests do not count as a paired gateway demonstration.
 The microphone path has not been exercised with a real model or mic in this
 development session, so its checklist items remain unchecked.
 

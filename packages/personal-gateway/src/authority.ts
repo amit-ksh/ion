@@ -51,6 +51,13 @@ interface Proposal {
   resultReference?: string;
 }
 
+export interface AuthoritySnapshot {
+  version: 1;
+  invites: Array<{ key: string; digest: string; expiresAt: number; deviceLifetimeMs: number; grants: DeviceGrant[] }>;
+  devices: Array<Omit<Device, 'digest'> & { digest: string }>;
+  proposals: Proposal[];
+}
+
 export interface ProposalView {
   id: string;
   deviceId: string;
@@ -58,6 +65,14 @@ export interface ProposalView {
   fingerprint: string;
   status: EffectStatus;
   resultReference?: string;
+}
+
+export interface DeviceView {
+  id: string;
+  name: string;
+  expiresAt: number;
+  grants: DeviceGrant[];
+  revoked: boolean;
 }
 
 function digest(value: string): Buffer {
@@ -83,7 +98,7 @@ function publicProposal(proposal: Proposal): ProposalView {
   };
 }
 
-/** In-memory policy core. Persisted state and remote serving come later. */
+/** Policy core. DurableGatewayAuthority commits snapshots around each mutation. */
 export class GatewayAuthority {
   private readonly allowedTools: AllowedTool[];
   private readonly invites = new Map<string, Invite>();
@@ -95,6 +110,61 @@ export class GatewayAuthority {
     private readonly now: () => number = Date.now,
   ) {
     this.allowedTools = allowedTools.map((entry) => ({ ...entry, scopes: [...entry.scopes] }));
+  }
+
+  static restore(allowedTools: AllowedTool[], state: AuthoritySnapshot, now: () => number = Date.now): GatewayAuthority {
+    if (state?.version !== 1 || !Array.isArray(state.invites) ||
+        !Array.isArray(state.devices) || !Array.isArray(state.proposals)) {
+      throw new Error('Unsupported or corrupt gateway state');
+    }
+    const authority = new GatewayAuthority(allowedTools, now);
+    for (const invite of state.invites) {
+      authority.invites.set(invite.key, { ...invite, digest: Buffer.from(invite.digest, 'hex'), grants: [...invite.grants] });
+    }
+    for (const device of state.devices) {
+      authority.devices.set(device.id, { ...device, digest: Buffer.from(device.digest, 'hex'), grants: [...device.grants] });
+    }
+    for (const proposal of state.proposals) {
+      authority.proposals.set(proposal.id, {
+        ...proposal, effect: { ...proposal.effect, scopes: [...proposal.effect.scopes] },
+      });
+    }
+    return authority;
+  }
+
+  snapshot(): AuthoritySnapshot {
+    return {
+      version: 1,
+      invites: [...this.invites].map(([key, invite]) => ({
+        ...invite, key, digest: invite.digest.toString('hex'), grants: [...invite.grants],
+      })),
+      devices: [...this.devices.values()].map((device) => ({
+        ...device, digest: device.digest.toString('hex'), grants: [...device.grants],
+      })),
+      proposals: [...this.proposals.values()].map((proposal) => ({
+        ...proposal, effect: { ...proposal.effect, scopes: [...proposal.effect.scopes] },
+      })),
+    };
+  }
+
+  /** Trusted owner reads. Never include token digests in control-surface data. */
+  listDevices(): DeviceView[] {
+    return [...this.devices.values()].map(({ id, name, expiresAt, grants, revoked }) => ({
+      id, name, expiresAt, grants: [...grants], revoked,
+    }));
+  }
+
+  listProposals(): ProposalView[] {
+    return [...this.proposals.values()].map(publicProposal);
+  }
+
+  private isAllowed(effect: ExternalEffect): boolean {
+    return this.allowedTools.some((entry) =>
+      entry.toolkit === effect.toolkit && entry.tool === effect.tool &&
+      entry.accountId === effect.accountId &&
+      effect.scopes.length === entry.scopes.length &&
+      new Set(effect.scopes).size === entry.scopes.length &&
+      effect.scopes.every((scope) => entry.scopes.includes(scope)));
   }
 
   /** Trusted owner operation. The invite is single-use and valid for <= 5m. */
@@ -180,13 +250,7 @@ export class GatewayAuthority {
     if (effect.body.length > 65_536 || effect.target.length > 2_048 || effect.scopes.length > 32) {
       throw new Error('External effect exceeds the review limit');
     }
-    const allowed = this.allowedTools.find((entry) =>
-      entry.toolkit === effect.toolkit && entry.tool === effect.tool &&
-      entry.accountId === effect.accountId &&
-      effect.scopes.length === entry.scopes.length &&
-      new Set(effect.scopes).size === entry.scopes.length &&
-      effect.scopes.every((scope) => entry.scopes.includes(scope)));
-    if (!allowed) throw new Error('Tool, account, or scope is outside the gateway grant');
+    if (!this.isAllowed(effect)) throw new Error('Tool, account, or scope is outside the gateway grant');
     const snapshot: ExternalEffect = { ...effect, scopes: [...effect.scopes] };
     const fingerprint = digest(JSON.stringify(snapshot)).toString('hex');
     const proposal: Proposal = {
@@ -206,6 +270,9 @@ export class GatewayAuthority {
     if (!device || device.revoked || this.now() >= device.expiresAt) {
       throw new Error('Proposing device is no longer authorized');
     }
+    if (approve && !this.isAllowed(proposal.effect)) {
+      throw new Error('Tool, account, or scope is outside the gateway grant');
+    }
     proposal.status = approve ? 'approved' : 'denied';
     return publicProposal(proposal);
   }
@@ -219,6 +286,9 @@ export class GatewayAuthority {
     const device = this.devices.get(proposal.deviceId);
     if (!device || device.revoked || this.now() >= device.expiresAt) {
       throw new Error('Proposing device is no longer authorized');
+    }
+    if (!this.isAllowed(proposal.effect)) {
+      throw new Error('Tool, account, or scope is outside the gateway grant');
     }
     proposal.status = 'uncertain';
     return { ...proposal.effect, scopes: [...proposal.effect.scopes] };
