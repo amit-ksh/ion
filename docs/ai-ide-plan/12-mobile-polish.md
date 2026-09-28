@@ -76,6 +76,10 @@ The ZIP contains `waku.exe`, `waku-daemon.exe`, the NeMo-Speech.cpp runtime
 and model index, and license notices. Windows reports the installer as
 `NotSigned`. These ignored local artifacts are available for a separate
 install check, but they are not a published or signed release.
+An extracted portable ZIP also passed a command-line smoke check:
+`waku-daemon.exe --help` returned its usage text and the bundled
+`nemo-speech.exe --version` reported `0.1.0`. The extracted copy was removed
+after the check. This does not verify the installed app UI or microphone.
 
 ## Setup needed for live notification review
 
