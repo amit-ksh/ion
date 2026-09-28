@@ -64,6 +64,9 @@ pairing invites, device tokens, private account contents, or personal paths.
 - Submitted Git commit: **pending**
 - Public source and GPL license URLs: **pending**
 - Desktop build link, platform, version, SHA-256: **pending**
+- Local Windows candidate: commit `553e3e7`, version `0.1.19`, unsigned;
+  installer SHA-256 `29C5599914B867E9BD48C71DDB3B1999FCF9AF2ACE16EBBD2294427EFCDD7873`.
+  Install and smoke-test it separately before using it as submission evidence.
 - Installed Android/iOS build links and EAS build IDs: **pending**
 - Narrated video link and duration: **pending**
 - Real Nebius model and task outcome: **pending**

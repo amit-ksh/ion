@@ -55,9 +55,27 @@ controls, and opt-in notification code are implemented locally.
 - [x] Add an EAS `preview` profile for installable Android/iOS review builds.
 - [x] Prepare a [submission draft](SUBMISSION-DRAFT.md) with a reviewer setup,
       narrated demo outline, and fields for links and live evidence.
+- [x] Rebuild the Windows release and portable ZIP from the Milestone 5 code at
+      commit `553e3e7`. The release script completed, verified bundled
+      NeMo-Speech.cpp 0.1.0, and Inno Setup 6.7.1 compiled the installer.
+      This local package is unsigned and has not been installed for review.
 - [ ] Verify accessibility and long-transcript performance on installed iOS
       and Android builds. Prepare signed platform builds and narrated
       demo/submission assets.
+
+### Local Windows build candidate
+
+Built September 28, 2026 from `553e3e7` using `bun scripts/bundle-windows.ts`:
+
+| Artifact in `target/release/` | SHA-256 |
+| --- | --- |
+| `Waku-0.1.19-x86_64-Setup.exe` | `29C5599914B867E9BD48C71DDB3B1999FCF9AF2ACE16EBBD2294427EFCDD7873` |
+| `waku-0.1.19-x86_64-pc-windows-msvc.zip` | `5A0BC52B636B953A0116A43DC218EE5BFAF656503F66F341A1B929AA7D35B503` |
+
+The ZIP contains `waku.exe`, `waku-daemon.exe`, the NeMo-Speech.cpp runtime
+and model index, and license notices. Windows reports the installer as
+`NotSigned`. These ignored local artifacts are available for a separate
+install check, but they are not a published or signed release.
 
 ## Setup needed for live notification review
 
@@ -160,6 +178,10 @@ controls, and opt-in notification code are implemented locally.
 
 ### Evidence to save for review
 
+- [ ] Install the local Windows candidate on a separate test machine, or after
+      saving running work. Confirm launch, daemon startup, and bundled local
+      speech runtime discovery. The installer can close an existing ion
+      process, so do not install over the watcher-owned debug app.
 - [ ] Save the tested desktop installer or archive and its SHA-256 hash, plus
       the installed phone build links and build IDs. Record the Git commit used
       for each build so the demo matches the submitted source.
