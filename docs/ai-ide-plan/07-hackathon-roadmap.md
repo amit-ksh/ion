@@ -22,6 +22,7 @@ connections and mobile control. The product is free/BYOK.
 | 3. Workflows | Typed lead/specialist delegation, artifact and approval, GitHub issue/PR path | Observable parent-child run and reviewable external write |
 | 4. Speech and gateway | Local Nemotron 3.5 ASR; guided personal Nebius gateway with scoped Composio key | Offline local dictation and paired gateway demonstration |
 | 5. Mobile and polish | Task inspection, steering, approvals, recovery, submission assets | Paired mobile proof, accessibility/performance review, demo build |
+| 6. Optional NemoClaw adapter | Approval-gated one-off execution in a user-managed sandbox behind an explicit flag | Exact command approval, bounded output, uncertain-outcome recovery, live sandbox review |
 
 At every gate the agent implements only that milestone, preserves unrelated
 work, runs proportional checks, reports changes and limitations with a manual
@@ -40,8 +41,9 @@ use the [Milestone 2](09-native-nebius-runtime.md#milestone-2-acceptance-checkli
 for later review.
 The user later authorized Milestone 5 development with those reviews deferred.
 Its [installed-build and mobile review checklist](12-mobile-polish.md#user-review-checklist)
-remains open. The planned roadmap ends at Milestone 5; no Milestone 6 scope has
-been approved or specified.
+remains open. The user then authorized Milestone 6's optional NemoClaw adapter
+while those live checks remain deferred. Its [review checklist](13-nemoclaw-adapter.md#review-checklist)
+requires a user-managed sandbox and a live Nebius key.
 
 ## Milestone 1 acceptance
 

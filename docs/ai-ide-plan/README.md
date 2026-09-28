@@ -11,8 +11,9 @@ The user subsequently authorized Milestone 4 implementation while deferring
 Milestone 2 and 3 review until a Nebius key is available. All three checklists
 remain open until their evidence is reviewed.
 The user also authorized Milestone 5 development with those live reviews
-deferred. Its mobile and submission review remains open; the roadmap currently
-defines five milestones.
+deferred. Its mobile and submission review remains open. Milestone 6 adds an
+optional, approval-gated NemoClaw execution adapter; its live sandbox review
+also remains open.
 
 ## Locked decisions
 
@@ -83,6 +84,7 @@ remain intact for the Full profile after the event.
 10. [Workflows and GitHub review check](10-workflows-github.md)
 11. [Local speech and personal gateway review check](11-speech-gateway.md)
 12. [Mobile control and polish](12-mobile-polish.md)
+13. [Optional NemoClaw execution adapter](13-nemoclaw-adapter.md)
 
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.

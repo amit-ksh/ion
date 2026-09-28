@@ -421,6 +421,7 @@ fn run_specialist(
                 journal_path,
                 journal,
                 &call,
+                None,
             );
             if let Err(error) = &outcome {
                 let _ = events.send(DriverEvent::Activity {
