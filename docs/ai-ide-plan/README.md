@@ -86,3 +86,6 @@ remain intact for the Full profile after the event.
 
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.
+
+The [submission draft](SUBMISSION-DRAFT.md) holds the reviewer setup, demo
+outline, and evidence fields for Milestone 5.

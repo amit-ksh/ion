@@ -53,6 +53,8 @@ controls, and opt-in notification code are implemented locally.
 - [x] Virtualize the phone's mirrored task list so tasks beyond the first 20
       remain reachable without mounting every task card at once.
 - [x] Add an EAS `preview` profile for installable Android/iOS review builds.
+- [x] Prepare a [submission draft](SUBMISSION-DRAFT.md) with a reviewer setup,
+      narrated demo outline, and fields for links and live evidence.
 - [ ] Verify accessibility and long-transcript performance on installed iOS
       and Android builds. Prepare signed platform builds and narrated
       demo/submission assets.
