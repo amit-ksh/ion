@@ -10,6 +10,9 @@ check; Milestone 2 acceptance remains open for later review.
 The user subsequently authorized Milestone 4 implementation while deferring
 Milestone 2 and 3 review until a Nebius key is available. All three checklists
 remain open until their evidence is reviewed.
+The user also authorized Milestone 5 development with those live reviews
+deferred. Its mobile and submission review remains open; the roadmap currently
+defines five milestones.
 
 ## Locked decisions
 

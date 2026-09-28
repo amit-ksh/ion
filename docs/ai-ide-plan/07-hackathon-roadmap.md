@@ -38,6 +38,10 @@ use the [Milestone 2](09-native-nebius-runtime.md#milestone-2-acceptance-checkli
 [Milestone 3](10-workflows-github.md#milestone-3-review-checklist), and
 [Milestone 4](11-speech-gateway.md#milestone-4-review-checklist) checklists
 for later review.
+The user later authorized Milestone 5 development with those reviews deferred.
+Its [installed-build and mobile review checklist](12-mobile-polish.md#user-review-checklist)
+remains open. The planned roadmap ends at Milestone 5; no Milestone 6 scope has
+been approved or specified.
 
 ## Milestone 1 acceptance
 

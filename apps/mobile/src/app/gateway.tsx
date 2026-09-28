@@ -1,7 +1,7 @@
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -17,6 +17,7 @@ export default function GatewayScreen() {
   const theme = useTheme();
   const [pairing, setPairing] = useState<GatewayPairing | null>(null);
   const pairingRef = useRef<GatewayPairing | null>(null);
+  const cacheWrite = useRef<Promise<void>>(Promise.resolve());
   const [url, setUrl] = useState('');
   const [invite, setInvite] = useState('');
   const [proposals, setProposals] = useState<GatewayProposal[]>([]);
@@ -66,7 +67,8 @@ export default function GatewayScreen() {
       setTasksStale(feed.publishedAt === null || feed.tasks.some((task) =>
         !task.publisherSeenAt || Date.now() - task.publisherSeenAt > 60_000));
       setTaskMessage(feed.publishedAt === null ? 'Desktop has not published tasks yet.' : null);
-      void writeCachedGatewayTasks(identity, feed.tasks);
+      cacheWrite.current = cacheWrite.current.catch(() => {}).then(() =>
+        pairingRef.current === current ? writeCachedGatewayTasks(identity, feed.tasks) : undefined);
     } catch {
       if (pairingRef.current !== current) return;
       setTasksStale(true);
@@ -128,6 +130,7 @@ export default function GatewayScreen() {
     setTasks([]);
     setTasksStale(true);
     setNotificationsEnabled(false);
+    await cacheWrite.current.catch(() => {});
     await clearCachedGatewayTasks();
     setOnline(false);
     setMessage('Pairing removed from this phone. Revoke the device in /owner too.');
@@ -196,8 +199,11 @@ export default function GatewayScreen() {
     );
   }
 
+  const visibleTasks = pairing?.grants.includes('taskRead') ? tasks : [];
   return (
-    <ScrollView style={{ backgroundColor: theme.background }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <FlatList style={{ backgroundColor: theme.background }} contentContainerStyle={styles.page}
+      keyboardShouldPersistTaps="handled" data={visibleTasks} keyExtractor={(task) => task.id}
+      ListHeaderComponent={<View style={styles.header}>
       <Stack.Screen options={{ title: 'Personal gateway' }} />
       <Text style={[styles.title, { color: theme.text }]}>Personal gateway</Text>
       <Text style={[styles.help, { color: theme.textSecondary }]}>
@@ -234,20 +240,22 @@ export default function GatewayScreen() {
           </Text>
           {taskMessage && <Text style={[styles.meta, { color: theme.textSecondary }]}>{taskMessage}</Text>}
           <Action label="Refresh tasks" disabled={busy} onPress={() => void refreshTasks()} color={theme.accent} />
-          {tasks.slice(0, 20).map((task) => (
-            <Pressable key={task.id} accessibilityRole="button"
-              accessibilityLabel={`Open ${task.title}, ${task.status}`}
-              onPress={() => router.push({ pathname: '/gateway-task/[id]', params: { id: task.id } })}
-              style={[styles.card, { backgroundColor: theme.raised, borderColor: theme.borderStrong }]}>
-              <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.projectName} · {task.provider}</Text>
-              <Text style={[styles.tool, { color: theme.text }]}>{task.title}</Text>
-              <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.status} · {task.publisherSeenAt && Date.now() - task.publisherSeenAt <= 60_000 ? 'Live feed' : 'Stale feed'}</Text>
-              {task.computerTarget?.visible && <Text style={[styles.meta, { color: theme.textSecondary }]}>Computer: {task.computerTarget.appName} · {task.computerTarget.windowTitle || 'Untitled window'}</Text>}
-            </Pressable>
-          ))}
-          {tasks.length > 20 && <Text style={[styles.meta, { color: theme.textSecondary }]}>Showing 20 of {tasks.length} tasks.</Text>}
+          {tasks.length === 0 && <Text style={[styles.meta, { color: theme.textSecondary }]}>No mirrored desktop tasks yet.</Text>}
         </View>
       )}
+      </View>}
+      renderItem={({ item: task }) => (
+        <Pressable accessibilityRole="button"
+          accessibilityLabel={`Open ${task.title}, ${task.status}`}
+          onPress={() => router.push({ pathname: '/gateway-task/[id]', params: { id: task.id } })}
+          style={[styles.card, { backgroundColor: theme.raised, borderColor: theme.borderStrong }]}>
+          <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.projectName} · {task.provider}</Text>
+          <Text style={[styles.tool, { color: theme.text }]}>{task.title}</Text>
+          <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.status} · {task.publisherSeenAt && Date.now() - task.publisherSeenAt <= 60_000 ? 'Live feed' : 'Stale feed'}</Text>
+          {task.computerTarget?.visible && <Text style={[styles.meta, { color: theme.textSecondary }]}>Computer: {task.computerTarget.appName} · {task.computerTarget.windowTitle || 'Untitled window'}</Text>}
+        </Pressable>
+      )}
+      ListFooterComponent={<View style={styles.proposals}>
       {pairing?.grants.includes('review') && proposals.map((proposal) => {
         const effect = proposal.effect;
         return (
@@ -268,7 +276,8 @@ export default function GatewayScreen() {
           </View>
         );
       })}
-    </ScrollView>
+      </View>}
+    />
   );
 }
 
@@ -280,6 +289,8 @@ function describe(error: unknown): string { return error instanceof Error ? erro
 
 const styles = StyleSheet.create({
   page: { padding: 20, paddingBottom: 70, gap: 18 },
+  header: { gap: 18 },
+  proposals: { gap: 18 },
   title: { fontSize: 24, fontWeight: '700' },
   help: { fontSize: 14, lineHeight: 21 },
   section: { gap: 10 },

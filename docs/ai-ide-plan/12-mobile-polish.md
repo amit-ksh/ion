@@ -50,6 +50,8 @@ controls, and opt-in notification code are implemented locally.
 - [x] Keep gateway activity in a virtualized, 300-event phone window, pause
       polling when screens lose focus, and provide text labels and 44-point
       controls for task actions. Static type/config checks pass.
+- [x] Virtualize the phone's mirrored task list so tasks beyond the first 20
+      remain reachable without mounting every task card at once.
 - [x] Add an EAS `preview` profile for installable Android/iOS review builds.
 - [ ] Verify accessibility and long-transcript performance on installed iOS
       and Android builds. Prepare signed platform builds and narrated
@@ -117,6 +119,27 @@ controls, and opt-in notification code are implemented locally.
 - [ ] Review task control, offline recovery, performance, accessibility, and
       the demo items above on installed builds, then explicitly approve Milestone 5.
 
+### Installed-build quality check
+
+- [ ] On both iOS and Android, open a task below position 20 in a feed with at
+      least 30 tasks. Scroll quickly through the list and a task with hundreds
+      of events; check for missed taps, large pauses, or duplicated activity.
+      Record the phone model, OS version, and approximate event count.
+- [ ] Turn on the OS large-text setting. Check the pairing form, task cards,
+      long JSON arguments, provider questions, and action buttons without
+      clipped text or overlapping controls. Repeat in light and dark mode.
+- [ ] With VoiceOver or TalkBack, navigate the pairing form, task list, exact
+      approval, provider question, and emergency stop. Confirm each action has
+      a spoken label and disabled controls are announced as unavailable.
+- [ ] Enable Reduce Motion and confirm task updates and navigation remain
+      understandable. Background and foreground the app during a pending
+      command; confirm the displayed result matches the desktop and that the
+      command is not sent twice.
+- [ ] Install the Android preview APK and, if available, the registered iOS
+      preview build on physical phones. Check launch, pairing, and generic
+      notification delivery there; simulator or Expo Go results do not close
+      this installed-build review.
+
 ## Demo and submission preparation
 
 1. Record a short, fresh run with a real Nebius model: create a native task,
@@ -132,6 +155,20 @@ controls, and opt-in notification code are implemented locally.
    GPL license link, concise setup instructions, and the narrated video. The
    user supplies account credentials, records the live evidence, and verifies
    the current event submission rules before publishing.
+
+### Evidence to save for review
+
+- [ ] Save the tested desktop installer or archive and its SHA-256 hash, plus
+      the installed phone build links and build IDs. Record the Git commit used
+      for each build so the demo matches the submitted source.
+- [ ] Capture a short screen recording of the real Nebius coding run, local
+      speech, phone answer/stop, and separate gateway approval/execution. Blur
+      or omit API keys, pairing invites, device tokens, account data, and
+      private workspace paths before sharing it.
+- [ ] Put the public source URL, GPL license URL, setup guide, build links,
+      video link, and concise Nebius/NVIDIA implementation summary in the
+      submission draft. Check the event's current form and deadline before
+      submission; do not treat this list as a substitute for its rules.
 
 The task mirror, exact questions and permissions, and controls passed local
 gateway tests, TypeScript checks, and desktop compilation. A live phone,
