@@ -8,25 +8,87 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result, bail};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use uuid::Uuid;
 use waku_client::{Command, DaemonClient, DaemonSupervisor, ResponsePayload};
 
-use crate::credentials::{CredentialService, GatewayApi, GatewayRelayTask};
+use crate::credentials::{
+    CredentialService, GatewayApi, GatewayRelayCommand, GatewayRelayComputerTarget,
+    GatewayRelayInteraction, GatewayRelayTask,
+};
 use crate::model::{ActivityKind, AgentSession, MessageRole};
 
 pub struct GatewayBridge {
     stop: Arc<AtomicBool>,
+    interactions: Sender<InteractionUpdate>,
+}
+
+pub enum InteractionUpdate {
+    Reset,
+    Publish(GatewayRelayInteraction),
+    Computer(GatewayRelayComputerTarget),
+    Resolve {
+        task_id: Uuid,
+        runtime_id: Uuid,
+        request_id: String,
+    },
+}
+
+impl InteractionUpdate {
+    fn key(&self) -> Option<(String, String, String)> {
+        match self {
+            Self::Reset => None,
+            Self::Publish(value) => Some((
+                value.task_id.clone(),
+                value.runtime_id.clone(),
+                format!("interaction:{}", value.request_id),
+            )),
+            Self::Computer(value) => Some((
+                value.task_id.clone(),
+                value.runtime_id.clone(),
+                "computer-target".into(),
+            )),
+            Self::Resolve {
+                task_id,
+                runtime_id,
+                request_id,
+            } => Some((
+                task_id.to_string(),
+                runtime_id.to_string(),
+                format!("interaction:{request_id}"),
+            )),
+        }
+    }
+}
+
+fn collect_interaction(
+    interactions: &mut HashMap<(String, String, String), InteractionUpdate>,
+    update: InteractionUpdate,
+) {
+    if let Some(key) = update.key() {
+        interactions.insert(key, update);
+        if interactions.len() > 1_000 {
+            interactions.clear();
+        }
+    } else {
+        interactions.clear();
+    }
 }
 
 impl GatewayBridge {
     pub fn start(daemon: DaemonSupervisor) -> Result<Self> {
         let stop = Arc::new(AtomicBool::new(false));
         let worker_stop = stop.clone();
+        let (interactions, receiver) = unbounded();
         std::thread::Builder::new()
             .name("ion-gateway-bridge".into())
-            .spawn(move || bridge_loop(daemon, worker_stop))
+            .spawn(move || bridge_loop(daemon, worker_stop, receiver))
             .context("Could not start personal gateway bridge")?;
-        Ok(Self { stop })
+        Ok(Self { stop, interactions })
+    }
+
+    pub fn update_interaction(&self, update: InteractionUpdate) {
+        let _ = self.interactions.send(update);
     }
 }
 
@@ -44,20 +106,67 @@ struct Published {
     events: HashSet<String>,
 }
 
-fn bridge_loop(daemon: DaemonSupervisor, stop: Arc<AtomicBool>) {
+fn bridge_loop(
+    daemon: DaemonSupervisor,
+    stop: Arc<AtomicBool>,
+    receiver: Receiver<InteractionUpdate>,
+) {
     let mut published = Published::default();
+    let mut interactions = HashMap::new();
+    let mut last_error = String::new();
     while !stop.load(Ordering::Acquire) {
         if let Ok(api) = CredentialService::global().gateway_api()
             && api.has_publish_grant().unwrap_or(false)
         {
             let identity = format!("{}:{}", api.identity().0, api.identity().1);
             if published.identity != identity {
+                if !published.identity.is_empty() {
+                    interactions.clear();
+                }
                 published = Published {
                     identity,
                     ..Published::default()
                 };
             }
-            let _ = sync_once(&daemon.client(), &api, &mut published);
+            while let Ok(update) = receiver.try_recv() {
+                collect_interaction(&mut interactions, update);
+            }
+            if let Err(error) = sync_once(&daemon.client(), &api, &mut published) {
+                // A gateway restore or a partial network failure can erase
+                // server state that our in-memory cache believed existed.
+                // Replay the bounded snapshot and deduped event IDs next pass.
+                published.tasks.clear();
+                published.hydrated.clear();
+                published.events.clear();
+                let message = error.to_string();
+                if last_error != message {
+                    eprintln!("Personal gateway task bridge: {message}");
+                    last_error = message;
+                }
+            } else {
+                last_error.clear();
+                interactions.retain(|_, update| {
+                    let result = match update {
+                        InteractionUpdate::Reset => Ok(()),
+                        InteractionUpdate::Publish(value) => api.publish_interaction(value),
+                        InteractionUpdate::Computer(value) => api.publish_computer_target(value),
+                        InteractionUpdate::Resolve {
+                            task_id,
+                            runtime_id,
+                            request_id,
+                        } => api.resolve_interaction(
+                            &task_id.to_string(),
+                            &runtime_id.to_string(),
+                            request_id,
+                        ),
+                    };
+                    result.is_err()
+                });
+            }
+        } else {
+            while let Ok(update) = receiver.try_recv() {
+                collect_interaction(&mut interactions, update);
+            }
         }
         for _ in 0..50 {
             if stop.load(Ordering::Acquire) {
@@ -102,14 +211,14 @@ fn sync_once(client: &DaemonClient, api: &GatewayApi, published: &mut Published)
                 .cloned()
                 .unwrap_or_default()
                 .chars()
-                .take(240)
+                .take(120)
                 .collect(),
             title: session
                 .auto_title
                 .as_deref()
                 .unwrap_or(&session.title)
                 .chars()
-                .take(240)
+                .take(120)
                 .collect(),
             provider: serde_json::to_value(session.provider)?
                 .as_str()
@@ -153,6 +262,14 @@ fn dispatch_commands(client: &DaemonClient, api: &GatewayApi) -> Result<()> {
         if pending.status != "queued" {
             continue;
         }
+        let request_id = if matches!(pending.kind.as_str(), "permission" | "answer") {
+            match gateway_request_id(api, &pending) {
+                Ok(id) => Some(id),
+                Err(_) => continue,
+            }
+        } else {
+            None
+        };
         let claimed = api.claim_command(&pending.id)?;
         if claimed.status != "uncertain" {
             continue;
@@ -188,6 +305,23 @@ fn dispatch_commands(client: &DaemonClient, api: &GatewayApi) -> Result<()> {
                     .cloned()
                     .context("Missing steer prompt")?,
             },
+            "permission" => Command::Respond {
+                request_id: request_id.clone().context("Missing provider request")?,
+                option_id: claimed
+                    .payload
+                    .get("optionId")
+                    .cloned()
+                    .context("Missing permission option")?,
+            },
+            "answer" => Command::RespondUserInput {
+                request_id: request_id.context("Missing provider request")?,
+                answers: serde_json::from_str(
+                    claimed
+                        .payload
+                        .get("answers")
+                        .context("Missing question answers")?,
+                )?,
+            },
             _ => {
                 api.settle_command(&claimed.id, false)?;
                 continue;
@@ -198,6 +332,15 @@ fn dispatch_commands(client: &DaemonClient, api: &GatewayApi) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn gateway_request_id(api: &GatewayApi, command: &GatewayRelayCommand) -> Result<String> {
+    api.interaction_request_id(
+        command
+            .payload
+            .get("interactionId")
+            .context("Missing provider interaction")?,
+    )
 }
 
 fn publish_events(
@@ -231,6 +374,15 @@ fn publish_events(
                         session.created_at.saturating_mul(1_000),
                     )?;
                     for (change_index, change) in activity.file_changes.iter().enumerate() {
+                        send_event(
+                            api,
+                            seen,
+                            session.id,
+                            &format!("file:{}:{change_index}", activity.id),
+                            "artifact",
+                            &format!("Changed file: {}", change.path),
+                            session.created_at.saturating_mul(1_000),
+                        )?;
                         if let Some(diff) = change.diff.as_deref() {
                             send_event(
                                 api,
@@ -264,6 +416,19 @@ fn publish_events(
                 &format!("{role}: {}", message.visible_content()),
                 message.created_at.saturating_mul(1_000),
             )?;
+            for (attachment_index, attachment) in message.attachments.iter().enumerate() {
+                // The gateway receives only a display name, never the local
+                // path or daemon blob reference from a composer attachment.
+                send_event(
+                    api,
+                    seen,
+                    session.id,
+                    &format!("attachment:{}:{attachment_index}", message.id),
+                    "artifact",
+                    &format!("Attachment: {}", attachment.name),
+                    message.created_at.saturating_mul(1_000),
+                )?;
+            }
         }
     }
     Ok(())
@@ -278,10 +443,12 @@ fn send_event(
     text: &str,
     at: u64,
 ) -> Result<()> {
-    let text = if text.chars().count() > 45_000 {
+    // A JSON control character can expand to six ASCII bytes. Keep each
+    // event below the gateway's 70 KiB request cap even in that worst case.
+    let text = if text.chars().count() > 8_000 {
         format!(
             "{}… [truncated]",
-            text.chars().take(45_000).collect::<String>()
+            text.chars().take(8_000).collect::<String>()
         )
     } else {
         text.to_owned()

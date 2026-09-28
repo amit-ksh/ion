@@ -423,6 +423,7 @@ impl Waku {
                 if result.0.is_ok() {
                     waku.gateway_accounts.clear();
                     waku.gateway_last_proposal = None;
+                    waku.republish_pending_gateway_interactions();
                 }
                 waku.credential_feedback.insert(
                     kind,
@@ -443,6 +444,54 @@ impl Waku {
             });
         })
         .detach();
+    }
+
+    fn republish_pending_gateway_interactions(&self) {
+        let Some(bridge) = &self._gateway_bridge else {
+            return;
+        };
+        bridge.update_interaction(crate::gateway_bridge::InteractionUpdate::Reset);
+        for (&task_id, runtime) in &self.runtimes {
+            let Some(runtime_id) = runtime.driver.runtime_id() else {
+                continue;
+            };
+            if let Some(permission) = &runtime.pending_permission {
+                bridge.update_interaction(crate::gateway_bridge::InteractionUpdate::Publish(
+                    crate::credentials::GatewayRelayInteraction {
+                        task_id: task_id.to_string(),
+                        runtime_id: runtime_id.to_string(),
+                        request_id: permission.request_id.clone(),
+                        kind: "permission".into(),
+                        title: permission.title.clone(),
+                        detail: permission.detail.clone(),
+                        options: permission
+                            .options
+                            .iter()
+                            .filter_map(|option| serde_json::to_value(option).ok())
+                            .collect(),
+                        questions: Vec::new(),
+                    },
+                ));
+            }
+            if let Some(input) = &runtime.pending_user_input {
+                bridge.update_interaction(crate::gateway_bridge::InteractionUpdate::Publish(
+                    crate::credentials::GatewayRelayInteraction {
+                        task_id: task_id.to_string(),
+                        runtime_id: runtime_id.to_string(),
+                        request_id: input.request_id.clone(),
+                        kind: "question".into(),
+                        title: "Provider question".into(),
+                        detail: String::new(),
+                        options: Vec::new(),
+                        questions: input
+                            .questions
+                            .iter()
+                            .filter_map(|question| serde_json::to_value(question).ok())
+                            .collect(),
+                    },
+                ));
+            }
+        }
     }
 
     fn refresh_gateway_accounts(&mut self, cx: &mut Context<Self>) {

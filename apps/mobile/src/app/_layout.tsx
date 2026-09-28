@@ -2,6 +2,7 @@ import {
   DarkTheme,
   DefaultTheme,
   Stack,
+  router,
   ThemeProvider,
   type NativeStackNavigationOptions,
 } from "expo-router";
@@ -22,6 +23,7 @@ import {
 import { TaskDrawerHost, useTaskDrawer } from "@/components/task-drawer";
 import { DaemonProvider, useDaemon } from "@/lib/daemon-context";
 import { RuntimeProvider } from "@/lib/runtime-context";
+import { listenForGatewayNotifications } from "@/lib/gateway-notifications";
 
 /** Deep links and state restores keep the new-task home as the stack anchor. */
 export const unstable_settings = { anchor: "index" };
@@ -53,6 +55,9 @@ const floatingHeader = {
 } satisfies NativeStackNavigationOptions;
 
 export default function RootLayout() {
+  useEffect(() => listenForGatewayNotifications((taskId) => {
+    router.push({ pathname: '/gateway-task/[id]', params: { id: taskId } });
+  }), []);
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
   const navigationTheme =

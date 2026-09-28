@@ -2,8 +2,8 @@
 
 The user authorized Milestone 5 development while Milestones 2–4 await live
 review. Their unchecked acceptance items stay open. This milestone is **in
-progress**. Phone pairing, exact external-action review, and the first task
-mirror/control slice are implemented locally.
+progress**. Phone pairing, exact external-action review, task mirroring,
+controls, and opt-in notification code are implemented locally.
 
 ## Development checklist
 
@@ -17,26 +17,58 @@ mirror/control slice are implemented locally.
 - [x] Add a mobile gateway screen with HTTPS pairing, full tool/account/
       version/target/arguments/scope review, visible connection errors, and
       disabled decisions while disconnected.
-- [ ] Bridge desktop task summaries, ordered events, artifacts, diffs, and
+- [x] Bridge desktop task summaries, ordered events, artifact metadata, diffs, and
       pending task approvals to the paired gateway with narrow, device-specific
       read grants. The existing mobile daemon connection supports task views,
       but uses a full daemon token and is not this gateway path.
-- [x] Publish bounded desktop task summaries, complete visible messages, tool
+- [x] Publish bounded desktop task summaries, bounded visible messages, tool
       activity, and diffs through a background bridge. Separate `publish`,
       `taskRead`, and `taskControl` grants isolate the desktop and phone. Task
       deletion reconciles against the publisher's latest snapshot.
-- [ ] Add gateway-mediated answer, steer, and stop commands with durable
+- [x] Add gateway-mediated answer, steer, and stop commands with durable
       acknowledgements and idempotent replay rules. Show the active target and
       an emergency stop for any computer-control flow.
 - [x] Add durable, single-claim steer and stop commands. A lost desktop
       acknowledgement stays `uncertain` and is never replayed as a new action.
       The phone disables controls when the owning desktop's heartbeat is stale.
+- [x] Mirror exact provider permissions and questions with request fingerprints.
+      The gateway checks the selected option or complete answers against the
+      pending runtime before a single claim. The phone displays the current
+      computer-control app and window without sending screenshots or blob data.
 - [x] Add monotonic event cursors and a nonsecret offline cache for gateway
       task inspection. A stale view must never enable a write decision.
-- [ ] Add mobile notifications and optional phone dictation transfer to the
-      paired desktop only after the connection and consent controls work.
-- [ ] Review accessibility, long-transcript performance, platform packaging,
-      and narrated demo/submission assets.
+- [x] Add opt-in phone notifications for new provider questions and permissions.
+      The push payload contains only a task ID and generic copy. Registration
+      requires `taskRead`, revocation removes the subscription, and tickets and
+      receipts are checked. Live delivery needs account-owned EAS, FCM/APNs,
+      and phone build setup below.
+- [ ] Optional phone microphone audio transfer for desktop local transcription.
+      The desktop ASR accepts WAV, while the current Expo audio presets do not
+      establish a cross-platform WAV capture path. Do not upload audio through
+      the gateway until capture format, size limits, consent, and deletion are
+      explicit. Phone keyboard dictation can enter editable text for steering.
+- [x] Keep gateway activity in a virtualized, 300-event phone window, pause
+      polling when screens lose focus, and provide text labels and 44-point
+      controls for task actions. Static type/config checks pass.
+- [ ] Verify accessibility and long-transcript performance on installed iOS
+      and Android builds. Prepare signed platform builds and narrated
+      demo/submission assets.
+
+## Setup needed for live notification review
+
+- [ ] Link the mobile app to the owner's Expo/EAS project and set its real
+      project UUID in `apps/mobile/app.json` at `expo.extra.eas.projectId`.
+- [ ] Configure Android FCM v1 and/or iOS APNs credentials for that project,
+      then build and install an iOS or Android development/release build.
+      Android push does not work in Expo Go. See the official
+      [Expo setup guide](https://docs.expo.dev/push-notifications/push-notifications-setup/).
+- [ ] Pair the phone with `taskRead`, press **Enable task notifications**, and
+      grant OS permission. Trigger one provider question, confirm exactly one
+      generic notice, tap it, and review the exact request inside ion. Disable
+      notifications and repeat; no notice should arrive. Revoke the phone in
+      `/owner` and repeat once more.
+- [ ] Check the gateway's push ticket and receipt results. A missing or failed
+      delivery does not replace the task feed or grant any action.
 
 ## User review checklist
 
@@ -57,6 +89,13 @@ mirror/control slice are implemented locally.
 - [ ] Disconnect the phone during a queued command. Reconnect and confirm the
       durable command status is shown. An `uncertain` outcome requires desktop
       inspection and must not replay the command automatically.
+- [ ] Trigger a provider permission and a provider question on the desktop.
+      On the phone, compare the full request and option labels, deny or answer
+      one, and confirm the desktop advances once. Try an old fingerprint or
+      changed runtime and confirm the gateway rejects it.
+- [ ] Start computer control, verify the phone shows the correct app and window
+      title, then use **Emergency stop** while another control is queued.
+      Confirm the computer action and provider turn stop on the desktop.
 
 - [ ] On the deployed gateway's `/owner` page, create a one-use invite with
       **Review approvals**. Pair an iOS or Android phone through **Personal
@@ -71,11 +110,28 @@ mirror/control slice are implemented locally.
 - [ ] Drop the phone connection during a decision, reconnect, and verify the
       durable status is shown without a duplicate effect. Revoke the phone and
       confirm future review requests fail.
-- [ ] Review the later task-control, offline, performance, accessibility, and
-      demo items above when implemented, then explicitly approve Milestone 5.
+- [ ] Review task control, offline recovery, performance, accessibility, and
+      the demo items above on installed builds, then explicitly approve Milestone 5.
 
-The task mirror and controls passed local gateway tests, TypeScript checks,
-and desktop compilation. A live phone, deployed gateway, and provider task
-are still needed for the review items above. Pending task approvals, answer
-commands, notifications, phone dictation, packaging, and demo assets remain
-development work.
+## Demo and submission preparation
+
+1. Record a short, fresh run with a real Nebius model: create a native task,
+   show ordered tool activity, a local diff, and a reviewable approval. Keep
+   tokens and personal account data out of the recording.
+2. Record local desktop dictation turning speech into editable text, then
+   show a paired phone reading the same task, answering a provider question,
+   and stopping a separate computer-control run with its active target shown.
+3. Show one Composio proposal denied on the phone and one approved there but
+   executed only by the gateway owner. Then show offline stale state and a
+   cursor resume after reconnection.
+4. Prepare a signed desktop build, an installed phone build, public source and
+   GPL license link, concise setup instructions, and the narrated video. The
+   user supplies account credentials, records the live evidence, and verifies
+   the current event submission rules before publishing.
+
+The task mirror, exact questions and permissions, and controls passed local
+gateway tests, TypeScript checks, and desktop compilation. A live phone,
+deployed gateway, and provider task are still needed for the review items
+above. Notification delivery and signed phone packaging need the user's
+Expo/platform credentials. The optional phone audio transfer and live demo
+recording remain open.

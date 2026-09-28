@@ -42,6 +42,10 @@ impl DriverHandle {
         Self { inner: control }
     }
 
+    pub fn runtime_id(&self) -> Option<Uuid> {
+        self.inner.runtime_id()
+    }
+
     /// Send a prompt along with the ids this client gave the turn it opened
     /// and that turn's user message, so the daemon can publish the same
     /// identity to every other client attached to the runtime.
@@ -113,6 +117,9 @@ impl DriverHandle {
 }
 
 pub trait DriverControl: Send + Sync {
+    fn runtime_id(&self) -> Option<Uuid> {
+        None
+    }
     fn prompt(&self, prompt: String, turn_id: Option<Uuid>, message_id: Option<Uuid>);
     fn supports_steer(&self) -> bool {
         false

@@ -4,7 +4,8 @@ import type { DeviceGrant, ExternalEffect } from './authority';
 import type { ComposioCatalog } from './composio';
 import type { ComposioExecutor } from './composio-execution';
 import { ownerCss, ownerHtml, ownerJs } from './owner-ui';
-import { DurableTaskRelay, type RelayCommandKind, type RelayEvent, type RelayTask } from './task-relay';
+import type { GatewayPush } from './push';
+import { DurableTaskRelay, type RelayCommandKind, type RelayComputerTarget, type RelayEvent, type RelayInteractionInput, type RelayTask } from './task-relay';
 
 const maxBodyBytes = 70_000;
 
@@ -102,6 +103,7 @@ export function createGatewayHandler(
   authority: DurableGatewayAuthority,
   ownerSecret: string,
   relay: DurableTaskRelay,
+  push: GatewayPush,
   composio?: ComposioCatalog,
   executor?: ComposioExecutor,
 ) {
@@ -151,6 +153,7 @@ export function createGatewayHandler(
         const revoke = /^\/v1\/owner\/devices\/([0-9a-f-]{36})\/revoke$/.exec(path);
         if (revoke && method === 'POST') {
           authority.revokeDevice(revoke[1]!);
+          push.unregister(revoke[1]!);
           return json({ revoked: true });
         }
         const decide = /^\/v1\/owner\/proposals\/([0-9a-f-]{36})\/decision$/.exec(path);
@@ -190,9 +193,29 @@ export function createGatewayHandler(
         authorizedDevice(request, authority, 'taskRead');
         return json(relay.listTasks());
       }
+      if (path === '/v1/device/push' && method === 'GET') {
+        const identity = authorizedDevice(request, authority, 'taskRead');
+        return json({ enabled: push.isRegistered(identity.id) });
+      }
+      if (path === '/v1/device/push' && method === 'PUT') {
+        const identity = authorizedDevice(request, authority, 'taskRead');
+        const input = await body(request);
+        push.register(identity.id, string(input.token));
+        return json({ enabled: true });
+      }
+      if (path === '/v1/device/push' && method === 'DELETE') {
+        const identity = authorizedDevice(request, authority, 'taskRead');
+        push.unregister(identity.id);
+        return json({ enabled: false });
+      }
       if (path === '/v1/device/heartbeat' && method === 'POST') {
         const identity = authorizedDevice(request, authority, 'publish');
         return json(relay.heartbeat(identity.id));
+      }
+      if (path === '/v1/device/computer-target' && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        return json(relay.setComputerTarget(identity.id, input.target as RelayComputerTarget));
       }
       const publishTask = /^\/v1\/device\/tasks\/([0-9a-f-]{36})$/.exec(path);
       if (publishTask && method === 'PUT') {
@@ -220,6 +243,36 @@ export function createGatewayHandler(
           string(input.eventId), string(input.taskId), string(input.kind) as RelayEvent['kind'],
           string(input.text), Number(input.at),
         ), 201);
+      }
+      if (path === '/v1/device/interactions' && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        const interaction = relay.publishInteraction(identity.id, input.interaction as RelayInteractionInput);
+        if (interaction.created) push.enqueue(interaction.taskId, `interaction:${interaction.id}`);
+        return json(interaction, 201);
+      }
+      if (path === '/v1/device/interactions/resolve' && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        const input = await body(request);
+        return json({ interaction: relay.resolveInteractionRequest(identity.id,
+          string(input.taskId), string(input.runtimeId), string(input.requestId)) });
+      }
+      const taskInteractions = /^\/v1\/device\/tasks\/([0-9a-f-]{36})\/interactions$/.exec(path);
+      if (taskInteractions && method === 'GET') {
+        authorizedDevice(request, authority, 'taskRead');
+        return json({ interactions: relay.pendingInteractions(taskInteractions[1]!) });
+      }
+      const readInteraction = /^\/v1\/device\/interactions\/([0-9a-f-]{36})$/.exec(path);
+      if (readInteraction && method === 'GET') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        const interaction = relay.interactionForPublisher(identity.id, readInteraction[1]!);
+        if (!interaction) throw new HttpFailure(404, 'Interaction not found');
+        return json(interaction);
+      }
+      const resolveInteraction = /^\/v1\/device\/interactions\/([0-9a-f-]{36})\/resolve$/.exec(path);
+      if (resolveInteraction && method === 'POST') {
+        const identity = authorizedDevice(request, authority, 'publish');
+        return json(relay.resolveInteraction(identity.id, resolveInteraction[1]!));
       }
       if (path === '/v1/device/commands' && method === 'GET') {
         authorizedDevice(request, authority, 'publish');

@@ -115,6 +115,30 @@ pub struct GatewayRelayTask {
     pub updated_at: u64,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayRelayInteraction {
+    pub task_id: String,
+    pub runtime_id: String,
+    pub request_id: String,
+    pub kind: String,
+    pub title: String,
+    pub detail: String,
+    pub options: Vec<serde_json::Value>,
+    pub questions: Vec<serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayRelayComputerTarget {
+    pub task_id: String,
+    pub runtime_id: String,
+    pub app_name: String,
+    pub window_title: String,
+    pub phase: String,
+    pub visible: bool,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GatewayRelayCommand {
@@ -221,6 +245,55 @@ impl GatewayApi {
                 "kind": kind, "text": text, "at": at })),
         )?;
         Ok(())
+    }
+
+    pub fn publish_interaction(&self, interaction: &GatewayRelayInteraction) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            "v1/device/interactions",
+            Some(serde_json::json!({ "interaction": interaction })),
+        )?;
+        Ok(())
+    }
+
+    pub fn publish_computer_target(&self, target: &GatewayRelayComputerTarget) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            "v1/device/computer-target",
+            Some(serde_json::json!({ "target": target })),
+        )?;
+        Ok(())
+    }
+
+    pub fn resolve_interaction(
+        &self,
+        task_id: &str,
+        runtime_id: &str,
+        request_id: &str,
+    ) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            "v1/device/interactions/resolve",
+            Some(
+                serde_json::json!({ "taskId": task_id, "runtimeId": runtime_id,
+                "requestId": request_id }),
+            ),
+        )?;
+        Ok(())
+    }
+
+    pub fn interaction_request_id(&self, id: &str) -> Result<String> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Interaction {
+            request_id: String,
+        }
+        let interaction: Interaction = self.request(
+            reqwest::Method::GET,
+            &format!("v1/device/interactions/{id}"),
+            None,
+        )?;
+        Ok(interaction.request_id)
     }
 
     pub fn pending_commands(&self) -> Result<Vec<GatewayRelayCommand>> {

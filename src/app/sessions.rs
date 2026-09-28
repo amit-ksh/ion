@@ -1287,6 +1287,15 @@ impl Waku {
             .find(|session| session.id == session_id)
             .map(|session| session.provider.id());
         let decision = if let Some(runtime) = self.runtimes.get_mut(&session_id) {
+            if let (Some(bridge), Some(runtime_id)) =
+                (&self._gateway_bridge, runtime.driver.runtime_id())
+            {
+                bridge.update_interaction(crate::gateway_bridge::InteractionUpdate::Resolve {
+                    task_id: session_id,
+                    runtime_id,
+                    request_id: request_id.clone(),
+                });
+            }
             let decision = runtime
                 .pending_permission
                 .as_ref()
@@ -1476,6 +1485,15 @@ impl Waku {
             let Some(pending) = runtime.pending_user_input.take() else {
                 return;
             };
+            if let (Some(bridge), Some(runtime_id)) =
+                (&self._gateway_bridge, runtime.driver.runtime_id())
+            {
+                bridge.update_interaction(crate::gateway_bridge::InteractionUpdate::Resolve {
+                    task_id: session_id,
+                    runtime_id,
+                    request_id: pending.request_id.clone(),
+                });
+            }
             let answers = pending.answers();
             runtime
                 .driver

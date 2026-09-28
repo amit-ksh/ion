@@ -33,6 +33,10 @@ export interface GatewayTask {
   runtimeId: string | null;
   updatedAt: number;
   publisherSeenAt?: number | null;
+  computerTarget?: {
+    taskId: string; runtimeId: string; appName: string; windowTitle: string;
+    phase: 'awaitingApproval' | 'running' | 'failed'; visible: boolean;
+  } | null;
 }
 
 export interface GatewayTaskEvent {
@@ -47,10 +51,26 @@ export interface GatewayTaskCommand {
   id: string;
   taskId: string;
   runtimeId: string;
-  kind: 'stop' | 'steer';
+  kind: 'stop' | 'steer' | 'permission' | 'answer';
   status: 'queued' | 'uncertain' | 'applied' | 'rejected';
   createdAt: number;
   updatedAt: number;
+}
+
+export interface GatewayTaskInteraction {
+  id: string;
+  taskId: string;
+  runtimeId: string;
+  requestId: string;
+  kind: 'permission' | 'question';
+  title: string;
+  detail: string;
+  options: Array<{ id: string; label: string; allow: boolean }>;
+  questions: Array<{ id: string; header: string; question: string;
+    options: Array<{ label: string; description?: string }>; multiSelect: boolean }>;
+  fingerprint: string;
+  status: 'pending' | 'resolved';
+  publishedAt: number;
 }
 
 export function gatewayBaseUrl(input: string): string {
@@ -129,6 +149,23 @@ export async function gatewayTasks(pairing: GatewayPairing): Promise<{
   return request(pairing.baseUrl, '/v1/device/tasks', { headers: deviceHeaders(pairing) });
 }
 
+export async function gatewayPushStatus(pairing: GatewayPairing): Promise<boolean> {
+  const result = await request<{ enabled: boolean }>(pairing.baseUrl, '/v1/device/push',
+    { headers: deviceHeaders(pairing) });
+  return result.enabled === true;
+}
+
+export async function registerGatewayPush(pairing: GatewayPairing, token: string): Promise<void> {
+  await request(pairing.baseUrl, '/v1/device/push', { method: 'PUT',
+    headers: { ...deviceHeaders(pairing), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }) });
+}
+
+export async function unregisterGatewayPush(pairing: GatewayPairing): Promise<void> {
+  await request(pairing.baseUrl, '/v1/device/push', { method: 'DELETE',
+    headers: deviceHeaders(pairing) });
+}
+
 export async function gatewayTaskEvents(pairing: GatewayPairing, after: number): Promise<{
   events: GatewayTaskEvent[]; nextCursor: number; resetRequired: boolean;
 }> {
@@ -136,9 +173,18 @@ export async function gatewayTaskEvents(pairing: GatewayPairing, after: number):
   return request(pairing.baseUrl, `/v1/device/events?after=${after}`, { headers: deviceHeaders(pairing) });
 }
 
+export async function gatewayTaskInteractions(pairing: GatewayPairing, taskId: string): Promise<GatewayTaskInteraction[]> {
+  if (!/^[0-9a-f-]{36}$/.test(taskId)) throw new Error('Invalid task ID');
+  const response = await request<{ interactions: GatewayTaskInteraction[] }>(
+    pairing.baseUrl, `/v1/device/tasks/${taskId}/interactions`, { headers: deviceHeaders(pairing) },
+  );
+  if (!Array.isArray(response.interactions)) throw new Error('Gateway returned invalid interactions');
+  return response.interactions;
+}
+
 export async function enqueueGatewayTaskCommand(pairing: GatewayPairing, input: {
   idempotencyKey: string; taskId: string; runtimeId: string;
-  kind: 'stop' | 'steer'; payload: Record<string, string>;
+  kind: 'stop' | 'steer' | 'permission' | 'answer'; payload: Record<string, string>;
 }): Promise<GatewayTaskCommand> {
   return request(pairing.baseUrl, '/v1/device/commands', {
     method: 'POST',

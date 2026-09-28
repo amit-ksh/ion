@@ -443,6 +443,27 @@ impl Waku {
                 options,
             } => {
                 if self.accepts_turn_output(session_id) {
+                    if let (Some(bridge), Some(runtime_id)) =
+                        (&self._gateway_bridge, runtime.driver.runtime_id())
+                    {
+                        bridge.update_interaction(
+                            crate::gateway_bridge::InteractionUpdate::Publish(
+                                crate::credentials::GatewayRelayInteraction {
+                                    task_id: session_id.to_string(),
+                                    runtime_id: runtime_id.to_string(),
+                                    request_id: request_id.clone(),
+                                    kind: "permission".into(),
+                                    title: title.clone(),
+                                    detail: detail.clone(),
+                                    options: options
+                                        .iter()
+                                        .filter_map(|option| serde_json::to_value(option).ok())
+                                        .collect(),
+                                    questions: Vec::new(),
+                                },
+                            ),
+                        );
+                    }
                     self.permission_detail_scroll
                         .set_offset(gpui::Point::default());
                     runtime.pending_permission = Some(PendingPermission {
@@ -461,6 +482,27 @@ impl Waku {
                 questions,
             } => {
                 if self.accepts_turn_output(session_id) && !questions.is_empty() {
+                    if let (Some(bridge), Some(runtime_id)) =
+                        (&self._gateway_bridge, runtime.driver.runtime_id())
+                    {
+                        bridge.update_interaction(
+                            crate::gateway_bridge::InteractionUpdate::Publish(
+                                crate::credentials::GatewayRelayInteraction {
+                                    task_id: session_id.to_string(),
+                                    runtime_id: runtime_id.to_string(),
+                                    request_id: request_id.clone(),
+                                    kind: "question".into(),
+                                    title: "Provider question".into(),
+                                    detail: String::new(),
+                                    options: Vec::new(),
+                                    questions: questions
+                                        .iter()
+                                        .filter_map(|question| serde_json::to_value(question).ok())
+                                        .collect(),
+                                },
+                            ),
+                        );
+                    }
                     runtime.pending_user_input = Some(PendingUserInput::new(request_id, questions));
                     if self.state.selected_session == Some(session_id) {
                         self.user_input_answer
@@ -473,6 +515,32 @@ impl Waku {
             }
             DriverEvent::ComputerUseUpdated(state) => {
                 if self.accepts_turn_output(session_id) {
+                    if let (Some(bridge), Some(runtime_id)) =
+                        (&self._gateway_bridge, runtime.driver.runtime_id())
+                    {
+                        let target = state.target.as_ref();
+                        bridge.update_interaction(
+                            crate::gateway_bridge::InteractionUpdate::Computer(
+                                crate::credentials::GatewayRelayComputerTarget {
+                                    task_id: session_id.to_string(),
+                                    runtime_id: runtime_id.to_string(),
+                                    app_name: target
+                                        .map(|target| target.app_name.chars().take(120).collect())
+                                        .unwrap_or_default(),
+                                    window_title: target
+                                        .map(|target| {
+                                            target.window_title.chars().take(240).collect()
+                                        })
+                                        .unwrap_or_default(),
+                                    phase: serde_json::to_value(state.phase)
+                                        .ok()
+                                        .and_then(|value| value.as_str().map(str::to_owned))
+                                        .unwrap_or_else(|| "failed".into()),
+                                    visible: state.visible && target.is_some(),
+                                },
+                            ),
+                        );
+                    }
                     Self::upsert_computer_use_preview(session_id, runtime, state, cx);
                 }
             }

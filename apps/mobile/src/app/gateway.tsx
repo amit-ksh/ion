@@ -1,5 +1,5 @@
-import { router, Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, Stack, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -10,17 +10,21 @@ import {
   type GatewayPairing, type GatewayProposal, type GatewayTask,
 } from '@/lib/gateway-client';
 import { clearCachedGatewayTasks, readCachedGatewayTasks, writeCachedGatewayTasks } from '@/lib/gateway-cache';
+import { disableGatewayNotifications, enableGatewayNotifications, gatewayNotificationsEnabled } from '@/lib/gateway-notifications';
 import { deleteGatewayPairing, readGatewayPairing, writeGatewayPairing } from '@/lib/gateway-storage';
 
 export default function GatewayScreen() {
   const theme = useTheme();
   const [pairing, setPairing] = useState<GatewayPairing | null>(null);
+  const pairingRef = useRef<GatewayPairing | null>(null);
   const [url, setUrl] = useState('');
   const [invite, setInvite] = useState('');
   const [proposals, setProposals] = useState<GatewayProposal[]>([]);
   const [tasks, setTasks] = useState<GatewayTask[]>([]);
   const [tasksStale, setTasksStale] = useState(true);
   const [taskMessage, setTaskMessage] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationBusy, setNotificationBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(false);
@@ -30,40 +34,45 @@ export default function GatewayScreen() {
     let active = true;
     void readGatewayPairing().then((saved) => {
       if (!active) return;
+      pairingRef.current = saved;
       setPairing(saved);
       setUrl(saved?.baseUrl ?? '');
       setLoaded(true);
       if (saved?.grants.includes('review')) void refresh(saved);
       if (saved?.grants.includes('taskRead')) void refreshTasks(saved);
+      if (saved?.grants.includes('taskRead')) void refreshNotificationStatus(saved);
     }).catch((error) => {
       if (active) { setMessage(describe(error)); setLoaded(true); }
     });
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (!pairing) return;
     const timer = setInterval(() => {
       if (pairing.grants.includes('taskRead')) void refreshTasks(pairing);
       if (pairing.grants.includes('review')) void refresh(pairing);
     }, 8_000);
     return () => clearInterval(timer);
-  }, [pairing]);
+  }, [pairing]));
 
   async function refreshTasks(current = pairing) {
     if (!current?.grants.includes('taskRead')) return;
     const identity = `${current.baseUrl}:${current.id}`;
     try {
       const feed = await gatewayTasks(current);
+      if (pairingRef.current !== current) return;
       setTasks(feed.tasks);
       setTasksStale(feed.publishedAt === null || feed.tasks.some((task) =>
         !task.publisherSeenAt || Date.now() - task.publisherSeenAt > 60_000));
       setTaskMessage(feed.publishedAt === null ? 'Desktop has not published tasks yet.' : null);
       void writeCachedGatewayTasks(identity, feed.tasks);
     } catch {
+      if (pairingRef.current !== current) return;
       setTasksStale(true);
       setTaskMessage('Gateway task feed unavailable. Cached task metadata is shown without controls.');
-      setTasks(await readCachedGatewayTasks(identity));
+      const cached = await readCachedGatewayTasks(identity);
+      if (pairingRef.current === current) setTasks(cached);
     }
   }
 
@@ -72,13 +81,15 @@ export default function GatewayScreen() {
     setBusy(true);
     try {
       const queue = await gatewayReviewQueue(current);
+      if (pairingRef.current !== current) return;
       setProposals(queue);
       setOnline(true);
       setMessage(queue.length ? null : 'No actions need your review.');
     } catch (error) {
+      if (pairingRef.current !== current) return;
       setOnline(false);
       setMessage(`Gateway unavailable: ${describe(error)}. Decisions are paused.`);
-    } finally { setBusy(false); }
+    } finally { if (pairingRef.current === current) setBusy(false); }
   }
 
   async function pair() {
@@ -88,24 +99,57 @@ export default function GatewayScreen() {
     try {
       const result = await pairGateway(url, invite);
       await writeGatewayPairing(result);
+      pairingRef.current = result;
       setPairing(result);
       setInvite('');
       setMessage('Phone paired. The device grant expires automatically; the owner can revoke it sooner.');
       if (result.grants.includes('review')) await refresh(result);
       if (result.grants.includes('taskRead')) await refreshTasks(result);
+      if (result.grants.includes('taskRead')) await refreshNotificationStatus(result);
     } catch (error) { setMessage(describe(error)); }
     finally { setBusy(false); }
   }
 
   async function remove() {
-    await deleteGatewayPairing();
+    const previous = pairingRef.current;
+    pairingRef.current = null;
+    if (previous && notificationsEnabled) {
+      try { await disableGatewayNotifications(previous); }
+      catch { /* The owner can revoke an offline phone in /owner. */ }
+    }
+    try { await deleteGatewayPairing(); }
+    catch (error) {
+      pairingRef.current = previous;
+      setMessage(`Could not remove pairing: ${describe(error)}`);
+      return;
+    }
     setPairing(null);
     setProposals([]);
     setTasks([]);
     setTasksStale(true);
+    setNotificationsEnabled(false);
     await clearCachedGatewayTasks();
     setOnline(false);
     setMessage('Pairing removed from this phone. Revoke the device in /owner too.');
+  }
+
+  async function refreshNotificationStatus(current: GatewayPairing) {
+    try {
+      const enabled = await gatewayNotificationsEnabled(current);
+      if (pairingRef.current === current) setNotificationsEnabled(enabled);
+    } catch { if (pairingRef.current === current) setNotificationsEnabled(false); }
+  }
+
+  async function toggleNotifications() {
+    if (!pairing || notificationBusy) return;
+    setNotificationBusy(true);
+    try {
+      if (notificationsEnabled) await disableGatewayNotifications(pairing);
+      else await enableGatewayNotifications(pairing);
+      setNotificationsEnabled(!notificationsEnabled);
+      setMessage(notificationsEnabled ? 'Task notifications disabled.' : 'Task request notifications enabled.');
+    } catch (error) { setMessage(describe(error)); }
+    finally { setNotificationBusy(false); }
   }
 
   function confirmRemove() {
@@ -165,9 +209,12 @@ export default function GatewayScreen() {
           <Text style={[styles.meta, { color: theme.textSecondary }]}>Grants: {pairing.grants.join(', ')} · Expires {new Date(pairing.expiresAt).toLocaleString()}</Text>
           <View style={styles.actions}>
             <Action label={busy ? 'Checking…' : 'Refresh approvals'} disabled={busy || !pairing.grants.includes('review')} onPress={() => void refresh()} color={theme.accent} />
-            <Action label="Remove pairing" disabled={busy} onPress={confirmRemove} color={theme.danger} />
+            <Action label="Remove pairing" disabled={busy || notificationBusy} onPress={confirmRemove} color={theme.danger} />
           </View>
           {!pairing.grants.includes('review') && <Text style={[styles.help, { color: theme.textSecondary }]}>This device has no review grant. Create a new invite with Review approvals in /owner to enable this screen.</Text>}
+          {pairing.grants.includes('taskRead') && <Action
+            label={notificationsEnabled ? 'Disable task notifications' : 'Enable task notifications'}
+            disabled={notificationBusy} onPress={() => void toggleNotifications()} color={theme.accent} />}
         </View>
       ) : (
         <View style={styles.section}>
@@ -195,6 +242,7 @@ export default function GatewayScreen() {
               <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.projectName} · {task.provider}</Text>
               <Text style={[styles.tool, { color: theme.text }]}>{task.title}</Text>
               <Text style={[styles.meta, { color: theme.textSecondary }]}>{task.status} · {task.publisherSeenAt && Date.now() - task.publisherSeenAt <= 60_000 ? 'Live feed' : 'Stale feed'}</Text>
+              {task.computerTarget?.visible && <Text style={[styles.meta, { color: theme.textSecondary }]}>Computer: {task.computerTarget.appName} · {task.computerTarget.windowTitle || 'Untitled window'}</Text>}
             </Pressable>
           ))}
           {tasks.length > 20 && <Text style={[styles.meta, { color: theme.textSecondary }]}>Showing 20 of {tasks.length} tasks.</Text>}

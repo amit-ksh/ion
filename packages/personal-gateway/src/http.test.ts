@@ -158,7 +158,7 @@ describe('personal gateway HTTP boundary', () => {
       expect((await call('/v1/device/heartbeat', 'POST', phone.token, {}, phone.id)).status).toBe(401);
       expect((await call('/v1/device/heartbeat', 'POST', desktop.token, {}, desktop.id)).status).toBe(200);
       expect((await call('/v1/device/tasks', 'GET', desktop.token, undefined, desktop.id)).status).toBe(401);
-      expect(await (await call('/v1/device/tasks', 'GET', phone.token, undefined, phone.id)).json()).toEqual({ tasks: [{ ...task, publisherSeenAt: expect.any(Number) }], publishedAt: expect.any(Number) });
+      expect(await (await call('/v1/device/tasks', 'GET', phone.token, undefined, phone.id)).json()).toEqual({ tasks: [{ ...task, publisherSeenAt: expect.any(Number), computerTarget: null }], publishedAt: expect.any(Number) });
       const event = await call('/v1/device/events', 'POST', desktop.token, {
         eventId: 'runtime:1', taskId: task.id, kind: 'artifact', text: 'Review result', at: 11,
       }, desktop.id);
@@ -183,6 +183,94 @@ describe('personal gateway HTTP boundary', () => {
     } finally {
       await running.close();
     }
+  });
+
+  test('phone answers only an exact pending provider interaction', async () => {
+    const running = startGateway({ databasePath: databasePath(), ownerToken, allowedTools });
+    const call = (path: string, method: string, token?: string, data?: unknown, deviceId?: string) =>
+      running.server.fetch(request(path, method, token, data, deviceId));
+    try {
+      const pair = async (grants: string[]) => {
+        const { invite } = await (await call('/v1/owner/invites', 'POST', ownerToken, { grants })).json() as { invite: string };
+        return (await (await call('/v1/pair', 'POST', undefined, { invite, name: grants.join('-') })).json()) as { id: string; token: string };
+      };
+      const desktop = await pair(['publish']);
+      const phone = await pair(['taskRead', 'taskControl']);
+      const task = {
+        id: '11111111-1111-4111-8111-111111111111', projectId: '22222222-2222-4222-8222-222222222222',
+        projectName: 'Test project', title: 'Waiting task', provider: 'nebius', status: 'waiting',
+        runtimeId: '33333333-3333-4333-8333-333333333333', updatedAt: 10,
+      };
+      expect((await call(`/v1/device/tasks/${task.id}`, 'PUT', desktop.token, { task }, desktop.id)).status).toBe(200);
+      const interaction = {
+        taskId: task.id, runtimeId: task.runtimeId, requestId: 'provider-question-1',
+        kind: 'question', title: 'Provider question', detail: '', options: [],
+        questions: [{ id: 'choice', header: 'Choice', question: 'Choose one',
+          options: [{ label: 'A' }, { label: 'B' }], multiSelect: false }],
+      };
+      expect((await call('/v1/device/interactions', 'POST', phone.token, { interaction }, phone.id)).status).toBe(401);
+      const published = await (await call('/v1/device/interactions', 'POST', desktop.token,
+        { interaction }, desktop.id)).json() as { id: string; fingerprint: string };
+      const visible = await (await call(`/v1/device/tasks/${task.id}/interactions`, 'GET', phone.token,
+        undefined, phone.id)).json() as { interactions: Array<{ id: string }> };
+      expect(visible.interactions.map((item) => item.id)).toEqual([published.id]);
+      expect((await call(`/v1/device/interactions/${published.id}`, 'GET', phone.token, undefined, phone.id)).status).toBe(401);
+      const body = { idempotencyKey: '44444444-4444-4444-8444-444444444444',
+        taskId: task.id, runtimeId: task.runtimeId, kind: 'answer', payload: {
+          interactionId: published.id, fingerprint: published.fingerprint,
+          answers: JSON.stringify([{ questionId: 'choice', answers: ['A'] }]),
+        } };
+      expect((await call('/v1/device/commands', 'POST', phone.token, {
+        ...body, payload: { ...body.payload, fingerprint: '0'.repeat(64) },
+      }, phone.id)).status).toBe(400);
+      const queued = await (await call('/v1/device/commands', 'POST', phone.token, body, phone.id)).json() as { id: string };
+      expect((await call(`/v1/device/commands/${queued.id}/claim`, 'POST', desktop.token, {}, desktop.id)).status).toBe(200);
+      expect((await call(`/v1/device/commands/${queued.id}/settle`, 'POST', desktop.token,
+        { applied: true }, desktop.id)).status).toBe(200);
+      expect((await (await call(`/v1/device/tasks/${task.id}/interactions`, 'GET', phone.token,
+        undefined, phone.id)).json() as { interactions: unknown[] }).interactions).toEqual([]);
+    } finally { await running.close(); }
+  });
+
+  test('opt-in task notices contain no provider text and stop after revocation', async () => {
+    const sent: Array<{ url: string; body: unknown }> = [];
+    const pushFetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      sent.push({ url: String(input), body: JSON.parse(String(init?.body)) });
+      return Response.json({ data: [{ status: 'ok', id: 'ticket-1' }] });
+    }) as typeof fetch;
+    const running = startGateway({ databasePath: databasePath(), ownerToken, allowedTools, pushFetch });
+    const call = (path: string, method: string, token?: string, data?: unknown, deviceId?: string) =>
+      running.server.fetch(request(path, method, token, data, deviceId));
+    try {
+      const pair = async (grants: string[]) => {
+        const { invite } = await (await call('/v1/owner/invites', 'POST', ownerToken, { grants })).json() as { invite: string };
+        return (await (await call('/v1/pair', 'POST', undefined, { invite, name: grants.join('-') })).json()) as { id: string; token: string };
+      };
+      const desktop = await pair(['publish']);
+      const phone = await pair(['taskRead']);
+      const token = 'ExpoPushToken[aaaaaaaaaaaaaaaaaaaaaaaaaaaa]';
+      expect((await call('/v1/device/push', 'PUT', desktop.token, { token }, desktop.id)).status).toBe(401);
+      expect((await call('/v1/device/push', 'PUT', phone.token, { token }, phone.id)).status).toBe(200);
+      const task = { id: '11111111-1111-4111-8111-111111111111',
+        projectId: '22222222-2222-4222-8222-222222222222', projectName: 'Secret project',
+        title: 'Secret title', provider: 'nebius', status: 'waiting',
+        runtimeId: '33333333-3333-4333-8333-333333333333', updatedAt: 10 };
+      await call(`/v1/device/tasks/${task.id}`, 'PUT', desktop.token, { task }, desktop.id);
+      const interaction = { taskId: task.id, runtimeId: task.runtimeId, requestId: 'secret-request',
+        kind: 'permission', title: 'Secret permission', detail: 'Secret arguments',
+        options: [{ id: 'deny', label: 'Deny', allow: false }], questions: [] };
+      await call('/v1/device/interactions', 'POST', desktop.token, { interaction }, desktop.id);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(sent.length).toBe(1);
+      expect(sent[0]?.url).toBe('https://exp.host/--/api/v2/push/send');
+      expect(JSON.stringify(sent[0]?.body)).not.toContain('Secret');
+      await call('/v1/owner/devices/' + phone.id + '/revoke', 'POST', ownerToken);
+      expect((await call('/v1/device/push', 'GET', phone.token, undefined, phone.id)).status).toBe(401);
+      await call('/v1/device/interactions', 'POST', desktop.token,
+        { interaction: { ...interaction, requestId: 'second-request' } }, desktop.id);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(sent.length).toBe(1);
+    } finally { await running.close(); }
   });
 
   test('connected-account lookup strips credential state and remains owner-only', async () => {
