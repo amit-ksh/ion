@@ -50,16 +50,20 @@ controls, and opt-in notification code are implemented locally.
 - [x] Keep gateway activity in a virtualized, 300-event phone window, pause
       polling when screens lose focus, and provide text labels and 44-point
       controls for task actions. Static type/config checks pass.
+- [x] Add an EAS `preview` profile for installable Android/iOS review builds.
 - [ ] Verify accessibility and long-transcript performance on installed iOS
       and Android builds. Prepare signed platform builds and narrated
       demo/submission assets.
 
 ## Setup needed for live notification review
 
-- [ ] Link the mobile app to the owner's Expo/EAS project and set its real
-      project UUID in `apps/mobile/app.json` at `expo.extra.eas.projectId`.
+- [ ] From `apps/mobile`, sign in to the owner's Expo account and run `eas
+      init`. Confirm it wrote the real project UUID to `expo.extra.eas.projectId`
+      in `app.json`.
 - [ ] Configure Android FCM v1 and/or iOS APNs credentials for that project,
-      then build and install an iOS or Android development/release build.
+      then run `eas build --platform android --profile preview` or register
+      the iOS phone with `eas device:create` and run `eas build --platform ios
+      --profile preview`. Install the resulting build.
       Android push does not work in Expo Go. See the official
       [Expo setup guide](https://docs.expo.dev/push-notifications/push-notifications-setup/).
 - [ ] Pair the phone with `taskRead`, press **Enable task notifications**, and

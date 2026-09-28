@@ -57,4 +57,42 @@ of requesting a token when the project ID is missing. The gateway checks Expo
 push tickets and later receipts; a failed or uncertain send never authorizes
 or repeats a task command.
 
+### Installable phone builds
+
+`eas.json` has a `preview` profile for an installable test build. With the
+Expo EAS CLI installed and signed into the owner's account, run these from
+`apps/mobile` after linking the project with `eas init`:
+
+```sh
+eas build --platform android --profile preview
+eas device:create
+eas build --platform ios --profile preview
+```
+
+The iOS device registration is needed only for an iOS preview build; register
+the device before starting that build. EAS will ask the account owner to set
+up signing credentials. Follow its build link to install on the phone. The
+`production` profile is reserved for a later store/submission build. See the
+[Expo internal distribution guide](https://docs.expo.dev/build/internal-distribution/)
+for platform requirements.
+
+### Installable phone builds
+
+`eas.json` has a `preview` profile for an installable test build. With the
+Expo EAS CLI installed and signed into the owner's account, run these from
+`apps/mobile` after linking the project with `eas init`:
+
+```sh
+eas build --platform android --profile preview
+eas device:create
+eas build --platform ios --profile preview
+```
+
+The iOS device registration is needed only for an iOS preview build; register
+the device before starting that build. EAS will ask the account owner to set
+up signing credentials. Follow its build link to install on the phone. The
+`production` profile is reserved for a later store/submission build. See the
+[Expo internal distribution guide](https://docs.expo.dev/build/internal-distribution/)
+for platform requirements.
+
 Waku is licensed under the repository's GNU GPL v3.0-only license.
