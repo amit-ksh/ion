@@ -87,6 +87,20 @@ export async function loadTaskState(client: WakuClient): Promise<TaskState> {
   return expectResponse(await client.request({ type: 'loadTaskState' }), 'taskState');
 }
 
+export async function transcribePhoneWav(
+  client: WakuClient,
+  bytes: string,
+  language: 'auto' | 'en-US' | 'hi-IN' = 'auto',
+): Promise<string> {
+  const result = expectResponse(
+    await client.request({ type: 'transcribeWav', language, bytes }, undefined, undefined, {
+      timeoutMs: 150_000,
+    }),
+    'transcript',
+  );
+  return result.text;
+}
+
 export async function hydrateSession(
   client: WakuClient,
   sessionId: string,

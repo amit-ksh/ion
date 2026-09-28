@@ -124,6 +124,9 @@ watcher does not need that postinstall.
 The embedded browser and experimental computer-use integration currently
 remain macOS-only. Agent sessions, projects, transcripts, skills, usage,
 diffs, file editing, and the terminal run natively on Linux and Windows.
+Phone dictation can use the selected desktop daemon's local ASR, and the same
+daemon can run headlessly on an owner-managed Linux host for personal cloud
+tasks. See the [Milestone 7 setup](docs/ai-ide-plan/14-phone-asr-cloud-execution.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and checks.
 Release maintainers should also read [RELEASING.md](RELEASING.md).

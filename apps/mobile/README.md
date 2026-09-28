@@ -22,6 +22,16 @@ or private tailnet; the token grants full control of the daemon host.
 Saved profile metadata stays in app storage. On iOS and Android, daemon tokens
 are stored separately in the device keychain through Expo SecureStore.
 
+Phone microphone dictation sends a short recording to the **selected daemon**
+for local NeMo-Speech.cpp transcription, then inserts editable text. To use
+desktop ASR, select the desktop daemon and install its ASR runtime/model. The
+phone asks for microphone and transfer consent when you tap the mic; Discard
+sends no audio. See the [Milestone 7 setup and review](../../docs/ai-ide-plan/14-phone-asr-cloud-execution.md).
+
+An owner-managed Linux host can run `waku-daemon` headlessly for cloud tasks
+while the desktop is off. This uses a full-control daemon token and a
+host-local Nebius key file; see the [cloud host guide](../../docs/ai-ide-plan/14-phone-asr-cloud-execution.md#personal-cloud-execution).
+
 ## Personal gateway
 
 Open **Personal gateway** from the start or Daemons screen. At the gateway's

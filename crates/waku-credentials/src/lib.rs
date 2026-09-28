@@ -14,6 +14,25 @@ const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 #[cfg_attr(target_os = "linux", path = "credentials/linux.rs")]
 mod vault;
 
+#[cfg(target_os = "linux")]
+fn read_private_nebius_key_file(path: &std::path::Path) -> Result<String> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let metadata = std::fs::symlink_metadata(path).context("Nebius key file is unavailable")?;
+    if !metadata.file_type().is_file()
+        || metadata.permissions().mode() & 0o077 != 0
+        || metadata.len() == 0
+        || metadata.len() > 16 * 1024
+    {
+        bail!("Nebius key file must be a private regular file of at most 16 KiB");
+    }
+    let key = std::fs::read_to_string(path).context("Could not read Nebius key file")?;
+    let key = key.trim();
+    if key.is_empty() || key.contains('\r') || key.contains('\n') {
+        bail!("Nebius key file must contain one nonempty key");
+    }
+    Ok(key.to_owned())
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CredentialKind {
     NebiusTokenFactoryApiKey,
@@ -402,6 +421,10 @@ impl CredentialService {
     /// desktop key cannot cross the process boundary and must be saved again
     /// after the OS credential store becomes available.
     pub fn nebius_runtime_key(&self) -> Result<String> {
+        #[cfg(target_os = "linux")]
+        if let Some(path) = std::env::var_os("WAKU_NEBIUS_KEY_FILE") {
+            return read_private_nebius_key_file(std::path::Path::new(&path));
+        }
         vault::get(CredentialKind::NebiusTokenFactoryApiKey.account())?
             .context("Save a Nebius key in the OS vault before starting a task")
     }
@@ -585,6 +608,13 @@ impl CredentialService {
     }
 
     pub fn nebius_model_ids(&self) -> Result<Vec<String>> {
+        #[cfg(target_os = "linux")]
+        let secret = if std::env::var_os("WAKU_NEBIUS_KEY_FILE").is_some() {
+            self.nebius_runtime_key()?
+        } else {
+            self.secret(CredentialKind::NebiusTokenFactoryApiKey)?
+        };
+        #[cfg(not(target_os = "linux"))]
         let secret = self.secret(CredentialKind::NebiusTokenFactoryApiKey)?;
         #[derive(Deserialize)]
         struct Model {

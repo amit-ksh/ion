@@ -25,6 +25,7 @@ import { ComposerAddMenu } from '@/components/composer-add-menu';
 import { ComposerContextPicker } from '@/components/composer-context-picker';
 import { useComposerLocalCommands } from '@/components/composer-command-sheets';
 import { DaemonPickerSheet } from '@/components/daemon-picker-sheet';
+import { PhoneDictationControl } from '@/components/phone-dictation-control';
 import {
   ComposerCard,
   ComposerIconButton,
@@ -440,6 +441,17 @@ export default function NewTaskScreen() {
           placeholder={`Work on ${daemon.activeProfile?.name ?? 'your daemon'}`}
           right={(
             <>
+              <PhoneDictationControl
+                client={daemon.client}
+                contextKey={`new-task:${projectId ?? ''}:${provider ?? ''}`}
+                host={daemon.activeProfile?.name ?? 'the selected daemon'}
+                disabled={submitting || daemon.phase !== 'connected'}
+                onError={setError}
+                onTranscript={(text) => {
+                  draftSync.markEdited();
+                  setPrompt((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
+                }}
+              />
               {activeModel && modelHasConfigurableTraits(activeModel) && (
                 <ComposerIconButton
                   icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}

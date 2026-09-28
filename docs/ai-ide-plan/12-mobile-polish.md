@@ -42,11 +42,10 @@ controls, and opt-in notification code are implemented locally.
       requires `taskRead`, revocation removes the subscription, and tickets and
       receipts are checked. Live delivery needs account-owned EAS, FCM/APNs,
       and phone build setup below.
-- [ ] Optional phone microphone audio transfer for desktop local transcription.
-      The desktop ASR accepts WAV, while the current Expo audio presets do not
-      establish a cross-platform WAV capture path. Do not upload audio through
-      the gateway until capture format, size limits, consent, and deletion are
-      explicit. Phone keyboard dictation can enter editable text for steering.
+- [x] Phone microphone audio transfer to the selected desktop daemon for local
+      transcription was added in [Milestone 7](14-phone-asr-cloud-execution.md).
+      Installed phone and desktop ASR review remains open there. Audio does not
+      pass through the personal gateway.
 - [x] Keep gateway activity in a virtualized, 300-event phone window, pause
       polling when screens lose focus, and provide text labels and 44-point
       controls for task actions. Static type/config checks pass.
@@ -202,5 +201,5 @@ The task mirror, exact questions and permissions, and controls passed local
 gateway tests, TypeScript checks, and desktop compilation. A live phone,
 deployed gateway, and provider task are still needed for the review items
 above. Notification delivery and signed phone packaging need the user's
-Expo/platform credentials. The optional phone audio transfer and live demo
-recording remain open.
+Expo/platform credentials. Live phone audio review and the demo recording
+remain open.

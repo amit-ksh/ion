@@ -28,11 +28,13 @@ access is explicitly granted and audited.
 
 ## Voice
 
-Phone dictation may send microphone audio only to the paired desktop for local
-NVIDIA Nemotron 3.5 ASR Streaming 0.6B through NeMo-Speech.cpp, with user
-consent and a clear transfer indicator. Offline phone capture can remain
-queued until the paired desktop is reachable. The default desktop dictation
-path is entirely local. No speech API key is shown.
+Phone dictation sends microphone audio only to the selected authenticated
+daemon for local NVIDIA Nemotron 3.5 ASR Streaming 0.6B through NeMo-Speech.cpp,
+with user consent and a clear transfer indicator. Select the desktop daemon
+for phone-to-desktop ASR. Milestone 7 discards the recording if that daemon is
+unreachable or changes during capture; it does not queue microphone audio
+offline. The default desktop dictation path is entirely local. No speech API
+key is shown.
 
 ## Sync and recovery
 

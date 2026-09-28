@@ -1,9 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 import type { WakuClient } from '@waku/client';
 
-import { browseDaemonDirectory, createProject, daemonKeys, discoverComposerCommands, listComposerFiles, persistProject, providerSessionKey } from './daemon-api';
+import { browseDaemonDirectory, createProject, daemonKeys, discoverComposerCommands, listComposerFiles, persistProject, providerSessionKey, transcribePhoneWav } from './daemon-api';
 
 describe('mobile daemon API', () => {
+  test('sends dictation only to the selected daemon with a long ASR timeout', async () => {
+    const requests: unknown[] = [];
+    const client = { request: async (...args: unknown[]) => {
+      requests.push(args);
+      return { type: 'transcript', text: 'spoken words' };
+    } } as unknown as WakuClient;
+    expect(await transcribePhoneWav(client, 'UklGRg==', 'hi-IN')).toBe('spoken words');
+    expect(requests).toEqual([[
+      { type: 'transcribeWav', language: 'hi-IN', bytes: 'UklGRg==' },
+      undefined, undefined, { timeoutMs: 150_000 },
+    ]]);
+  });
   test('requests composer catalogs from the selected daemon workspace and provider override', async () => {
     const commands: unknown[] = [];
     const files = [{ path: 'src/', is_dir: true }];

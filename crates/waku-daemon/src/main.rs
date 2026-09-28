@@ -9,8 +9,7 @@ use waku_protocol::{DAEMON_TOKEN_ENV, DaemonReady, PROTOCOL_VERSION};
 
 fn main() -> anyhow::Result<()> {
     let arguments = Arguments::parse(std::env::args().skip(1))?;
-    let token =
-        std::env::var(DAEMON_TOKEN_ENV).context("Waku daemon authentication token is missing")?;
+    let token = daemon_token()?;
     // The bearer capability belongs only to this server process. Remove it
     // before any provider or workspace subprocess can inherit the daemon's
     // environment.
@@ -60,6 +59,39 @@ fn main() -> anyhow::Result<()> {
             allow_shutdown: arguments.parent_pid.is_some(),
         },
     )
+}
+
+fn daemon_token() -> anyhow::Result<String> {
+    #[cfg(target_os = "linux")]
+    if let Some(path) = std::env::var_os("WAKU_DAEMON_TOKEN_FILE") {
+        if std::env::var_os(DAEMON_TOKEN_ENV).is_some() {
+            bail!("Set either WAKU_DAEMON_TOKEN_FILE or WAKU_DAEMON_TOKEN");
+        }
+        use std::os::unix::fs::PermissionsExt as _;
+        let path = std::path::Path::new(&path);
+        let metadata =
+            std::fs::symlink_metadata(path).context("Daemon token file is unavailable")?;
+        if !metadata.file_type().is_file()
+            || metadata.permissions().mode() & 0o077 != 0
+            || metadata.len() == 0
+            || metadata.len() > 1024
+        {
+            bail!("Daemon token file must be a private regular file");
+        }
+        let token = std::fs::read_to_string(path).context("Could not read daemon token file")?;
+        let token = token.trim();
+        if token.len() < 32
+            || token.len() > 256
+            || !token
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+        {
+            bail!("Daemon token file must contain a 32-256 character URL-safe token");
+        }
+        unsafe { std::env::remove_var("WAKU_DAEMON_TOKEN_FILE") };
+        return Ok(token.to_owned());
+    }
+    std::env::var(DAEMON_TOKEN_ENV).context("Waku daemon authentication token is missing")
 }
 
 fn ensure_bind_allowed(address: SocketAddr, allow_non_loopback: bool) -> anyhow::Result<()> {

@@ -54,6 +54,12 @@
         }
       ],
       "expo-font",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow ion to record short dictation and send it to your selected ion daemon for transcription on that host."
+        }
+      ],
       "expo-notifications",
       [
         "expo-image-picker",

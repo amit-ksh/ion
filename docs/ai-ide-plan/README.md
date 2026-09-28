@@ -14,6 +14,8 @@ The user also authorized Milestone 5 development with those live reviews
 deferred. Its mobile and submission review remains open. Milestone 6 adds an
 optional, approval-gated NemoClaw execution adapter; its live sandbox review
 also remains open.
+Milestone 7 adds phone dictation to a selected desktop daemon's local ASR and
+headless personal cloud task execution. Its live review remains open.
 
 ## Locked decisions
 
@@ -85,6 +87,7 @@ remain intact for the Full profile after the event.
 11. [Local speech and personal gateway review check](11-speech-gateway.md)
 12. [Mobile control and polish](12-mobile-polish.md)
 13. [Optional NemoClaw execution adapter](13-nemoclaw-adapter.md)
+14. [Phone dictation and personal cloud execution](14-phone-asr-cloud-execution.md)
 
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.

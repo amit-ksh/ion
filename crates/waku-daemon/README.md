@@ -10,6 +10,14 @@ version, and process ID.
 WAKU_DAEMON_TOKEN=<secret> waku-daemon --bind 127.0.0.1:0 [--parent-pid PID] [--allow-origin ORIGIN]...
 ```
 
+An owner-managed Linux service can read a private token from
+`WAKU_DAEMON_TOKEN_FILE` instead of placing its value in the environment.
+For native Nebius tasks, it may read the provider key from
+`WAKU_NEBIUS_KEY_FILE`. These paths are intended for a dedicated daemon user
+and are validated as private regular files. The full [personal cloud setup
+and review checklist](../../docs/ai-ide-plan/14-phone-asr-cloud-execution.md#personal-cloud-execution)
+includes the service and TLS proxy examples.
+
 Waku Desktop supervises this process. Debug builds use the feature-gated
 `waku-debug-daemon` target at `target/debug/waku-debug-daemon`, so rebuilding
 provider code replaces only the daemon. Release distributions place the signed

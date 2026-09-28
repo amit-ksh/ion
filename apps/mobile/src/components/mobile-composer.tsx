@@ -33,6 +33,7 @@ import { ComposerTextInput } from './composer-text-input';
 import type { ComposerTextInputProps } from './composer-text-input.types';
 import { GlassSurface, liquidGlass } from './glass-surface';
 import { ModelTraitsSheet } from './session-option-sheets';
+import { PhoneDictationControl } from './phone-dictation-control';
 import { MonoFont, NativeTint, Radius } from '@/constants/theme';
 import { useProviderModels, useTaskState } from '@/hooks/use-daemon-data';
 import { useComposerPicker } from '@/hooks/use-composer-picker';
@@ -530,6 +531,17 @@ export function MobileComposer({
         placeholder={placeholder}
         right={(
           <>
+            <PhoneDictationControl
+              client={daemon.client}
+              contextKey={session.id}
+              host={daemon.activeProfile?.name ?? 'the selected daemon'}
+              disabled={disconnected || submitting || !providerAvailable}
+              onError={setLocalError}
+              onTranscript={(text) => {
+                draftSync.markEdited();
+                setDraft((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
+              }}
+            />
             {providerAvailable && activeModel && modelHasConfigurableTraits(activeModel) && (
               <ComposerIconButton
                 icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}

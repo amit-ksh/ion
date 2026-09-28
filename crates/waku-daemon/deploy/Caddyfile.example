@@ -1,0 +1,5 @@
+# Replace with the owner's hostname. Caddy obtains a trusted certificate and
+# forwards the authenticated WebSocket /v1 connection to the loopback daemon.
+ion.example.com {
+    reverse_proxy 127.0.0.1:8765
+}

@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -154,6 +154,14 @@ pub enum Command {
     },
     ProbeComputerPermissions {
         prompt: bool,
+    },
+    /// A short, explicitly initiated phone recording. The daemon host runs
+    /// local NeMo-Speech.cpp; the audio is never sent to a speech API.
+    TranscribeWav {
+        language: String,
+        #[serde(with = "base64_bytes")]
+        #[ts(type = "string")]
+        bytes: Vec<u8>,
     },
     LoadUsageHistory {
         window: UsageWindow,
@@ -401,6 +409,9 @@ pub enum ResponsePayload {
     ComputerPermissions {
         permissions: ComputerPermissions,
     },
+    Transcript {
+        text: String,
+    },
     UsageHistory {
         history: UsageHistory,
     },
@@ -530,7 +541,7 @@ mod tests {
 
         assert_eq!(json["type"], "forkSessionFromResponse");
         assert_eq!(json["turnCount"], 7);
-        assert_eq!(PROTOCOL_VERSION, 7);
+        assert_eq!(PROTOCOL_VERSION, 8);
     }
 
     #[test]
@@ -539,7 +550,7 @@ mod tests {
 
         assert_eq!(json["type"], "rewindSessionToMessage");
         assert_eq!(json["turnCount"], 4);
-        assert_eq!(PROTOCOL_VERSION, 7);
+        assert_eq!(PROTOCOL_VERSION, 8);
     }
 
     #[test]

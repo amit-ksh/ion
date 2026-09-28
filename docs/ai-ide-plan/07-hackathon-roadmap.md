@@ -23,6 +23,7 @@ connections and mobile control. The product is free/BYOK.
 | 4. Speech and gateway | Local Nemotron 3.5 ASR; guided personal Nebius gateway with scoped Composio key | Offline local dictation and paired gateway demonstration |
 | 5. Mobile and polish | Task inspection, steering, approvals, recovery, submission assets | Paired mobile proof, accessibility/performance review, demo build |
 | 6. Optional NemoClaw adapter | Approval-gated one-off execution in a user-managed sandbox behind an explicit flag | Exact command approval, bounded output, uncertain-outcome recovery, live sandbox review |
+| 7. Phone ASR and personal cloud execution | Phone microphone to selected desktop's local ASR; headless owner-managed Linux daemon for cloud tasks | Installed phone dictation and independent cloud task with reconnect and recovery |
 
 At every gate the agent implements only that milestone, preserves unrelated
 work, runs proportional checks, reports changes and limitations with a manual
@@ -44,6 +45,9 @@ Its [installed-build and mobile review checklist](12-mobile-polish.md#user-revie
 remains open. The user then authorized Milestone 6's optional NemoClaw adapter
 while those live checks remain deferred. Its [review checklist](13-nemoclaw-adapter.md#review-checklist)
 requires a user-managed sandbox and a live Nebius key.
+The user then requested phone dictation to desktop ASR and personal cloud
+execution. Milestone 7 implementation is tracked in its [review checklist](14-phone-asr-cloud-execution.md#review-checklist);
+the installed phone and owner cloud live checks remain open.
 
 ## Milestone 1 acceptance
 

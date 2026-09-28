@@ -1,0 +1,29 @@
+[Unit]
+Description=ion owner-managed cloud execution daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ion-runner
+Group=ion-runner
+WorkingDirectory=/var/lib/ion-runner/workspaces
+Environment=HOME=/var/lib/ion-runner
+Environment=XDG_DATA_HOME=/var/lib/ion-runner/.local/share
+Environment=WAKU_DAEMON_TOKEN_FILE=/etc/ion-daemon/daemon-token
+Environment=WAKU_NEBIUS_KEY_FILE=/etc/ion-daemon/nebius-key
+ExecStart=/opt/ion/bin/waku-daemon --bind 127.0.0.1:8765
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=ion-runner
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ion-runner
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

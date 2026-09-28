@@ -61,6 +61,7 @@ pub struct WakuBackend {
 
 impl WakuBackend {
     pub fn new(settings: DaemonSettingsStore, task_store: StateStore) -> anyhow::Result<Self> {
+        crate::speech::cleanup_stale_recordings();
         let mut task_state = task_store
             .load()
             .context("could not load Waku task database")?;
@@ -307,6 +308,9 @@ impl Backend for WakuBackend {
                     permissions: crate::computer_use::probe_permissions(prompt)?,
                 })
             }
+            Command::TranscribeWav { language, bytes } => Ok(ResponsePayload::Transcript {
+                text: crate::speech::transcribe_wav(&bytes, &language)?,
+            }),
             Command::LoadUsageHistory {
                 window,
                 project_roots,
@@ -1844,6 +1848,7 @@ fn handle_driver_command(
         | Command::ProbeProvider { .. }
         | Command::FetchPlanUsage { .. }
         | Command::ProbeComputerPermissions { .. }
+        | Command::TranscribeWav { .. }
         | Command::LoadUsageHistory { .. }
         | Command::LoadSkills { .. }
         | Command::SetSkillsEnabled { .. }
