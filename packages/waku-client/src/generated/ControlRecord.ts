@@ -4,5 +4,6 @@ import type { Artifact } from "./Artifact";
 import type { Routine } from "./Routine";
 import type { Team } from "./Team";
 import type { Workflow } from "./Workflow";
+import type { WorkspaceAction } from "./WorkspaceAction";
 
-export type ControlRecord = { "kind": "agent" } & AgentProfile | { "kind": "team" } & Team | { "kind": "workflow" } & Workflow | { "kind": "routine" } & Routine | { "kind": "artifact" } & Artifact;
+export type ControlRecord = { "kind": "agent" } & AgentProfile | { "kind": "team" } & Team | { "kind": "workflow" } & Workflow | { "kind": "routine" } & Routine | { "kind": "artifact" } & Artifact | { "kind": "action" } & WorkspaceAction;

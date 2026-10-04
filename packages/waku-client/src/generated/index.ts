@@ -103,5 +103,8 @@ export type { WireSessionOptions } from "./WireSessionOptions";
 export type { Workflow } from "./Workflow";
 export type { WorkflowStage } from "./WorkflowStage";
 export type { WorkingTreeEntry } from "./WorkingTreeEntry";
+export type { WorkspaceAction } from "./WorkspaceAction";
+export type { WorkspaceActionKind } from "./WorkspaceActionKind";
+export type { WorkspaceActionStatus } from "./WorkspaceActionStatus";
 export type { WorkspaceOperation } from "./WorkspaceOperation";
 export type { WorkspaceResult } from "./WorkspaceResult";

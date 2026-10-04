@@ -747,6 +747,12 @@ impl Waku {
                 match result.0 {
                     Ok((message, catalog)) => {
                         waku.credential_feedback.insert(kind, message);
+                        if kind == Kind::ComposioScopedProjectKey
+                            && matches!(action, CredentialAction::Set | CredentialAction::Delete)
+                        {
+                            // Discard summaries and any result started under the previous key.
+                            waku.invalidate_composio_apps();
+                        }
                         if kind == Kind::SpeechService {
                             waku.refresh_speech_runtime_status(cx);
                         }
@@ -897,7 +903,7 @@ impl Waku {
             (
                 Kind::ComposioScopedProjectKey,
                 "Composio project",
-                "Scoped project key for your personal gateway. Test verifies Tools read access without exposing the key.",
+                "Connect your apps with Composio. Your project key stays in your OS vault; app sign-in happens in Composio.",
             ),
         ] {
             let status = match self
@@ -1235,6 +1241,15 @@ impl Waku {
                 )
                 .child(self.gateway_button(GatewayAction::Inspect, "Check proposal status", cx));
         }
+        let sandbox_enabled = self.state.nebius_sandbox_enabled();
+        content = content.child(div().p(px(18.0)).rounded(px(12.0)).bg(theme.raised)
+            .flex().items_center().gap(px(16.0))
+            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(6.0))
+                .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Token Factory sandbox"))
+                .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child("Allow cloud sandbox commands with your approval. Requires ConTree installed and signed in. The sandbox does not include your local project automatically.")))
+            .child(div().text_size(sp(12.0)).text_color(theme.text_secondary).child(if sandbox_enabled { "On" } else { "Off" }))
+            .child(toggle_switch("tokenfactory-sandbox-toggle", sandbox_enabled, false, theme, cx,
+                move |this, _, cx| { this.state.set_nebius_sandbox_enabled(!sandbox_enabled); this.save(); cx.notify(); })));
         content = content.child(gateway);
         content.into_any_element()
     }

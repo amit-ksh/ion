@@ -559,6 +559,29 @@ impl PersistedState {
             .unwrap_or_default()
     }
 
+    pub fn nebius_sandbox_enabled(&self) -> bool {
+        self.daemon_settings_extra
+            .get("nebius_sandbox_enabled")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    }
+    pub fn composio_user_id(&mut self) -> String {
+        if let Some(id) = self
+            .daemon_settings_extra
+            .get("composio_user_id")
+            .and_then(serde_json::Value::as_str)
+        {
+            return id.into();
+        }
+        let id = format!("ion-{}", Uuid::new_v4());
+        self.daemon_settings_extra
+            .insert("composio_user_id".into(), id.clone().into());
+        id
+    }
+    pub fn set_nebius_sandbox_enabled(&mut self, enabled: bool) {
+        self.daemon_settings_extra
+            .insert("nebius_sandbox_enabled".into(), enabled.into());
+    }
     pub fn daemon_settings(&self) -> DaemonSettings {
         DaemonSettings {
             computer_use_enabled: self.computer_use_enabled,

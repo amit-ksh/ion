@@ -196,6 +196,7 @@ pub struct DriverStartOptions {
     pub computer_use_enabled: bool,
     pub provider_cursor: Option<ProviderResumeCursor>,
 }
+pub(crate) use nebius::WorkspaceContext;
 
 /// The subset of `DriverStartOptions` a user can change without starting a new
 /// task. Transports that carry these per turn can absorb a change in place;
@@ -211,8 +212,16 @@ pub struct SessionOptions {
 
 pub(crate) fn start_local(
     provider: ProviderKind,
+    options: DriverStartOptions,
+    events: DriverEventSender,
+) -> anyhow::Result<DriverHandle> {
+    start_local_with_workspace(provider, options, events, None)
+}
+pub(crate) fn start_local_with_workspace(
+    provider: ProviderKind,
     mut options: DriverStartOptions,
     events: DriverEventSender,
+    workspace: Option<nebius::WorkspaceContext>,
 ) -> anyhow::Result<DriverHandle> {
     // Computer Use is experimental, so release builds never start its helper
     // whatever a client, a migrated state file, or an environment variable
@@ -224,7 +233,9 @@ pub(crate) fn start_local(
         ProviderKind::Antigravity => {
             Arc::new(antigravity::AntigravityDriver::start(options, events)?)
         }
-        ProviderKind::Nebius => Arc::new(nebius::NebiusDriver::start(options, events)?),
+        ProviderKind::Nebius => Arc::new(nebius::NebiusDriver::start_with_workspace(
+            options, events, workspace,
+        )?),
         ProviderKind::Codex => Arc::new(codex::CodexDriver::start(options, events)?),
         ProviderKind::Pi => Arc::new(pi::PiDriver::start(pi::PiFlavor::Pi, options, events)?),
         ProviderKind::OhMyPi => {

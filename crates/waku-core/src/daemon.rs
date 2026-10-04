@@ -463,7 +463,7 @@ impl Backend for WakuBackend {
                     state.mark_session_dirty(*session_id);
                 }
                 self.task_store.save(&mut state)?;
-                let sessions = saved_ids
+                let sessions: Vec<_> = saved_ids
                     .into_iter()
                     .filter_map(|session_id| {
                         state
@@ -477,6 +477,13 @@ impl Backend for WakuBackend {
                 // the client touched. Keep only the recent window resident;
                 // the echoed clones above still carry the saved detail.
                 trim_resident_transcripts(&mut state, &active_runtimes.keys().copied().collect());
+                let projects = state.projects.clone();
+                drop(state);
+                for session in &sessions {
+                    if let Err(error) = self.control.capture_agent_documents(session, &projects) {
+                        eprintln!("Could not collect agent documents: {error}");
+                    }
+                }
                 Ok(ResponsePayload::TaskStateSaved { sessions })
             }
             Command::RemoveSession => {
@@ -855,7 +862,21 @@ impl Backend for WakuBackend {
                 };
                 let (wake, _wake_events) = smol::channel::bounded(1);
                 let (event_sender, event_receiver) = driver::event_channel(wake);
-                let handle = driver::start_local(provider, options, event_sender)?;
+                let project_id = self
+                    .task_state
+                    .lock()
+                    .sessions
+                    .iter()
+                    .find(|s| s.id == session_id)
+                    .map(|s| s.project_id);
+                let workspace = project_id.map(|project_id| driver::WorkspaceContext {
+                    task_id: session_id,
+                    project_id,
+                    control_path: self.control.path(),
+                    settings_path: self.settings.path(),
+                });
+                let handle =
+                    driver::start_local_with_workspace(provider, options, event_sender, workspace)?;
                 let supports_steer = handle.supports_steer();
                 std::thread::Builder::new()
                     .name(format!("waku-daemon-events-{session_id}"))

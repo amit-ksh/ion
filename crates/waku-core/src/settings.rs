@@ -14,6 +14,9 @@ pub struct DaemonSettingsStore {
 }
 
 impl DaemonSettingsStore {
+    pub fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
     pub fn open(path: PathBuf) -> io::Result<Self> {
         Self::open_with_legacy(path, std::iter::empty())
     }

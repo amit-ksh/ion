@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
 const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 
+pub mod composio;
 pub mod speech;
+pub use composio::ComposioAuthConfig;
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
 #[cfg_attr(target_os = "macos", path = "credentials/macos.rs")]
 #[cfg_attr(target_os = "linux", path = "credentials/linux.rs")]

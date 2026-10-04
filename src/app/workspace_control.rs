@@ -4,6 +4,33 @@ use super::*;
 use waku_client::control::*;
 use waku_client::{Command as Rpc, ResponsePayload};
 
+fn app_name(slug: &str) -> String {
+    match slug {
+        "gmail" => "Gmail",
+        "github" => "GitHub",
+        "googledrive" | "google_drive" => "Google Drive",
+        "outlook" => "Outlook",
+        "slack" => "Slack",
+        "notion" => "Notion",
+        "linear" => "Linear",
+        "supabase" => "Supabase",
+        _ => return slug.replace('_', " "),
+    }
+    .into()
+}
+fn account_is_active(this: &Waku, config: &str) -> bool {
+    this.control_ui
+        .app_configs
+        .iter()
+        .find(|a| a.id == config)
+        .is_some_and(|config| {
+            this.control_ui
+                .app_accounts
+                .iter()
+                .any(|a| a.toolkit == config.toolkit && a.status == "ACTIVE")
+        })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(super) enum Page {
     Dashboard,
@@ -84,6 +111,17 @@ pub(super) struct ControlUi {
     list: ListState,
     scrollbar: Rc<ScrollbarState>,
     rows: Rc<Vec<Row>>,
+    filter_project: Option<Uuid>,
+    filter_task: Option<Uuid>,
+    filter_kind: NoticeKind,
+    filter_status: NoticeStatus,
+    accepted_proposal: Option<WorkspaceAction>,
+    app_configs: Vec<crate::credentials::ComposioAuthConfig>,
+    app_accounts: Vec<crate::credentials::GatewayAccount>,
+    apps_busy: bool,
+    apps_generation: u64,
+    pub(super) app_search: Entity<TextInput>,
+    apps_connected_only: bool,
 }
 #[derive(Clone)]
 enum Row {
@@ -93,6 +131,61 @@ enum Row {
     AgentInTeam(AgentProfile, usize),
     Account(String, String, String),
     Empty(&'static str),
+    Notice(Notice),
+    AppPair(Vec<crate::credentials::ComposioAuthConfig>),
+}
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+enum NoticeKind {
+    #[default]
+    All,
+    Proposal,
+    Approval,
+    Question,
+    Issue,
+    Completed,
+    Artifact,
+    Decision,
+}
+impl NoticeKind {
+    fn label(self) -> &'static str {
+        match self {
+            Self::All => "All types",
+            Self::Proposal => "Proposed tasks",
+            Self::Approval => "Approvals",
+            Self::Question => "Questions",
+            Self::Issue => "Issues",
+            Self::Completed => "Completed work",
+            Self::Artifact => "Documents",
+            Self::Decision => "Decisions",
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+enum NoticeStatus {
+    #[default]
+    All,
+    Pending,
+    Resolved,
+}
+impl NoticeStatus {
+    fn label(self) -> &'static str {
+        match self {
+            Self::All => "All statuses",
+            Self::Pending => "Needs action",
+            Self::Resolved => "Resolved",
+        }
+    }
+}
+#[derive(Clone)]
+struct Notice {
+    project: Option<Uuid>,
+    task: Option<Uuid>,
+    title: String,
+    detail: String,
+    kind: NoticeKind,
+    pending: bool,
+    timestamp: u64,
+    record: Option<ControlRecord>,
 }
 impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
@@ -124,78 +217,424 @@ impl ControlUi {
             list: ListState::new(0, ListAlignment::Top, px(72.0)),
             scrollbar: ScrollbarState::new(),
             rows: Rc::new(Vec::new()),
+            filter_project: None,
+            filter_task: None,
+            filter_kind: NoticeKind::All,
+            filter_status: NoticeStatus::All,
+            accepted_proposal: None,
+            app_configs: Vec::new(),
+            app_accounts: Vec::new(),
+            apps_busy: false,
+            apps_generation: 0,
+            app_search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search apps")),
+            apps_connected_only: false,
         }
     }
 }
 impl Waku {
-    fn import_control_artifact(&mut self, cx: &mut Context<Self>) {
-        if self.control_ui.busy {
+    pub(super) fn invalidate_composio_apps(&mut self) {
+        self.control_ui.apps_generation = self.control_ui.apps_generation.wrapping_add(1);
+        self.control_ui.apps_busy = false;
+        self.control_ui.app_configs.clear();
+        self.control_ui.app_accounts.clear();
+    }
+    fn refresh_composio_apps(&mut self, cx: &mut Context<Self>) {
+        if self.control_ui.apps_busy {
             return;
         }
-        let receiver = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some("Add document".into()),
-        });
-        let revision = self.control_ui.snapshot.revision;
-        let project_id = self.state.selected_project;
-        let client = self.daemon.client();
+        self.control_ui.apps_busy = true;
+        self.control_ui.apps_generation += 1;
+        let generation = self.control_ui.apps_generation;
         cx.spawn(async move |this, cx| {
-            let Ok(Ok(Some(paths))) = receiver.await else {
-                return;
-            };
-            let Some(path) = paths.into_iter().next() else {
-                return;
-            };
             let result = cx
                 .background_executor()
-                .spawn(async move {
-                    smol::unblock(move || -> anyhow::Result<ResponsePayload> {
-                        anyhow::ensure!(
-                            std::fs::metadata(&path)?.len() <= 16 * 1024 * 1024,
-                            "Choose a document smaller than 16 MB"
-                        );
-                        let name = path
-                            .file_name()
-                            .and_then(|v| v.to_str())
-                            .unwrap_or("Document")
-                            .to_owned();
-                        let format = path
-                            .extension()
-                            .and_then(|v| v.to_str())
-                            .unwrap_or("")
-                            .to_lowercase();
-                        client.request(
-                            Uuid::nil(),
-                            Uuid::nil(),
-                            Rpc::ImportWorkspaceArtifact {
-                                expected_revision: revision,
-                                name,
-                                format,
-                                project_id,
-                                task_id: None,
-                                bytes: std::fs::read(path)?,
-                            },
-                        )
+                .spawn(async {
+                    smol::unblock(|| {
+                        crate::credentials::CredentialService::global().composio_apps()
                     })
                     .await
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
+                if this.control_ui.apps_generation != generation {
+                    return;
+                }
+                this.control_ui.apps_busy = false;
                 match result {
-                    Ok(ResponsePayload::WorkspaceControl { snapshot }) => {
-                        if snapshot.revision >= this.control_ui.snapshot.revision {
-                            this.control_ui.snapshot = snapshot;
-                        }
+                    Ok((configs, accounts)) => {
+                        this.control_ui.app_configs = configs;
+                        this.control_ui.app_accounts = accounts;
+                        this.control_ui.error = None;
                     }
-                    Err(error) => this.control_ui.error = Some(error.to_string()),
-                    _ => this.control_ui.error = Some("Could not import document".into()),
+                    Err(error) => {
+                        this.control_ui.app_configs.clear();
+                        this.control_ui.app_accounts.clear();
+                        this.control_ui.error = Some(error.to_string());
+                    }
                 }
                 cx.notify();
             });
         })
         .detach();
+        cx.notify();
+    }
+    fn connect_composio_app(&mut self, config_id: String, cx: &mut Context<Self>) {
+        if config_id.starts_with("available:") {
+            return;
+        }
+        if config_id.starts_with("configure:") {
+            cx.open_url("https://dashboard.composio.dev");
+            return;
+        }
+        if self.control_ui.apps_busy {
+            return;
+        }
+        self.control_ui.apps_busy = true;
+        self.control_ui.apps_generation += 1;
+        let generation = self.control_ui.apps_generation;
+        // Stable per-install identity, independent of model/task identity.
+        let user_id = self.state.composio_user_id();
+        self.save();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    smol::unblock(move || {
+                        crate::credentials::CredentialService::global()
+                            .composio_connect(&config_id, &user_id)
+                    })
+                    .await
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.control_ui.apps_generation != generation {
+                    return;
+                }
+                this.control_ui.apps_busy = false;
+                match result {
+                    Ok(url) => {
+                        cx.open_url(&url);
+                        this.show_toast("Complete app sign-in, then refresh Apps.");
+                    }
+                    Err(error) => this.control_ui.error = Some(error.to_string()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+    fn workspace_notices(&self) -> Vec<Notice> {
+        let mut notices = Vec::new();
+        for session in self.state.sessions.iter().filter(|s| s.has_started()) {
+            let runtime = self.runtimes.get(&session.id);
+            let mut add = |kind, pending, title: String, detail: String| {
+                notices.push(Notice {
+                    project: Some(session.project_id),
+                    task: Some(session.id),
+                    title,
+                    detail,
+                    kind,
+                    pending,
+                    timestamp: session.updated_at,
+                    record: None,
+                })
+            };
+            if let Some(permission) = runtime.and_then(|r| r.pending_permission.as_ref()) {
+                add(
+                    if permission.title.starts_with("Decision: ") {
+                        NoticeKind::Decision
+                    } else {
+                        NoticeKind::Approval
+                    },
+                    true,
+                    permission.title.clone(),
+                    permission.detail.clone(),
+                );
+            }
+            if let Some(input) = runtime.and_then(|r| r.pending_user_input.as_ref()) {
+                let question = input
+                    .current_question()
+                    .map(|q| q.question.clone())
+                    .unwrap_or_else(|| "Agent needs your answer".into());
+                add(
+                    NoticeKind::Question,
+                    true,
+                    question,
+                    session.display_title().into(),
+                );
+            }
+            if runtime.is_some_and(|r| r.pending_computer_approval.is_some()) {
+                add(
+                    NoticeKind::Approval,
+                    true,
+                    "Computer action needs approval".into(),
+                    session.display_title().into(),
+                );
+            }
+            if session.status == SessionStatus::Waiting
+                && runtime.is_none_or(|r| {
+                    r.pending_permission.is_none()
+                        && r.pending_user_input.is_none()
+                        && r.pending_computer_approval.is_none()
+                })
+            {
+                add(
+                    NoticeKind::Decision,
+                    true,
+                    "Agent needs your decision".into(),
+                    session.display_title().into(),
+                );
+            }
+            if session.status == SessionStatus::Failed {
+                add(
+                    NoticeKind::Issue,
+                    true,
+                    "Task needs attention".into(),
+                    runtime
+                        .and_then(|r| r.last_driver_error.clone())
+                        .unwrap_or_else(|| session.display_title().into()),
+                );
+            } else if session.status == SessionStatus::Idle && session.last_reply_at.is_some() {
+                let completed = session
+                    .turns
+                    .last()
+                    .is_some_and(|t| t.status == TurnStatus::Completed);
+                add(
+                    NoticeKind::Completed,
+                    false,
+                    if completed {
+                        "Task completed"
+                    } else {
+                        "Task updated"
+                    }
+                    .into(),
+                    session.display_title().into(),
+                );
+            }
+        }
+        for record in &self.control_ui.snapshot.records {
+            match record {
+                ControlRecord::Action(action) => notices.push(Notice {
+                    project: Some(action.project_id),
+                    task: Some(action.task_id),
+                    title: action.title.clone(),
+                    detail: action.detail.clone(),
+                    kind: if action.action_kind == WorkspaceActionKind::ProposedTask {
+                        NoticeKind::Proposal
+                    } else {
+                        NoticeKind::Decision
+                    },
+                    pending: action.status == WorkspaceActionStatus::Pending,
+                    timestamp: action.created_at,
+                    record: Some(record.clone()),
+                }),
+                ControlRecord::Artifact(artifact) => notices.push(Notice {
+                    project: artifact.project_id,
+                    task: artifact.task_id,
+                    title: artifact.name.clone(),
+                    detail: format!(
+                        "{} document created by agent",
+                        artifact.format.to_uppercase()
+                    ),
+                    kind: NoticeKind::Artifact,
+                    pending: false,
+                    timestamp: artifact.created_at,
+                    record: Some(record.clone()),
+                }),
+                _ => {}
+            }
+        }
+        notices.sort_by_key(|n| std::cmp::Reverse(n.timestamp));
+        notices
+    }
+    fn resolve_workspace_action(
+        &mut self,
+        mut action: WorkspaceAction,
+        accept: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if self.control_ui.busy || action.status != WorkspaceActionStatus::Pending {
+            return;
+        }
+        if accept
+            && !self
+                .state
+                .projects
+                .iter()
+                .any(|p| p.id == action.project_id)
+        {
+            self.control_ui.error = Some(
+                "The proposal's project was removed. Restore the project before accepting.".into(),
+            );
+            cx.notify();
+            return;
+        }
+        action.status = if accept {
+            WorkspaceActionStatus::Accepted
+        } else {
+            WorkspaceActionStatus::Declined
+        };
+        if accept && action.action_kind == WorkspaceActionKind::ProposedTask {
+            self.control_ui.accepted_proposal = Some(action.clone());
+        }
+        self.control_request(
+            Rpc::SaveWorkspaceRecord {
+                expected_revision: self.control_ui.snapshot.revision,
+                record: ControlRecord::Action(action),
+            },
+            cx,
+        );
+    }
+    fn render_workspace_filters(&self, cx: &mut Context<Self>) -> Div {
+        #[derive(Clone, Copy)]
+        enum Filter {
+            Project(Option<Uuid>),
+            Task(Option<Uuid>),
+            Kind(NoticeKind),
+            Status(NoticeStatus),
+        }
+        let labels = [
+            self.control_ui
+                .filter_project
+                .and_then(|id| self.state.projects.iter().find(|p| p.id == id))
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| "All projects".into()),
+            self.control_ui
+                .filter_task
+                .and_then(|id| self.state.sessions.iter().find(|s| s.id == id))
+                .map(|s| s.display_title().to_owned())
+                .unwrap_or_else(|| "All tasks".into()),
+            self.control_ui.filter_kind.label().into(),
+            self.control_ui.filter_status.label().into(),
+        ];
+        let mut bar = div().flex().flex_wrap().gap(px(8.0));
+        let count = if self.control_ui.page == Some(Page::Inbox) {
+            4
+        } else {
+            3
+        };
+        for (index, label) in labels.into_iter().take(count).enumerate() {
+            let weak = cx.entity().downgrade();
+            let id = format!("workspace-filter-{index}");
+            let menu = self.menu_handle(&id, cx);
+            bar = bar.child(dropdown_menu(
+                self.control_button(id.clone(), label, cx, |_, _, _| {})
+                    .child(icon(
+                        "icons/chevron-down.svg",
+                        12.0,
+                        Theme::current(cx).text_secondary,
+                    )),
+                SharedString::from(id),
+                &menu,
+                MenuAlign::BelowLeft,
+                move |cx| {
+                    // Build large project/task option lists only when the menu opens.
+                    let Some(entity) = weak.upgrade() else {
+                        return Vec::new();
+                    };
+                    let this = entity.read(cx);
+                    let project = this.control_ui.filter_project;
+                    let task = this.control_ui.filter_task;
+                    let mut options = Vec::new();
+                    match index {
+                        0 => {
+                            options.push((
+                                "All projects".to_owned(),
+                                Filter::Project(None),
+                                project.is_none(),
+                            ));
+                            options.extend(this.state.projects.iter().map(|p| {
+                                (
+                                    p.name.clone(),
+                                    Filter::Project(Some(p.id)),
+                                    project == Some(p.id),
+                                )
+                            }));
+                        }
+                        1 => {
+                            options.push((
+                                "All tasks".to_owned(),
+                                Filter::Task(None),
+                                task.is_none(),
+                            ));
+                            options.extend(
+                                this.state
+                                    .sessions
+                                    .iter()
+                                    .filter(|s| project.is_none_or(|p| p == s.project_id))
+                                    .map(|s| {
+                                        (
+                                            s.display_title().to_owned(),
+                                            Filter::Task(Some(s.id)),
+                                            task == Some(s.id),
+                                        )
+                                    }),
+                            );
+                        }
+                        2 => options.extend(
+                            [
+                                NoticeKind::All,
+                                NoticeKind::Proposal,
+                                NoticeKind::Approval,
+                                NoticeKind::Question,
+                                NoticeKind::Decision,
+                                NoticeKind::Issue,
+                                NoticeKind::Completed,
+                                NoticeKind::Artifact,
+                            ]
+                            .into_iter()
+                            .map(|kind| {
+                                (
+                                    kind.label().into(),
+                                    Filter::Kind(kind),
+                                    kind == this.control_ui.filter_kind,
+                                )
+                            }),
+                        ),
+                        _ => options.extend(
+                            [
+                                NoticeStatus::All,
+                                NoticeStatus::Pending,
+                                NoticeStatus::Resolved,
+                            ]
+                            .into_iter()
+                            .map(|status| {
+                                (
+                                    status.label().into(),
+                                    Filter::Status(status),
+                                    status == this.control_ui.filter_status,
+                                )
+                            }),
+                        ),
+                    }
+                    options
+                        .into_iter()
+                        .map(|(name, filter, selected)| {
+                            let weak = weak.clone();
+                            MenuItem::new(name, move |_, cx| {
+                                let _ = weak.update(cx, |this, cx| {
+                                    match filter {
+                                        Filter::Project(id) => {
+                                            this.control_ui.filter_project = id;
+                                            this.control_ui.filter_task = None;
+                                        }
+                                        Filter::Task(id) => this.control_ui.filter_task = id,
+                                        Filter::Kind(kind) => this.control_ui.filter_kind = kind,
+                                        Filter::Status(status) => {
+                                            this.control_ui.filter_status = status
+                                        }
+                                    }
+                                    cx.notify();
+                                });
+                            })
+                            .selected(selected)
+                        })
+                        .collect()
+                },
+            ));
+        }
+        bar
     }
     fn export_control_artifact(&mut self, record: ControlRecord, cx: &mut Context<Self>) {
         let ControlRecord::Artifact(artifact) = record else {
@@ -261,7 +700,7 @@ impl Waku {
             .text_color(theme.text)
             .cursor_default()
             .hover(|style| style.bg(theme.overlay_strong))
-            .focus_visible(|style| style.border_color(theme.accent))
+            .focus_visible(|style| style.border_1().border_color(theme.accent))
             .child(label.into())
             .on_click(cx.listener(move |this, _, window, cx| click(this, window, cx)))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
@@ -273,6 +712,12 @@ impl Waku {
     }
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.settings_page = None;
+        if self.control_ui.page != Some(page) && matches!(page, Page::Inbox | Page::Decisions) {
+            self.control_ui.filter_project = None;
+            self.control_ui.filter_task = None;
+            self.control_ui.filter_kind = NoticeKind::All;
+            self.control_ui.filter_status = NoticeStatus::All;
+        }
         self.control_ui.editor_generation += 1;
         self.control_ui.page = Some(page);
         self.control_ui.form = None;
@@ -280,7 +725,7 @@ impl Waku {
         self.control_ui.list.scroll_to_reveal_item(0);
         self.refresh_workspace_control(cx);
         if page == Page::Apps {
-            self.refresh_gateway_accounts(cx);
+            self.refresh_composio_apps(cx);
         }
         if page == Page::Usage {
             self.ensure_usage_history(false, cx);
@@ -328,6 +773,11 @@ impl Waku {
                     Ok(ResponsePayload::WorkspaceControl { snapshot }) => {
                         if snapshot.revision>=this.control_ui.snapshot.revision {this.control_ui.snapshot = snapshot;}
                         if saving && this.control_ui.editor_generation==editor_generation {this.control_ui.form = None;}
+                        if saving && let Some(proposal) = this.control_ui.accepted_proposal.take() {
+                            if this.control_ui.snapshot.records.iter().any(|r| matches!(r, ControlRecord::Action(a) if a.id==proposal.id && a.status==WorkspaceActionStatus::Accepted)) {
+                                this.prepare_control_task(proposal.project_id, ProviderKind::Nebius, format!("{}\n\n{}", proposal.title, proposal.detail), cx);
+                            }
+                        }
                     }
                     Ok(ResponsePayload::WorkflowDraft {mut workflow}) => {
                         if this.control_ui.editor_generation==editor_generation && this.control_ui.page==Some(Page::Workflows) && requested_prompt.as_deref().is_none_or(|prompt|this.control_ui.instructions.read(cx).content()==prompt) {
@@ -340,7 +790,7 @@ impl Waku {
                         this.control_ui.error =
                             Some("Unexpected workspace response. Refresh and try again.".into())
                     }
-                    Err(error) => this.control_ui.error = Some(error.to_string()),
+                    Err(error) => { this.control_ui.accepted_proposal = None; this.control_ui.error = Some(error.to_string()); },
                 }
                 cx.notify();
             });
@@ -393,7 +843,7 @@ impl Waku {
             ControlRecord::Team(v) => (FormKind::Team, v.objective.clone()),
             ControlRecord::Workflow(v) => (FormKind::Workflow, v.prompt.clone()),
             ControlRecord::Routine(v) => (FormKind::Routine, v.instructions.clone()),
-            ControlRecord::Artifact(_) => return,
+            ControlRecord::Artifact(_) | ControlRecord::Action(_) => return,
         };
         self.begin_control_form(kind, cx);
         self.control_ui.edit_id = Some(record.id());
@@ -628,14 +1078,17 @@ impl Waku {
                 routine.instructions,
                 cx,
             ),
-            ControlRecord::Artifact(_) => {}
+            ControlRecord::Artifact(_) | ControlRecord::Action(_) => {}
         }
     }
-    pub(super) fn render_workspace_nav(&self, cx: &mut Context<Self>) -> Div {
+    pub(super) fn render_workspace_nav(&self, cx: &mut Context<Self>) -> Stateful<Div> {
         let theme = Theme::current(cx);
         let mut nav = div()
+            .id("workspace-navigation")
             .px(px(10.0))
             .flex_none()
+            .max_h(gpui::relative(0.58))
+            .overflow_y_scroll()
             .flex()
             .flex_col()
             .gap(px(1.0));
@@ -672,28 +1125,39 @@ impl Waku {
             let button = self
                 .control_button(
                     format!("workspace-nav-{label}"),
-                    label,
+                    "",
                     cx,
                     move |this, _, cx| this.open_workspace_page(page, cx),
                 )
-                .flex_row_reverse()
-                .justify_end()
-                .h(px(29.0))
+                .w_full()
+                .justify_start()
+                .px(px(4.0))
+                .gap(px(10.0))
+                .h(px(32.0))
                 .border_0()
                 .bg(if selected {
                     theme.overlay_strong
                 } else {
                     gpui::transparent_black()
                 })
-                .child(icon(
-                    page.icon(),
-                    13.0,
-                    if selected {
-                        theme.accent
-                    } else {
-                        theme.text_secondary
-                    },
-                ));
+                .child(
+                    div()
+                        .size(px(20.0))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(icon(
+                            page.icon(),
+                            14.0,
+                            if selected {
+                                theme.accent
+                            } else {
+                                theme.text_secondary
+                            },
+                        )),
+                )
+                .child(div().min_w_0().truncate().child(label));
             nav = nav.child(button);
         }
         nav
@@ -701,16 +1165,22 @@ impl Waku {
     pub(super) fn render_workspace_header(&self, page: Page, cx: &mut Context<Self>) -> Div {
         let theme = Theme::current(cx);
         let mut actions = div().flex().items_center().gap(px(8.0));
-        actions = actions.child(self.control_button(
-            "workspace-refresh",
-            if self.control_ui.busy {
-                "Refreshing…"
-            } else {
-                "Refresh"
-            },
-            cx,
-            |this, _, cx| this.refresh_workspace_control(cx),
-        ));
+        let busy = self.control_ui.busy || self.control_ui.apps_busy;
+        actions = actions.child(
+            self.control_button("workspace-refresh", "", cx, |this, _, cx| {
+                this.refresh_workspace_control(cx);
+                if this.control_ui.page == Some(Page::Apps) {
+                    this.refresh_composio_apps(cx);
+                }
+            })
+            .size(px(32.0))
+            .p_0()
+            .justify_center()
+            .border_0()
+            .opacity(if busy { 0.45 } else { 1.0 })
+            .tooltip(Tooltip::text(if busy { "Refreshing" } else { "Refresh" }))
+            .child(icon("icons/rotate-cw.svg", 16.0, theme.text_secondary)),
+        );
         let form = match page {
             Page::Teams => Some((FormKind::Team, "New team")),
             Page::Routines => Some((FormKind::Routine, "New routine")),
@@ -733,16 +1203,8 @@ impl Waku {
                 |this, _, cx| this.begin_control_form(FormKind::Agent, cx),
             ));
         }
-        if page == Page::Artifacts {
-            actions = actions.child(self.control_button(
-                "workspace-import-artifact",
-                "Add document",
-                cx,
-                |this, _, cx| this.import_control_artifact(cx),
-            ));
-        }
         div()
-            .h(px(58.0))
+            .h(px(48.0))
             .flex_none()
             .px(px(24.0))
             .border_b_1()
@@ -752,10 +1214,35 @@ impl Waku {
             .justify_end()
             .child(actions)
     }
-    fn control_rows(&self, page: Page) -> Vec<Row> {
+    fn control_rows(&self, page: Page, cx: &App) -> Vec<Row> {
         let mut rows = Vec::new();
         match page {
-            Page::Dashboard | Page::Inbox | Page::Decisions | Page::Tasks => {
+            Page::Inbox | Page::Decisions => rows.extend(
+                self.workspace_notices()
+                    .into_iter()
+                    .filter(|n| page != Page::Decisions || n.pending)
+                    .filter(|n| {
+                        self.control_ui
+                            .filter_project
+                            .is_none_or(|id| n.project == Some(id))
+                    })
+                    .filter(|n| {
+                        self.control_ui
+                            .filter_task
+                            .is_none_or(|id| n.task == Some(id))
+                    })
+                    .filter(|n| {
+                        self.control_ui.filter_kind == NoticeKind::All
+                            || self.control_ui.filter_kind == n.kind
+                    })
+                    .filter(|n| match self.control_ui.filter_status {
+                        NoticeStatus::All => true,
+                        NoticeStatus::Pending => n.pending,
+                        NoticeStatus::Resolved => !n.pending,
+                    })
+                    .map(Row::Notice),
+            ),
+            Page::Dashboard | Page::Tasks => {
                 let mut sessions = self
                     .state
                     .sessions
@@ -774,11 +1261,38 @@ impl Waku {
                     .iter()
                     .map(|project| Row::Project(project.id)),
             ),
-            Page::Apps => rows.extend(
-                self.gateway_accounts
-                    .iter()
-                    .map(|a| Row::Account(a.toolkit.clone(), a.id.clone(), a.status.clone())),
-            ),
+            Page::Apps => {
+                let query = self
+                    .control_ui
+                    .app_search
+                    .read(cx)
+                    .content()
+                    .trim()
+                    .to_lowercase();
+                if self.control_ui.apps_connected_only {
+                    rows.extend(
+                        self.control_ui
+                            .app_accounts
+                            .iter()
+                            .filter(|a| a.toolkit.to_lowercase().contains(&query))
+                            .map(|a| {
+                                Row::Account(a.toolkit.clone(), a.id.clone(), a.status.clone())
+                            }),
+                    );
+                } else {
+                    let configs = self
+                        .control_ui
+                        .app_configs
+                        .iter()
+                        .filter(|a| {
+                            a.toolkit.to_lowercase().contains(&query)
+                                || a.name.to_lowercase().contains(&query)
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    rows.extend(configs.chunks(2).map(|pair| Row::AppPair(pair.to_vec())));
+                }
+            }
             _ => {
                 for record in &self.control_ui.snapshot.records {
                     if matches!(
@@ -831,13 +1345,26 @@ impl Waku {
         if rows.is_empty() {
             rows.push(Row::Empty(match page {
                 Page::Dashboard | Page::Tasks => "Your tasks will appear here.",
-                Page::Inbox => "No task updates yet.",
+                Page::Inbox => "No actions match these filters.",
                 Page::Decisions => "No decisions waiting for you.",
                 Page::Teams => "Create an agent, then build a team.",
                 Page::Workflows => "Describe a workflow to create its stages.",
                 Page::Routines => "Create a routine for recurring agent work.",
-                Page::Artifacts => "Add HTML, PDF, Markdown, and other documents.",
-                Page::Apps => "Connect your personal gateway to see app accounts.",
+                Page::Artifacts => "Documents created by your agents will appear here.",
+                Page::Apps if self.control_ui.apps_busy => "Loading apps…",
+                Page::Apps
+                    if !self
+                        .control_ui
+                        .app_search
+                        .read(cx)
+                        .content()
+                        .trim()
+                        .is_empty() =>
+                {
+                    "No apps match your search."
+                }
+                Page::Apps if self.control_ui.apps_connected_only => "No connected accounts yet.",
+                Page::Apps => "Save your Composio project key in Settings to load available apps.",
                 _ => "Nothing here yet.",
             }));
         }
@@ -885,6 +1412,14 @@ impl Waku {
         let mut key = std::collections::hash_map::DefaultHasher::new();
         page.hash(&mut key);
         self.control_ui.snapshot.revision.hash(&mut key);
+        self.control_ui.filter_project.hash(&mut key);
+        self.control_ui.filter_task.hash(&mut key);
+        self.control_ui.filter_kind.hash(&mut key);
+        self.control_ui.filter_status.hash(&mut key);
+        self.control_ui.apps_generation.hash(&mut key);
+        self.control_ui.apps_busy.hash(&mut key);
+        self.control_ui.apps_connected_only.hash(&mut key);
+        self.control_ui.app_search.read(cx).content().hash(&mut key);
         for session in &self.state.sessions {
             (session.id, session.updated_at, session.status as u8).hash(&mut key);
         }
@@ -894,9 +1429,24 @@ impl Waku {
         for account in &self.gateway_accounts {
             (&account.id, &account.status).hash(&mut key);
         }
+        for (id, runtime) in &self.runtimes {
+            id.hash(&mut key);
+            runtime
+                .pending_permission
+                .as_ref()
+                .map(|p| &p.request_id)
+                .hash(&mut key);
+            runtime
+                .pending_user_input
+                .as_ref()
+                .map(|p| &p.request_id)
+                .hash(&mut key);
+            runtime.pending_computer_approval.is_some().hash(&mut key);
+            runtime.last_driver_error.hash(&mut key);
+        }
         let key = key.finish();
         if self.control_ui.rows_key != key {
-            let rows = Rc::new(self.control_rows(page));
+            let rows = Rc::new(self.control_rows(page, cx));
             self.control_ui.list.reset(rows.len());
             self.control_ui.rows = rows;
             self.control_ui.rows_key = key;
@@ -946,6 +1496,10 @@ impl Waku {
                     ))
                     .text_color(theme.text)
                     .text_size(sp(15.0))
+                    .flex()
+                    .items_center()
+                    .gap(px(16.0))
+                    .child(icon("icons/ion.svg", 28.0, theme.accent))
                     .child(format!(
                         "{} projects   ·   {} active tasks   ·   {} agents   ·   {} decisions",
                         self.state.projects.len(),
@@ -956,15 +1510,69 @@ impl Waku {
             );
         }
         if page == Page::Apps {
-            content = content.child(self.control_button(
-                "manage-app-connections",
-                "Manage connections",
-                cx,
-                |this, window, cx| {
-                    this.open_settings_action(&OpenSettings, window, cx);
-                    this.open_settings_page(SettingsPage::Providers, cx);
-                },
-            ));
+            content = content.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(12.0))
+                    .child(div().flex_1().min_w_0().child(
+                        TextField::new("apps-search", self.control_ui.app_search.clone()).w_full(),
+                    ))
+                    .child(
+                        self.control_button(
+                            "manage-app-connections",
+                            "",
+                            cx,
+                            |this, window, cx| {
+                                this.open_settings_action(&OpenSettings, window, cx);
+                                this.open_settings_page(SettingsPage::Providers, cx);
+                            },
+                        )
+                        .size(px(32.0))
+                        .p_0()
+                        .border_0()
+                        .justify_center()
+                        .tooltip(Tooltip::text("App settings"))
+                        .child(icon(
+                            "icons/settings.svg",
+                            16.0,
+                            theme.text_secondary,
+                        )),
+                    ),
+            );
+            let connected = self.control_ui.apps_connected_only;
+            content = content.child(
+                div()
+                    .flex()
+                    .gap(px(8.0))
+                    .child(
+                        self.control_button("apps-all", "All apps", cx, |this, _, cx| {
+                            this.control_ui.apps_connected_only = false;
+                            cx.notify();
+                        })
+                        .border_0()
+                        .bg(if !connected {
+                            theme.overlay_strong
+                        } else {
+                            gpui::transparent_black()
+                        }),
+                    )
+                    .child(
+                        self.control_button("apps-connected", "Connected", cx, |this, _, cx| {
+                            this.control_ui.apps_connected_only = true;
+                            cx.notify();
+                        })
+                        .border_0()
+                        .bg(if connected {
+                            theme.overlay_strong
+                        } else {
+                            gpui::transparent_black()
+                        }),
+                    ),
+            );
+        }
+        if matches!(page, Page::Inbox | Page::Decisions) {
+            content = content.child(self.render_workspace_filters(cx));
         }
         let collection = div()
             .id("workspace-records")
@@ -1014,6 +1622,167 @@ impl Waku {
             .gap(px(14.0));
         let mut actions = div().flex_none().flex().gap(px(8.0));
         let (title, detail, icon_path) = match row {
+            Row::AppPair(configs) => {
+                let mut pair = div().flex().gap(px(28.0)).py(px(12.0));
+                let count = configs.len();
+                for config in configs {
+                    let account = self
+                        .control_ui
+                        .app_accounts
+                        .iter()
+                        .find(|a| a.toolkit == config.toolkit && a.status == "ACTIVE");
+                    let id = config.id.clone();
+                    let mut tile = div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .items_center()
+                        .gap(px(14.0))
+                        .py(px(12.0));
+                    tile = tile
+                        .child(
+                            div()
+                                .size(px(38.0))
+                                .flex_none()
+                                .rounded(px(10.0))
+                                .border_1()
+                                .border_color(theme.border)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(icon("icons/package.svg", 20.0, theme.accent)),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .flex()
+                                .flex_col()
+                                .gap(px(6.0))
+                                .child(
+                                    div()
+                                        .text_size(sp(14.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(theme.text)
+                                        .truncate()
+                                        .child(config.name.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(sp(12.5))
+                                        .text_color(theme.text_secondary)
+                                        .truncate()
+                                        .child(if account.is_some() {
+                                            "Connected".into()
+                                        } else {
+                                            config.description.clone()
+                                        }),
+                                ),
+                        )
+                        .child(self.control_button(
+                            format!("app-connect-{id}"),
+                            if account.is_some() {
+                                "Connected"
+                            } else if id.starts_with("configure:") {
+                                "Configure"
+                            } else if id.starts_with("available:") {
+                                "Available"
+                            } else {
+                                "Connect"
+                            },
+                            cx,
+                            move |this, _, cx| {
+                                if account_is_active(this, &id) {
+                                    return;
+                                }
+                                this.connect_composio_app(id.clone(), cx);
+                            },
+                        ));
+                    pair = pair.child(tile);
+                }
+                if count == 1 {
+                    pair = pair.child(div().flex_1());
+                }
+                return pair.into_any_element();
+            }
+            Row::Notice(notice) => {
+                let project = notice
+                    .project
+                    .and_then(|id| self.state.projects.iter().find(|p| p.id == id))
+                    .map(|p| p.name.as_str())
+                    .unwrap_or("Workspace");
+                let task = notice
+                    .task
+                    .and_then(|id| self.state.sessions.iter().find(|s| s.id == id))
+                    .map(|s| s.display_title())
+                    .unwrap_or("");
+                let mut status = if notice.pending {
+                    "Needs action"
+                } else {
+                    "Resolved"
+                };
+                if let Some(ControlRecord::Action(action)) = &notice.record {
+                    status = match action.status {
+                        WorkspaceActionStatus::Pending => "Needs action",
+                        WorkspaceActionStatus::Accepted => "Accepted",
+                        WorkspaceActionStatus::Declined => "Declined",
+                    };
+                    if action.status == WorkspaceActionStatus::Pending {
+                        let accept = action.clone();
+                        let decline = action.clone();
+                        actions = actions
+                            .child(self.control_button(
+                                format!("action-accept-{}", action.id),
+                                "Accept",
+                                cx,
+                                move |this, _, cx| {
+                                    this.resolve_workspace_action(accept.clone(), true, cx)
+                                },
+                            ))
+                            .child(self.control_button(
+                                format!("action-decline-{}", action.id),
+                                "Decline",
+                                cx,
+                                move |this, _, cx| {
+                                    this.resolve_workspace_action(decline.clone(), false, cx)
+                                },
+                            ));
+                    }
+                }
+                if let Some(id) = notice.task {
+                    actions = actions.child(self.control_button(
+                        format!("notice-open-{index}"),
+                        if notice.pending {
+                            "Review"
+                        } else {
+                            "Open task"
+                        },
+                        cx,
+                        move |this, _, cx| this.select_session(id, cx),
+                    ));
+                }
+                if let Some(record @ ControlRecord::Artifact(_)) = notice.record {
+                    actions = actions.child(self.control_button(
+                        format!("notice-document-{index}"),
+                        "Save document",
+                        cx,
+                        move |this, _, cx| this.export_control_artifact(record.clone(), cx),
+                    ));
+                }
+                let path = match notice.kind {
+                    NoticeKind::Approval | NoticeKind::Decision => "icons/check.svg",
+                    NoticeKind::Question => "icons/info.svg",
+                    NoticeKind::Issue => "icons/alert.svg",
+                    NoticeKind::Artifact => "icons/file.svg",
+                    NoticeKind::Proposal => "icons/compose.svg",
+                    _ => "icons/check.svg",
+                };
+                (
+                    notice.title,
+                    format!("{project} · {task} · {status} · {}", notice.detail),
+                    path,
+                )
+            }
             Row::Empty(message) => {
                 return div()
                     .p(px(28.0))
@@ -1069,9 +1838,11 @@ impl Waku {
                     "icons/folder.svg",
                 )
             }
-            Row::Account(toolkit, id, status) => {
-                (toolkit, format!("{status} · {id}"), "icons/package.svg")
-            }
+            Row::Account(toolkit, id, status) => (
+                app_name(&toolkit),
+                format!("{status} · {id}"),
+                "icons/package.svg",
+            ),
             Row::AgentInTeam(agent, depth) => {
                 body = body.pl(px(22.0 + depth as f32 * 24.0));
                 (
@@ -1117,6 +1888,7 @@ impl Waku {
                     ControlRecord::Artifact(artifact) => {
                         (artifact.format.to_uppercase(), "icons/file.svg")
                     }
+                    ControlRecord::Action(action) => (action.detail.clone(), "icons/check.svg"),
                 };
                 if matches!(record, ControlRecord::Artifact(_)) {
                     actions = actions.child(self.control_button(
@@ -1157,6 +1929,7 @@ impl Waku {
                             .text_size(sp(14.0))
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(theme.text)
+                            .truncate()
                             .child(title),
                     )
                     .child(

@@ -2812,6 +2812,15 @@ impl Waku {
             };
 
             let gateway_bridge = crate::gateway_bridge::GatewayBridge::start(daemon.clone()).ok();
+            cx.subscribe(
+                &control_ui.app_search,
+                |_: &mut Self, _, event: &InputEvent, cx| {
+                    if matches!(event, InputEvent::Edited) {
+                        cx.notify();
+                    }
+                },
+            )
+            .detach();
             Self {
                 daemon,
                 _gateway_bridge: gateway_bridge,

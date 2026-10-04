@@ -335,8 +335,6 @@ pub(super) fn format_time_ago(seconds: u64) -> String {
 /// One row of the virtualized sidebar session history.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum SidebarRow {
-    /// Opens the window-wide command palette and scrolls with history.
-    Search,
     /// Group header; the first row also carries the sidebar actions.
     Header(SidebarGroup),
     /// A started session.
@@ -354,7 +352,6 @@ fn sidebar_session_row_index(rows: &[SidebarRow], session_id: Uuid) -> Option<us
 
 fn sidebar_row_height(row: SidebarRow) -> Pixels {
     px(match row {
-        SidebarRow::Search => SIDEBAR_ACTION_ROW_HEIGHT + SIDEBAR_SEARCH_BOTTOM_GAP,
         SidebarRow::Header(_) => SIDEBAR_GROUP_HEADER_HEIGHT + SIDEBAR_GROUP_HEADER_BOTTOM_GAP,
         SidebarRow::Session(_) => SIDEBAR_SESSION_ROW_HEIGHT,
         SidebarRow::ShowMore(_) => SIDEBAR_SHOW_MORE_ROW_HEIGHT,
@@ -1108,7 +1105,8 @@ impl Waku {
                 div()
                     .flex_none()
                     .px(px(10.0))
-                    .child(self.render_sidebar_new_session(cx)),
+                    .child(self.render_sidebar_new_session(cx))
+                    .child(self.render_sidebar_search(cx)),
             )
             .child(self.render_workspace_nav(cx))
             .child(
@@ -1252,7 +1250,7 @@ impl Waku {
             .collect::<Vec<_>>();
         sort_sidebar_sessions(&mut sorted_sessions, self.state.sidebar_ordering);
 
-        let mut rows = vec![SidebarRow::Search];
+        let mut rows = Vec::new();
         match self.state.sidebar_grouping {
             SidebarGrouping::Updated => {
                 let mut grouped_sessions: [Vec<Uuid>; 6] = std::array::from_fn(|_| Vec::new());
@@ -1382,12 +1380,11 @@ impl Waku {
             return div().into_any_element();
         };
         match *row {
-            SidebarRow::Search => self.render_sidebar_search(cx).into_any_element(),
             SidebarRow::Header(group) => {
                 let has_expanded_children = rows.get(index + 1).is_some_and(|row| {
                     matches!(row, SidebarRow::Session(_) | SidebarRow::ShowMore(_))
                 });
-                self.render_sidebar_group_header(group, index == 1, has_expanded_children, cx)
+                self.render_sidebar_group_header(group, index == 0, has_expanded_children, cx)
                     .into_any_element()
             }
             SidebarRow::Session(session_id) => self
@@ -2694,15 +2691,15 @@ mod tests {
     fn selected_session_uses_nearest_bottom_edge_for_an_unmeasured_lower_row() {
         let target = Uuid::from_u128(31);
         let group = SidebarGroup::Updated(SessionDateGroup::Today);
-        let mut rows = vec![SidebarRow::Search, SidebarRow::Header(group)];
+        let mut rows = vec![SidebarRow::Header(group)];
         rows.extend((1..=40).map(|id| SidebarRow::Session(Uuid::from_u128(id))));
         rows.push(SidebarRow::GroupSpacer);
 
         let index = sidebar_session_row_index(&rows, target).unwrap();
         let offset = sidebar_bottom_aligned_offset(&rows, index, px(400.0));
 
-        assert_eq!(index, 32);
-        assert_eq!(offset.item_ix, 25);
+        assert_eq!(index, 31);
+        assert_eq!(offset.item_ix, 24);
         assert_eq!(offset.offset_in_item, px(16.0));
         let visible_height = rows[offset.item_ix..=index]
             .iter()

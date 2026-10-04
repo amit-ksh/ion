@@ -12,10 +12,163 @@ use waku_protocol::control::*;
 
 pub struct ControlStore {
     path: PathBuf,
+    capture_lock: parking_lot::Mutex<()>,
 }
 impl ControlStore {
+    pub fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
+    /// Collect only documents attributed to successful agent edit activities.
+    /// Called after a settled task save on a daemon worker, never from render.
+    pub fn capture_agent_documents(
+        &self,
+        session: &crate::model::AgentSession,
+        projects: &[crate::model::Project],
+    ) -> Result<()> {
+        use crate::model::{SessionWorkspace, TurnStatus};
+        let Some(turn) = session
+            .turns
+            .last()
+            .filter(|t| t.status != TurnStatus::Running)
+        else {
+            return Ok(());
+        };
+        if !session.detail_loaded {
+            return Ok(());
+        }
+        let _guard = self.capture_lock.lock();
+        let db = self.connect()?;
+        db.execute_batch("CREATE TABLE IF NOT EXISTS ion_document_sources (source TEXT PRIMARY KEY, artifact_id TEXT NOT NULL); CREATE TABLE IF NOT EXISTS ion_document_scans (scan TEXT PRIMARY KEY)")?;
+        let scan = format!("{}:{}:{}", session.id, turn.id, session.updated_at);
+        if db
+            .query_row(
+                "SELECT 1 FROM ion_document_scans WHERE scan=?",
+                [&scan],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .is_some()
+        {
+            return Ok(());
+        }
+        let root = match &session.workspace {
+            SessionWorkspace::Worktree { path, .. } => path.clone(),
+            _ => match projects.iter().find(|p| p.id == session.project_id) {
+                Some(p) => p.path.clone(),
+                None => return Ok(()),
+            },
+        };
+        let root = match std::fs::canonicalize(root) {
+            Ok(root) => root,
+            Err(_) => return Ok(()),
+        };
+        for activity in session
+            .transcript_blocks
+            .iter()
+            .filter(|b| b.turn_id == Some(turn.id))
+            .flat_map(|b| &b.activities)
+            .filter(|a| a.complete && !a.failed)
+        {
+            for change in &activity.file_changes {
+                let source = format!("{}:{}:{}:{}", session.id, turn.id, activity.id, change.path);
+                if db
+                    .query_row(
+                        "SELECT 1 FROM ion_document_sources WHERE source=?",
+                        [&source],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .optional()?
+                    .is_some()
+                {
+                    continue;
+                }
+                let path = match std::fs::canonicalize(root.join(&change.path)) {
+                    Ok(path) => path,
+                    Err(_) => continue,
+                };
+                if !path.starts_with(&root) {
+                    continue;
+                }
+                let relative = path.strip_prefix(&root)?;
+                if relative.components().any(|c| {
+                    c.as_os_str() == ".git"
+                        || c.as_os_str() == "node_modules"
+                        || c.as_os_str() == ".env"
+                }) {
+                    continue;
+                }
+                let format = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                if !matches!(
+                    format.as_str(),
+                    "html" | "htm" | "pdf" | "md" | "txt" | "docx" | "csv"
+                ) {
+                    continue;
+                }
+                let metadata = std::fs::metadata(&path)?;
+                if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 16 * 1024 * 1024 {
+                    continue;
+                }
+                use std::io::Read;
+                let mut bytes = Vec::new();
+                std::fs::File::open(&path)?
+                    .take(16 * 1024 * 1024 + 1)
+                    .read_to_end(&mut bytes)?;
+                if bytes.len() > 16 * 1024 * 1024 {
+                    continue;
+                }
+                let name = path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Document")
+                    .to_owned();
+                let snapshot = self.load()?;
+                let existing: HashSet<_> = snapshot.records.iter().map(ControlRecord::id).collect();
+                let snapshot = self.import_document(
+                    snapshot.revision,
+                    name,
+                    format,
+                    Some(session.project_id),
+                    Some(session.id),
+                    bytes,
+                )?;
+                let artifact = snapshot
+                    .records
+                    .iter()
+                    .find_map(|record| match record {
+                        ControlRecord::Artifact(a) if !existing.contains(&a.id) => Some(a),
+                        _ => None,
+                    })
+                    .context("Generated artifact was not saved")?;
+                db.execute(
+                    "INSERT OR IGNORE INTO ion_document_sources VALUES(?,?)",
+                    params![source, artifact.id.to_string()],
+                )?;
+            }
+        }
+        db.execute("INSERT OR IGNORE INTO ion_document_scans VALUES(?)", [scan])?;
+        Ok(())
+    }
+    pub fn add_agent_action(&self, action: WorkspaceAction) -> Result<ControlSnapshot> {
+        for _ in 0..4 {
+            let snapshot = self.load()?;
+            if snapshot.records.iter().any(|r| matches!(r, ControlRecord::Action(a) if a.task_id==action.task_id && a.title==action.title && a.detail==action.detail)) { return Ok(snapshot); }
+            match self.save(snapshot.revision, ControlRecord::Action(action.clone())) {
+                Ok(saved) => return Ok(saved),
+                Err(error) if self.load()?.revision == snapshot.revision => return Err(error),
+                Err(_) => {}
+            }
+        }
+        anyhow::bail!("Workspace changed while saving proposal. Try again.")
+    }
     pub fn new(path: PathBuf) -> Self {
-        Self { path }
+        Self {
+            path,
+            capture_lock: parking_lot::Mutex::new(()),
+        }
     }
     fn connect(&self) -> Result<Connection> {
         if let Some(parent) = self.path.parent() {
@@ -63,6 +216,10 @@ impl ControlStore {
         task_id: Option<Uuid>,
         bytes: Vec<u8>,
     ) -> Result<ControlSnapshot> {
+        ensure!(
+            !name.contains(['/', '\\', ':', '\0']),
+            "Use a document filename without directories"
+        );
         ensure!(
             matches!(
                 format.as_str(),
@@ -248,6 +405,10 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
                 artifact.reference == format!("ion-document:{}", artifact.id),
                 "Artifacts must reference stored documents"
             ),
+            ControlRecord::Action(action) => ensure!(
+                !action.detail.trim().is_empty() && action.detail.len() <= 32 * 1024,
+                "An action needs details of at most 32 KiB"
+            ),
         }
     }
     Ok(())
@@ -295,6 +456,121 @@ pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn agent_proposals_survive_restart_and_stale_acceptance_is_rejected() {
+        let directory = std::env::temp_dir().join(format!("ion-actions-{}", Uuid::new_v4()));
+        let path = directory.join("control.db");
+        let store = ControlStore::new(path.clone());
+        let mut action = WorkspaceAction {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            task_id: Uuid::new_v4(),
+            title: "Review release".into(),
+            detail: "Review the generated release documents".into(),
+            action_kind: WorkspaceActionKind::ProposedTask,
+            status: WorkspaceActionStatus::Pending,
+            created_at: 1,
+        };
+        let snapshot = store.add_agent_action(action.clone()).unwrap();
+        assert_eq!(
+            store.add_agent_action(action.clone()).unwrap().revision,
+            snapshot.revision
+        );
+        action.status = WorkspaceActionStatus::Accepted;
+        let accepted = store
+            .save(snapshot.revision, ControlRecord::Action(action.clone()))
+            .unwrap();
+        assert!(
+            store
+                .save(snapshot.revision, ControlRecord::Action(action))
+                .is_err()
+        );
+        let reopened = ControlStore::new(path).load().unwrap();
+        assert_eq!(reopened.revision, accepted.revision);
+        assert!(
+            matches!(&reopened.records[0],ControlRecord::Action(a) if a.status==WorkspaceActionStatus::Accepted)
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
+    fn collects_agent_documents_once_and_never_imports_outside_project_or_unrelated_files() {
+        use crate::model::{
+            ActivityFileChange, ActivityItem, ActivityKind, AgentSession, AgentTurn, Project,
+            ProviderKind, TranscriptBlock, TurnStatus,
+        };
+        let directory = std::env::temp_dir().join(format!("ion-artifacts-{}", Uuid::new_v4()));
+        let project_dir = directory.join("project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::write(project_dir.join("agent.html"), b"<h1>Agent report</h1>").unwrap();
+        std::fs::write(project_dir.join("user.html"), b"User document").unwrap();
+        std::fs::write(directory.join("outside.html"), b"Outside document").unwrap();
+        let project = Project {
+            id: Uuid::new_v4(),
+            name: "Project".into(),
+            path: project_dir,
+            created_at: 1,
+        };
+        let mut session = AgentSession::new(project.id, ProviderKind::Claude);
+        let turn_id = Uuid::new_v4();
+        session.turns.push(AgentTurn {
+            id: turn_id,
+            turn_count: 1,
+            status: TurnStatus::Completed,
+            provider_turn_started: true,
+            provider_resume_at: None,
+            started_at: 1,
+            completed_at: Some(2),
+            checkpoint: None,
+        });
+        let mut activity = ActivityItem::new(None, ActivityKind::Tool, "Write report", None, true);
+        activity.file_changes = ["agent.html", "../outside.html"]
+            .into_iter()
+            .map(|path| ActivityFileChange {
+                path: path.into(),
+                additions: None,
+                deletions: None,
+                status: None,
+                diff: None,
+            })
+            .collect();
+        session.transcript_blocks.push(TranscriptBlock {
+            after_message: 0,
+            turn_id: Some(turn_id),
+            activities: vec![activity],
+        });
+        let store = ControlStore::new(directory.join("control.db"));
+        // A later-sorting record must not be mistaken for the newly saved artifact.
+        store
+            .save(
+                0,
+                ControlRecord::Routine(Routine {
+                    id: Uuid::new_v4(),
+                    name: "Daily report".into(),
+                    project_id: project.id,
+                    instructions: "Summarize updates".into(),
+                    interval_minutes: 60,
+                    paused: true,
+                    next_run: 0,
+                    provider: ProviderKind::Claude,
+                }),
+            )
+            .unwrap();
+        store
+            .capture_agent_documents(&session, &[project.clone()])
+            .unwrap();
+        session.updated_at += 1;
+        store.capture_agent_documents(&session, &[project]).unwrap();
+        let snapshot = store.load().unwrap();
+        assert_eq!(snapshot.records.len(), 2);
+        assert!(
+            matches!(&snapshot.records[0],ControlRecord::Artifact(a) if a.name=="agent.html"&&a.task_id==Some(session.id))
+        );
+        assert_eq!(
+            store.read_document(snapshot.records[0].id()).unwrap(),
+            b"<h1>Agent report</h1>"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     fn agent(id: Uuid) -> ControlRecord {
         ControlRecord::Agent(AgentProfile {
             id,

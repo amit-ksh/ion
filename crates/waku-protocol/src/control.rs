@@ -19,6 +19,7 @@ pub enum ControlRecord {
     Workflow(Workflow),
     Routine(Routine),
     Artifact(Artifact),
+    Action(WorkspaceAction),
 }
 impl ControlRecord {
     pub fn id(&self) -> Uuid {
@@ -28,6 +29,7 @@ impl ControlRecord {
             Self::Workflow(v) => v.id,
             Self::Routine(v) => v.id,
             Self::Artifact(v) => v.id,
+            Self::Action(v) => v.id,
         }
     }
     pub fn kind(&self) -> &'static str {
@@ -37,6 +39,7 @@ impl ControlRecord {
             Self::Workflow(_) => "workflow",
             Self::Routine(_) => "routine",
             Self::Artifact(_) => "artifact",
+            Self::Action(_) => "action",
         }
     }
     pub fn name(&self) -> &str {
@@ -46,6 +49,7 @@ impl ControlRecord {
             Self::Workflow(v) => &v.name,
             Self::Routine(v) => &v.name,
             Self::Artifact(v) => &v.name,
+            Self::Action(v) => &v.title,
         }
     }
 }
@@ -111,4 +115,31 @@ pub struct Artifact {
     pub reference: String,
     pub format: String,
     pub created_at: u64,
+}
+
+/// Agent proposals are durable. Accepting one never silently starts a task.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAction {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub task_id: Uuid,
+    pub title: String,
+    pub detail: String,
+    pub action_kind: WorkspaceActionKind,
+    pub status: WorkspaceActionStatus,
+    pub created_at: u64,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceActionKind {
+    ProposedTask,
+    Decision,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceActionStatus {
+    Pending,
+    Accepted,
+    Declined,
 }
