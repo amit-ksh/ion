@@ -1073,7 +1073,9 @@ impl Waku {
                 }
 
                 let mut sidebar = div()
-                    .w(px(50.0))
+                    .id("model-provider-rail")
+                    .overflow_y_scroll()
+                    .w(px(146.0))
                     .h_full()
                     .flex_none()
                     .flex()
@@ -1093,12 +1095,14 @@ impl Waku {
                     .child(
                         div()
                             .id("model-tab-favorites")
-                            .w(px(38.0))
+                            .w_full()
                             .h(px(38.0))
                             .rounded(px(7.0))
                             .flex()
                             .items_center()
-                            .justify_center()
+                            .justify_start()
+                            .px(px(8.0))
+                            .gap(px(8.0))
                             .cursor_default()
                             .when(favorites_selected, |element| {
                                 element.bg(theme.overlay_strong)
@@ -1113,6 +1117,12 @@ impl Waku {
                                     theme.text_tertiary
                                 },
                             ))
+                            .child(
+                                div()
+                                    .text_size(sp(12.0))
+                                    .text_color(theme.text_secondary)
+                                    .child("Favorites"),
+                            )
                             .on_click(move |_, _, cx| {
                                 let _ = favorite_weak.update(cx, |this, cx| {
                                     this.select_model_picker_tab_from_rail(
@@ -1122,42 +1132,74 @@ impl Waku {
                                 });
                             }),
                     )
-                    .child(div().w(px(34.0)).h(px(1.0)).my(px(3.0)).bg(theme.border));
+                    .child(div().w_full().h(px(1.0)).my(px(3.0)).bg(theme.border));
 
-                // One predicate with the `tab` cycle, so clicking and cycling
-                // agree on which tabs are usable.
+                // Uninstalled harnesses remain visible and open their setup page.
+                // Keyboard tab cycling still selects only runnable providers.
                 let rail_tabs = visible_picker_tabs(&probes, &disabled_providers, locked_provider);
                 for kind in ProviderKind::ALL {
-                    // A provider with no CLI on the machine, or one switched
-                    // off in the Providers settings, leaves the rail entirely
-                    // rather than sitting there dimmed: a tab that can never
-                    // open only advertises a choice settings already ruled
-                    // out. Being locked out by the current session is a
-                    // different claim — that tab stays, dimmed, because it is
-                    // true only until the next session.
-                    if !picker_rail_shows_provider(
-                        &probes,
-                        &disabled_providers,
-                        locked_provider,
-                        kind,
-                    ) {
+                    if !waku_protocol::distribution::ProviderPolicy::allows_new_task(kind) {
                         continue;
                     }
                     let usable = rail_tabs.contains(&ModelPickerTab::Provider(kind));
                     let selected = selected_tab == ModelPickerTab::Provider(kind) && !searching;
                     let tab_weak = weak.clone();
+                    let setup_weak = weak.clone();
+                    let setup_popover = popover.clone();
+                    let key_weak = weak.clone();
+                    let key_popover = popover.clone();
                     sidebar = sidebar.child(
                         div()
                             .id(SharedString::from(format!("model-tab-{}", kind.id())))
-                            .w(px(38.0))
+                            .tooltip(Tooltip::text(if usable {
+                                kind.display_name().to_owned()
+                            } else {
+                                format!("{} - Set up harness", kind.display_name())
+                            }))
+                            .on_key_down(move |event: &KeyDownEvent, window, cx| {
+                                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                                    if !usable {
+                                        key_popover.close(window, cx);
+                                    }
+                                    let _ = key_weak.update(cx, |this, cx| {
+                                        if usable {
+                                            this.select_model_picker_tab_from_rail(
+                                                ModelPickerTab::Provider(kind),
+                                                cx,
+                                            );
+                                        } else {
+                                            this.open_settings_action(&OpenSettings, window, cx);
+                                            this.open_settings_page(SettingsPage::Providers, cx);
+                                            this.expanded_provider_settings = Some(kind);
+                                        }
+                                    });
+                                    cx.stop_propagation();
+                                }
+                            })
+                            .flex_none()
+                            .tab_index(0)
+                            .tab_stop(true)
+                            .focus_visible(|style| style.border_1().border_color(theme.accent))
+                            .w_full()
                             .h(px(38.0))
                             .rounded(px(7.0))
                             .flex()
                             .items_center()
-                            .justify_center()
+                            .justify_start()
+                            .px(px(8.0))
+                            .gap(px(8.0))
                             .cursor_default()
                             .when(selected, |element| element.bg(theme.overlay_strong))
-                            .when(!usable, |element| element.opacity(0.35))
+                            .when(!usable, |element| {
+                                element.opacity(0.65).on_click(move |_, window, cx| {
+                                    setup_popover.close(window, cx);
+                                    let _ = setup_weak.update(cx, |this, cx| {
+                                        this.open_settings_action(&OpenSettings, window, cx);
+                                        this.open_settings_page(SettingsPage::Providers, cx);
+                                        this.expanded_provider_settings = Some(kind);
+                                    });
+                                })
+                            })
                             .when(usable, |element| {
                                 element.hover(|element| element.bg(theme.overlay)).on_click(
                                     move |_, _, cx| {
@@ -1179,7 +1221,29 @@ impl Waku {
                                 } else {
                                     0.82
                                 }),
-                            )),
+                            ))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .flex()
+                                    .flex_col()
+                                    .child(
+                                        div()
+                                            .text_size(sp(12.0))
+                                            .text_color(theme.text)
+                                            .truncate()
+                                            .child(kind.short_name()),
+                                    )
+                                    .when(!usable, |element| {
+                                        element.child(
+                                            div()
+                                                .text_size(sp(10.5))
+                                                .text_color(theme.text_secondary)
+                                                .child("Set up"),
+                                        )
+                                    }),
+                            ),
                     );
                 }
 

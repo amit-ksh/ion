@@ -9,16 +9,15 @@ pub enum DistributionProfile {
 }
 
 impl DistributionProfile {
-    /// The full catalog is a development escape hatch, never a Settings option.
+    /// ion ships the complete harness catalog. The limited profile is explicit
+    /// packaging policy, never an implicit restriction on the default app.
     pub fn current() -> Self {
         static PROFILE: std::sync::OnceLock<DistributionProfile> = std::sync::OnceLock::new();
         *PROFILE.get_or_init(|| {
-            if cfg!(debug_assertions)
-                && std::env::var_os("ION_DEV_FULL_PROVIDERS").is_some_and(|value| value == "1")
-            {
-                Self::Full
-            } else {
+            if std::env::var_os("ION_DISTRIBUTION").is_some_and(|value| value == "nebius-only") {
                 Self::NebiusHackathon
+            } else {
+                Self::Full
             }
         })
     }
@@ -35,6 +34,19 @@ impl DistributionProfile {
 }
 
 pub struct ProviderPolicy;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn standard_ion_distribution_exposes_every_supported_harness() {
+        assert_eq!(
+            DistributionProfile::current().visible_providers().count(),
+            ProviderKind::ALL.len()
+        );
+    }
+}
 
 impl ProviderPolicy {
     pub fn allows_new_task(provider: ProviderKind) -> bool {

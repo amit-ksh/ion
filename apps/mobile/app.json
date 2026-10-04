@@ -31,7 +31,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1a1a1a",
+          "backgroundColor": "#14201b",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -57,7 +57,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow ion to record short dictation and send it to your selected ion daemon for transcription on that host."
+          "microphonePermission": "Allow ion to record short dictation and send it to your configured speech service or selected ion daemon for transcription."
         }
       ],
       "expo-notifications",

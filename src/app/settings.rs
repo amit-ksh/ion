@@ -354,6 +354,7 @@ impl Waku {
             Kind::NebiusTokenFactoryApiKey,
             Kind::ComposioScopedProjectKey,
             Kind::GatewayPairingToken,
+            Kind::SpeechService,
         ];
         let generations = self.credential_generation.clone();
         cx.spawn(async move |waku, cx| {
@@ -494,7 +495,7 @@ impl Waku {
         }
     }
 
-    fn refresh_gateway_accounts(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn refresh_gateway_accounts(&mut self, cx: &mut Context<Self>) {
         use crate::credentials::{CredentialKind as Kind, CredentialService};
         let kind = Kind::GatewayPairingToken;
         if !self.credential_busy.insert(kind) {
@@ -671,7 +672,11 @@ impl Waku {
                 return;
             }
             input.update(cx, |input, cx| input.clear(cx));
-            Some(value)
+            Some(if kind == Kind::SpeechService {
+                serde_json::json!({"baseUrl":self.speech_url_input.read(cx).content().trim(),"token":value}).to_string()
+            } else {
+                value
+            })
         } else {
             None
         };
@@ -699,6 +704,10 @@ impl Waku {
                                 Ok((note, None))
                             }
                             CredentialAction::Test => match service.test(kind)? {
+                                CredentialTest::SpeechVerified => Ok((
+                                    "Speech service connected; Nemotron 3.5 ASR is loaded.".into(),
+                                    None,
+                                )),
                                 CredentialTest::NebiusModels(models) => Ok((
                                     format!(
                                         "Nebius key verified; {} models available.",
@@ -738,6 +747,9 @@ impl Waku {
                 match result.0 {
                     Ok((message, catalog)) => {
                         waku.credential_feedback.insert(kind, message);
+                        if kind == Kind::SpeechService {
+                            waku.refresh_speech_runtime_status(cx);
+                        }
                         if kind == Kind::NebiusTokenFactoryApiKey {
                             if let Some(catalog) = catalog {
                                 waku.nebius_catalog = catalog;
@@ -867,11 +879,16 @@ impl Waku {
             .into_any_element()
     }
 
-    fn render_models_speech_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_models_speech_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         use crate::credentials::{CredentialKind as Kind, CredentialStatus};
         let theme = Theme::current(cx);
         let mut content = div().flex().flex_col().gap(px(14.0));
         for (kind, title, description) in [
+            (
+                Kind::SpeechService,
+                "Cloud speech",
+                "Save your personal speech URL and token. Desktop and phone can connect directly; no local speech installation is needed when configured.",
+            ),
             (
                 Kind::NebiusTokenFactoryApiKey,
                 "Nebius Token Factory",
@@ -915,6 +932,18 @@ impl Waku {
                         .text_color(theme.text_secondary)
                         .child(description),
                 )
+                .when(kind == Kind::SpeechService, |card| {
+                    card.child(
+                        div()
+                            .text_size(sp(12.5))
+                            .text_color(theme.text_secondary)
+                            .child("Speech service URL"),
+                    )
+                    .child(TextField::new(
+                        "speech-service-url",
+                        self.speech_url_input.clone(),
+                    ))
+                })
                 .child(
                     TextField::new(
                         SharedString::from(format!("credential-input-{}", kind.account())),
@@ -1019,9 +1048,9 @@ impl Waku {
             .flex()
             .flex_col()
             .gap(px(8.0))
-            .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Local speech"))
+            .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Speech"))
             .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
-                .child("Use Dictate in the composer to record your microphone, or choose a local WAV here. First use downloads the verified Nemotron 3.5 model (about 742 MB). No speech key is needed."))
+                .child("Use Dictate in the composer to record your microphone, or choose a local WAV here. Cloud speech uses your configured endpoint. Without one, local NeMo-Speech.cpp downloads Nemotron 3.5 on first use."))
             .child(div().text_size(sp(12.0)).text_color(theme.text_secondary)
                 .child(self.speech_runtime_status.clone().unwrap_or_else(|| "Checking NeMo-Speech.cpp…".into())))
             .child(languages)
@@ -1495,15 +1524,13 @@ impl Waku {
             )
             .child(match page {
                 SettingsPage::General => self.render_general_settings(cx),
-                SettingsPage::Providers => {
-                    if waku_protocol::distribution::DistributionProfile::current()
-                        == waku_protocol::distribution::DistributionProfile::NebiusHackathon
-                    {
-                        self.render_models_speech_settings(cx)
-                    } else {
-                        self.render_providers_settings(cx)
-                    }
-                }
+                SettingsPage::Providers => div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(18.0))
+                    .child(self.render_providers_settings(cx))
+                    .child(self.render_models_speech_settings(cx))
+                    .into_any_element(),
                 SettingsPage::Skills => self.render_skills_settings(cx),
                 SettingsPage::Usage => self.render_usage_settings(cx),
                 SettingsPage::Daemon => self.render_daemon_settings(cx),
@@ -2730,7 +2757,7 @@ impl Waku {
             .reset(self.skills_rows.borrow().len());
     }
 
-    fn render_providers_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_providers_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::current(cx);
         let checking = self.provider_detection_remaining > 0;
         let checked_label = self

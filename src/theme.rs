@@ -102,19 +102,19 @@ impl Theme {
     pub fn dark() -> Self {
         Self {
             is_dark: true,
-            canvas: rgb(0x1A1A1A).into(),
+            canvas: rgb(0x14201B).into(),
             sidebar: if cfg!(target_os = "macos") {
                 transparent_black()
             } else {
-                rgb(0x181818).into()
+                rgb(0x10201A).into()
             },
-            sidebar_drag_background: rgb(0x181818).into(),
+            sidebar_drag_background: rgb(0x10201A).into(),
             sidebar_item_background: hsla(0.0, 0.0, 0.941, 0.06),
-            surface: rgb(0x1A1A1A).into(),
-            raised: rgb(0x232323).into(),
-            composer: rgb(0x212121).into(),
-            inset: rgb(0x151515).into(),
-            terminal: rgb(0x151515).into(),
+            surface: rgb(0x14201B).into(),
+            raised: rgb(0x20332A).into(),
+            composer: rgb(0x1D2E25).into(),
+            inset: rgb(0x111C17).into(),
+            terminal: rgb(0x111C17).into(),
             overlay: hsla(220.0 / 360.0, 0.10, 0.90, 0.05),
             overlay_strong: hsla(220.0 / 360.0, 0.10, 0.90, 0.09),
 
@@ -122,12 +122,12 @@ impl Theme {
             border_strong: hsla(220.0 / 360.0, 0.10, 0.90, 0.14),
             sidebar_border: hsla(126.93 / 360.0, 0.000_000_1, 0.16077, 1.0),
 
-            text: rgb(0xE2E2E2).into(),
-            text_secondary: rgb(0xA3A3A3).into(),
-            text_tertiary: rgb(0x7D7D7D).into(),
-            text_ghost: rgb(0x575757).into(),
+            text: rgb(0xEDF5EF).into(),
+            text_secondary: rgb(0xB7C9BD).into(),
+            text_tertiary: rgb(0xA0B3A6).into(),
+            text_ghost: rgb(0x81978A).into(),
 
-            accent: rgb(0xE2795B).into(),
+            accent: rgb(0xB9F36B).into(),
             resize_handle: rgb(0x3B82F6).into(),
             gauge: rgb(0x3B82F6).into(),
 
@@ -149,18 +149,18 @@ impl Theme {
     pub fn light() -> Self {
         Self {
             is_dark: false,
-            canvas: rgb(0xF6F5F6).into(),
+            canvas: rgb(0xEFF5EE).into(),
             sidebar: if cfg!(target_os = "macos") {
                 transparent_black()
             } else {
-                rgb(0xF3F3F3).into()
+                rgb(0xE6EEE3).into()
             },
-            sidebar_drag_background: rgb(0xF3F3F3).into(),
+            sidebar_drag_background: rgb(0xE6EEE3).into(),
             sidebar_item_background: hsla(0.0, 0.0, 0.078, 0.06),
-            surface: rgb(0xF6F5F6).into(),
-            raised: rgb(0xECECEC).into(),
+            surface: rgb(0xEFF5EE).into(),
+            raised: rgb(0xE2ECDF).into(),
             composer: rgb(0xFFFFFF).into(),
-            inset: rgb(0xE6E6E6).into(),
+            inset: rgb(0xDAE5D7).into(),
             terminal: rgb(0xFFFFFF).into(),
             overlay: hsla(220.0 / 360.0, 0.10, 0.12, 0.05),
             overlay_strong: hsla(220.0 / 360.0, 0.10, 0.12, 0.09),
@@ -169,12 +169,12 @@ impl Theme {
             border_strong: hsla(220.0 / 360.0, 0.10, 0.12, 0.15),
             sidebar_border: hsla(0.0, 0.0, 0.078, 0.12),
 
-            text: rgb(0x242424).into(),
-            text_secondary: rgb(0x666666).into(),
-            text_tertiary: rgb(0x858585).into(),
-            text_ghost: rgb(0xA4A4A4).into(),
+            text: rgb(0x16251A).into(),
+            text_secondary: rgb(0x465C4A).into(),
+            text_tertiary: rgb(0x526B56).into(),
+            text_ghost: rgb(0x627766).into(),
 
-            accent: rgb(0xC85F44).into(),
+            accent: rgb(0x38621B).into(),
             resize_handle: rgb(0x2563EB).into(),
             gauge: rgb(0x2563EB).into(),
 

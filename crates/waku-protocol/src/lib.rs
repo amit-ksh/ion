@@ -59,3 +59,4 @@ pub use protocol::{
 };
 pub use settings::DaemonSettings;
 pub use workspace::{WorkspaceOperation, WorkspaceResult};
+pub mod control;

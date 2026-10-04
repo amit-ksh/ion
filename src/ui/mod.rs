@@ -161,6 +161,7 @@ where
 /// Brand hue for each provider's official mark.
 pub fn provider_color(theme: &Theme, provider: ProviderKind) -> Hsla {
     match provider {
+        ProviderKind::Antigravity => rgb(0x7EABF4).into(),
         ProviderKind::Amp => rgb(0xF34E3F).into(),
         ProviderKind::Claude => rgb(0xD97757).into(),
         ProviderKind::DeepSeek => rgb(0x4D6BFE).into(),
@@ -186,6 +187,7 @@ pub fn provider_color(theme: &Theme, provider: ProviderKind) -> Hsla {
 /// Recognizable provider marks, matching the model picker vocabulary.
 pub fn provider_icon(provider: ProviderKind) -> &'static str {
     match provider {
+        ProviderKind::Antigravity => "icons/sparkle.svg",
         ProviderKind::Amp => "icons/provider-amp.svg",
         ProviderKind::Claude => "icons/provider-claude.svg",
         ProviderKind::Codex => "icons/provider-openai.svg",

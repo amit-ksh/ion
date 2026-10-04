@@ -5,13 +5,15 @@ import { File, Paths } from 'expo-file-system';
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
+import { readSpeechEndpoint } from '@/lib/speech-storage';
+import { transcribeCloudWav, type SpeechEndpoint } from '@/lib/speech-service';
 import { transcribePhoneWav } from '@/lib/daemon-api';
 import { phoneDictationWav } from '@/lib/phone-dictation-wav';
 
 type Phase = 'idle' | 'preparing' | 'recording' | 'transcribing';
 let microphoneOwner: symbol | null = null;
 
-/** Explicit short capture; bytes go only to the selected authenticated daemon. */
+/** Explicit short capture to the configured speech service or authenticated desktop. */
 export function usePhoneDictation(
   client: WakuClient | null,
   contextKey: string,
@@ -26,6 +28,7 @@ export function usePhoneDictation(
     microphoneOwner = null;
     void setAudioModeAsync({ allowsRecording: false }).catch(() => {});
   };
+  const abort = useRef<AbortController | null>(null);
   const chunks = useRef<Uint8Array[]>([]);
   const byteCount = useRef(0);
   const sampleRate = useRef(0);
@@ -39,7 +42,7 @@ export function usePhoneDictation(
   currentContext.current = contextKey;
   const currentClient = useRef(client);
   currentClient.current = client;
-  const target = useRef<{ client: WakuClient; contextKey: string } | null>(null);
+  const target = useRef<{ client: WakuClient; contextKey: string; speech: SpeechEndpoint | null } | null>(null);
   const { stream } = useAudioStream({
     encoding: 'int16', channels: 1, sampleRate: 16_000,
     onBuffer: (buffer) => {
@@ -79,6 +82,7 @@ export function usePhoneDictation(
     mounted.current = true;
     return () => {
       mounted.current = false;
+      abort.current?.abort();
       if (active.current) stream?.stop();
       active.current = false;
       chunks.current = [];
@@ -105,7 +109,9 @@ export function usePhoneDictation(
       byteCount.current = 0;
       sampleRate.current = 0;
       tooLong.current = false;
-      target.current = { client, contextKey };
+      const speech = await readSpeechEndpoint();
+      if (!mounted.current || currentContext.current !== contextKey || currentClient.current !== client) throw new Error("Task changed. Try again.");
+      target.current = { client, contextKey, speech };
       active.current = true;
       await stream.start();
       if (!mounted.current || currentClient.current !== client || currentContext.current !== contextKey) {
@@ -143,12 +149,16 @@ export function usePhoneDictation(
       chunks.current = [];
       file.create();
       file.write(wav);
-      const base64 = await file.base64();
+      const base64 = destination.speech ? null : await file.base64();
       if (!mounted.current || currentClient.current !== destination.client ||
           currentContext.current !== destination.contextKey) {
         throw new Error('Task or daemon changed. Audio was discarded.');
       }
-      const transcript = await transcribePhoneWav(destination.client, base64);
+      abort.current = new AbortController();
+      const timeout = setTimeout(() => abort.current?.abort(), 120_000);
+      let transcript: string;
+      try { transcript = destination.speech ? await transcribeCloudWav(destination.speech, file.uri, abort.current.signal) : await transcribePhoneWav(destination.client, base64 ?? ""); }
+      finally { clearTimeout(timeout); abort.current = null; }
       if (!mounted.current || target.current !== destination ||
           currentClient.current !== destination.client ||
           currentContext.current !== destination.contextKey) {
@@ -167,6 +177,7 @@ export function usePhoneDictation(
   }
 
   function discard() {
+    abort.current?.abort();
     if (active.current) stream?.stop();
     releaseMicrophone();
     active.current = false;

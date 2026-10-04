@@ -7,11 +7,11 @@ import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
 const isMacOS = process.platform === "darwin";
-const appName = "Waku Debug";
+const appName = "ion Debug";
 const targetDir = resolve(root, process.env.CARGO_TARGET_DIR || "target");
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
 const appPath = isMacOS
-  ? join(targetDir, "debug/Waku Debug.app")
+  ? join(targetDir, "debug/ion Debug.app")
   : join(targetDir, `debug/waku${executableSuffix}`);
 const daemonPath = join(
   targetDir,
@@ -214,7 +214,7 @@ async function prepareHyprlandLaunch(): Promise<void> {
           return
         end
 
-        -- Swapping with each preceding singleton column rotates Waku into the
+        -- Swapping with each preceding singleton column rotates ion into the
         -- desired slot while preserving the order of all intervening columns.
         -- A stacked or custom-width column cannot be rotated through this API
         -- without changing its membership or sizing, so leave it untouched.
@@ -265,7 +265,7 @@ async function prepareHyprlandLaunch(): Promise<void> {
       const detail =
         result.stderr.toString().trim() || result.stdout.toString().trim();
       console.warn(
-        `[waku-dev] Could not pin Waku to its Hyprland workspace${detail ? `: ${detail}` : "."}`,
+        `[ion-dev] Could not pin ion to its Hyprland workspace${detail ? `: ${detail}` : "."}`,
       );
       hyprlandWarningShown = true;
     }
@@ -274,7 +274,7 @@ async function prepareHyprlandLaunch(): Promise<void> {
 
   if (!hyprlandRulesInstalled) {
     console.log(
-      `[waku-dev] Keeping Waku beside the watcher on Hyprland workspace ${hyprlandWorkspace.name}.`,
+      `[ion-dev] Keeping ion beside the watcher on Hyprland workspace ${hyprlandWorkspace.name}.`,
     );
   }
   hyprlandRulesInstalled = true;
@@ -309,10 +309,10 @@ async function build(target: BuildTarget): Promise<boolean> {
     return buildDaemon();
   }
 
-  console.log(`[waku-dev] Building ${isMacOS ? "app bundle" : "app"}...`);
+  console.log(`[ion-dev] Building ${isMacOS ? "app bundle" : "app"}...`);
   if (!(await buildDaemon())) {
     console.error(
-      "[waku-dev] Daemon build failed; keeping the current app open.",
+      "[ion-dev] Daemon build failed; keeping the current app open.",
     );
     return false;
   }
@@ -320,7 +320,7 @@ async function build(target: BuildTarget): Promise<boolean> {
     ? await $`${join(root, "scripts/bundle.sh")} debug`.nothrow()
     : await $`cargo build --package waku --bin waku --bin waku_js_repl --package waku-computer-use --bin waku_computer_use`.nothrow();
   if (result.exitCode !== 0) {
-    console.error("[waku-dev] Build failed; keeping the current app open.");
+    console.error("[ion-dev] Build failed; keeping the current app open.");
     return false;
   }
   if (!isMacOS) {
@@ -331,7 +331,7 @@ async function build(target: BuildTarget): Promise<boolean> {
         "debug",
       );
     } catch (error) {
-      console.error("[waku-dev] Computer Use SDK packaging failed:", error);
+      console.error("[ion-dev] Computer Use SDK packaging failed:", error);
       return false;
     }
   }
@@ -339,12 +339,12 @@ async function build(target: BuildTarget): Promise<boolean> {
 }
 
 async function buildDaemon(): Promise<boolean> {
-  console.log("[waku-dev] Building daemon...");
+  console.log("[ion-dev] Building daemon...");
   const result =
     await $`cargo build --package waku-daemon --features dev-binary --bin waku-debug-daemon`.nothrow();
   if (result.exitCode !== 0) {
     console.error(
-      "[waku-dev] Daemon build failed; keeping the current daemon running.",
+      "[ion-dev] Daemon build failed; keeping the current daemon running.",
     );
     return false;
   }
@@ -365,7 +365,7 @@ async function stopApp(): Promise<void> {
 }
 
 function launchApp(): ReturnType<typeof Bun.spawn> {
-  console.log(`[waku-dev] Launching ${appPath}`);
+  console.log(`[ion-dev] Launching ${appPath}`);
   const command = isMacOS ? ["open", "-n", "-W", appPath] : [appPath];
   const launchedApp = Bun.spawn(command, {
     cwd: root,
@@ -380,7 +380,7 @@ function launchApp(): ReturnType<typeof Bun.spawn> {
     closeWatchers();
     clearRebuildTimer();
     await releaseHyprlandRules();
-    console.log("[waku-dev] App exited; stopping the watcher.");
+    console.log("[ion-dev] App exited; stopping the watcher.");
     process.exitCode = exitCode;
   });
   return launchedApp;
@@ -397,7 +397,7 @@ function closeWatchers(): void {
 }
 
 function reportWatcherError(error: Error): void {
-  console.error("[waku-dev] File watcher failed:", error);
+  console.error("[ion-dev] File watcher failed:", error);
   process.exitCode = 1;
   void cleanup();
 }
@@ -487,7 +487,7 @@ async function drainBuildQueue(): Promise<void> {
           app = launchApp();
         } else if (daemonChangeRevision === buildDaemonRevision) {
           console.log(
-            "[waku-dev] Daemon rebuilt; Waku will swap the process without relaunching.",
+            "[ion-dev] Daemon rebuilt; ion will swap the process without relaunching.",
           );
         }
         continue;
@@ -498,7 +498,7 @@ async function drainBuildQueue(): Promise<void> {
       // up the independently rebuilt daemon.
       if (appChangeRevision !== buildAppRevision) {
         console.log(
-          "[waku-dev] More changes arrived during the build; waiting to rebuild.",
+          "[ion-dev] More changes arrived during the build; waiting to rebuild.",
         );
         continue;
       }
@@ -516,7 +516,7 @@ async function drainBuildQueue(): Promise<void> {
 async function cleanup(): Promise<void> {
   if (stopping) return;
   stopping = true;
-  console.log("[waku-dev] Stopping watcher and app...");
+  console.log("[ion-dev] Stopping watcher and app...");
   closeWatchers();
   clearRebuildTimer();
   await stopApp();
@@ -542,11 +542,11 @@ if (appChangeRevision === initialAppRevision) {
   if (!stopping) app = launchApp();
 } else {
   console.log(
-    "[waku-dev] Changes arrived during the initial build; waiting to rebuild.",
+    "[ion-dev] Changes arrived during the initial build; waiting to rebuild.",
   );
   if (queuedBuild !== undefined) void drainBuildQueue();
 }
 
 console.log(
-  "[waku-dev] Watching for source changes. Daemon-only edits hot-reload without relaunching Waku.",
+  "[ion-dev] Watching for source changes. Daemon-only edits hot-reload without relaunching ion.",
 );

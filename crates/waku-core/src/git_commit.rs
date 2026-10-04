@@ -393,6 +393,11 @@ fn agent_arguments(
                 push(&mut args, effort);
             }
         }
+        ProviderKind::Antigravity => {
+            push(&mut args, "--output-format");
+            push(&mut args, "text");
+            push(&mut args, "-p");
+        }
         ProviderKind::Nebius => {}
     }
     push(&mut args, prompt);
@@ -828,6 +833,9 @@ mod tests {
                     assert!(has_pair(&args, "--prompt", prompt));
                     assert!(has_pair(&args, "--output-format", "text"));
                     assert!(has_pair(&args, "--model", "model"));
+                }
+                ProviderKind::Antigravity => {
+                    assert!(args.iter().any(|arg| arg == "-p"));
                 }
                 ProviderKind::Nebius => unreachable!("Nebius has no CLI"),
             }

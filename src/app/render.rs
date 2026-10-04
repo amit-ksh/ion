@@ -353,12 +353,21 @@ impl Render for Waku {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .bg(theme.surface)
+                    .bg(linear_gradient(
+                        130.0,
+                        linear_color_stop(theme.surface, 0.0),
+                        linear_color_stop(theme.raised, 1.0),
+                    ))
                     .when(panels.sidebar > 0.0, |element| {
                         element.border_l_1().border_color(theme.sidebar_border)
                     })
                     .child(self.render_header(window, cx))
-                    .child(if empty {
+                    .when_some(self.control_ui.page, |element, page| {
+                        element.child(self.render_workspace_header(page, cx))
+                    })
+                    .child(if let Some(page) = self.control_ui.page {
+                        self.render_workspace_page(page, window, cx)
+                    } else if empty {
                         self.render_empty_state(cx).into_any_element()
                     } else {
                         self.transcript_pane
@@ -367,12 +376,15 @@ impl Render for Waku {
                             .into_any_element()
                     })
                     .children(permission)
-                    .when(self.selected_project().is_some(), |element| {
-                        element
-                            .children(self.render_queued_messages(cx))
-                            .child(self.render_composer(window, cx))
-                            .child(self.render_workspace_footer(cx))
-                    })
+                    .when(
+                        self.control_ui.page.is_none() && self.selected_project().is_some(),
+                        |element| {
+                            element
+                                .children(self.render_queued_messages(cx))
+                                .child(self.render_composer(window, cx))
+                                .child(self.render_workspace_footer(cx))
+                        },
+                    )
                     .relative()
                     .children(toast)
                     .when(self.sidebar_visible, |element| {

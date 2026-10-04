@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 8;
+pub const PROTOCOL_VERSION: u32 = 9;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -178,6 +178,32 @@ pub enum Command {
         dirs: Vec<PathBuf>,
     },
     LoadTaskState,
+    LoadWorkspaceControl,
+    SaveWorkspaceRecord {
+        expected_revision: u64,
+        record: crate::control::ControlRecord,
+    },
+    RemoveWorkspaceRecord {
+        expected_revision: u64,
+        id: Uuid,
+    },
+    GenerateWorkflow {
+        project_id: Uuid,
+        prompt: String,
+    },
+    ImportWorkspaceArtifact {
+        expected_revision: u64,
+        name: String,
+        format: String,
+        project_id: Option<Uuid>,
+        task_id: Option<Uuid>,
+        #[serde(with = "base64_bytes")]
+        #[ts(type = "string")]
+        bytes: Vec<u8>,
+    },
+    ReadWorkspaceArtifact {
+        id: Uuid,
+    },
     SaveTaskState {
         projects: Vec<Project>,
         live_session_ids: Vec<Uuid>,
@@ -382,6 +408,12 @@ pub enum ResponseOutcome {
     rename_all_fields = "camelCase"
 )]
 pub enum ResponsePayload {
+    WorkspaceControl {
+        snapshot: crate::control::ControlSnapshot,
+    },
+    WorkflowDraft {
+        workflow: crate::control::Workflow,
+    },
     Ack,
     SessionRuntime {
         runtime_id: Option<Uuid>,

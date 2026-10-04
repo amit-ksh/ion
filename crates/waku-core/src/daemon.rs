@@ -57,6 +57,7 @@ pub struct WakuBackend {
     checkpoint_capture_locks: Mutex<HashMap<(PathBuf, Uuid, usize), Arc<Mutex<()>>>>,
     usage_rates_dir: std::path::PathBuf,
     default_cwd: std::path::PathBuf,
+    control: crate::control::ControlStore,
 }
 
 impl WakuBackend {
@@ -80,6 +81,9 @@ impl WakuBackend {
             .unwrap_or_else(|| std::path::Path::new("."))
             .to_owned();
         Ok(Self {
+            control: crate::control::ControlStore::new(
+                task_store.path().with_file_name("ion-control.db"),
+            ),
             sessions: Mutex::new(HashMap::new()),
             terminals: Mutex::new(HashMap::new()),
             #[cfg(all(test, unix))]
@@ -228,6 +232,46 @@ impl Backend for WakuBackend {
         let session_id = request.session_id;
         let runtime_id = request.runtime_id;
         match request.command {
+            Command::LoadWorkspaceControl => Ok(ResponsePayload::WorkspaceControl {
+                snapshot: self.control.load()?,
+            }),
+            Command::SaveWorkspaceRecord {
+                expected_revision,
+                record,
+            } => Ok(ResponsePayload::WorkspaceControl {
+                snapshot: self.control.save(expected_revision, record)?,
+            }),
+            Command::RemoveWorkspaceRecord {
+                expected_revision,
+                id,
+            } => Ok(ResponsePayload::WorkspaceControl {
+                snapshot: self.control.remove(expected_revision, id)?,
+            }),
+            Command::GenerateWorkflow { project_id, prompt } => {
+                Ok(ResponsePayload::WorkflowDraft {
+                    workflow: crate::control::generate_workflow(project_id, prompt)?,
+                })
+            }
+            Command::ImportWorkspaceArtifact {
+                expected_revision,
+                name,
+                format,
+                project_id,
+                task_id,
+                bytes,
+            } => Ok(ResponsePayload::WorkspaceControl {
+                snapshot: self.control.import_document(
+                    expected_revision,
+                    name,
+                    format,
+                    project_id,
+                    task_id,
+                    bytes,
+                )?,
+            }),
+            Command::ReadWorkspaceArtifact { id } => Ok(ResponsePayload::BlobData {
+                bytes: self.control.read_document(id)?,
+            }),
             Command::AttachSession => {
                 let sessions = self.sessions.lock();
                 let Some((runtime_id, driver)) = sessions.get(&session_id) else {
@@ -538,7 +582,7 @@ impl Backend for WakuBackend {
                     }
                     ProviderKind::Grok => crate::grok_session::list_provider_sessions(limit)?,
                     ProviderKind::Kimi => crate::kimi_session::list_provider_sessions(limit)?,
-                    ProviderKind::Nebius => Vec::new(),
+                    ProviderKind::Antigravity | ProviderKind::Nebius => Vec::new(),
                     ProviderKind::OhMyPi | ProviderKind::Pi => {
                         crate::pi_session::list_provider_sessions(provider, limit)?
                     }
@@ -569,7 +613,8 @@ impl Backend for WakuBackend {
                 // numbering, but bound imported display text to recent turns.
                 const VISIBLE_TURN_LIMIT: usize = 100;
                 let history = match &cursor {
-                    ProviderResumeCursor::Nebius { .. } => {
+                    ProviderResumeCursor::Antigravity { .. }
+                    | ProviderResumeCursor::Nebius { .. } => {
                         bail!("Nebius native session import is not available yet")
                     }
                     ProviderResumeCursor::Amp { thread_id, .. } => {
@@ -1310,7 +1355,10 @@ impl WakuBackend {
             }
             // Unreachable through the UI, which hides branching for providers
             // that answer `supports_conversation_fork` with false.
-            ProviderKind::Fx | ProviderKind::Kimi | ProviderKind::Nebius => {
+            ProviderKind::Antigravity
+            | ProviderKind::Fx
+            | ProviderKind::Kimi
+            | ProviderKind::Nebius => {
                 bail!(
                     "{} cannot branch a conversation at a turn",
                     source.provider.display_name()
@@ -1537,7 +1585,10 @@ impl WakuBackend {
             )),
             // Unreachable through the UI, which hides rewinding for providers
             // that answer `supports_conversation_rollback` with false.
-            ProviderKind::Fx | ProviderKind::Kimi | ProviderKind::Nebius => {
+            ProviderKind::Antigravity
+            | ProviderKind::Fx
+            | ProviderKind::Kimi
+            | ProviderKind::Nebius => {
                 bail!(
                     "{} cannot rewind a conversation to a turn",
                     source.provider.display_name()
@@ -1854,6 +1905,12 @@ fn handle_driver_command(
         | Command::SetSkillsEnabled { .. }
         | Command::TrashSkills { .. }
         | Command::LoadTaskState
+        | Command::LoadWorkspaceControl
+        | Command::SaveWorkspaceRecord { .. }
+        | Command::RemoveWorkspaceRecord { .. }
+        | Command::GenerateWorkflow { .. }
+        | Command::ImportWorkspaceArtifact { .. }
+        | Command::ReadWorkspaceArtifact { .. }
         | Command::SaveTaskState { .. }
         | Command::RemoveSession
         | Command::HydrateSession { .. }

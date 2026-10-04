@@ -22,20 +22,20 @@ headless personal cloud task execution. Its live review remains open.
 - Extend Waku directly. Customer-facing identity is **ion** (lowercase). Keep
   internal `waku-*` crates, storage paths, environment variables, database
   schema, and wire identifiers stable through the hackathon.
-- Ship a Nebius-first **NebiusHackathon** distribution profile. New tasks and
-  model/settings surfaces offer only Nebius. Historical tasks stay readable,
-  while starting or resuming a legacy provider is rejected. A development-only
-  `ION_DEV_FULL_PROVIDERS=1` override enables the **Full** profile in debug
-  builds; there is no user-facing bypass. Do not rewrite `disabled_providers`.
+- The standard ion app exposes the **Full** harness catalogue, following the
+  user's 2026-10-04 correction. An explicitly packaged `ION_DISTRIBUTION=nebius-only`
+  profile remains available. The former `ION_DEV_FULL_PROVIDERS` escape is no
+  longer needed. Preserve `disabled_providers` as the user's preference.
 - The native coding runtime calls NVIDIA Nemotron through the user's own
   Nebius Token Factory API key. The daemon still owns tasks, local workspaces,
   Git, permissions, and execution. The runtime proposal, tool actions, and
   model content cross typed boundaries; raw secrets never enter them.
 - ion is free and BYOK. There are no payments, subscriptions, entitlements,
   hosted inference credits, or paid feature gates.
-- Local speech uses only **NVIDIA Nemotron 3.5 ASR Streaming 0.6B** through
-  **NeMo-Speech.cpp**. Microphone audio stays local unless the user explicitly
-  chooses a future remote workflow. Speech needs no cloud credential.
+- Speech uses **NVIDIA Nemotron 3.5 ASR Streaming 0.6B**. Without a cloud
+  configuration, NeMo-Speech.cpp runs locally. The user can explicitly save a
+  personal HTTPS service URL/token for direct desktop and phone uploads.
+  Deployment is prepared; no Nebius VM/cluster target has been supplied.
 - Cua uses local permissions and approvals, not a separate user credential.
   Eve is excluded. NemoClaw is only a later optional, feature-flagged adapter.
 - A guided personal Nebius gateway is a later capability. The user owns the
@@ -57,8 +57,8 @@ actions. Mobile is a remote control surface, not an on-device coding runtime.
 For this hackathon, the first usable path is one native Nemotron coding task
 with streaming transcript, tool approvals, local workspace changes, and
 resume. Later milestones add teams, connected apps, local speech, personal
-gateway, and mobile steering in that order. Legacy provider code and history
-remain intact for the Full profile after the event.
+gateway, and mobile steering in that order. The native app now exposes the full provider catalogue; existing provider code
+and history remain intact.
 
 ## Milestone approval workflow
 
@@ -89,8 +89,29 @@ remain intact for the Full profile after the event.
 13. [Optional NemoClaw execution adapter](13-nemoclaw-adapter.md)
 14. [Phone dictation and personal cloud execution](14-phone-asr-cloud-execution.md)
 
+## Proposals under review
+
+- [Paperclip-inspired task and team experience](15-paperclip-inspired-ion-experience.md)
+- [Cross-project workspace control plane](16-ion-workspace-control-plane.md):
+  Dashboard, Decisions, Inbox, hierarchical Teams, Routines, prompt-generated
+  Workflows, document Artifacts, and Usage.
+  This later user brief supersedes chapter 15's compressed navigation proposal;
+  neither proposal is implemented or approved as a milestone.
+- [ion workspace HTML prototype](PROTOTYPE-ion-workspace.html): interactive
+  visual proposal for the Paperclip-style sidebar, hierarchical multi-team
+  delegation, document Artifacts, and prompt-generated Workflows in ion's app
+  shell, with a light Nebius-green glass theme and the full supported harness
+  catalog alongside native Nebius execution.
+
 [Research inventory](RESEARCH.md) and [NVIDIA/Nebius research](RESEARCH-NVIDIA.md)
 are background source notes. They are not product decisions.
 
 The [submission draft](SUBMISSION-DRAFT.md) holds the reviewer setup, demo
 outline, and evidence fields for Milestone 5.
+# Native workspace review
+
+The native workspace changes and their remaining implementation tasks are
+tracked in [17-native-workspace-review.md](17-native-workspace-review.md).
+The Paperclip proposal and HTML prototypes are separate from verified native
+behavior. Personal cloud speech deployment is prepared but awaits a Nebius
+target; see [the deployment checklist](../../services/speech/README.md).

@@ -3,6 +3,7 @@
 mod acp;
 mod activity;
 mod amp;
+mod antigravity;
 mod claude;
 mod codex;
 mod computer_use;
@@ -220,6 +221,9 @@ pub(crate) fn start_local(
     options.computer_use_enabled =
         crate::computer_use::resolve_enabled(options.computer_use_enabled);
     let inner: Arc<dyn DriverControl> = match provider {
+        ProviderKind::Antigravity => {
+            Arc::new(antigravity::AntigravityDriver::start(options, events)?)
+        }
         ProviderKind::Nebius => Arc::new(nebius::NebiusDriver::start(options, events)?),
         ProviderKind::Codex => Arc::new(codex::CodexDriver::start(options, events)?),
         ProviderKind::Pi => Arc::new(pi::PiDriver::start(pi::PiFlavor::Pi, options, events)?),

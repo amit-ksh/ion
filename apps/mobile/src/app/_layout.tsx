@@ -140,6 +140,7 @@ function AppNavigator() {
       />
       {/* Removing the final saved daemon also removes every daemon-backed
        * route from navigation, returning restored and open tasks to home. */}
+      <Stack.Screen name="speech" options={{ title: "Cloud speech" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
         <Stack.Screen
           name="daemons"

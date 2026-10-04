@@ -1,0 +1,24 @@
+[Unit]
+Description=ion Nemotron 3.5 speech service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ion-speech
+Group=ion-speech
+Environment=HOME=/var/lib/ion-speech
+EnvironmentFile=/etc/ion/speech.env
+WorkingDirectory=/var/lib/ion-speech
+ExecStart=/opt/ion-speech/bin/nemo-speech serve --host 127.0.0.1 --port 8080 --asr-model nemotron-3.5 --no-ui --max-upload-mb 50 --threads 4 --read-timeout 120 --write-timeout 120
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ion-speech
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

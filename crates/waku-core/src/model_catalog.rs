@@ -23,6 +23,9 @@ const CURSOR_ACP_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub fn fallback_models(provider: ProviderKind) -> Vec<ProviderModel> {
     match provider {
+        ProviderKind::Antigravity => {
+            vec![ProviderModel::new("default", "Antigravity default").default()]
+        }
         ProviderKind::Amp => [
             ProviderModel::new("low", tr!("model_option.low")),
             ProviderModel::new("medium", tr!("model_option.medium")).default(),
@@ -127,6 +130,7 @@ pub fn discover_catalog(
     binary: &Path,
 ) -> (Vec<ProviderModel>, Vec<ProviderAgentPreset>) {
     let (discovered, discovered_presets) = match provider {
+        ProviderKind::Antigravity => (Vec::new(), None),
         // Amp exposes stable agent modes rather than a model inventory. Keep
         // the picker aligned with the modes advertised by the current CLI.
         ProviderKind::Amp => (Vec::new(), None),

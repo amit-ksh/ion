@@ -1135,6 +1135,7 @@ pub struct Waku {
     nebius_catalog: Vec<String>,
     speech_language: crate::speech::SpeechLanguage,
     speech_runtime_status: Option<String>,
+    speech_url_input: Entity<TextInput>,
     speech_busy: bool,
     speech_recording: bool,
     speech_stop_tx: Option<Sender<crate::speech::RecordCommand>>,
@@ -1444,6 +1445,7 @@ pub struct Waku {
     /// swapping in frozen page pixels while an overlay is open.
     scene_overlay_enabled: bool,
     settings_page: Option<SettingsPage>,
+    control_ui: workspace_control::ControlUi,
     /// The Skills page's library snapshot, scanned off-thread. Frames read
     /// only this; `None` means the first scan has not landed yet.
     skills_catalog: Option<Rc<crate::skills::SkillsCatalog>>,
@@ -1663,6 +1665,7 @@ mod transcript_view;
 mod usage_meter;
 mod usage_page;
 mod window_chrome;
+mod workspace_control;
 
 pub use autocomplete::init as init_composer_autocomplete;
 use background_work::{
@@ -2076,7 +2079,14 @@ impl Waku {
                 .select_all_on_focus_click()
                 .placeholder(tr!("input.detected_automatically"))
         });
+        let control_ui = workspace_control::ControlUi::new(window, cx);
+        let speech_url_input =
+            cx.new(|cx| TextInput::new(window, cx).placeholder("https://speech.example.com"));
         let credential_inputs = [
+            (
+                crate::credentials::CredentialKind::SpeechService,
+                "Speech service token",
+            ),
             (
                 crate::credentials::CredentialKind::NebiusTokenFactoryApiKey,
                 "Nebius API key",
@@ -2872,6 +2882,7 @@ impl Waku {
                 nebius_catalog: Vec::new(),
                 speech_language: crate::speech::SpeechLanguage::Auto,
                 speech_runtime_status: None,
+                speech_url_input,
                 speech_busy: false,
                 speech_recording: false,
                 speech_stop_tx: None,
@@ -3034,6 +3045,7 @@ impl Waku {
                 right_panel_pending_browser_focus: None,
                 scene_overlay_enabled,
                 settings_page: None,
+                control_ui,
                 skills_catalog: None,
                 skills_scan_generation: 0,
                 skills_scan_pending: false,
@@ -3149,6 +3161,7 @@ impl Waku {
             // discovery for every CLI it finds, including nvm/fnm-managed
             // installs.
             this.refresh_provider_detection(None);
+            this.refresh_workspace_control(cx);
             // The skill library too: the Skills settings page must open onto
             // data, not a scan.
             this.ensure_skills_catalog(false, cx);

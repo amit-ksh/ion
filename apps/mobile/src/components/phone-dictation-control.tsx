@@ -26,7 +26,7 @@ export function PhoneDictationControl({ client, contextKey, host, disabled, onTr
       return;
     }
     Alert.alert('Record on this phone?',
-      `When you stop, ion sends up to 60 seconds of microphone audio to ${host} for local NeMo-Speech.cpp transcription. You can edit the text before sending it to an agent.`, [
+      `When you stop, ion sends up to 60 seconds of microphone audio to your configured cloud speech service, or ${host} when cloud speech is not configured. You can edit the text before sending it to an agent.`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Start recording', onPress: () => void dictation.start().catch((cause) =>
           onError(cause instanceof Error ? cause.message : String(cause))) },

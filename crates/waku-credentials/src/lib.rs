@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
 const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 
+pub mod speech;
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
 #[cfg_attr(target_os = "macos", path = "credentials/macos.rs")]
 #[cfg_attr(target_os = "linux", path = "credentials/linux.rs")]
@@ -38,6 +39,7 @@ pub enum CredentialKind {
     NebiusTokenFactoryApiKey,
     ComposioScopedProjectKey,
     GatewayPairingToken,
+    SpeechService,
 }
 
 impl CredentialKind {
@@ -46,6 +48,7 @@ impl CredentialKind {
             Self::NebiusTokenFactoryApiKey => "nebius-token-factory",
             Self::ComposioScopedProjectKey => "composio-project",
             Self::GatewayPairingToken => "gateway-pairing",
+            Self::SpeechService => "speech-service",
         }
     }
 }
@@ -60,6 +63,7 @@ pub enum CredentialStatus {
 pub enum CredentialTest {
     NebiusModels(Vec<String>),
     ComposioVerified,
+    SpeechVerified,
     GatewayConnected(GatewaySession),
 }
 
@@ -382,6 +386,11 @@ impl CredentialService {
         if value.is_empty() {
             bail!("credential must not be empty")
         }
+        if kind == CredentialKind::SpeechService {
+            let service: speech::SpeechService =
+                serde_json::from_str(value).context("Enter a speech URL and token")?;
+            speech::SpeechService::validate_saved(&service)?;
+        }
         match vault::set(kind.account(), value) {
             Ok(()) => {
                 self.volatile.lock().unwrap().remove(&kind);
@@ -646,6 +655,12 @@ impl CredentialService {
     /// Only catalog IDs leave this boundary; the key remains private.
     pub fn test(&self, kind: CredentialKind) -> Result<CredentialTest> {
         match kind {
+            CredentialKind::SpeechService => {
+                self.speech_service()?
+                    .context("Configure the speech service")?
+                    .test()?;
+                Ok(CredentialTest::SpeechVerified)
+            }
             CredentialKind::NebiusTokenFactoryApiKey => {
                 Ok(CredentialTest::NebiusModels(self.nebius_model_ids()?))
             }

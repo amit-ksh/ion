@@ -147,6 +147,9 @@ pub fn transcribe_wav(bytes: &[u8], language: &str) -> Result<String> {
         bail!("Dictation is already running on this daemon")
     }
     let _busy = BusyGuard;
+    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
+        return service.transcribe(bytes.to_vec(), language);
+    }
     let id = Uuid::new_v4();
     let dir = std::env::temp_dir();
     let paths = RecordingFiles {

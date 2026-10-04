@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { router, Stack } from 'expo-router';
+import { router, Stack, type Href } from 'expo-router';
 import { navigateBack } from '@/components/screen-header';
 import { useState } from 'react';
 import {
@@ -77,6 +77,7 @@ export default function DaemonsScreen() {
           style={[styles.gatewayLink, { borderColor: theme.borderStrong }]}>
           <Text style={{ color: theme.text, fontWeight: '600' }}>Personal gateway approvals</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/speech" as Href)} style={[styles.gatewayLink, { borderColor: theme.borderStrong }]}><Text style={{ color: theme.text }}>Cloud speech</Text></Pressable>
         {daemon.profiles.length ? (
           <>
             <Text style={[styles.sectionTitle, { color: theme.textTertiary }]}>Daemons</Text>
@@ -95,7 +96,7 @@ export default function DaemonsScreen() {
               />
               <Text style={[styles.footerText, { color: theme.textTertiary }]}>
                 Only the selected daemon stays connected. Credentials are protected by the device
-                keychain and never pass through a Waku service.
+                keychain and never pass through a ion service.
               </Text>
             </View>
           </>
@@ -103,7 +104,7 @@ export default function DaemonsScreen() {
           <View style={styles.empty}>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>No saved daemons</Text>
             <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-              Add the address and token shown in Waku Desktop’s Daemon settings.
+              Add the address and token shown in ion Desktop’s Daemon settings.
             </Text>
           </View>
         )}

@@ -46,6 +46,7 @@ pub(crate) fn discover(
         | ProviderKind::Fx
         | ProviderKind::Grok
         | ProviderKind::Kimi
+        | ProviderKind::Antigravity
         | ProviderKind::Nebius => None,
     }
 }

@@ -1090,10 +1090,27 @@ impl Waku {
             .child(self.render_sidebar_titlebar(window, cx))
             .child(
                 div()
+                    .px(px(18.0))
+                    .pb(px(10.0))
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .child(icon("icons/ion.svg", 22.0, theme.accent))
+                    .child(
+                        div()
+                            .text_size(sp(18.0))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(theme.text)
+                            .child("ion"),
+                    ),
+            )
+            .child(
+                div()
                     .flex_none()
                     .px(px(10.0))
                     .child(self.render_sidebar_new_session(cx)),
             )
+            .child(self.render_workspace_nav(cx))
             .child(
                 div()
                     .id("sidebar-scroll")
@@ -2053,9 +2070,15 @@ impl Waku {
     ) -> impl IntoElement {
         let theme = Theme::current(cx);
         let session = self.selected_session();
-        let title = session
-            .map(localized_session_title)
-            .unwrap_or_else(|| tr!("session.new_task"));
+        let title = self
+            .control_ui
+            .page
+            .map(|page| page.label().to_owned())
+            .unwrap_or_else(|| {
+                session
+                    .map(localized_session_title)
+                    .unwrap_or_else(|| tr!("session.new_task"))
+            });
         let agent_preset_label = session
             .filter(|session| session.provider == ProviderKind::DeepSeek && session.has_started())
             .and_then(|session| self.agent_preset_label_for_session(session));

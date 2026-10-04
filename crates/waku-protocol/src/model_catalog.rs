@@ -4,6 +4,9 @@ use crate::model::{ProviderAgentPreset, ProviderKind, ProviderModel, ProviderMod
 
 pub fn fallback_models(provider: ProviderKind) -> Vec<ProviderModel> {
     match provider {
+        ProviderKind::Antigravity => {
+            vec![ProviderModel::new("default", "Antigravity default").default()]
+        }
         ProviderKind::Amp => [
             ProviderModel::new("low", tr!("model_option.low")),
             ProviderModel::new("medium", tr!("model_option.medium")).default(),

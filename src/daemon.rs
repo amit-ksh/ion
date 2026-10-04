@@ -87,18 +87,18 @@ fn daemon_executable_path() -> anyhow::Result<PathBuf> {
     let sibling = current
         .parent()
         .map(|directory| directory.join(&executable))
-        .ok_or_else(|| anyhow!("Waku executable has no parent directory"))?;
+        .ok_or_else(|| anyhow!("ion executable has no parent directory"))?;
     if sibling.is_file() {
         return Ok(sibling);
     }
     #[cfg(debug_assertions)]
     bail!(
-        "Waku daemon was not found in Cargo's debug directory or next to the app executable: {}",
+        "ion daemon was not found in Cargo's debug directory or next to the app executable: {}",
         sibling.display(),
     );
     #[cfg(not(debug_assertions))]
     bail!(
-        "Waku daemon is missing next to the app executable: {}",
+        "ion daemon is missing next to the app executable: {}",
         sibling.display(),
     )
 }

@@ -24,6 +24,7 @@ impl Waku {
     }
 
     pub(super) fn select_session(&mut self, session_id: Uuid, cx: &mut Context<Self>) {
+        self.control_ui.page = None;
         self.request_session_activation(session_id, SessionActivationTransition::Visit, cx);
     }
 
@@ -422,6 +423,7 @@ impl Waku {
         cx: &mut Context<Self>,
     ) {
         self.settings_page = None;
+        self.control_ui.page = None;
         let current_project = self
             .selected_project()
             .map(|project| (project.id, project.is_projectless()));
@@ -458,6 +460,7 @@ impl Waku {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.control_ui.page = None;
         self.settings_page = Some(SettingsPage::General);
         self.settings_scroll.set_offset(gpui::Point::default());
         // Sparkle owns this value and its consent prompt can flip it outside
@@ -709,6 +712,7 @@ impl Waku {
         };
         if let Some(target) = self.session_navigation.back_target() {
             self.settings_page = None;
+            self.control_ui.page = None;
             self.request_session_activation(
                 target,
                 SessionActivationTransition::Back { from: current },
@@ -732,6 +736,7 @@ impl Waku {
         };
         if let Some(target) = self.session_navigation.forward_target() {
             self.settings_page = None;
+            self.control_ui.page = None;
             self.request_session_activation(
                 target,
                 SessionActivationTransition::Forward { from: current },
@@ -766,6 +771,7 @@ impl Waku {
         cx: &mut Context<Self>,
     ) {
         self.settings_page = None;
+        self.control_ui.page = None;
         let focus_handle = self.composer_focus(cx);
         window.focus(&focus_handle, cx);
         cx.notify();

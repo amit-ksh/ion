@@ -226,6 +226,10 @@ impl SpeechLanguage {
 }
 
 pub fn runtime_version() -> Result<String> {
+    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
+        service.test()?;
+        return Ok("Cloud speech - Nemotron 3.5 ASR".into());
+    }
     let output = Command::new(executable())
         .arg("--version")
         .output()
@@ -256,6 +260,9 @@ pub fn transcribe_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
         .len();
     if len == 0 || len > MAX_WAV_BYTES {
         bail!("Choose a WAV file between 1 byte and 50 MB");
+    }
+    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
+        return service.transcribe(std::fs::read(path)?, language.code());
     }
     let output = Command::new(executable())
         .args(["--quiet", "transcribe"])
@@ -328,6 +335,9 @@ fn executable() -> PathBuf {
 /// Idempotent first-use model preparation. NeMo-Speech.cpp verifies the
 /// artifact against its pinned size and SHA-256 before returning success.
 pub fn prepare_model() -> Result<()> {
+    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
+        return service.test();
+    }
     runtime_version()?;
     let output = Command::new(executable())
         .args(["pull", "nemotron-3.5"])
@@ -394,7 +404,14 @@ fn record_microphone(
     )));
     let stream_error = Arc::new(Mutex::new(None::<String>));
     let config = supported.config();
-    let mut live = LiveRecognizer::start(language, sample_rate).ok();
+    let mut live = if waku_credentials::CredentialService::global()
+        .speech_service()?
+        .is_some()
+    {
+        None
+    } else {
+        LiveRecognizer::start(language, sample_rate).ok()
+    };
     let error_slot = stream_error.clone();
     let stream = match supported.sample_format() {
         cpal::SampleFormat::F32 => {

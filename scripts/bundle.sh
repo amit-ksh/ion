@@ -38,16 +38,16 @@ else
 fi
 case "$profile" in
   debug)
-    app_name="Waku Debug"
-    display_name="Waku Debug"
-    helper_name="Waku Debug Computer Use"
+    app_name="ion Debug"
+    display_name="ion Debug"
+    helper_name="ion Debug Computer Use"
     bundle_identifier="sh.waku.dev"
     icon_file="AppIconDev.icns"
     ;;
   release)
-    app_name="Waku"
+    app_name="ion"
     display_name="ion"
-    helper_name="Waku Computer Use"
+    helper_name="ion Computer Use"
     bundle_identifier="sh.waku"
     icon_file="AppIcon.icns"
     ;;

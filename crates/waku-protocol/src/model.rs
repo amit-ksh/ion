@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub enum ProviderKind {
+    Antigravity,
     Amp,
     Claude,
     #[default]
@@ -27,7 +28,8 @@ pub enum ProviderKind {
 }
 
 impl ProviderKind {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
+        Self::Antigravity,
         Self::Amp,
         Self::Claude,
         Self::Codex,
@@ -45,6 +47,7 @@ impl ProviderKind {
 
     pub fn id(self) -> &'static str {
         match self {
+            Self::Antigravity => "antigravity",
             Self::Amp => "amp",
             Self::Claude => "claude",
             Self::Codex => "codex",
@@ -63,6 +66,7 @@ impl ProviderKind {
 
     pub fn display_name(self) -> &'static str {
         match self {
+            Self::Antigravity => "Antigravity",
             Self::Amp => "Amp",
             Self::Claude => "Claude Code",
             Self::Codex => "Codex CLI",
@@ -81,6 +85,7 @@ impl ProviderKind {
 
     pub fn short_name(self) -> &'static str {
         match self {
+            Self::Antigravity => "Antigravity",
             Self::Amp => "Amp",
             Self::Claude => "Claude",
             Self::Codex => "Codex",
@@ -99,6 +104,7 @@ impl ProviderKind {
 
     pub fn command(self) -> &'static str {
         match self {
+            Self::Antigravity => "agy",
             Self::Amp => "amp",
             Self::Claude => "claude",
             Self::Codex => "codex",
@@ -180,6 +186,9 @@ impl ProviderKind {
     tag = "provider"
 )]
 pub enum ProviderResumeCursor {
+    Antigravity {
+        session_id: String,
+    },
     Amp {
         thread_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -236,6 +245,7 @@ pub enum ProviderResumeCursor {
 impl ProviderResumeCursor {
     pub fn from_session_id(provider: ProviderKind, id: String) -> Self {
         match provider {
+            ProviderKind::Antigravity => Self::Antigravity { session_id: id },
             ProviderKind::Amp => Self::Amp {
                 thread_id: id,
                 fork_context: None,
@@ -272,6 +282,7 @@ impl ProviderResumeCursor {
 
     pub fn provider(&self) -> ProviderKind {
         match self {
+            Self::Antigravity { .. } => ProviderKind::Antigravity,
             Self::Amp { .. } => ProviderKind::Amp,
             Self::Claude { .. } => ProviderKind::Claude,
             Self::Codex { .. } => ProviderKind::Codex,
@@ -291,7 +302,8 @@ impl ProviderResumeCursor {
     pub fn native_id(&self) -> &str {
         match self {
             Self::Amp { thread_id, .. } => thread_id,
-            Self::Claude { session_id, .. }
+            Self::Antigravity { session_id }
+            | Self::Claude { session_id, .. }
             | Self::Cursor { session_id, .. }
             | Self::DeepSeek { session_id }
             | Self::Fx { session_id }
