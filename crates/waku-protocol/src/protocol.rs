@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 10;
+pub const PROTOCOL_VERSION: u32 = 11;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -179,6 +179,27 @@ pub enum Command {
     },
     LoadTaskState,
     LoadWorkspaceControl,
+    /// Persist a run queue; this does not start a provider process.
+    PrepareTeamRun {
+        run_id: Uuid,
+        expected_definition_revision: u64,
+        team_id: Uuid,
+        objective: String,
+        limits: crate::teams::TeamRunLimits,
+        access: crate::teams::AgentAccess,
+    },
+    GetTeamRun {
+        run_id: Uuid,
+    },
+    GetTeamAudit {
+        run_id: Uuid,
+        after: u64,
+        limit: usize,
+    },
+    StopTeamRun {
+        run_id: Uuid,
+        expected_revision: u64,
+    },
     SaveWorkspaceRecord {
         expected_revision: u64,
         record: crate::control::ControlRecord,
@@ -408,6 +429,12 @@ pub enum ResponseOutcome {
     rename_all_fields = "camelCase"
 )]
 pub enum ResponsePayload {
+    TeamRun {
+        snapshot: crate::teams::TeamRunSnapshot,
+    },
+    TeamAudit {
+        events: Vec<crate::teams::TeamAuditEvent>,
+    },
     WorkspaceControl {
         snapshot: crate::control::ControlSnapshot,
     },
@@ -567,13 +594,41 @@ mod tests {
     }
 
     #[test]
+    fn team_commands_have_typed_execution_settings_and_stable_wire_fields() {
+        let run_id = Uuid::new_v4();
+        let json = serde_json::to_value(Command::PrepareTeamRun {
+            run_id,
+            expected_definition_revision: 3,
+            team_id: Uuid::new_v4(),
+            objective: "Deliver report".into(),
+            limits: Default::default(),
+            access: Default::default(),
+        })
+        .unwrap();
+        assert_eq!(json["type"], "prepareTeamRun");
+        assert_eq!(json["runId"], run_id.to_string());
+        assert_eq!(json["expectedDefinitionRevision"], 3);
+        assert!(matches!(
+            serde_json::from_value::<Command>(json).unwrap(),
+            Command::PrepareTeamRun { .. }
+        ));
+        let execution = serde_json::to_value(crate::teams::AgentExecution::default()).unwrap();
+        assert_eq!(execution["environment"], "local");
+        assert_eq!(execution["localFallback"], true);
+        assert_eq!(
+            serde_json::to_value(crate::teams::ExecutionEnvironment::NebiusSandbox).unwrap(),
+            "nebiusSandbox"
+        );
+    }
+
+    #[test]
     fn response_fork_command_uses_stable_camel_case_fields() {
         let json =
             serde_json::to_value(Command::ForkSessionFromResponse { turn_count: 7 }).unwrap();
 
         assert_eq!(json["type"], "forkSessionFromResponse");
         assert_eq!(json["turnCount"], 7);
-        assert_eq!(PROTOCOL_VERSION, 8);
+        assert!(PROTOCOL_VERSION >= 8);
     }
 
     #[test]
@@ -582,7 +637,7 @@ mod tests {
 
         assert_eq!(json["type"], "rewindSessionToMessage");
         assert_eq!(json["turnCount"], 4);
-        assert_eq!(PROTOCOL_VERSION, 8);
+        assert!(PROTOCOL_VERSION >= 8);
     }
 
     #[test]

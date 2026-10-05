@@ -97,6 +97,13 @@ and history remain intact.
   Workflows, document Artifacts, and Usage.
   This later user brief supersedes chapter 15's compressed navigation proposal;
   neither proposal is implemented or approved as a milestone.
+- [Agent teams implementation proposal](18-agent-teams-implementation.md):
+  daemon-owned hierarchical delegation, distinct child tasks, enforced grants,
+  mixed harnesses, and staged local/cloud execution. The user confirmed
+  automatic delegation and a user-selected Local or Nebius sandbox environment
+  per agent, with local fallback for sandbox failures. No Auto environment mode.
+  Each agent also selects its own harness/model; teams may mix harnesses.
+  These later Teams decisions supersede chapter 16's execution preferences.
 - [ion workspace HTML prototype](PROTOTYPE-ion-workspace.html): interactive
   visual proposal for the Paperclip-style sidebar, hierarchical multi-team
   delegation, document Artifacts, and prompt-generated Workflows in ion's app
@@ -115,3 +122,6 @@ tracked in [17-native-workspace-review.md](17-native-workspace-review.md).
 The Paperclip proposal and HTML prototypes are separate from verified native
 behavior. Personal cloud speech deployment is prepared but awaits a Nebius
 target; see [the deployment checklist](../../services/speech/README.md).
+
+- [Agent teams implementation progress and review checklist](19-agent-teams-progress.md):
+  first durable coordinator increment, remaining adapters and live acceptance.

@@ -972,6 +972,26 @@ impl StateStore {
         }
     }
 
+    /// Indexed existence check for cross-database task materialization. Worker-only.
+    pub(crate) fn contains_session(&self, id: Uuid) -> io::Result<bool> {
+        let read = |db: &Connection| {
+            db.query_row(
+                "SELECT 1 FROM sessions WHERE id=?",
+                [id.to_string()],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map(|row| row.is_some())
+            .map_err(to_io_error)
+        };
+        let guard = self.storage.lock();
+        if let Some(storage) = guard.as_ref() {
+            read(&storage.connection)
+        } else {
+            read(&self.open()?)
+        }
+    }
+
     /// Builds a transcript-search job for the background executor.
     ///
     /// Constructing the job only clones the database path; opening SQLite and

@@ -62,6 +62,14 @@ pub struct AgentProfile {
     pub instructions: String,
     pub provider: ProviderKind,
     pub model: Option<String>,
+    #[serde(default)]
+    pub expected_output: String,
+    #[serde(default)]
+    pub execution: crate::teams::AgentExecution,
+    #[serde(default)]
+    pub access: crate::teams::AgentAccess,
+    #[serde(default = "crate::teams::default_agent_concurrency")]
+    pub max_parallel_tasks: u16,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

@@ -170,7 +170,7 @@ impl ControlStore {
             capture_lock: parking_lot::Mutex::new(()),
         }
     }
-    fn connect(&self) -> Result<Connection> {
+    pub(crate) fn connect(&self) -> Result<Connection> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -179,7 +179,7 @@ impl ControlStore {
         db.execute_batch("CREATE TABLE IF NOT EXISTS ion_control_records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ion_control_kind ON ion_control_records(kind); CREATE TABLE IF NOT EXISTS ion_control_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL); INSERT OR IGNORE INTO ion_control_revision VALUES(1,0);")?;
         Ok(db)
     }
-    fn read(db: &Connection) -> Result<ControlSnapshot> {
+    pub(crate) fn read(db: &Connection) -> Result<ControlSnapshot> {
         let revision = db.query_row(
             "SELECT revision FROM ion_control_revision WHERE id=1",
             [],
@@ -397,10 +397,13 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
                     && !routine.instructions.trim().is_empty(),
                 "A routine needs instructions and an interval of 1–525600 minutes"
             ),
-            ControlRecord::Agent(agent) => ensure!(
-                !agent.instructions.trim().is_empty(),
-                "An agent needs instructions"
-            ),
+            ControlRecord::Agent(agent) => {
+                ensure!(
+                    !agent.instructions.trim().is_empty(),
+                    "An agent needs instructions"
+                );
+                crate::teams::validate_profile(agent)?;
+            }
             ControlRecord::Artifact(artifact) => ensure!(
                 artifact.reference == format!("ion-document:{}", artifact.id),
                 "Artifacts must reference stored documents"
@@ -579,6 +582,10 @@ mod tests {
             instructions: "Review code".into(),
             provider: crate::model::ProviderKind::Nebius,
             model: None,
+            expected_output: String::new(),
+            execution: Default::default(),
+            access: Default::default(),
+            max_parallel_tasks: 1,
         })
     }
     #[test]

@@ -2,6 +2,7 @@
 //! model and document work runs on workers; render reads in-memory snapshots.
 use super::*;
 use waku_client::control::*;
+use waku_client::teams::{AgentAccess, AgentExecution, ExecutionEnvironment};
 use waku_client::{Command as Rpc, ResponsePayload};
 
 fn app_name(slug: &str) -> String {
@@ -102,6 +103,11 @@ pub(super) struct ControlUi {
     model: Entity<TextInput>,
     interval: Entity<TextInput>,
     provider: ProviderKind,
+    execution: AgentExecution,
+    access: AgentAccess,
+    expected_output: Entity<TextInput>,
+    concurrency: Entity<TextInput>,
+    sandbox_target: Entity<TextInput>,
     project: Option<Uuid>,
     members: Vec<TeamMember>,
     stages: Vec<(Entity<TextInput>, Entity<TextInput>, bool)>,
@@ -208,6 +214,14 @@ impl ControlUi {
             model: cx.new(|cx| TextInput::new(window, cx).placeholder("Use harness default")),
             interval: cx.new(|cx| TextInput::new(window, cx).placeholder("Interval in minutes")),
             provider: ProviderKind::Nebius,
+            execution: AgentExecution::default(),
+            access: AgentAccess::default(),
+            expected_output: cx.new(|cx| {
+                TextInput::new(window, cx).placeholder("Document, patch and validation evidence")
+            }),
+            concurrency: cx.new(|cx| TextInput::new(window, cx).placeholder("1")),
+            sandbox_target: cx
+                .new(|cx| TextInput::new(window, cx).placeholder("Configured sandbox target")),
             project: None,
             members: Vec::new(),
             stages: Vec::new(),
@@ -808,12 +822,17 @@ impl Waku {
         self.control_ui.pending_stages = None;
         self.control_ui.project = self.state.selected_project;
         self.control_ui.provider = ProviderKind::Nebius;
+        self.control_ui.execution = AgentExecution::default();
+        self.control_ui.access = AgentAccess::default();
         for input in [
             &self.control_ui.name,
             &self.control_ui.instructions,
             &self.control_ui.expertise,
             &self.control_ui.model,
             &self.control_ui.interval,
+            &self.control_ui.expected_output,
+            &self.control_ui.concurrency,
+            &self.control_ui.sandbox_target,
         ] {
             input.update(cx, |input, cx| input.set_content("", cx));
         }
@@ -856,6 +875,24 @@ impl Waku {
         match record {
             ControlRecord::Agent(v) => {
                 self.control_ui.provider = v.provider;
+                self.control_ui.execution = v.execution;
+                self.control_ui.access = v.access;
+                self.control_ui
+                    .expected_output
+                    .update(cx, |input, cx| input.set_content(v.expected_output, cx));
+                self.control_ui.concurrency.update(cx, |input, cx| {
+                    input.set_content(v.max_parallel_tasks.to_string(), cx)
+                });
+                self.control_ui.sandbox_target.update(cx, |input, cx| {
+                    input.set_content(
+                        self.control_ui
+                            .execution
+                            .sandbox_target
+                            .clone()
+                            .unwrap_or_default(),
+                        cx,
+                    )
+                });
                 self.control_ui
                     .expertise
                     .update(cx, |input, cx| input.set_content(v.expertise, cx));
@@ -894,15 +931,53 @@ impl Waku {
             return;
         };
         let record = match kind {
-            FormKind::Agent => ControlRecord::Agent(AgentProfile {
-                id,
-                name,
-                expertise: self.control_ui.expertise.read(cx).content().to_owned(),
-                instructions,
-                provider: self.control_ui.provider,
-                model: Some(self.control_ui.model.read(cx).content().trim().to_owned())
-                    .filter(|v| !v.is_empty()),
-            }),
+            FormKind::Agent => {
+                let concurrency = self
+                    .control_ui
+                    .concurrency
+                    .read(cx)
+                    .content()
+                    .trim()
+                    .to_owned();
+                let max_parallel_tasks = if concurrency.is_empty() {
+                    1
+                } else if let Ok(value) = concurrency.parse::<u16>() {
+                    value
+                } else {
+                    self.control_ui.error = Some("Enter the maximum parallel tasks (1–16).".into());
+                    cx.notify();
+                    return;
+                };
+                let mut execution = self.control_ui.execution.clone();
+                execution.sandbox_target = Some(
+                    self.control_ui
+                        .sandbox_target
+                        .read(cx)
+                        .content()
+                        .trim()
+                        .to_owned(),
+                )
+                .filter(|v| !v.is_empty());
+                ControlRecord::Agent(AgentProfile {
+                    id,
+                    name,
+                    expertise: self.control_ui.expertise.read(cx).content().to_owned(),
+                    instructions,
+                    provider: self.control_ui.provider,
+                    model: Some(self.control_ui.model.read(cx).content().trim().to_owned())
+                        .filter(|v| !v.is_empty()),
+                    expected_output: self
+                        .control_ui
+                        .expected_output
+                        .read(cx)
+                        .content()
+                        .trim()
+                        .to_owned(),
+                    execution,
+                    access: self.control_ui.access.clone(),
+                    max_parallel_tasks,
+                })
+            }
             FormKind::Team => ControlRecord::Team(Team {
                 id,
                 name,
@@ -993,6 +1068,10 @@ impl Waku {
         }
         match record {
             ControlRecord::Agent(agent) => {
+                if agent.execution.environment == ExecutionEnvironment::NebiusSandbox {
+                    self.show_toast("Sandbox agent execution requires the Teams runtime adapter.");
+                    return;
+                }
                 if let Some(project) = project {
                     self.prepare_control_task(
                         project,
@@ -1024,6 +1103,17 @@ impl Waku {
                             }
                         })
                         .collect();
+                    if team
+                        .members
+                        .iter()
+                        .filter_map(|m| profiles.get(&m.agent_id))
+                        .any(|a| a.execution.environment == ExecutionEnvironment::NebiusSandbox)
+                    {
+                        self.show_toast(
+                            "Sandbox team execution requires the Teams runtime adapter.",
+                        );
+                        return;
+                    }
                     let lead = team
                         .members
                         .iter()
@@ -1032,6 +1122,7 @@ impl Waku {
                     let provider = lead
                         .map(|agent| agent.provider)
                         .unwrap_or(ProviderKind::Nebius);
+                    let lead_model = lead.and_then(|agent| agent.model.clone());
                     let mut prompt = format!(
                         "Team: {}\nObjective: {}\nHigher agents delegate to their direct reports. Respect the current task's approval policy and project scope.\n",
                         team.name, team.objective
@@ -1050,6 +1141,10 @@ impl Waku {
                         }
                     }
                     self.prepare_control_task(project, provider, prompt, cx);
+                    if let Some(session) = self.selected_session_mut() {
+                        session.model = lead_model;
+                    }
+                    self.save();
                 }
             }
             ControlRecord::Workflow(workflow) => {
@@ -1847,7 +1942,12 @@ impl Waku {
                 body = body.pl(px(22.0 + depth as f32 * 24.0));
                 (
                     agent.name,
-                    format!("{} · {}", agent.expertise, agent.provider.display_name()),
+                    format!(
+                        "{} · {} · {}",
+                        agent.expertise,
+                        agent.provider.display_name(),
+                        agent.execution.environment.label()
+                    ),
                     if depth == 0 {
                         "icons/target.svg"
                     } else {
@@ -1862,7 +1962,12 @@ impl Waku {
                 let run = record.clone();
                 let (detail, icon_path) = match &record {
                     ControlRecord::Agent(agent) => (
-                        format!("{} · {}", agent.expertise, agent.provider.display_name()),
+                        format!(
+                            "{} · {} · {}",
+                            agent.expertise,
+                            agent.provider.display_name(),
+                            agent.execution.environment.label()
+                        ),
                         "icons/bot.svg",
                     ),
                     ControlRecord::Team(team) => (
@@ -2008,39 +2113,145 @@ impl Waku {
             let weak = cx.entity().downgrade();
             let provider = self.control_ui.provider;
             let menu = self.menu_handle("control-provider-menu", cx);
-            form = form.child(dropdown_menu(
-                self.control_button(
-                    "control-provider",
-                    provider.display_name(),
-                    cx,
-                    |_, _, _| {},
-                ),
-                "control-provider-menu",
-                &menu,
-                MenuAlign::BelowLeft,
-                move |_| {
-                    ProviderKind::ALL
+            form = form
+                .child(
+                    div()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_secondary)
+                        .child("Harness"),
+                )
+                .child(dropdown_menu(
+                    self.control_button(
+                        "control-provider",
+                        provider.display_name(),
+                        cx,
+                        |_, _, _| {},
+                    ),
+                    "control-provider-menu",
+                    &menu,
+                    MenuAlign::BelowLeft,
+                    move |_| {
+                        ProviderKind::ALL
+                            .into_iter()
+                            .map(|kind| {
+                                let weak = weak.clone();
+                                MenuItem::new(kind.display_name(), move |_, cx| {
+                                    let _ = weak.update(cx, |this, cx| {
+                                        if this.control_ui.provider != kind {
+                                            this.control_ui
+                                                .model
+                                                .update(cx, |input, cx| input.set_content("", cx));
+                                        }
+                                        this.control_ui.provider = kind;
+                                        cx.notify();
+                                    });
+                                })
+                                .selected(kind == provider)
+                            })
+                            .collect()
+                    },
+                ));
+        }
+        if kind == FormKind::Agent {
+            let environment = self.control_ui.execution.environment;
+            let weak = cx.entity().downgrade();
+            let menu = self.menu_handle("control-environment-menu", cx);
+            form = form
+                .child(control_field(
+                    "Model",
+                    self.control_ui.model.clone(),
+                    "control-model",
+                ))
+                .child(control_field(
+                    "Expected output",
+                    self.control_ui.expected_output.clone(),
+                    "control-output",
+                ))
+                .child(
+                    div()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_secondary)
+                        .child("Execution environment"),
+                )
+                .child(dropdown_menu(
+                    self.control_button(
+                        "control-environment",
+                        environment.label(),
+                        cx,
+                        |_, _, _| {},
+                    ),
+                    "control-environment-menu",
+                    &menu,
+                    MenuAlign::BelowLeft,
+                    move |_| {
+                        [
+                            ExecutionEnvironment::Local,
+                            ExecutionEnvironment::NebiusSandbox,
+                        ]
                         .into_iter()
-                        .map(|kind| {
+                        .map(|value| {
                             let weak = weak.clone();
-                            MenuItem::new(kind.display_name(), move |_, cx| {
+                            MenuItem::new(value.label(), move |_, cx| {
                                 let _ = weak.update(cx, |this, cx| {
-                                    this.control_ui.provider = kind;
+                                    this.control_ui.execution.environment = value;
                                     cx.notify();
                                 });
                             })
-                            .selected(kind == provider)
+                            .selected(value == environment)
                         })
                         .collect()
-                },
-            ));
-        }
-        if kind == FormKind::Agent {
-            form = form.child(control_field(
-                "Model",
-                self.control_ui.model.clone(),
-                "control-model",
-            ));
+                    },
+                ))
+                .child(control_field(
+                    "Maximum parallel tasks",
+                    self.control_ui.concurrency.clone(),
+                    "control-concurrency",
+                ));
+            if environment == ExecutionEnvironment::NebiusSandbox {
+                form=form.child(control_field("Sandbox target",self.control_ui.sandbox_target.clone(),"control-sandbox-target"))
+                    .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child(if self.control_ui.execution.local_fallback {
+                        "If the sandbox cannot start, use the same harness locally when its access and requirements can be satisfied."
+                    } else {"Local fallback is disabled for this saved profile."}));
+            }
+            let access = self.control_ui.access.clone();
+            form = form.child(
+                div()
+                    .text_size(sp(12.5))
+                    .text_color(theme.text_secondary)
+                    .child("Team task access"),
+            );
+            for (index, label, enabled) in [
+                (0, "Read workspace", access.workspace_read),
+                (1, "Edit workspace", access.workspace_write),
+                (2, "Run commands", access.shell),
+                (3, "Network", access.network),
+            ] {
+                form = form.child(self.control_button(
+                    format!("control-access-{index}"),
+                    format!("{}  {label}", if enabled { "✓" } else { "○" }),
+                    cx,
+                    move |this, _, cx| {
+                        let access = &mut this.control_ui.access;
+                        match index {
+                            0 => {
+                                access.workspace_read = !access.workspace_read;
+                                if !access.workspace_read {
+                                    access.workspace_write = false;
+                                }
+                            }
+                            1 => {
+                                access.workspace_write = !access.workspace_write;
+                                if access.workspace_write {
+                                    access.workspace_read = true;
+                                }
+                            }
+                            2 => access.shell = !access.shell,
+                            _ => access.network = !access.network,
+                        }
+                        cx.notify();
+                    },
+                ));
+            }
         }
         if matches!(kind, FormKind::Workflow | FormKind::Routine) {
             let weak = cx.entity().downgrade();

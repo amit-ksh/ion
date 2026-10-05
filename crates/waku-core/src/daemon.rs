@@ -58,6 +58,7 @@ pub struct WakuBackend {
     usage_rates_dir: std::path::PathBuf,
     default_cwd: std::path::PathBuf,
     control: crate::control::ControlStore,
+    teams: crate::teams::TeamCoordinator,
 }
 
 impl WakuBackend {
@@ -80,7 +81,16 @@ impl WakuBackend {
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."))
             .to_owned();
+        let teams =
+            crate::teams::TeamCoordinator::new(task_store.path().with_file_name("ion-control.db"));
+        teams.reconcile_owner_restart(crate::model::unix_time())?;
+        if let Err(error) =
+            teams.materialize_pending(&task_store, &mut task_state, crate::model::unix_time())
+        {
+            eprintln!("Could not replay team child tasks: {error}");
+        }
         Ok(Self {
+            teams,
             control: crate::control::ControlStore::new(
                 task_store.path().with_file_name("ion-control.db"),
             ),
@@ -232,6 +242,68 @@ impl Backend for WakuBackend {
         let session_id = request.session_id;
         let runtime_id = request.runtime_id;
         match request.command {
+            Command::PrepareTeamRun {
+                run_id,
+                expected_definition_revision,
+                team_id,
+                objective,
+                limits,
+                access,
+            } => {
+                let root = {
+                    let mut state = self.task_state.lock();
+                    let root = state
+                        .sessions
+                        .iter_mut()
+                        .find(|s| s.id == session_id)
+                        .context("Persist the root task before preparing a team run")?;
+                    self.task_store.hydrate(root)?;
+                    anyhow::ensure!(
+                        self.task_store.contains_session(root.id)?,
+                        "Persist the root task before preparing a team run"
+                    );
+                    anyhow::ensure!(
+                        root.turns.is_empty() && root.status == SessionStatus::Idle,
+                        "Prepare a new idle task for a team run"
+                    );
+                    root.clone()
+                };
+                Ok(ResponsePayload::TeamRun {
+                    snapshot: self.teams.prepare(
+                        crate::teams::PrepareRun {
+                            id: run_id,
+                            root_task_id: root.id,
+                            project_id: root.project_id,
+                            team_id,
+                            expected_definition_revision,
+                            objective,
+                            limits,
+                            access,
+                        },
+                        crate::model::unix_time(),
+                    )?,
+                })
+            }
+            Command::GetTeamRun { run_id } => Ok(ResponsePayload::TeamRun {
+                snapshot: self
+                    .teams
+                    .reconcile_expired(run_id, crate::model::unix_time())?,
+            }),
+            Command::GetTeamAudit {
+                run_id,
+                after,
+                limit,
+            } => Ok(ResponsePayload::TeamAudit {
+                events: self.teams.audit_events(run_id, after, limit)?,
+            }),
+            Command::StopTeamRun {
+                run_id,
+                expected_revision,
+            } => Ok(ResponsePayload::TeamRun {
+                snapshot: self
+                    .teams
+                    .stop(run_id, expected_revision, crate::model::unix_time())?,
+            }),
             Command::LoadWorkspaceControl => Ok(ResponsePayload::WorkspaceControl {
                 snapshot: self.control.load()?,
             }),
@@ -1927,6 +1999,10 @@ fn handle_driver_command(
         | Command::TrashSkills { .. }
         | Command::LoadTaskState
         | Command::LoadWorkspaceControl
+        | Command::PrepareTeamRun { .. }
+        | Command::GetTeamRun { .. }
+        | Command::GetTeamAudit { .. }
+        | Command::StopTeamRun { .. }
         | Command::SaveWorkspaceRecord { .. }
         | Command::RemoveWorkspaceRecord { .. }
         | Command::GenerateWorkflow { .. }
