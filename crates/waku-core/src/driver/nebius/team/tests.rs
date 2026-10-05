@@ -666,3 +666,30 @@ fn native_team_decision_rejects_identity_overrides_and_nonfinal_yield() {
     assert!(execute(&f.store, &root, &f.workspace, &journal.pending[0], false).is_err());
     assert!(f.store.snapshot(f.run.id).unwrap().decisions.is_empty());
 }
+
+#[test]
+fn team_harness_seam_cannot_substitute_the_pinned_provider() {
+    let f = Fixture::new(false);
+    let mut claimed = f.claim(f.run.work[0].id);
+    claimed.profile.provider = ProviderKind::Claude;
+    let (events, _) = crate::driver::test_event_channel();
+    let mut called = false;
+    assert!(
+        run_with_harness(
+            &f.store,
+            NativeTeamStart::Fresh(claimed),
+            &f.workspace,
+            &events,
+            &AtomicBool::new(false),
+            ProviderKind::Claude,
+            |_| { panic!("no allowance before harness validation") },
+            |_, _, _, _| {
+                called = true;
+                panic!("no completion before harness validation")
+            }
+        )
+        .is_err()
+    );
+    assert!(!called);
+    assert_eq!(f.store.snapshot(f.run.id).unwrap().usage.model_calls, 0);
+}

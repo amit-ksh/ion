@@ -224,12 +224,17 @@ pub(crate) fn run_scripted_team_assignment(
     cancelled: &AtomicBool,
     mut response: impl FnMut(&str, &str, &[Value], Value) -> Result<String>,
 ) -> Result<NativeTeamExit> {
-    run_with_completion(
+    let harness = match &start {
+        NativeTeamStart::Fresh(c) => c.profile.provider,
+        NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
+    };
+    run_with_harness(
         coordinator,
         start,
         workspace,
         events,
         cancelled,
+        harness,
         |model| {
             Ok(ModelCallAllowance {
                 model: model.to_owned(),
@@ -250,6 +255,30 @@ fn run_with_completion(
     workspace: &Path,
     events: &DriverEventSender,
     cancelled: &AtomicBool,
+    allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
+    completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
+) -> Result<NativeTeamExit> {
+    run_with_harness(
+        coordinator,
+        start,
+        workspace,
+        events,
+        cancelled,
+        ProviderKind::Nebius,
+        allowance,
+        completion,
+    )
+}
+
+/// Every harness supplies bounded completions, never caller-selected identities or tool grants.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::driver) fn run_with_harness(
+    coordinator: &TeamCoordinator,
+    start: NativeTeamStart,
+    workspace: &Path,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    harness: ProviderKind,
     mut allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
     mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
 ) -> Result<NativeTeamExit> {
@@ -298,8 +327,8 @@ fn run_with_completion(
     );
     journal.messages[0]["content"] = json!(claimed.assignment.objective);
     anyhow::ensure!(
-        claimed.profile.provider == ProviderKind::Nebius,
-        "Selected harness requires its own Teams adapter"
+        claimed.profile.provider == harness,
+        "Team worker must use the pinned harness"
     );
     let attempt = claimed
         .assignment

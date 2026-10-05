@@ -42,9 +42,39 @@ trait Executor: Send + Sync {
 }
 struct NativeExecutor {
     catalog: Mutex<Option<(Instant, Result<Vec<String>, String>)>>,
+    claude: Mutex<HashMap<PathBuf, (Instant, Result<(), String>)>>,
+    settings: Arc<DaemonSettingsStore>,
 }
 impl Executor for NativeExecutor {
     fn ready(&self, profile: &AgentProfile) -> Result<DispatchHost> {
+        if profile.provider == ProviderKind::Claude {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Claude model for this agent")?;
+            driver::team_claude::allowance(model)?;
+            let binary = self.claude_binary()?;
+            let mut cache = self.claude.lock();
+            if cache
+                .get(&binary)
+                .is_none_or(|(time, _)| time.elapsed() >= Duration::from_secs(30))
+            {
+                cache.insert(
+                    binary.clone(),
+                    (
+                        Instant::now(),
+                        driver::team_claude::ready(&binary).map_err(|e| e.to_string()),
+                    ),
+                );
+            }
+            cache
+                .get(&binary)
+                .unwrap()
+                .1
+                .as_ref()
+                .map_err(|e| anyhow::anyhow!("Claude setup is required: {e}"))?;
+            return local_host(profile);
+        }
         ensure!(
             profile.provider == ProviderKind::Nebius,
             "This agent's selected harness needs its Teams adapter; select Nebius or wait for that adapter"
@@ -76,17 +106,7 @@ impl Executor for NativeExecutor {
             models.iter().any(|m| m == model),
             "Pinned model is unavailable for this Nebius account; stop this run and start a new task after updating the agent model"
         );
-        match profile.execution.environment {
-            ExecutionEnvironment::Local => Ok(DispatchHost::Local),
-            ExecutionEnvironment::NebiusSandbox if profile.execution.local_fallback => {
-                Ok(DispatchHost::LocalFallback {
-                    failure: SandboxStartFailure::Unavailable,
-                })
-            }
-            ExecutionEnvironment::NebiusSandbox => anyhow::bail!(
-                "Register a Nebius Teams execution host or enable Local fallback for this agent"
-            ),
-        }
+        local_host(profile)
     }
     fn run(
         &self,
@@ -96,7 +116,49 @@ impl Executor for NativeExecutor {
         events: &DriverEventSender,
         cancelled: &AtomicBool,
     ) -> Result<NativeTeamExit> {
-        driver::run_native_team_assignment(coordinator, start, workspace, events, cancelled)
+        let provider = match &start {
+            NativeTeamStart::Fresh(c) => c.profile.provider,
+            NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
+        };
+        if provider == ProviderKind::Claude {
+            driver::team_claude::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.claude_binary()?,
+            )
+        } else {
+            driver::run_native_team_assignment(coordinator, start, workspace, events, cancelled)
+        }
+    }
+}
+impl NativeExecutor {
+    fn claude_binary(&self) -> Result<PathBuf> {
+        crate::model::provider_probe(
+            ProviderKind::Claude,
+            self.settings
+                .get()
+                .provider_binary_overrides
+                .get(&ProviderKind::Claude)
+                .map(String::as_str),
+        )
+        .path
+        .context("Install Claude Code or set its executable in Settings")
+    }
+}
+fn local_host(profile: &AgentProfile) -> Result<DispatchHost> {
+    match profile.execution.environment {
+        ExecutionEnvironment::Local => Ok(DispatchHost::Local),
+        ExecutionEnvironment::NebiusSandbox if profile.execution.local_fallback => {
+            Ok(DispatchHost::LocalFallback {
+                failure: SandboxStartFailure::Unavailable,
+            })
+        }
+        ExecutionEnvironment::NebiusSandbox => anyhow::bail!(
+            "Register a Nebius Teams execution host or enable Local fallback for this agent"
+        ),
     }
 }
 struct Job {
@@ -140,10 +202,12 @@ impl TeamRuntime {
             coordinator,
             store,
             state,
-            settings,
+            settings.clone(),
             removed,
             Arc::new(NativeExecutor {
                 catalog: Mutex::new(None),
+                claude: Mutex::new(HashMap::new()),
+                settings,
             }),
         )
     }

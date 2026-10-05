@@ -52,12 +52,12 @@ struct Journal {
 }
 
 #[derive(Default)]
-struct ToolCall {
-    id: String,
-    name: String,
-    arguments: String,
-    activity_id: String,
-    announced: bool,
+pub(super) struct ToolCall {
+    pub(super) id: String,
+    pub(super) name: String,
+    pub(super) arguments: String,
+    pub(super) activity_id: String,
+    pub(super) announced: bool,
 }
 
 pub struct NebiusDriver {
@@ -454,10 +454,10 @@ fn parse_stream_scoped(
     Ok((completion.text, completion.calls))
 }
 
-struct StreamCompletion {
-    text: String,
-    calls: Vec<ToolCall>,
-    usage: Option<crate::teams::ModelTokenUsage>,
+pub(super) struct StreamCompletion {
+    pub(super) text: String,
+    pub(super) calls: Vec<ToolCall>,
+    pub(super) usage: Option<crate::teams::ModelTokenUsage>,
 }
 fn parse_stream_metered(
     reader: impl BufRead,

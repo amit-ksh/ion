@@ -167,6 +167,9 @@ impl Fixture {
         Self::with_budget(limit, Some(2_000_000))
     }
     fn with_budget(limit: u16, max_tokens: Option<u64>) -> Self {
+        Self::build(limit, max_tokens, false)
+    }
+    fn build(limit: u16, max_tokens: Option<u64>, mixed: bool) -> Self {
         let dir = std::env::temp_dir().join(format!("ion-team-runtime-{}", Uuid::new_v4()));
         std::fs::create_dir_all(dir.join("project")).unwrap();
         let control = ControlStore::new(dir.join("control.db"));
@@ -181,7 +184,11 @@ impl Fixture {
                         name: format!("Agent {i}"),
                         expertise: "Research".into(),
                         instructions: format!("private instructions {i}"),
-                        provider: ProviderKind::Nebius,
+                        provider: if mixed && i == 1 {
+                            ProviderKind::Claude
+                        } else {
+                            ProviderKind::Nebius
+                        },
                         model: Some(format!("model-{i}")),
                         expected_output: "Document".into(),
                         execution: Default::default(),
@@ -754,5 +761,35 @@ fn team_token_budget_projects_blocker_without_sending_provider_request() {
             .messages
             .iter()
             .any(|m| m.content.contains("token budget"))
+    );
+}
+
+#[test]
+fn team_dispatch_mixed_harnesses_preserve_selected_provider_on_real_child_tasks() {
+    let f = Fixture::build(64, Some(2_000_000), true);
+    let run = f.until(|run| run.status == TeamRunStatus::Completed);
+    assert_eq!(run.work.len(), 3);
+    let mut state = f.runtime.store.load().unwrap();
+    for session in &mut state.sessions {
+        f.runtime.store.hydrate(session).unwrap();
+        let work = run.work.iter().find(|w| w.task_id == session.id).unwrap();
+        let profile = run.profiles.iter().find(|p| p.id == work.agent_id).unwrap();
+        assert_eq!(session.provider, profile.provider);
+        assert_eq!(session.model, profile.model);
+        assert!(!session.transcript_blocks.is_empty());
+        assert_eq!(work.attempts.len(), 1);
+    }
+    assert_eq!(
+        state
+            .sessions
+            .iter()
+            .filter(|s| s.provider == ProviderKind::Claude)
+            .count(),
+        1
+    );
+    assert!(
+        run.work
+            .iter()
+            .all(|work| !work.result.as_ref().unwrap().artifact_ids.is_empty())
     );
 }

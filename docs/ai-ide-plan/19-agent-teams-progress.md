@@ -411,6 +411,60 @@ User review:
 - [ ] Stop a waiting team; confirm its pending decision becomes canceled.
 - [ ] Review project/task filters, history pagination and Dashboard pending totals.
 
+## Claude Code team bridge checkpoint
+
+Claude Code can now execute team assignments through the same lease-bound tool
+loop as native Nebius. Each bounded CLI request supplies the pinned agent's
+instructions, private journal and current Ion tool catalog through stdin. Claude
+returns JSON actions; Ion validates and executes them, returning durable receipts
+on the next request. Delegation, child wait/review/rework, human decisions,
+documents and results retain the coordinator's existing controls.
+
+The CLI runs in an empty temporary directory with its built-in tools, external
+MCP servers, project/user customizations, slash commands and hooks disabled.
+One request permits one model turn. Process output and duration are bounded;
+Windows job containment and Unix process groups stop descendant processes on
+cancellation/timeout. No raw stderr or authentication payload enters a transcript.
+A canceled or malformed completion retains its reserved token allowance.
+
+Readiness checks the installed executable's required flags and authenticated
+Claude account without starting a billable turn. The user's binary override is
+honored. Supported exact models currently include Sonnet/Opus 4.6 and 5.5 and
+Haiku 4.5. Aliases/custom provider routes remain blocked until their limits can
+be verified. Reservations use the supported model's full context/output bounds;
+receipts count uncached, cached-read and cached-created input tokens. Another
+model, missing usage or an unbounded turn result cannot release the allowance.
+No other harness is substituted for a queued unsupported agent.
+
+The bridge currently exposes Ion's document/read/delegate/review capabilities.
+Workspace edits, command execution and apps remain separate execution work.
+Claude's own unrestricted coding tools are not exposed under a read-only grant.
+Provider cost estimates are not treated as authoritative currency receipts.
+
+Verified contracts: [CLI reference](https://code.claude.com/docs/en/cli-reference),
+[usage accounting](https://code.claude.com/docs/en/agent-sdk/cost-tracking),
+[Sonnet model specifications](https://platform.claude.com/docs/en/models/sonnet-4-6/overview).
+Installed CLI help was also inspected locally.
+
+Verification: the **100-test team suite passed**, including the mixed
+Nebius/Claude hierarchy regression. The added process bridge fixture then ran a
+real bounded subprocess through the production Claude adapter, published a real
+attributed document and completed the coordinator task with two metered requests
+without provider billing. All **6 Claude adapter tests** and the pinned-harness
+substitution regression passed. Native app/daemon compilation, formatting and
+diff checks passed. No app launch, visual check or live Claude account execution
+was performed.
+
+User review:
+
+- [ ] Authenticate Claude Code locally and select an exact supported model.
+- [ ] Create a mixed Nebius lead / Claude reviewer team and start it with @team.
+- [ ] Inspect each child task's own harness/model, evidence and parent review.
+- [ ] Confirm unsupported/custom models show a setup blocker without an attempt.
+- [ ] Cancel during a Claude request; confirm the process stops and unknown usage
+  remains reserved rather than being shown as zero.
+- [ ] Compare metered tokens with the CLI receipt once a live run is available.
+
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
@@ -419,7 +473,8 @@ User review:
   and daemon-owned durable queue creation.
 - [x] Add the native normal-agent team invocation queue bridge.
 - [x] Implement native Nebius team start/dispatch on Local.
-- [ ] Implement authenticated external harness execution.
+- [x] First authenticated external harness bridge: Claude Code.
+- [ ] Additional external harness bridges: Codex, OpenCode and the remaining catalog.
 - [x] Native Nebius worker with lease-bound delegation/report/document tools,
   enforced read grant and bounded resumed child context.
 - [x] Connect native workers to the daemon dispatcher, durable transcripts,
@@ -441,7 +496,8 @@ User review:
 - [x] Native hierarchy/roster with live child links, blockers and results; cached
   run projections across Dashboard, Inbox and Artifacts. Solo-style false decisions
   are removed; human planning decisions now have persisted pause/resume receipts.
-- [ ] One validated external harness bridge, then additional mixed harnesses.
+- [x] First bounded external harness bridge and mixed-harness coordinator regression.
+- [ ] Additional mixed-harness adapters and live authenticated acceptance.
 - [ ] Serialized writers, isolated coding worktrees and integration/patch review.
 - [ ] Registered Nebius execution host: actual harness launch, explicit transfer,
   host readiness, remote status/cancel/checkpoint and tested local fallback.
