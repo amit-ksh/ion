@@ -164,6 +164,9 @@ struct Fixture {
 }
 impl Fixture {
     fn new(limit: u16) -> Self {
+        Self::with_budget(limit, Some(2_000_000))
+    }
+    fn with_budget(limit: u16, max_tokens: Option<u64>) -> Self {
         let dir = std::env::temp_dir().join(format!("ion-team-runtime-{}", Uuid::new_v4()));
         std::fs::create_dir_all(dir.join("project")).unwrap();
         let control = ControlStore::new(dir.join("control.db"));
@@ -229,6 +232,7 @@ impl Fixture {
                     limits: TeamRunLimits {
                         max_parallel_tasks: 1,
                         max_model_calls: limit,
+                        max_tokens,
                         ..Default::default()
                     },
                     access: Default::default(),
@@ -722,4 +726,32 @@ fn team_review_metadata_persists_when_catalog_projection_matches_but_detail_is_s
     );
     assert!(!session.transcript_blocks.is_empty());
     assert_eq!(session.turns.len(), 1);
+}
+
+#[test]
+fn team_token_budget_projects_blocker_without_sending_provider_request() {
+    let f = Fixture::with_budget(64, Some(100));
+    let run = f.until(|run| run.work[0].status == AssignmentStatus::Blocked);
+    assert!(
+        run.work[0]
+            .reason
+            .as_deref()
+            .unwrap()
+            .contains("token budget")
+    );
+    assert!(f.script.models.lock().is_empty());
+    assert_eq!(run.usage.model_calls, 0);
+    let mut state = f.runtime.store.load().unwrap();
+    let session = &mut state.sessions[0];
+    f.runtime.store.hydrate(session).unwrap();
+    assert_eq!(
+        session.team_assignment_status,
+        Some(AssignmentStatus::Blocked)
+    );
+    assert!(
+        session
+            .messages
+            .iter()
+            .any(|m| m.content.contains("token budget"))
+    );
 }

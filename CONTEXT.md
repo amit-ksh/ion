@@ -32,3 +32,9 @@ Another execution attempt after a confirmed failure before effects, rather than 
 
 **Superseded result**:
 A rejected submitted result retained for history and replaced by a linked correction assignment.
+
+**Team token budget**:
+The maximum combined provider token usage and outstanding request allowances for one team run, shared by every assignment and correction.
+
+**Token reservation**:
+An allowance held before a provider request until completed usage is known. A request with unknown provider usage retains its full allowance.

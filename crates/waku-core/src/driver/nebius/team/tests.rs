@@ -15,6 +15,9 @@ struct Fixture {
 }
 impl Fixture {
     fn new(read: bool) -> Self {
+        Self::with_budget(read, Some(2_000_000))
+    }
+    fn with_budget(read: bool, max_tokens: Option<u64>) -> Self {
         let directory =
             std::env::temp_dir().join(format!("ion-native-team-tests-{}", Uuid::new_v4()));
         let workspace = directory.join("project");
@@ -88,6 +91,7 @@ impl Fixture {
                     limits: TeamRunLimits {
                         max_parallel_tasks: 1,
                         require_child_review: false,
+                        max_tokens,
                         ..Default::default()
                     },
                     access,
@@ -130,7 +134,7 @@ impl Fixture {
     fn worker(
         &self,
         start: NativeTeamStart,
-        completion: impl FnMut(&str, &str, &[Value], Value) -> Result<(String, Vec<ToolCall>)>,
+        mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<(String, Vec<ToolCall>)>,
     ) -> Result<NativeTeamExit> {
         let work_id = match &start {
             NativeTeamStart::Fresh(c) => c.lease.work_id(),
@@ -143,7 +147,21 @@ impl Fixture {
             &self.workspace,
             &events,
             &AtomicBool::new(false),
-            completion,
+            |model| {
+                Ok(ModelCallAllowance {
+                    model: model.to_owned(),
+                    max_input_tokens: 32768,
+                    max_output_tokens: 4096,
+                })
+            },
+            |model, system, messages, tools| {
+                let (text, calls) = completion(model, system, messages, tools)?;
+                Ok(StreamCompletion {
+                    text,
+                    calls,
+                    usage: None,
+                })
+            },
         );
         let emitted: Vec<_> = receiver.try_iter().collect();
         if matches!(&outcome, Ok(NativeTeamExit::Yielded)) {
@@ -168,6 +186,21 @@ impl Fixture {
             ));
         }
         outcome
+    }
+    fn execute(
+        &self,
+        start: NativeTeamStart,
+        completion: impl FnMut(&str, &str, &[Value], Value) -> Result<String>,
+    ) -> Result<NativeTeamExit> {
+        let (events, _) = crate::driver::test_event_channel();
+        run_scripted_team_assignment(
+            &self.store,
+            start,
+            &self.workspace,
+            &events,
+            &AtomicBool::new(false),
+            completion,
+        )
     }
     fn artifacts(&self) -> Vec<Artifact> {
         self.control
@@ -482,4 +515,72 @@ fn native_team_lease_selects_authoritative_definitions_despite_changed_projectio
         .unwrap(),
         NativeTeamExit::Settled
     );
+}
+
+#[test]
+fn native_team_budget_blocks_before_billable_callback() {
+    let f = Fixture::with_budget(true, Some(100));
+    let outcome = f.execute(
+        NativeTeamStart::Fresh(f.claim(f.run.work[0].id)),
+        |_, _, _, _| panic!("Budgeted-out request must never be sent"),
+    );
+    assert!(outcome.unwrap_err().to_string().contains("token budget"));
+    assert_eq!(f.store.snapshot(f.run.id).unwrap().usage.model_calls, 0);
+}
+#[test]
+fn native_team_provider_usage_releases_allowance_before_next_request() {
+    let f = Fixture::with_budget(true, Some(36890));
+    let mut calls = 0;
+    let outcome=f.execute(NativeTeamStart::Fresh(f.claim(f.run.work[0].id)),|_,_,_,_| {
+        calls+=1;
+        let delta=if calls==1 {json!({"content":"Working"})} else {
+            json!({"tool_calls":[{"index":0,"id":"blocked","function":{"name":"report_blocker","arguments":json!({"reason":"Further setup required"}).to_string()}}]})
+        };
+        Ok(format!("data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+            json!({"choices":[{"delta":delta}]}),json!({"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":10,"total_tokens":20}})))
+    });
+    assert_eq!(outcome.unwrap(), NativeTeamExit::Settled);
+    assert_eq!(calls, 2);
+    let usage = f.store.snapshot(f.run.id).unwrap().usage;
+    assert_eq!(usage.model_calls, 2);
+    assert_eq!(usage.consumed_tokens, 40);
+    assert_eq!(usage.reserved_tokens, 0);
+    assert_eq!(usage.unknown_calls, 0);
+}
+#[test]
+fn native_team_missing_usage_keeps_allowance_and_prevents_next_request() {
+    let f = Fixture::with_budget(true, Some(36890));
+    let mut calls = 0;
+    let outcome = f.execute(
+        NativeTeamStart::Fresh(f.claim(f.run.work[0].id)),
+        |_, _, _, _| {
+            calls += 1;
+            Ok(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Working\"}}]}\n\ndata: [DONE]\n\n"
+                    .into(),
+            )
+        },
+    );
+    assert!(outcome.unwrap_err().to_string().contains("token budget"));
+    assert_eq!(calls, 1);
+    let usage = f.store.snapshot(f.run.id).unwrap().usage;
+    assert_eq!(usage.reserved_tokens, 36864);
+    assert_eq!(usage.consumed_tokens, 0);
+}
+#[test]
+fn native_team_model_metadata_requires_exact_unique_context_bound() {
+    let valid = json!({"data":[{"id":"other","context_length":100000},{"id":"model-0","context_length":32768}]});
+    let quote = allowance_from_catalog(&valid, "model-0").unwrap();
+    assert_eq!(quote.max_input_tokens, 32768);
+    assert_eq!(quote.max_output_tokens, 4096);
+    assert_eq!(quote.model, "model-0");
+    for catalog in [
+        json!({"data":[{"id":"other","context_length":1}]}),
+        json!({"data":[{"id":"model-0"}]}),
+        json!({"data":[{"id":"model-0","context_length":0}]}),
+        json!({"data":[{"id":"model-0","context_length":-1}]}),
+        json!({"data":[{"id":"model-0","context_length":100},{"id":"model-0","context_length":100}]}),
+    ] {
+        assert!(allowance_from_catalog(&catalog, "model-0").is_err());
+    }
 }

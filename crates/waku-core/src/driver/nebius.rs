@@ -450,6 +450,23 @@ fn parse_stream_scoped(
     cancelled: &AtomicBool,
     specialist: bool,
 ) -> Result<(String, Vec<ToolCall>)> {
+    let completion = parse_stream_metered(reader, events, cancelled, specialist)?;
+    Ok((completion.text, completion.calls))
+}
+
+struct StreamCompletion {
+    text: String,
+    calls: Vec<ToolCall>,
+    usage: Option<crate::teams::ModelTokenUsage>,
+}
+fn parse_stream_metered(
+    reader: impl BufRead,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    specialist: bool,
+) -> Result<StreamCompletion> {
+    let mut usage_receipt = None;
+    let mut invalid_usage = false;
     let mut text = String::new();
     let mut calls: Vec<ToolCall> = Vec::new();
     let mut done = false;
@@ -521,16 +538,39 @@ fn parse_stream_scoped(
                 }
             }
         }
-        if let Some(usage) = packet.get("usage") {
-            let context_tokens = usage["prompt_tokens"]
+        if let Some(usage) = packet.get("usage").filter(|v| !v.is_null()) {
+            // Preserve the existing solo context occupancy event, which does
+            // not require the stronger receipt needed to release a budget.
+            if let Some(total) = usage["prompt_tokens"]
                 .as_u64()
                 .zip(usage["completion_tokens"].as_u64())
-                .map(|(prompt, completion)| prompt.saturating_add(completion));
-            if context_tokens.is_some() {
+                .and_then(|(input, output)| input.checked_add(output))
+            {
                 let _ = events.send(DriverEvent::UsageUpdated {
-                    context_tokens,
+                    context_tokens: Some(total),
                     context_window: None,
                 });
+            }
+            // Usage is a provider receipt, never an agent tool argument. Never
+            // release a reservation for malformed, contradictory or partial data.
+            let receipt = usage["prompt_tokens"]
+                .as_u64()
+                .zip(usage["completion_tokens"].as_u64())
+                .zip(usage["total_tokens"].as_u64())
+                .filter(|((input, output), total)| input.checked_add(*output) == Some(*total))
+                .map(
+                    |((input_tokens, output_tokens), _)| crate::teams::ModelTokenUsage {
+                        input_tokens,
+                        output_tokens,
+                    },
+                );
+            if let Some(receipt) = receipt {
+                if usage_receipt.is_some_and(|previous| previous != receipt) {
+                    invalid_usage = true;
+                }
+                usage_receipt = Some(receipt);
+            } else {
+                invalid_usage = true;
             }
         }
     }
@@ -542,7 +582,11 @@ fn parse_stream_scoped(
             bail!("Nebius returned an incomplete tool call")
         }
     }
-    Ok((text, calls))
+    Ok(StreamCompletion {
+        text,
+        calls,
+        usage: if invalid_usage { None } else { usage_receipt },
+    })
 }
 
 fn tool_definitions(nemoclaw_enabled: bool) -> Value {
@@ -1004,6 +1048,76 @@ mod tests {
                     .starts_with("ion-team-journal-")
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn team_metering_preserves_legacy_solo_context_usage_event() {
+        let (events, received) = super::super::test_event_channel();
+        let packet = json!({"usage":{"prompt_tokens":15,"completion_tokens":4}});
+        let stream = format!("data: {packet}\n\ndata: [DONE]\n\n");
+        let reply =
+            parse_stream_metered(stream.as_bytes(), &events, &AtomicBool::new(false), false)
+                .unwrap();
+        assert_eq!(reply.usage, None);
+        assert!(received.try_iter().any(|e| matches!(
+            e,
+            DriverEvent::UsageUpdated {
+                context_tokens: Some(19),
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn team_stream_usage_requires_complete_consistent_provider_receipt() {
+        let (events, _) = super::super::test_event_channel();
+        let valid = json!({"choices":[],"usage":{"prompt_tokens":15,"completion_tokens":4,"total_tokens":19}});
+        let receipt = parse_stream_metered(
+            format!("data: {valid}\n\ndata: [DONE]\n\n").as_bytes(),
+            &events,
+            &AtomicBool::new(false),
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            receipt.usage,
+            Some(crate::teams::ModelTokenUsage {
+                input_tokens: 15,
+                output_tokens: 4
+            })
+        );
+        for invalid in [
+            json!({"usage":{"prompt_tokens":15,"completion_tokens":4}}),
+            json!({"usage":{"prompt_tokens":15,"completion_tokens":4,"total_tokens":20}}),
+            json!({"usage":{"prompt_tokens":-1,"completion_tokens":4,"total_tokens":3}}),
+        ] {
+            let result = parse_stream_metered(
+                format!("data: {valid}\n\ndata: {invalid}\n\ndata: [DONE]\n\n").as_bytes(),
+                &events,
+                &AtomicBool::new(false),
+                false,
+            )
+            .unwrap();
+            assert_eq!(result.usage, None);
+        }
+        let changed = json!({"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}});
+        let result = parse_stream_metered(
+            format!("data: {valid}\n\ndata: {changed}\n\ndata: [DONE]\n\n").as_bytes(),
+            &events,
+            &AtomicBool::new(false),
+            false,
+        )
+        .unwrap();
+        assert_eq!(result.usage, None);
+        assert!(
+            parse_stream_metered(
+                format!("data: {valid}\n\n").as_bytes(),
+                &events,
+                &AtomicBool::new(false),
+                false
+            )
+            .is_err()
+        );
     }
 
     #[test]

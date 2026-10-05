@@ -1761,7 +1761,12 @@ fn aggregate_model_call_reservations_are_transactional_and_replay_is_rejected() 
             let path = f.dir.join("control.db");
             std::thread::spawn(move || {
                 gate.wait();
-                TeamCoordinator::new(path).reserve_model_call(&lease, step, 102)
+                TeamCoordinator::new(path).reserve_model_call(
+                    &lease,
+                    step,
+                    allowance("model-0", 100, 10),
+                    102,
+                )
             })
         })
         .collect();
@@ -1774,7 +1779,11 @@ fn aggregate_model_call_reservations_are_transactional_and_replay_is_rejected() 
             .count(),
         1
     );
-    assert!(f.store.reserve_model_call(&claimed.lease, 1, 102).is_err());
+    assert!(
+        f.store
+            .reserve_model_call(&claimed.lease, 1, allowance("model-0", 100, 10), 102)
+            .is_err()
+    );
     assert_eq!(
         f.store
             .audit_events(run.id, 0, 128)
@@ -2495,4 +2504,387 @@ fn review_handoffs_fit_context_for_sixteen_superseded_children_with_escaped_evid
                 && w.expected_output_truncated
                 && w.review_feedback_truncated)
     );
+}
+
+fn allowance(model: &str, input: u64, output: u64) -> ModelCallAllowance {
+    ModelCallAllowance {
+        model: model.into(),
+        max_input_tokens: input,
+        max_output_tokens: output,
+    }
+}
+#[test]
+fn team_token_reservations_race_across_agents_without_overspending() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.max_tokens = Some(110);
+    let run = f.store.prepare(request, 100).unwrap();
+    f.materialize();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    let child = f.claim(run.id, child.id);
+    let gate = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let handles: Vec<_> = [root.lease.clone(), child.lease.clone()]
+        .into_iter()
+        .enumerate()
+        .map(|(i, lease)| {
+            let gate = gate.clone();
+            let path = f.dir.join("control.db");
+            std::thread::spawn(move || {
+                gate.wait();
+                TeamCoordinator::new(path).reserve_model_call(
+                    &lease,
+                    1,
+                    allowance(&format!("model-{i}"), 100, 10),
+                    102,
+                )
+            })
+        })
+        .collect();
+    gate.wait();
+    assert_eq!(
+        handles
+            .into_iter()
+            .filter_map(|h| h.join().unwrap().ok())
+            .count(),
+        1
+    );
+    let usage = f.store.snapshot(run.id).unwrap().usage;
+    assert_eq!(usage.reserved_tokens, 110);
+    assert_eq!(usage.model_calls, 1);
+    assert_eq!(usage.unknown_calls, 1);
+    assert_eq!(usage.consumed_tokens, 0);
+}
+#[test]
+fn team_usage_receipts_are_atomic_exact_and_release_only_their_reservation() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.max_tokens = Some(220);
+    let run = f.store.prepare(request, 100).unwrap();
+    f.materialize();
+    let root = f.claim(run.id, run.work[0].id);
+    let call = f
+        .store
+        .reserve_model_call(&root.lease, 1, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    let other = f
+        .store
+        .reserve_model_call(&root.lease, 2, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    let gate = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let handles: Vec<_> = (0..2)
+        .map(|_| {
+            let gate = gate.clone();
+            let call = call.clone();
+            let path = f.dir.join("control.db");
+            std::thread::spawn(move || {
+                gate.wait();
+                TeamCoordinator::new(path).record_model_usage(
+                    &call,
+                    ModelTokenUsage {
+                        input_tokens: 10,
+                        output_tokens: 5,
+                    },
+                    103,
+                )
+            })
+        })
+        .collect();
+    gate.wait();
+    for h in handles {
+        h.join().unwrap().unwrap();
+    }
+    let run = f.store.snapshot(run.id).unwrap();
+    assert_eq!(run.usage.consumed_tokens, 15);
+    assert_eq!(run.usage.reserved_tokens, 110);
+    assert_eq!(run.usage.unknown_calls, 1);
+    assert_eq!(run.usage.unmetered_calls, 0);
+    let revision = run.revision;
+    f.store
+        .record_model_usage(
+            &call,
+            ModelTokenUsage {
+                input_tokens: 10,
+                output_tokens: 5,
+            },
+            104,
+        )
+        .unwrap();
+    assert_eq!(f.store.snapshot(run.id).unwrap().revision, revision);
+    assert!(
+        f.store
+            .record_model_usage(
+                &call,
+                ModelTokenUsage {
+                    input_tokens: 1,
+                    output_tokens: 0
+                },
+                104
+            )
+            .is_err()
+    );
+    assert!(
+        f.store
+            .reserve_model_call(&root.lease, 3, allowance("model-0", 100, 10), 104)
+            .is_err()
+    );
+    f.store
+        .record_model_usage(
+            &other,
+            ModelTokenUsage {
+                input_tokens: 10,
+                output_tokens: 5,
+            },
+            104,
+        )
+        .unwrap();
+    f.store
+        .reserve_model_call(&root.lease, 3, allowance("model-0", 100, 10), 104)
+        .unwrap();
+    assert_eq!(
+        f.store
+            .audit_events(run.id, 0, 128)
+            .unwrap()
+            .iter()
+            .filter(|e| e.event == "model_usage")
+            .count(),
+        2
+    );
+}
+#[test]
+fn team_unknown_call_allowances_survive_yield_resume_and_owner_restart() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.max_tokens = Some(110);
+    let run = f.store.prepare(request, 100).unwrap();
+    f.materialize();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .reserve_model_call(&root.lease, 1, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    let child = f.store.delegate(&root.lease, f.delegation(1), 103).unwrap();
+    f.materialize();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 103)
+        .unwrap();
+    let child = f.claim(run.id, child.id);
+    f.complete(&child.lease);
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 105, 100)
+        .unwrap();
+    assert!(
+        f.store
+            .reserve_model_call(&root.lease, 2, allowance("model-0", 1, 1), 105)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .reserve_model_call(&resumed.claimed.lease, 2, allowance("model-0", 1, 1), 105)
+            .is_err()
+    );
+    f.store.reconcile_owner_restart(106).unwrap();
+    let restored = TeamCoordinator::new(f.dir.join("control.db"))
+        .snapshot(run.id)
+        .unwrap();
+    assert_eq!(restored.usage.reserved_tokens, 110);
+    assert_eq!(restored.usage.unknown_calls, 1);
+    assert_eq!(
+        restored
+            .work
+            .iter()
+            .find(|w| w.id == root.assignment.id)
+            .unwrap()
+            .status,
+        AssignmentStatus::Uncertain
+    );
+}
+#[test]
+fn team_stopped_call_can_account_usage_without_authorizing_more_execution() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    assert!(
+        f.store
+            .reserve_model_call(&root.lease, 1, allowance("different-model", 10, 10), 102)
+            .is_err()
+    );
+    let call = f
+        .store
+        .reserve_model_call(&root.lease, 1, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    let before = f.store.snapshot(run.id).unwrap();
+    f.store.stop(run.id, before.revision, 103).unwrap();
+    f.store
+        .record_model_usage(
+            &call,
+            ModelTokenUsage {
+                input_tokens: 25,
+                output_tokens: 4,
+            },
+            104,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .reserve_model_call(&root.lease, 2, allowance("model-0", 100, 10), 104)
+            .is_err()
+    );
+    let after = f.store.snapshot(run.id).unwrap();
+    assert_eq!(after.status, TeamRunStatus::Stopping);
+    assert_eq!(after.work[0].status, AssignmentStatus::Canceling);
+    assert_eq!(after.usage.reserved_tokens, 0);
+    assert_eq!(after.usage.consumed_tokens, 29);
+    assert!(after.work[0].status.holds_capacity());
+}
+#[test]
+fn team_provider_overage_is_retained_and_blocks_all_further_calls() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let call = f
+        .store
+        .reserve_model_call(&root.lease, 1, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    let receipt = ModelTokenUsage {
+        input_tokens: 33_000_000,
+        output_tokens: 12,
+    };
+    assert!(f.store.record_model_usage(&call, receipt, 103).is_err());
+    assert!(f.store.record_model_usage(&call, receipt, 104).is_err());
+    let after = f.store.snapshot(run.id).unwrap();
+    assert_eq!(after.usage.consumed_tokens, 33_000_012);
+    assert_eq!(after.usage.allowance_violations, 1);
+    assert_eq!(after.usage.reserved_tokens, 0);
+    assert!(
+        f.store
+            .reserve_model_call(&root.lease, 2, allowance("model-0", 100, 10), 104)
+            .is_err()
+    );
+}
+#[test]
+fn team_legacy_budget_replay_does_not_enable_new_budget_or_hide_unmetered_calls() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.max_tokens = None;
+    let run = f.store.prepare(request.clone(), 100).unwrap();
+    f.materialize();
+    let root = f.claim(run.id, run.work[0].id);
+    let db = Connection::open(f.dir.join("control.db")).unwrap();
+    db.execute("UPDATE ion_team_runs SET request=json_remove(request,'$.limits.maxTokens'),body=json_remove(body,'$.limits.maxTokens','$.usage') WHERE id=?",[run.id.to_string()]).unwrap();
+    db.execute(
+        "INSERT INTO ion_team_model_calls VALUES(?,?,?,?,?,?,?,?)",
+        params![
+            Uuid::new_v4().to_string(),
+            run.id.to_string(),
+            root.assignment.id.to_string(),
+            root.lease.attempt_id.to_string(),
+            0,
+            1,
+            "model-0",
+            102
+        ],
+    )
+    .unwrap();
+    drop(db);
+    assert_eq!(f.store.prepare(request.clone(), 103).unwrap().id, run.id);
+    let after = f.store.snapshot(run.id).unwrap();
+    assert_eq!(after.limits.max_tokens, None);
+    assert_eq!(after.usage.unmetered_calls, 1);
+    assert_eq!(after.usage.unknown_calls, 1);
+    request.limits.max_tokens = Some(2_000_000);
+    assert!(f.store.prepare(request, 103).is_err());
+    f.store
+        .reserve_model_call(&root.lease, 2, allowance("model-0", 100, 10), 103)
+        .unwrap();
+    let after = f.store.snapshot(run.id).unwrap();
+    assert_eq!(after.usage.model_calls, 2);
+    assert_eq!(after.usage.reserved_tokens, 110);
+}
+#[test]
+fn team_token_limit_validation_rejects_zero_and_unbounded_projection_values() {
+    let f = Fixture::new();
+    for tokens in [0, 1_000_000_001, u64::MAX] {
+        let mut request = f.request();
+        request.limits.max_tokens = Some(tokens);
+        assert!(f.store.prepare(request, 100).is_err());
+    }
+}
+
+#[test]
+fn team_default_user_queue_replay_retains_old_limits_but_rejects_changed_work() {
+    let f = Fixture::new();
+    let mut old = f.request();
+    old.limits.max_tokens = None;
+    old.source_prompt = Some(format!("@team:{} {}", f.team, old.objective));
+    let run = f.store.queue_task(old.clone(), 100).unwrap();
+    let mut replay = old.clone();
+    replay.limits = Default::default();
+    let saved = f.store.queue_default_task(replay.clone(), 101).unwrap();
+    assert_eq!(saved.id, run.id);
+    assert_eq!(saved.limits.max_tokens, None);
+    assert!(!saved.limits.require_child_review);
+    replay.objective = "Different task".into();
+    replay.source_prompt = Some(format!("@team:{} Different task", f.team));
+    assert!(f.store.queue_default_task(replay, 102).is_err());
+    let mut next = old;
+    next.id = Uuid::new_v4();
+    next.root_task_id = Uuid::new_v4();
+    let new = f.store.queue_default_task(next, 103).unwrap();
+    assert_ne!(new.id, run.id);
+    assert_eq!(new.limits.max_tokens, Some(2_000_000));
+    assert!(new.limits.require_child_review);
+}
+#[test]
+fn team_default_agent_queue_replay_keeps_legacy_budget_and_review_policy() {
+    let f = Fixture::new();
+    let source = Uuid::new_v4();
+    let revision = f.definitions.load().unwrap().revision;
+    let run = f
+        .store
+        .queue_from_agent(
+            source,
+            f.project,
+            "provider-call".into(),
+            f.team,
+            revision,
+            "Inspect".into(),
+            100,
+        )
+        .unwrap();
+    let db = Connection::open(f.dir.join("control.db")).unwrap();
+    db.execute("UPDATE ion_team_runs SET request=json_remove(request,'$.limits.maxTokens','$.limits.requireChildReview'),body=json_remove(body,'$.limits.maxTokens','$.limits.requireChildReview') WHERE id=?",[run.id.to_string()]).unwrap();
+    db.execute("UPDATE ion_team_invocations SET signature=json_remove(signature,'$.limits.maxTokens','$.limits.requireChildReview') WHERE run_id=?",[run.id.to_string()]).unwrap();
+    drop(db);
+    let saved = f
+        .store
+        .queue_from_agent(
+            source,
+            f.project,
+            "provider-call".into(),
+            f.team,
+            revision,
+            "Inspect".into(),
+            101,
+        )
+        .unwrap();
+    assert_eq!(saved.id, run.id);
+    assert_eq!(saved.root_task_id, run.root_task_id);
+    assert_eq!(saved.limits.max_tokens, None);
+    assert!(!saved.limits.require_child_review);
+    assert!(
+        f.store
+            .queue_from_agent(
+                source,
+                f.project,
+                "provider-call".into(),
+                f.team,
+                revision,
+                "Changed".into(),
+                102
+            )
+            .is_err()
+    );
+    assert_eq!(f.store.runs_for_source(source).unwrap().len(), 1);
 }

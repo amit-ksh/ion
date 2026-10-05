@@ -1,7 +1,7 @@
 # Agent teams: implementation progress and review checklist
 
 Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
-`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch and review/rework
+`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
 ## Foundation implementation
@@ -39,7 +39,7 @@ increments of [the agreed plan](18-agent-teams-implementation.md).
   cannot complete with unfinished children. Repeated identical reports produce
   one durable result event; changed reports are rejected.
 - Audit events are indexed and paged by cursor. Typed daemon commands prepare,
-  query and stop runs. Protocol version is **15**; desktop/daemon/mobile clients
+  query and stop runs. Protocol version is **16**; desktop/daemon/mobile clients
   must rebuild together.
 
 `PrepareTeamRun` prepares a durable queue for an existing idle root task. It does
@@ -256,6 +256,53 @@ Daemon dispatch checkpoint: `1400e86`.
   a correction request with valid observed evidence. Handoffs explicitly mark
   truncated output/feedback excerpts; full feedback is retained for corrections.
 
+## Token reservation increment (2026-10-05)
+
+Result-review checkpoint: `03640c3`.
+
+- New runs pin a shared budget of 2,000,000 tokens by default. `maxTokens` is
+  configurable from 1 to 1,000,000,000 through the trusted run-limits interface.
+  Agent, parent, correction, retry and resumed requests all use the same ledger.
+  A user-facing budget editor and dollar-price reservations remain pending.
+- The trusted adapter reads the pinned model's exact verbose catalog entry and
+  reserves its entire advertised input context plus the requested 4,096 output
+  tokens before a completion request. This deliberately conservative allowance
+  covers system instructions and tool definitions without a tokenizer guess.
+  A model whose full allowance cannot fit is blocked before that request.
+  Missing, invalid or duplicate metadata cannot authorize billable execution.
+- Reservations and aggregate limits commit in one transaction. Parallel agents
+  cannot each spend the last allowance; repeated model steps cannot replay a
+  provider request. Call, model and allowance provenance remain daemon-owned.
+- Native requests ask for streamed usage and cap completion tokens including
+  reasoning. Only a complete stream with consistent nonnegative input/output/
+  total usage can reduce a reservation to actual token counts. A malformed,
+  missing or interrupted receipt retains the complete allowance. Cancellation,
+  retry, parent yield and owner restart never clear it.
+- Exact repeated receipts produce one accounting/audit update. A changed receipt
+  cannot release a second allowance. The opaque call receipt can finish
+  accounting after Stop/lease expiry without authorizing additional execution.
+  A provider receipt above the advertised allowance is retained as a violation
+  and blocks all later reservations for that run.
+- Run snapshots expose model calls, consumed tokens, outstanding token
+  reservations, unknown usage, historical unmetered calls and allowance
+  violations. All ledger reads and provider metadata work remain on daemon/host
+  workers. Streaming transcript cadence and the solo usage event remain intact.
+- Protocol **16** adds the pinned token cap and usage projection. Older runs keep
+  their previous call-only limit (`maxTokens: null`); old unmetered calls are
+  explicitly counted. Exact user/agent invocation replays recover the saved
+  limits, including the old review policy; they cannot silently enable a new cap.
+  Explicit run-limit requests still reject changed arguments.
+- This enforces token admission under the provider's advertised context and
+  completion limits. It does not bound currency billing, cloud VM charges,
+  connector costs or another app's usage. No live provider acceptance is claimed.
+
+Provider interfaces verified against the current [verbose model catalog](https://docs.tokenfactory.nebius.com/api-reference/models/list-models),
+[chat completion request](https://docs.tokenfactory.nebius.com/api-reference/inference/create-chat-completion)
+and [public OpenAPI schema](https://api.tokenfactory.nebius.com/openapi.json).
+The schema defines `RichModel.context_length`, `max_completion_tokens` including
+reasoning, and `stream_options.include_usage`; actual account payloads still need
+live acceptance once the key is available.
+
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
@@ -269,14 +316,16 @@ Daemon dispatch checkpoint: `1400e86`.
   enforced read grant and bounded resumed child context.
 - [x] Connect native workers to the daemon dispatcher, durable transcripts,
   setup readiness, model-call quotas and attached runtime events.
-- [ ] Enforce token and dollar budgets before billable execution.
+- [x] Enforce native per-run token reservations before billable execution.
+- [ ] Add the user-facing budget editor, dollar-price reservations and cost limits.
 - [x] Durable parent waiting/resume and bounded child result handoffs.
 - [x] Native adapter delivery of bounded child handoffs and document evidence.
 - [x] Native parent review/rework and structural document/check output contracts.
 - [ ] Executed check receipts, independent semantic acceptance and review gates
   for additional harness adapters.
-- [ ] Per-call token/model/cost reservations and budget enforcement. Current
-  concurrency/work/depth/attempt/deadline caps do not enforce dollar budgets.
+- [x] Per-call pinned-model token allowances and durable provider usage receipts.
+- [ ] Per-call cost reservations and currency enforcement; token limits do not
+  enforce dollar budgets or remote host charges.
 - [ ] Exact filesystem/resource/egress grants and Composio action grant editor.
   A prompt, worktree or saved grant is not permission enforcement.
 - [ ] Team readiness matrix and supported model validation for each harness.
@@ -319,8 +368,8 @@ git diff --check
 Verified 2026-10-05 against this worktree:
 
 - Team coordinator, invocation, recovery and daemon integration checks:
-  **67 passed**, including **44 coordinator tests**, **7 native adapter tests**
-  and **11 dispatcher tests**. The six continuation
+  **83 passed**, including **53 coordinator tests**, **11 native adapter tests**
+  and **12 dispatcher tests**. The six continuation
   regressions cover three-level execution with one slot, restart, stale leases,
   exact replay, racing resume, shared capacity, cancellation/deadlines and
   uncertain children with escaped/Unicode handoffs. The native adapter checks
@@ -344,6 +393,14 @@ Verified 2026-10-05 against this worktree:
   The native dispatcher executes a correction task through real adapter tools
   and restores the exact review status from persisted task details. A separate
   regression protects that update when a matching catalog hides stale detail.
+  Token checks cover concurrent shared reservations, exact/racing receipts,
+  unknown usage across parent yield and restart, accounting after Stop, pinned
+  model identity, provider overage and invalid limits. Native checks prove denial
+  before the completion callback and actual usage settlement before the next
+  request; missing usage retains the full allowance. Stream checks reject
+  inconsistent/partial receipts without losing the legacy solo occupancy event.
+  User and native-agent invocation replay retains legacy pinned limits without
+  accepting changed work. A daemon regression verifies the visible budget blocker.
 The following unaffected suites also passed at the daemon-dispatch checkpoint:
 
 - Runtime publisher cursor/replay regression: **1 passed**.
@@ -352,9 +409,9 @@ The following unaffected suites also passed at the daemon-dispatch checkpoint:
 - Team addressing parser: **3 passed**.
 - Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
-Current review increment verification:
+Current token-budget increment verification:
 
-- Protocol wire contract suite: **7 passed** (including the new review limits).
+- Protocol wire contract suite: **7 passed** (including review and token limits).
 - Native app and daemon: `cargo check --locked -p waku -p waku-daemon` passed.
 - TypeScript bindings regenerated and the generator's `--check` passed.
 - TypeScript client: **23 tests passed**, and its TypeScript type check passed
@@ -367,8 +424,9 @@ worktree. No app executable was launched or replaced by these check/test runs.
 The existing dev watcher was not restarted. Foundation commit: `d093fa9`.
 Invocation checkpoint: `c64810c`. Parent continuation checkpoint: `54c26cd`.
 Native adapter checkpoint: `d2a770f`. Daemon dispatch checkpoint: `1400e86`.
-The result-review increment is committed after the verification recorded above.
-No live provider, sandbox, mobile build or visual acceptance is claimed.
+Result-review checkpoint: `03640c3`. The token-budget checkpoint follows the
+verification above. No live provider, sandbox, mobile build or visual acceptance
+is claimed.
 
 ## User review of invocation and native dispatch
 
@@ -389,6 +447,9 @@ No live provider, sandbox, mobile build or visual acceptance is claimed.
   parent cannot finish with an unaccepted child.
 - [ ] Request missing documents/formats/check labels; confirm reporting returns
   feedback and does not commit a completed result. Declared checks are not executed tests.
+- [ ] Inspect the run token totals; confirm missing usage remains reserved and
+  budget exhaustion shows a blocker before another provider request. Current
+  default is 2,000,000 tokens; a custom cap requires the trusted run-limits interface.
 - [ ] Close the team task attachment while children run; reopen it and confirm
   the same run continues. Use Stop separately to cancel the owning team run.
 - [ ] In a native Nebius solo task, ask it to use a saved team; inspect the

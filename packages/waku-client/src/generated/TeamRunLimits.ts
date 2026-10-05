@@ -2,6 +2,10 @@
 
 export type TeamRunLimits = { maxWorkItems: number, maxParallelTasks: number, maxDepth: number, maxAttempts: number, maxModelCalls: number,
 /**
+ * Missing on old pinned runs means no token budget was configured.
+ */
+maxTokens: number | null,
+/**
  * Old pinned runs retain their original completion policy.
  */
 requireChildReview: boolean, maxReworkRounds: number, timeoutSeconds: number, };

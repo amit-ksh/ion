@@ -12,6 +12,7 @@ use std::{collections::HashSet, path::PathBuf};
 use uuid::Uuid;
 use waku_protocol::{control::*, teams::*};
 
+mod budget;
 mod continuation;
 mod dispatch;
 mod documents;
@@ -20,6 +21,7 @@ mod reviews;
 mod storage;
 #[cfg(test)]
 mod tests;
+pub use budget::{ModelCallAllowance, ModelCallReservation, ModelTokenUsage};
 pub use continuation::{AssignmentContinuation, AssignmentHandoff};
 pub use reviews::ReviewRequest;
 use storage::*;
@@ -223,6 +225,40 @@ impl TeamCoordinator {
         self.prepare_inner(request, now, false)
     }
 
+    /// User/agent invocation commands carry no run-limit choices. Their exact
+    /// replay must retain saved limits when defaults change after an upgrade.
+    /// Explicit PrepareRun callers still compare every requested limit exactly.
+    pub(crate) fn queue_default_task(
+        &self,
+        mut request: PrepareRun,
+        now: u64,
+    ) -> Result<TeamRunSnapshot> {
+        let mut db = self.connect()?;
+        let tx = db.transaction()?;
+        let existing: Option<String> = if let Some(origin) = &request.origin {
+            tx.query_row(
+                "SELECT run_id FROM ion_team_invocations WHERE task_id=? AND request_id=?",
+                params![origin.task_id.to_string(), origin.request_id],
+                |r| r.get(0),
+            )
+            .optional()?
+        } else {
+            tx.query_row(
+                "SELECT id FROM ion_team_runs WHERE root_task_id=? OR id=?",
+                params![request.root_task_id.to_string(), request.id.to_string()],
+                |r| r.get(0),
+            )
+            .optional()?
+        };
+        request.limits = if let Some(id) = existing {
+            load(&tx, Uuid::parse_str(&id)?)?.limits
+        } else {
+            TeamRunLimits::default()
+        };
+        tx.commit()?;
+        self.queue_task(request, now)
+    }
+
     pub(crate) fn queue_from_agent(
         &self,
         task_id: Uuid,
@@ -234,7 +270,7 @@ impl TeamCoordinator {
         now: u64,
     ) -> Result<TeamRunSnapshot> {
         let objective = objective.trim().to_owned();
-        self.queue_task(
+        self.queue_default_task(
             PrepareRun {
                 id: Uuid::new_v4(),
                 root_task_id: Uuid::new_v4(),
@@ -291,6 +327,12 @@ impl TeamCoordinator {
                 && limits.max_rework_rounds <= 8
                 && (60..=604800).contains(&limits.timeout_seconds),
             "Invalid team execution limits"
+        );
+        ensure!(
+            limits
+                .max_tokens
+                .is_none_or(|tokens| (1..=1_000_000_000).contains(&tokens)),
+            "Team token budget must be 1-1000000000"
         );
         let body = serde_json::to_string(&request)?;
         ensure!(
@@ -426,6 +468,7 @@ impl TeamCoordinator {
             team,
             profiles,
             limits: request.limits,
+            usage: TeamTokenUsage::default(),
             access: request.access,
             created_at: now,
             deadline,
@@ -1321,6 +1364,7 @@ fn same_request(old: &str, new: &str) -> Result<bool> {
             limits
                 .entry("maxReworkRounds")
                 .or_insert(serde_json::json!(2));
+            limits.entry("maxTokens").or_insert(serde_json::Value::Null);
         }
         Ok(value)
     };

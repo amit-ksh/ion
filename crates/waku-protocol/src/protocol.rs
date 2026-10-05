@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 15;
+pub const PROTOCOL_VERSION: u32 = 16;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -622,6 +622,7 @@ mod tests {
         assert_eq!(json["expectedDefinitionRevision"], 3);
         assert_eq!(json["limits"]["requireChildReview"], true);
         assert_eq!(json["limits"]["maxReworkRounds"], 2);
+        assert_eq!(json["limits"]["maxTokens"], 2_000_000);
         assert!(matches!(
             serde_json::from_value::<Command>(json).unwrap(),
             Command::PrepareTeamRun { .. }

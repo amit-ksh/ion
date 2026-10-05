@@ -46,6 +46,10 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             generation INTEGER NOT NULL, step INTEGER NOT NULL, model TEXT NOT NULL,
             started_at INTEGER NOT NULL, UNIQUE(attempt_id,step));
         CREATE INDEX IF NOT EXISTS ion_team_calls_run ON ion_team_model_calls(run_id);
+        CREATE TABLE IF NOT EXISTS ion_team_call_budgets (
+            call_id TEXT PRIMARY KEY REFERENCES ion_team_model_calls(id),
+            input_cap INTEGER NOT NULL, output_cap INTEGER NOT NULL,
+            input_tokens INTEGER, output_tokens INTEGER);
         CREATE INDEX IF NOT EXISTS ion_team_active_runs ON ion_team_runs(status,id);
         CREATE TABLE IF NOT EXISTS ion_team_audit (
             cursor INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
@@ -64,6 +68,7 @@ pub(super) fn load(db: &Connection, id: Uuid) -> Result<TeamRunSnapshot> {
     let mut run: TeamRunSnapshot = serde_json::from_str(&body)?;
     run.revision = revision;
     run.status = serde_json::from_value(serde_json::Value::String(status))?;
+    run.usage = super::budget::usage(db, id)?;
     let mut query =
         db.prepare("SELECT body FROM ion_team_work WHERE run_id=? ORDER BY rowid LIMIT 257")?;
     run.work = query

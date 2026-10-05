@@ -333,7 +333,7 @@ impl Backend for WakuBackend {
                     invocation.team_id == team_id,
                     "The team mention changed; choose the team again"
                 );
-                let snapshot = self.teams.queue_task(
+                let snapshot = self.teams.queue_default_task(
                     crate::teams::PrepareRun {
                         id: run_id,
                         root_task_id: session_id,

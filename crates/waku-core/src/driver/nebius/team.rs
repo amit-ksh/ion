@@ -3,7 +3,7 @@
 use super::*;
 use crate::teams::{
     AssignmentContinuation, AssignmentLease, AssignmentOutcome, ClaimedAssignment, Delegation,
-    ReviewRequest, TeamCoordinator,
+    ModelCallAllowance, ReviewRequest, TeamCoordinator,
 };
 use std::io::Read;
 use waku_protocol::{model::ProviderKind, teams::*};
@@ -11,6 +11,7 @@ use waku_protocol::{model::ProviderKind, teams::*};
 const MAX_TEAM_STEPS: u16 = 16;
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 const MAX_REPLY_BYTES: usize = 12 * 1024;
+const MAX_OUTPUT_TOKENS: u64 = 4096;
 
 pub enum NativeTeamStart {
     Fresh(ClaimedAssignment),
@@ -144,18 +145,19 @@ pub fn run_native_team_assignment(
         workspace,
         events,
         cancelled,
+        |model| model_allowance(&client, &key, model),
         |model, system, messages, tools| {
             let mut request = vec![json!({"role":"system","content":system})];
             request.extend_from_slice(messages);
             let response = client.post(format!("{TOKEN_FACTORY_BASE_URL}/chat/completions"))
-            .bearer_auth(&key).json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"max_tokens":4096})).send().context("Teams completion request failed")?;
+            .bearer_auth(&key).json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true},"max_completion_tokens":MAX_OUTPUT_TOKENS,"n":1})).send().context("Teams completion request failed")?;
             anyhow::ensure!(
                 response.status().is_success(),
                 "Teams completion failed (HTTP {})",
                 response.status()
             );
             // Also bound an unterminated or malformed SSE response, including lines.
-            parse_stream_scoped(
+            parse_stream_metered(
                 BufReader::new(response.take(1024 * 1024)),
                 events,
                 cancelled,
@@ -163,6 +165,54 @@ pub fn run_native_team_assignment(
             )
         },
     )
+}
+
+// Reserving the full provider context limit avoids treating bytes/4 or another
+// tokenizer guess as a permission to spend. If verbose metadata is unavailable,
+// execution blocks before sending a billable completion.
+fn model_allowance(
+    client: &reqwest::blocking::Client,
+    key: &str,
+    model: &str,
+) -> Result<ModelCallAllowance> {
+    let response = client
+        .get(format!("{TOKEN_FACTORY_BASE_URL}/models"))
+        .query(&[("verbose", "true")])
+        .bearer_auth(key)
+        .send()
+        .context("Could not verify the Nebius model token allowance")?;
+    anyhow::ensure!(
+        response.status().is_success(),
+        "Model token allowance unavailable (HTTP {})",
+        response.status()
+    );
+    let catalog: Value = serde_json::from_reader(response.take(2 * 1024 * 1024))
+        .context("Invalid Nebius model allowance catalog")?;
+    allowance_from_catalog(&catalog, model)
+}
+fn allowance_from_catalog(catalog: &Value, model: &str) -> Result<ModelCallAllowance> {
+    let entries = catalog["data"]
+        .as_array()
+        .context("Model allowance catalog has no data array")?;
+    let mut matches = entries
+        .iter()
+        .filter(|entry| entry["id"].as_str() == Some(model));
+    let entry = matches
+        .next()
+        .context("Pinned model is absent from the allowance catalog")?;
+    anyhow::ensure!(
+        matches.next().is_none(),
+        "Model allowance catalog has duplicate identities"
+    );
+    let max_input_tokens = entry["context_length"]
+        .as_u64()
+        .filter(|n| (1..=32_000_000).contains(n))
+        .context("Pinned model has no verified context limit; token budget cannot be enforced")?;
+    Ok(ModelCallAllowance {
+        model: model.to_owned(),
+        max_input_tokens,
+        max_output_tokens: MAX_OUTPUT_TOKENS,
+    })
 }
 
 #[cfg(test)]
@@ -180,9 +230,16 @@ pub(crate) fn run_scripted_team_assignment(
         workspace,
         events,
         cancelled,
+        |model| {
+            Ok(ModelCallAllowance {
+                model: model.to_owned(),
+                max_input_tokens: 32768,
+                max_output_tokens: MAX_OUTPUT_TOKENS,
+            })
+        },
         |model, system, messages, tools| {
             let sse = response(model, system, messages, tools)?;
-            parse_stream_scoped(BufReader::new(sse.as_bytes()), events, cancelled, false)
+            parse_stream_metered(BufReader::new(sse.as_bytes()), events, cancelled, false)
         },
     )
 }
@@ -193,7 +250,8 @@ fn run_with_completion(
     workspace: &Path,
     events: &DriverEventSender,
     cancelled: &AtomicBool,
-    mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<(String, Vec<ToolCall>)>,
+    mut allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
+    mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
 ) -> Result<NativeTeamExit> {
     let (mut claimed, mut journal, children) = match start {
         NativeTeamStart::Fresh(claimed) => {
@@ -302,18 +360,26 @@ fn run_with_completion(
             coordinator.renew(&claimed.lease, crate::model::unix_time(), 180)?;
             journal.steps += 1;
             journal.save(coordinator, &claimed.lease)?;
-            coordinator.reserve_model_call(
+            let reservation = coordinator.reserve_model_call(
                 &claimed.lease,
                 journal.steps,
+                allowance(model)?,
                 crate::model::unix_time(),
             )?;
-            let (text, calls) = completion(
+            anyhow::ensure!(
+                !cancelled.load(Ordering::Relaxed),
+                "Teams worker stopped before completion request"
+            );
+            let reply = completion(
                 model,
                 &system,
                 &journal.messages,
                 tools(claimed.assignment.access.workspace_read),
             )?;
-            journal.stage(text, calls)?;
+            if let Some(usage) = reply.usage {
+                coordinator.record_model_usage(&reservation, usage, crate::model::unix_time())?;
+            }
+            journal.stage(reply.text, reply.calls)?;
             journal.save(coordinator, &claimed.lease)?;
             if journal.pending.is_empty() {
                 journal.messages.push(json!({"role":"user","content":"The assignment is still active. Publish your document and use report_result, or report_blocker. Plain text is not a completion receipt."}));

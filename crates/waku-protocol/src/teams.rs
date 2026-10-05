@@ -80,6 +80,9 @@ pub struct TeamRunLimits {
     pub max_depth: u16,
     pub max_attempts: u16,
     pub max_model_calls: u16,
+    /// Missing on old pinned runs means no token budget was configured.
+    #[serde(default)]
+    pub max_tokens: Option<u64>,
     /// Old pinned runs retain their original completion policy.
     #[serde(default)]
     pub require_child_review: bool,
@@ -94,6 +97,7 @@ impl Default for TeamRunLimits {
             max_depth: 8,
             max_attempts: 2,
             max_model_calls: 64,
+            max_tokens: Some(2_000_000),
             require_child_review: true,
             max_rework_rounds: 2,
             timeout_seconds: 3600,
@@ -142,6 +146,8 @@ pub struct TeamRunSnapshot {
     pub team: Team,
     pub profiles: Vec<AgentProfile>,
     pub limits: TeamRunLimits,
+    #[serde(default)]
+    pub usage: TeamTokenUsage,
     pub access: AgentAccess,
     pub created_at: u64,
     pub deadline: u64,
@@ -151,6 +157,19 @@ pub struct TeamRunSnapshot {
     pub source_prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<TeamTaskOrigin>,
+}
+
+/// Completed provider usage and allowances retained for requests without a receipt.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamTokenUsage {
+    pub model_calls: u32,
+    pub consumed_tokens: u64,
+    pub reserved_tokens: u64,
+    pub unknown_calls: u32,
+    /// Historical calls without an allowance cannot be treated as zero-cost evidence.
+    pub unmetered_calls: u32,
+    pub allowance_violations: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
