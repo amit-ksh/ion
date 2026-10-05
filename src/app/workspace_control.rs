@@ -8,6 +8,7 @@ use waku_client::teams::{
 };
 mod team_activity;
 mod team_apps;
+mod team_integration;
 mod team_limits;
 use waku_client::{Command as Rpc, ResponsePayload};
 
@@ -153,6 +154,12 @@ pub(super) struct ControlUi {
     pending_team_decisions: u32,
     team_runs: Rc<Vec<TeamRunSummary>>,
     team_run: Option<Rc<TeamRunSnapshot>>,
+    integration: Option<std::sync::Arc<waku_client::teams::TeamIntegration>>,
+    integration_busy: bool,
+    integration_generation: u64,
+    integration_error: Option<String>,
+    integration_expanded: HashSet<usize>,
+    integration_rows: Rc<Vec<std::sync::Arc<team_integration::SourceChangeRow>>>,
     selected_run: Option<Uuid>,
     runs_tab: bool,
     runs_team: Option<Uuid>,
@@ -175,6 +182,9 @@ enum Row {
     AgentInTeam(AgentProfile, usize, Option<String>),
     TeamRun(Rc<TeamRunSummary>),
     Assignment(Rc<team_activity::AssignmentRow>),
+    SourceChange(usize, std::sync::Arc<team_integration::SourceChangeRow>),
+    SourceDiffLine(usize, std::sync::Arc<crate::review_diff::Line>),
+    SourceConflict(String),
     TeamDecision(Rc<waku_client::teams::TeamDecision>),
     Account(String, String, String),
     Empty(&'static str),
@@ -305,6 +315,12 @@ impl ControlUi {
             pending_team_decisions: 0,
             team_runs: Rc::new(Vec::new()),
             team_run: None,
+            integration: None,
+            integration_busy: false,
+            integration_generation: 0,
+            integration_error: None,
+            integration_expanded: HashSet::new(),
+            integration_rows: Rc::new(vec![]),
             selected_run: None,
             runs_tab: false,
             runs_team: None,
@@ -826,6 +842,7 @@ impl Waku {
             self.control_ui.activity_generation += 1;
             self.control_ui.activity_busy = false;
             self.control_ui.selected_run = None;
+            self.clear_team_integration();
             self.control_ui.team_run = None;
             self.control_ui.runs_after = None;
             self.control_ui.runs_previous.clear();
@@ -1678,6 +1695,14 @@ impl Waku {
                     .child(error.clone()),
             );
         }
+        if let Some(error) = &self.control_ui.integration_error {
+            content = content.child(
+                div()
+                    .text_size(sp(13.0))
+                    .text_color(theme.danger)
+                    .child(error.clone()),
+            );
+        }
         if let Some(error) = &self.control_ui.activity_error {
             content = content.child(
                 div()
@@ -1849,6 +1874,18 @@ impl Waku {
             Row::TeamDecision(decision) => return self.render_team_decision_row(decision, cx),
             Row::TeamRun(run) => return self.render_team_run_row(run, cx),
             Row::Assignment(row) => return self.render_team_assignment_row(row, cx),
+            Row::SourceChange(index, row) => return self.render_team_source_change(index, row, cx),
+            Row::SourceDiffLine(index, line) => {
+                return self.render_team_source_diff_line(index, line, cx);
+            }
+            Row::SourceConflict(conflict) => {
+                return div()
+                    .py(px(10.0))
+                    .text_size(sp(13.0))
+                    .text_color(theme.danger)
+                    .child(conflict)
+                    .into_any_element();
+            }
             Row::AppPair(configs) => {
                 let mut pair = div().flex().gap(px(28.0)).py(px(12.0));
                 let count = configs.len();

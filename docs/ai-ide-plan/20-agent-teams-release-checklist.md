@@ -1,6 +1,6 @@
 # Agent Teams release checklist
 
-Updated 2026-10-05. Implementation branch: `codex/ion-agent-teams` in the managed
+Updated 2026-10-06. Implementation branch: `codex/ion-agent-teams` in the managed
 worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
@@ -30,6 +30,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [x] Explicit continuation from a safe checkpoint after a known Local worker exit,
   retaining task, attempt, host, grants, model and budget history.
 - [x] Native cached run/hierarchy/task/document/status projections and background RPCs.
+- [x] Human-reviewed combined source changes from native edit receipts, exact source
+  conflict checks, explicit approval, durable application receipts and interrupted
+  application reconciliation. Created/deleted files and directories are included.
 
 These checked items record implementation and automated verification. They do not
 assert live account acceptance, visual validation or production release readiness.
@@ -44,8 +47,6 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Executed test/check receipts and enforceable command isolation. Declared check
   labels and model-written test claims are not executed validation.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
-- [ ] User-reviewed source integration: concrete combined diff, conflict handling,
-  approval and durable application receipts, including created/deleted files.
 - [ ] Confirmation of hosts left behind by owner restart and outcome reconciliation
   for pending file/app/structural effects. Safe checkpoint continuation does not
   authorize replay of an unknown effect.
@@ -69,6 +70,13 @@ not proof of a complete Teams execution backend.
 - [ ] Approve and decline exact app actions and inspect real provider outcomes.
 - [ ] Create a source directory/file and remove a small obsolete file in the isolated
   workspace; inspect the change document and confirm the source checkout is intact.
+- [ ] Open a completed coding run's Review changes, inspect the combined diff and
+  Apply reviewed changes. Verify only those changes appear in the original project
+  and remain uncommitted. Repeat Apply and confirm newer edits are preserved.
+- [ ] Change the original source while reviewing. Verify conflicts prevent Apply;
+  restore a compatible clean baseline and Refresh review before approval.
+- [ ] In a disposable project, interrupt source application. Inspect the receipts
+  and private backups, repair the source, and explicitly confirm its outcome.
 - [ ] Restore provider access after a temporary request failure and use Continue
   from checkpoint; verify task identity and budget history remain unchanged.
 - [ ] Stop a source/team task and verify real children stop; close an attachment
@@ -79,7 +87,7 @@ not proof of a complete Teams execution backend.
 
 ## Verification baseline
 
-Current protocol is **22**. Rebuild desktop, daemon and clients together. The
+Current protocol is **23**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

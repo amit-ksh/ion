@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 22;
+pub const PROTOCOL_VERSION: u32 = 23;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -220,6 +220,19 @@ pub enum Command {
         run_id: Uuid,
         after: u64,
         limit: usize,
+    },
+    PrepareTeamIntegration {
+        run_id: Uuid,
+        expected_revision: u64,
+    },
+    ApplyTeamIntegration {
+        id: Uuid,
+        expected_revision: u64,
+    },
+    ReconcileTeamIntegration {
+        id: Uuid,
+        expected_revision: u64,
+        keep_changes: bool,
     },
     ResumeTeamAssignment {
         run_id: Uuid,
@@ -462,6 +475,9 @@ pub enum ResponsePayload {
     TeamTaskQueued {
         snapshot: crate::teams::TeamRunSnapshot,
         session: AgentSession,
+    },
+    TeamIntegration {
+        review: crate::teams::TeamIntegration,
     },
     TeamRun {
         snapshot: crate::teams::TeamRunSnapshot,
@@ -717,6 +733,26 @@ mod tests {
             Command::ListTeamDecisions {
                 pending_only: true,
                 limit: 32,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn team_source_apply_binds_immutable_review_and_revision() {
+        let id = Uuid::new_v4();
+        let value = serde_json::to_value(Command::ApplyTeamIntegration {
+            id,
+            expected_revision: 3,
+        })
+        .unwrap();
+        assert_eq!(value["type"], "applyTeamIntegration");
+        assert_eq!(value["id"], id.to_string());
+        assert_eq!(value["expectedRevision"], 3);
+        assert!(matches!(
+            serde_json::from_value::<Command>(value).unwrap(),
+            Command::ApplyTeamIntegration {
+                expected_revision: 3,
                 ..
             }
         ));

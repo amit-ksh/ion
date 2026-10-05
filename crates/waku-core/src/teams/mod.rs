@@ -586,6 +586,7 @@ impl TeamCoordinator {
     pub fn reconcile_owner_restart(&self, now: u64) -> Result<()> {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        workspace::reconcile_integrations(&tx, now)?;
         let run_ids: Vec<String> = tx
             .prepare(
                 "SELECT DISTINCT run_id FROM ion_team_work WHERE status IN ('running','canceling')",

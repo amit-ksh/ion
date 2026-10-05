@@ -15,6 +15,10 @@ enum ReservedWorkspaceEdit {
     Pending { id: Uuid, path: PathBuf },
 }
 mod files;
+mod integration;
+pub(super) fn reconcile_integrations(tx: &Transaction<'_>, now: u64) -> Result<()> {
+    integration::reconcile_owner_restart(tx, now)
+}
 
 #[derive(Serialize, Deserialize)]
 struct WorkspaceRecord {
@@ -130,7 +134,20 @@ fn canonical_git_root(path: &Path) -> Result<PathBuf> {
         git(path, &["rev-parse", "--show-toplevel"])?.trim(),
     )?)
 }
+fn require_filter_free(repository: &Path) -> Result<()> {
+    let config = git(repository, &["config", "--null", "--list", "--includes"])?;
+    ensure!(
+        !config.split('\0').any(|line| line.starts_with("filter.")
+            && (line.contains(".smudge\n")
+                || line.contains(".process\n")
+                || line.contains(".clean\n"))),
+        "Teams Git inspection requires a project without custom clean/smudge/process filters"
+    );
+    Ok(())
+}
 fn verify(record: &WorkspaceRecord) -> Result<()> {
+    require_filter_free(&record.repository)?;
+    require_filter_free(&record.tree)?;
     ensure!(
         record.workspace.path.is_dir(),
         "Team worktree is missing; restore it before continuing"
@@ -215,6 +232,7 @@ impl TeamCoordinator {
             return Ok(record.workspace.path);
         }
         let repository=canonical_git_root(&source).context("Coding teams require a Git project for isolated work; initialize/commit the project first")?;
+        require_filter_free(&repository)?;
         ensure!(
             git(
                 &repository,
@@ -223,12 +241,6 @@ impl TeamCoordinator {
             .trim()
             .is_empty(),
             "Commit or stash project changes before starting a coding team; its isolated workspace must have an explicit clean baseline"
-        );
-        let config = git(&repository, &["config", "--local", "--null", "--list"])?;
-        ensure!(
-            !config.split('\0').any(|line| line.starts_with("filter.")
-                && (line.contains(".smudge\n") || line.contains(".process\n"))),
-            "Teams worktree checkout needs a project without custom smudge/process filters"
         );
         ensure!(
             git(&repository, &["ls-files", "--stage"])?

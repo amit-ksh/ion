@@ -874,3 +874,445 @@ fn team_workspace_native_adapter_creates_directory_deletes_file_and_submits_revi
     assert!(!workspace.join("main.rs").exists());
     assert_eq!(fs::read_to_string(f.source.join("main.rs")).unwrap(), old);
 }
+
+fn finish_coding(f: &Fixture, root: &ClaimedAssignment) -> TeamRunSnapshot {
+    let document = f
+        .store
+        .publish_workspace_change(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    f.store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Reviewed code complete".into(),
+                artifact_ids: vec![document.id],
+                checks: vec![],
+            }),
+            crate::model::unix_time(),
+        )
+        .unwrap()
+}
+fn source_review(f: &Fixture) -> TeamIntegration {
+    f.store
+        .prepare_source_integration(
+            f.run.id,
+            f.store.snapshot(f.run.id).unwrap().revision,
+            &f.source,
+            crate::model::unix_time(),
+        )
+        .unwrap()
+}
+#[test]
+fn team_source_integration_reviews_combined_creations_deletions_and_receipts_before_apply() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    assert!(
+        f.store
+            .prepare_source_integration(
+                f.run.id,
+                f.store.snapshot(f.run.id).unwrap().revision,
+                &f.source,
+                now
+            )
+            .is_err()
+    );
+    f.store
+        .create_workspace_directory(&root.lease, Uuid::new_v4(), "src", now)
+        .unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "src/lib.rs",
+            None,
+            "pub fn answer() -> i32 { 2 }\n",
+            now,
+        )
+        .unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "src/lib.rs",
+            Some("pub fn answer() -> i32 { 2 }\n"),
+            "pub fn answer() -> i32 { 3 }\n",
+            now,
+        )
+        .unwrap();
+    let before = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    f.store
+        .delete_workspace_file(&root.lease, Uuid::new_v4(), "main.rs", &before, now)
+        .unwrap();
+    finish_coding(&f, &root);
+    let review = source_review(&f);
+    assert_eq!(review.changes.len(), 3);
+    assert!(review.conflicts.is_empty());
+    assert_eq!(review.changes[0].path, "src");
+    assert!(review.changes[0].directory);
+    let addition = review
+        .changes
+        .iter()
+        .find(|c| c.path == "src/lib.rs")
+        .unwrap();
+    assert!(addition.before.is_none());
+    assert_eq!(addition.edit_ids.len(), 2);
+    assert_eq!(
+        addition.after.as_deref(),
+        Some("pub fn answer() -> i32 { 3 }\n")
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("main.rs")).unwrap(),
+        before
+    );
+    assert!(!f.source.join("src").exists());
+    assert_eq!(source_review(&f).id, review.id);
+    assert!(
+        f.store
+            .apply_source_integration(review.id, review.revision + 1, &f.source, now)
+            .is_err()
+    );
+    let applied = f
+        .store
+        .apply_source_integration(review.id, review.revision, &f.source, now)
+        .unwrap();
+    assert_eq!(applied.status, TeamIntegrationStatus::Applied);
+    assert_eq!(applied.applied_changes, 3);
+    assert!(!f.source.join("main.rs").exists());
+    assert_eq!(
+        fs::read_to_string(f.source.join("src/lib.rs")).unwrap(),
+        addition.after.clone().unwrap()
+    );
+    assert!(git(&f.source, &["diff", "--cached"]).unwrap().is_empty());
+    // Repeating a successful request returns its receipt, preserving newer edits.
+    fs::write(f.source.join("src/lib.rs"), "User follow-up").unwrap();
+    assert_eq!(
+        f.store
+            .apply_source_integration(review.id, review.revision, &f.source, now)
+            .unwrap()
+            .revision,
+        applied.revision
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("src/lib.rs")).unwrap(),
+        "User follow-up"
+    );
+    let restarted = TeamCoordinator::new(f.store.control.path());
+    assert_eq!(
+        restarted
+            .prepare_source_integration(
+                f.run.id,
+                restarted.snapshot(f.run.id).unwrap().revision,
+                &f.source,
+                now
+            )
+            .unwrap()
+            .status,
+        TeamIntegrationStatus::Applied
+    );
+}
+#[test]
+fn team_source_integration_detects_changed_source_workspace_and_project_binding() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let before = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            Some(&before),
+            "Reviewed replacement",
+            now,
+        )
+        .unwrap();
+    finish_coding(&f, &root);
+    let plan = source_review(&f);
+    fs::write(f.source.join("main.rs"), "User edit").unwrap();
+    assert!(!source_review(&f).conflicts.is_empty());
+    assert!(
+        f.store
+            .apply_source_integration(plan.id, plan.revision, &f.source, now)
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("main.rs")).unwrap(),
+        "User edit"
+    );
+    fs::write(f.source.join("main.rs"), &before).unwrap();
+    assert!(
+        f.store
+            .apply_source_integration(plan.id, plan.revision, &workspace, now)
+            .is_err()
+    );
+    fs::write(workspace.join("main.rs"), "Workspace drift").unwrap();
+    assert!(
+        f.store
+            .apply_source_integration(plan.id, plan.revision, &f.source, now)
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("main.rs")).unwrap(),
+        before
+    );
+}
+#[test]
+fn team_source_integration_rejects_unreceipted_files_and_changed_commit() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let before = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            Some(&before),
+            "Reviewed replacement",
+            now,
+        )
+        .unwrap();
+    finish_coding(&f, &root);
+    fs::write(workspace.join("untracked.txt"), "Outside tool boundary").unwrap();
+    assert!(
+        f.store
+            .prepare_source_integration(
+                f.run.id,
+                f.store.snapshot(f.run.id).unwrap().revision,
+                &f.source,
+                now
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("Unreceipted")
+    );
+    fs::remove_file(workspace.join("untracked.txt")).unwrap();
+    let plan = source_review(&f);
+    git(
+        &f.source,
+        &[
+            "-c",
+            "user.name=Ion Tests",
+            "-c",
+            "user.email=ion@example.test",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "New baseline",
+        ],
+    )
+    .unwrap();
+    assert!(!source_review(&f).conflicts.is_empty());
+    assert!(
+        f.store
+            .apply_source_integration(plan.id, plan.revision, &f.source, now)
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("main.rs")).unwrap(),
+        before
+    );
+}
+#[test]
+fn team_source_integration_partial_apply_never_replays_and_requires_exact_reconciliation() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let before = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    f.store
+        .create_workspace_directory(&root.lease, Uuid::new_v4(), "new", now)
+        .unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            Some(&before),
+            "Reviewed replacement",
+            now,
+        )
+        .unwrap();
+    finish_coding(&f, &root);
+    let plan = source_review(&f);
+    let path = f.source.join("main.rs");
+    let original = fs::metadata(&path).unwrap().permissions();
+    let mut permissions = original.clone();
+    permissions.set_readonly(true);
+    fs::set_permissions(&path, permissions).unwrap();
+    let partial = f
+        .store
+        .apply_source_integration(plan.id, plan.revision, &f.source, now)
+        .unwrap();
+    assert_eq!(partial.status, TeamIntegrationStatus::Uncertain);
+    assert_eq!(partial.applied_changes, 1);
+    assert!(f.source.join("new").is_dir());
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
+    assert!(
+        f.store
+            .apply_source_integration(plan.id, partial.revision, &f.source, now)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .reconcile_source_integration(plan.id, partial.revision, true, &f.source, now)
+            .is_err()
+    );
+    fs::set_permissions(&path, original).unwrap();
+    fs::write(&path, "Reviewed replacement").unwrap();
+    let stage = f
+        .source
+        .join(format!(".ion-edit-{}-1.integration", plan.id));
+    assert!(stage.exists());
+    assert!(
+        f.store
+            .reconcile_source_integration(plan.id, partial.revision, true, &f.source, now)
+            .is_err()
+    );
+    fs::remove_file(stage).unwrap();
+    let applied = f
+        .store
+        .reconcile_source_integration(plan.id, partial.revision, true, &f.source, now)
+        .unwrap();
+    assert_eq!(applied.status, TeamIntegrationStatus::Applied);
+    assert_eq!(applied.applied_changes, 2);
+}
+#[test]
+fn team_source_integration_restart_retains_unknown_effect_and_revokes_apply() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let before = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            Some(&before),
+            "Reviewed replacement",
+            now,
+        )
+        .unwrap();
+    finish_coding(&f, &root);
+    let plan = source_review(&f);
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE ion_team_integrations SET state='applying',revision=revision+1 WHERE id=?",
+            [plan.id.to_string()],
+        )
+        .unwrap();
+    let restarted = TeamCoordinator::new(f.store.control.path());
+    restarted.reconcile_owner_restart(now).unwrap();
+    let recovered = restarted
+        .prepare_source_integration(
+            f.run.id,
+            restarted.snapshot(f.run.id).unwrap().revision,
+            &f.source,
+            now,
+        )
+        .unwrap();
+    assert_eq!(recovered.status, TeamIntegrationStatus::Uncertain);
+    assert!(
+        restarted
+            .apply_source_integration(plan.id, recovered.revision, &f.source, now)
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("main.rs")).unwrap(),
+        before
+    );
+    fs::write(f.source.join("main.rs"), "Reviewed replacement").unwrap();
+    assert_eq!(
+        restarted
+            .reconcile_source_integration(plan.id, recovered.revision, true, &f.source, now)
+            .unwrap()
+            .status,
+        TeamIntegrationStatus::Applied
+    );
+}
+
+#[test]
+fn team_source_integration_can_confirm_restored_source_after_interruption() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let before = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            Some(&before),
+            "Reviewed replacement",
+            now,
+        )
+        .unwrap();
+    finish_coding(&f, &root);
+    let plan = source_review(&f);
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE ion_team_integrations SET state='applying',revision=revision+1 WHERE id=?",
+            [plan.id.to_string()],
+        )
+        .unwrap();
+    f.store.reconcile_owner_restart(now).unwrap();
+    let recovered = source_review(&f);
+    fs::write(f.source.join("main.rs"), "Unresolved user edit").unwrap();
+    assert!(
+        f.store
+            .reconcile_source_integration(plan.id, recovered.revision, false, &f.source, now)
+            .is_err()
+    );
+    fs::write(f.source.join("main.rs"), &before).unwrap();
+    let reverted = f
+        .store
+        .reconcile_source_integration(plan.id, recovered.revision, false, &f.source, now)
+        .unwrap();
+    assert_eq!(reverted.status, TeamIntegrationStatus::Reverted);
+    assert_eq!(reverted.applied_changes, 0);
+    assert!(
+        f.store
+            .apply_source_integration(plan.id, reverted.revision, &f.source, now)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .reconcile_source_integration(plan.id, reverted.revision, true, &f.source, now)
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(f.source.join("main.rs")).unwrap(),
+        before
+    );
+}
+#[test]
+fn team_source_integration_rejects_checkout_filters_before_git_status() {
+    let f = Fixture::new();
+    git(
+        &f.source,
+        &["config", "filter.fixture.clean", "echo forbidden"],
+    )
+    .unwrap();
+    assert!(
+        f.store
+            .prepare_local_workspace(f.run.id, &f.source, crate::model::unix_time())
+            .unwrap_err()
+            .to_string()
+            .contains("custom clean")
+    );
+}

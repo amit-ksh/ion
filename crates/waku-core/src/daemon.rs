@@ -133,6 +133,17 @@ impl WakuBackend {
         self
     }
 
+    fn team_integration_source(&self, run_id: Uuid) -> anyhow::Result<PathBuf> {
+        let run = self.teams.snapshot(run_id)?;
+        self.task_state
+            .lock()
+            .projects
+            .iter()
+            .find(|p| p.id == run.project_id)
+            .map(|p| p.path.clone())
+            .context("Original team project no longer exists")
+    }
+
     fn task_start_gate(&self, task: Uuid) -> Arc<Mutex<()>> {
         let mut gates = self.task_start_gates.lock();
         gates.retain(|_, gate| gate.strong_count() > 0);
@@ -470,6 +481,52 @@ impl Backend for WakuBackend {
                 )?;
                 self.team_runtime.wake();
                 Ok(ResponsePayload::TeamDecision { decision })
+            }
+            Command::PrepareTeamIntegration {
+                run_id,
+                expected_revision,
+            } => {
+                let source = self.team_integration_source(run_id)?;
+                Ok(ResponsePayload::TeamIntegration {
+                    review: self.teams.prepare_source_integration(
+                        run_id,
+                        expected_revision,
+                        &source,
+                        crate::model::unix_time(),
+                    )?,
+                })
+            }
+            Command::ApplyTeamIntegration {
+                id,
+                expected_revision,
+            } => {
+                let source =
+                    self.team_integration_source(self.teams.source_integration_run(id)?)?;
+                Ok(ResponsePayload::TeamIntegration {
+                    review: self.teams.apply_source_integration(
+                        id,
+                        expected_revision,
+                        &source,
+                        crate::model::unix_time(),
+                    )?,
+                })
+            }
+            Command::ReconcileTeamIntegration {
+                id,
+                expected_revision,
+                keep_changes,
+            } => {
+                let source =
+                    self.team_integration_source(self.teams.source_integration_run(id)?)?;
+                Ok(ResponsePayload::TeamIntegration {
+                    review: self.teams.reconcile_source_integration(
+                        id,
+                        expected_revision,
+                        keep_changes,
+                        &source,
+                        crate::model::unix_time(),
+                    )?,
+                })
             }
             Command::ResumeTeamAssignment {
                 run_id,
@@ -2302,6 +2359,9 @@ fn handle_driver_command(
         | Command::GetTeamAudit { .. }
         | Command::StopTeamRun { .. }
         | Command::ResumeTeamAssignment { .. }
+        | Command::PrepareTeamIntegration { .. }
+        | Command::ApplyTeamIntegration { .. }
+        | Command::ReconcileTeamIntegration { .. }
         | Command::SaveWorkspaceRecord { .. }
         | Command::RemoveWorkspaceRecord { .. }
         | Command::GenerateWorkflow { .. }

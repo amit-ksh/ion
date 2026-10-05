@@ -924,3 +924,63 @@ unknown structural effects and the native create → write → delete → docume
 result chain. Desktop/daemon checking, Rust formatting and whitespace gates
 passed. Protocol/client checks from `d9dfba6` remain current; this checkpoint
 makes no wire-contract change. No live provider or visual acceptance was run.
+
+
+## Reviewed source integration increment (2026-10-06)
+
+Structural coding checkpoint: `bd74d14`.
+
+- A completed coding run can prepare an immutable combined review directly from
+  its durable native edit receipts. Every final file/directory is checked against
+  the actual isolated workspace. Extra staged, unstaged or untracked changes,
+  discontinuous edit chains and changed worktree identities reject preparation.
+  Creation, deletion, replacement and nested directory creation retain their
+  original before values, final values and contributing receipt IDs.
+- Models have no source-application tool. The native run's Review changes action
+  opens the combined diff, and Apply reviewed changes approves the exact saved
+  review identity/revision. All source binding, filesystem, Git and RPC work runs
+  on background workers. Diff parsing/tokenization is cached there; expanded diff
+  lines use the existing native renderer and virtualized list. Cached diff lines
+  are capped at 50,000 across the review; Save review preserves the exact full
+  before/after content and receipts for inspecting larger changes.
+- Approval rechecks the actual pinned worktree result, original project/repository,
+  source commit, clean checkout and exact before content before reserving any
+  effects. Conflicts are shown in the review. It never stashes, resets, stages,
+  commits or silently merges another edit. A changed base requires the user to
+  reconcile that baseline rather than having the model overwrite it.
+- The durable approval precedes each source effect's reservation. Repository-wide
+  application serialization prevents another team application crossing an
+  interrupted one. Before content remains in the saved review. A concurrent
+  unexpected file is preserved in a private source backup, with an uncertain
+  receipt; the effect is never replayed automatically.
+- Completed applications return the same durable receipt on repeated requests,
+  preserving newer user edits. Owner restart converts an unfinished application
+  into an uncertain outcome. Explicit reconciliation reads/verifies source and
+  requires private stages to be inspected/preserved and cleared before confirming
+  either the exact reviewed result or the restored original source. A confirmed
+  restoration closes the application without granting a replay. Reconciliation
+  does not perform filesystem effects.
+- Git metadata checks reject repository clean/smudge/process filters before status
+  inspection, alongside the existing disabled hooks/fsmonitor/global configuration.
+  Protocol **23** adds review/application/reconciliation RPCs and the exact change
+  manifest. Desktop, daemon and clients must rebuild together.
+
+User review:
+
+- [ ] Complete a coding team task that creates a directory/file, updates an existing
+  text file and removes an obsolete file. Inspect every combined change.
+- [ ] Apply the saved review and confirm the original project contains the expected
+  changes without an automatic commit or index update.
+- [ ] Introduce a source conflict before approval and confirm Apply is unavailable
+  or rejects without overwriting the newer file; resolve and refresh the review.
+- [ ] Repeat a successful Apply after a new user edit and confirm it is preserved.
+- [ ] In a disposable project, inspect/reconcile a partial application and verify
+  automatic replay remains refused.
+- [ ] Check keyboard operation and large expanded diffs when live UI review is run.
+
+Verification: **137 Teams tests**, **10 protocol tests**, **2 desktop diff/cache
+regression tests** and **23 TypeScript client tests** passed. Generated bindings
+are current; TypeScript checking, desktop/daemon checking, Rust formatting and
+whitespace gates passed. The source application tests used disposable repositories;
+no live provider, account mutation, cloud deployment, visual test or second watcher
+was run.

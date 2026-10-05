@@ -292,6 +292,7 @@ impl Waku {
         self.open_workspace_page(Page::Teams, cx);
         self.control_ui.runs_tab = true;
         self.control_ui.selected_run = Some(run_id);
+        self.clear_team_integration();
         self.control_ui.team_run = None;
         self.control_ui.activity_revision += 1;
         self.refresh_team_activity(true, cx);
@@ -511,6 +512,24 @@ impl Waku {
             let Some(run) = &self.control_ui.team_run else {
                 return vec![Row::Empty("Loading team assignments…")];
             };
+            if let Some(review) = &self.control_ui.integration {
+                let mut rows: Vec<Row> = review
+                    .conflicts
+                    .iter()
+                    .cloned()
+                    .map(Row::SourceConflict)
+                    .collect();
+                for (index, change) in self.control_ui.integration_rows.iter().enumerate() {
+                    rows.push(Row::SourceChange(index, change.clone()));
+                    if self.control_ui.integration_expanded.contains(&index) {
+                        for line in &change.lines {
+                            let index = rows.len();
+                            rows.push(Row::SourceDiffLine(index, line.clone()));
+                        }
+                    }
+                }
+                return rows;
+            }
             let profiles: HashMap<_, _> = run.profiles.iter().map(|a| (a.id, a)).collect();
             let work: HashMap<_, _> = run.work.iter().map(|w| (w.id, w)).collect();
             let artifacts: HashMap<_, _> = self
@@ -816,6 +835,7 @@ impl Waku {
                 self.control_button(id, label, cx, move |this, _, cx| {
                     this.control_ui.runs_tab = runs;
                     this.control_ui.selected_run = None;
+                    this.clear_team_integration();
                     this.control_ui.team_run = None;
                     this.control_ui.runs_team = None;
                     this.control_ui.runs_after = None;
@@ -953,6 +973,28 @@ impl Waku {
                             workspace.branch, workspace.base_commit
                         )),
                 );
+            }
+            if run.status == TeamRunStatus::Completed
+                && run.workspace.is_some()
+                && self.control_ui.integration.is_none()
+            {
+                actions = actions.child(self.control_button(
+                    "team-source-review",
+                    "Review changes",
+                    cx,
+                    move |this, _, cx| {
+                        this.request_team_integration(
+                            Rpc::PrepareTeamIntegration {
+                                run_id: id,
+                                expected_revision: revision,
+                            },
+                            cx,
+                        )
+                    },
+                ));
+            }
+            if self.control_ui.integration.is_some() {
+                header = header.child(self.render_team_integration_header(cx));
             }
             let cap = run
                 .limits

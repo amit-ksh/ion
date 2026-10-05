@@ -73,6 +73,13 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             request_id TEXT NOT NULL,signature TEXT NOT NULL,state TEXT NOT NULL,receipt TEXT,
             UNIQUE(work_id,request_id));
         CREATE INDEX IF NOT EXISTS ion_team_edit_pending ON ion_team_workspace_edits(run_id,state);
+        CREATE TABLE IF NOT EXISTS ion_team_integrations (
+            id TEXT PRIMARY KEY,run_id TEXT NOT NULL UNIQUE REFERENCES ion_team_runs(id),
+            repository TEXT NOT NULL,state TEXT NOT NULL,revision INTEGER NOT NULL,body TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS ion_team_integration_pending ON ion_team_integrations(repository,state);
+        CREATE TABLE IF NOT EXISTS ion_team_integration_steps (
+            integration_id TEXT NOT NULL REFERENCES ion_team_integrations(id),step INTEGER NOT NULL,
+            state TEXT NOT NULL,receipt TEXT,PRIMARY KEY(integration_id,step));
         CREATE TABLE IF NOT EXISTS ion_team_model_calls (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,

@@ -368,3 +368,38 @@ pub struct TeamTaskOrigin {
     pub task_id: Uuid,
     pub request_id: String,
 }
+
+/// Host-generated immutable change set. Only explicit user approval can apply it.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamIntegration {
+    pub id: Uuid,
+    pub run_id: Uuid,
+    pub revision: u64,
+    pub source_path: std::path::PathBuf,
+    pub base_commit: String,
+    pub branch: String,
+    pub status: TeamIntegrationStatus,
+    pub changes: Vec<TeamSourceChange>,
+    pub conflicts: Vec<String>,
+    pub applied_changes: u32,
+    pub created_at: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TeamIntegrationStatus {
+    Ready,
+    Applying,
+    Uncertain,
+    Applied,
+    Reverted,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamSourceChange {
+    pub path: String,
+    pub directory: bool,
+    pub before: Option<String>,
+    pub after: Option<String>,
+    pub edit_ids: Vec<Uuid>,
+}
