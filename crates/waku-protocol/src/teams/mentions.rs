@@ -95,6 +95,7 @@ mod tests {
             id: Uuid::new_v4(),
             name: name.into(),
             objective: "Work".into(),
+            limits: None,
             members: vec![],
         }
     }

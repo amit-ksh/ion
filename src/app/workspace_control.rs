@@ -7,6 +7,7 @@ use waku_client::teams::{
     TeamRunStatus, TeamRunSummary,
 };
 mod team_activity;
+mod team_limits;
 use waku_client::{Command as Rpc, ResponsePayload};
 
 fn app_name(slug: &str) -> String {
@@ -118,6 +119,8 @@ pub(super) struct ControlUi {
     sandbox_target: Entity<TextInput>,
     project: Option<Uuid>,
     members: Vec<TeamMember>,
+    limit_inputs: Vec<(team_limits::LimitField, Entity<TextInput>)>,
+    child_review: bool,
     stages: Vec<(Entity<TextInput>, Entity<TextInput>, bool)>,
     pending_stages: Option<Vec<WorkflowStage>>,
     focus: FocusHandle,
@@ -254,6 +257,8 @@ impl ControlUi {
                 .new(|cx| TextInput::new(window, cx).placeholder("Configured sandbox target")),
             project: None,
             members: Vec::new(),
+            limit_inputs: team_limits::inputs(window, cx),
+            child_review: true,
             stages: Vec::new(),
             pending_stages: None,
             focus: cx.focus_handle(),
@@ -888,6 +893,7 @@ impl Waku {
         self.control_ui.edit_id = None;
         self.control_ui.error = None;
         self.control_ui.members.clear();
+        self.set_team_limit_inputs(waku_client::teams::TeamRunLimits::default(), cx);
         self.control_ui.stages.clear();
         self.control_ui.pending_stages = None;
         self.control_ui.project = self.state.selected_project;
@@ -970,7 +976,10 @@ impl Waku {
                     input.set_content(v.model.unwrap_or_default(), cx)
                 });
             }
-            ControlRecord::Team(v) => self.control_ui.members = v.members,
+            ControlRecord::Team(v) => {
+                self.set_team_limit_inputs(v.limits.unwrap_or_default(), cx);
+                self.control_ui.members = v.members;
+            }
             ControlRecord::Routine(v) => {
                 self.control_ui.project = Some(v.project_id);
                 self.control_ui.provider = v.provider;
@@ -1048,12 +1057,23 @@ impl Waku {
                     max_parallel_tasks,
                 })
             }
-            FormKind::Team => ControlRecord::Team(Team {
-                id,
-                name,
-                objective: instructions,
-                members: self.control_ui.members.clone(),
-            }),
+            FormKind::Team => {
+                let limits = match self.read_team_limit_inputs(cx) {
+                    Ok(limits) => limits,
+                    Err(error) => {
+                        self.control_ui.error = Some(error);
+                        cx.notify();
+                        return;
+                    }
+                };
+                ControlRecord::Team(Team {
+                    id,
+                    name,
+                    objective: instructions,
+                    limits: Some(limits),
+                    members: self.control_ui.members.clone(),
+                })
+            }
             FormKind::Workflow => {
                 let Some(project_id) = self.control_ui.project else {
                     self.control_ui.error = Some("Choose a project.".into());
@@ -2392,6 +2412,7 @@ impl Waku {
                 );
         }
         if kind == FormKind::Team {
+            form = form.child(self.render_team_limit_inputs(cx));
             form = form.child(
                 div()
                     .text_size(sp(14.0))

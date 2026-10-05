@@ -62,6 +62,7 @@ impl Fixture {
                     id: team,
                     name: "Native team".into(),
                     objective: "Produce evidence".into(),
+                    limits: None,
                     members: vec![
                         TeamMember {
                             agent_id: agents[0],

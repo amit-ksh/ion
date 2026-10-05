@@ -1217,6 +1217,7 @@ mod tests {
                     id: team_id,
                     name: "Research".into(),
                     objective: "Inspect".into(),
+                    limits: None,
                     members: vec![TeamMember {
                         agent_id,
                         parent_id: None,

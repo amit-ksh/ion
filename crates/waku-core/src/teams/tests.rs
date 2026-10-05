@@ -54,6 +54,7 @@ impl Fixture {
                     id: team,
                     name: "Product team".into(),
                     objective: "Deliver a reviewed change".into(),
+                    limits: None,
                     members: vec![
                         TeamMember {
                             agent_id: agents[0],
@@ -2988,4 +2989,123 @@ fn team_collection_reports_review_blockers_and_metered_usage() {
     assert_eq!(summary.usage.consumed_tokens, 45);
     assert_eq!(summary.updated_at, 105);
     assert_eq!(summary.revision, f.store.snapshot(run.id).unwrap().revision);
+}
+
+#[test]
+fn team_saved_limits_apply_to_user_and_agent_invocation_but_never_rewrite_runs() {
+    let f = Fixture::new();
+    let mut definition = f
+        .definitions
+        .load()
+        .unwrap()
+        .records
+        .into_iter()
+        .find_map(|r| match r {
+            ControlRecord::Team(t) => Some(t),
+            _ => None,
+        })
+        .unwrap();
+    definition.limits = Some(TeamRunLimits {
+        max_tokens: Some(700),
+        max_model_calls: 2,
+        max_parallel_tasks: 1,
+        ..Default::default()
+    });
+    f.definitions
+        .save(
+            f.definitions.load().unwrap().revision,
+            ControlRecord::Team(definition.clone()),
+        )
+        .unwrap();
+    let mut request = f.request();
+    request.source_prompt = Some(format!("@team:{} {}", f.team, request.objective));
+    let run = f.store.queue_default_task(request.clone(), 100).unwrap();
+    assert_eq!(run.limits.max_tokens, Some(700));
+    assert_eq!(run.limits.max_model_calls, 2);
+    assert_eq!(run.limits.max_parallel_tasks, 1);
+    let from_agent = f
+        .store
+        .queue_from_agent(
+            Uuid::new_v4(),
+            f.project,
+            "tool-1".into(),
+            f.team,
+            f.definitions.load().unwrap().revision,
+            "Review change".into(),
+            101,
+        )
+        .unwrap();
+    assert_eq!(from_agent.limits.max_tokens, Some(700));
+    definition.limits.as_mut().unwrap().max_tokens = Some(900);
+    f.definitions
+        .save(
+            f.definitions.load().unwrap().revision,
+            ControlRecord::Team(definition),
+        )
+        .unwrap();
+    assert_eq!(
+        f.store
+            .queue_default_task(request, 102)
+            .unwrap()
+            .limits
+            .max_tokens,
+        Some(700)
+    );
+    assert_eq!(
+        f.store.snapshot(run.id).unwrap().limits.max_tokens,
+        Some(700)
+    );
+    let mut fresh = f.request();
+    fresh.source_prompt = Some(format!("@team:{} {}", f.team, fresh.objective));
+    assert_eq!(
+        f.store
+            .queue_default_task(fresh, 103)
+            .unwrap()
+            .limits
+            .max_tokens,
+        Some(900)
+    );
+}
+#[test]
+fn team_saved_limit_validation_rejects_invalid_definitions_atomically() {
+    let f = Fixture::new();
+    let before = f.definitions.load().unwrap();
+    let mut definition = before
+        .records
+        .iter()
+        .find_map(|r| match r {
+            ControlRecord::Team(t) => Some(t.clone()),
+            _ => None,
+        })
+        .unwrap();
+    definition.limits = Some(TeamRunLimits {
+        max_tokens: Some(0),
+        ..Default::default()
+    });
+    assert!(
+        f.definitions
+            .save(before.revision, ControlRecord::Team(definition))
+            .is_err()
+    );
+    assert_eq!(f.definitions.load().unwrap().revision, before.revision);
+    for limits in [
+        TeamRunLimits {
+            max_parallel_tasks: 0,
+            ..Default::default()
+        },
+        TeamRunLimits {
+            max_model_calls: 0,
+            ..Default::default()
+        },
+        TeamRunLimits {
+            timeout_seconds: 59,
+            ..Default::default()
+        },
+        TeamRunLimits {
+            max_attempts: 9,
+            ..Default::default()
+        },
+    ] {
+        assert!(validate_limits(&limits).is_err());
+    }
 }

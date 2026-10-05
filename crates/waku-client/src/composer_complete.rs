@@ -416,6 +416,7 @@ mod tests {
             id: uuid::Uuid::new_v4(),
             name: "Design team".into(),
             objective: "Design".into(),
+            limits: None,
             members: vec![],
         }];
         assert_eq!(

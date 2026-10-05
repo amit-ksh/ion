@@ -143,6 +143,28 @@ pub fn intersect_access(a: &AgentAccess, b: &AgentAccess) -> AgentAccess {
             .collect(),
     }
 }
+pub fn validate_limits(limits: &TeamRunLimits) -> Result<()> {
+    ensure!(
+        (1..=256).contains(&limits.max_work_items)
+            && (1..=16).contains(&limits.max_parallel_tasks)
+            && (1..=16).contains(&limits.max_depth)
+            && (1..=8).contains(&limits.max_attempts)
+            && limits.max_rework_rounds <= 8
+            && (60..=604800).contains(&limits.timeout_seconds),
+        "Invalid team execution limits"
+    );
+    ensure!(
+        (1..=4096).contains(&limits.max_model_calls),
+        "Team model-call limit must be 1-4096"
+    );
+    ensure!(
+        limits
+            .max_tokens
+            .is_none_or(|tokens| (1..=1_000_000_000).contains(&tokens)),
+        "Team token budget must be 1-1000000000"
+    );
+    Ok(())
+}
 pub fn validate_profile(profile: &AgentProfile) -> Result<()> {
     ensure!(
         (1..=16).contains(&profile.max_parallel_tasks),
@@ -251,12 +273,27 @@ impl TeamCoordinator {
             )
             .optional()?
         };
-        request.limits = if let Some(id) = existing {
-            load(&tx, Uuid::parse_str(&id)?)?.limits
-        } else {
-            TeamRunLimits::default()
-        };
+        let pinned_limits = existing
+            .map(|id| load(&tx, Uuid::parse_str(&id)?).map(|run| run.limits))
+            .transpose()?;
         tx.commit()?;
+        // ControlStore initializes its own connection; never hold a read
+        // transaction on the same file across that initialization.
+        request.limits = if let Some(limits) = pinned_limits {
+            limits
+        } else {
+            self.control
+                .load()?
+                .records
+                .into_iter()
+                .find_map(|record| match record {
+                    ControlRecord::Team(team) if team.id == request.team_id => {
+                        Some(team.limits.unwrap_or_default())
+                    }
+                    _ => None,
+                })
+                .context("Team no longer exists")?
+        };
         self.queue_task(request, now)
     }
 
@@ -319,27 +356,8 @@ impl TeamCoordinator {
         );
         text(&request.objective, 32_000, "Task objective")?;
         validate_access(&request.access)?;
-        let limits = &request.limits;
-        ensure!(
-            (1..=256).contains(&limits.max_work_items)
-                && (1..=16).contains(&limits.max_parallel_tasks)
-                && (1..=16).contains(&limits.max_depth)
-                && (1..=8).contains(&limits.max_attempts)
-                && limits.max_rework_rounds <= 8
-                && (60..=604800).contains(&limits.timeout_seconds),
-            "Invalid team execution limits"
-        );
-        ensure!(
-            limits
-                .max_tokens
-                .is_none_or(|tokens| (1..=1_000_000_000).contains(&tokens)),
-            "Team token budget must be 1-1000000000"
-        );
+        validate_limits(&request.limits)?;
         let body = serde_json::to_string(&request)?;
-        ensure!(
-            (1..=4096).contains(&request.limits.max_model_calls),
-            "Team model-call limit must be 1-4096"
-        );
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let origin_signature = if let Some(origin) = &request.origin {

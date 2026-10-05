@@ -344,6 +344,38 @@ No visual test or app launch was performed, following AGENTS.md. User review:
 - [ ] Inspect used/reserved tokens and missing-receipt counts.
 - [ ] Review keyboard operation and text legibility in both themes.
 
+## Editable run limits checkpoint
+
+Team creation/editing now exposes assignment count, shared parallel tasks,
+delegation depth, attempts, model calls, token cap, correction rounds, timeout
+and parent-review policy. Save validates bounds in the coordinator's control
+store as well as the UI. A clear token field explicitly means no token cap;
+new teams default to 2,000,000 tokens and required child review.
+
+Both user @team invocation and the native solo-agent invocation bridge resolve
+these defaults when creating a new run. Exact invocation replay loads the old
+run limits before comparing identity, so editing a template cannot enlarge or
+rewrite an existing run's authorization. Legacy teams without a limits field
+retain the documented default for new runs; old pinned runs keep their original
+policy. Token limits remain distinct from currency and remote-host cost limits.
+
+Verification: 87 team checks passed, including user/agent invocation with
+saved limits, edits after queueing, legacy replay, concurrent invocation and
+atomic rejection of invalid templates. Native app/daemon compilation passed.
+The regression suite caught and verified the fix for opening a control-store
+connection inside a held read transaction.
+
+User review:
+
+- [ ] Set a small token or model-call limit in a team, save, and start @team.
+- [ ] Confirm the run header reflects those limits and stops before another
+  billable native completion when no allowance remains.
+- [ ] Edit the team's limits and confirm the existing run remains unchanged;
+  a new run should use the edited limits.
+- [ ] Enter invalid or zero limits and confirm saving fails without changing
+  the stored definition.
+- [ ] Review required/optional parent-review behavior and correction limits.
+
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
@@ -358,7 +390,8 @@ No visual test or app launch was performed, following AGENTS.md. User review:
 - [x] Connect native workers to the daemon dispatcher, durable transcripts,
   setup readiness, model-call quotas and attached runtime events.
 - [x] Enforce native per-run token reservations before billable execution.
-- [ ] Add the user-facing budget editor, dollar-price reservations and cost limits.
+- [x] Add the user-facing token and execution limits editor.
+- [ ] Add dollar-price reservations and cost limits.
 - [x] Durable parent waiting/resume and bounded child result handoffs.
 - [x] Native adapter delivery of bounded child handoffs and document evidence.
 - [x] Native parent review/rework and structural document/check output contracts.
@@ -491,7 +524,7 @@ is claimed.
   feedback and does not commit a completed result. Declared checks are not executed tests.
 - [ ] Inspect the run token totals; confirm missing usage remains reserved and
   budget exhaustion shows a blocker before another provider request. Current
-  default is 2,000,000 tokens; a custom cap requires the trusted run-limits interface.
+  default is 2,000,000 tokens; customize new-run limits in the Team editor.
 - [ ] Close the team task attachment while children run; reopen it and confirm
   the same run continues. Use Stop separately to cancel the owning team run.
 - [ ] In a native Nebius solo task, ask it to use a saved team; inspect the

@@ -77,6 +77,10 @@ pub struct Team {
     pub id: Uuid,
     pub name: String,
     pub objective: String,
+    /// Defaults for new runs; an existing run retains its independently pinned limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub limits: Option<crate::teams::TeamRunLimits>,
     pub members: Vec<TeamMember>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

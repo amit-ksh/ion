@@ -199,6 +199,7 @@ impl Fixture {
                     id: team,
                     name: "Engineering".into(),
                     objective: "Review project".into(),
+                    limits: None,
                     members: agents
                         .iter()
                         .enumerate()

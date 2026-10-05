@@ -366,6 +366,9 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
         );
         match record {
             ControlRecord::Team(team) => {
+                if let Some(limits) = &team.limits {
+                    crate::teams::validate_limits(limits)?;
+                }
                 ensure!(
                     !team.members.is_empty() && team.members.len() <= 32,
                     "A team needs 1–32 agents"
@@ -617,6 +620,7 @@ mod tests {
             id: Uuid::new_v4(),
             name: "Team".into(),
             objective: "Ship".into(),
+            limits: None,
             members: vec![
                 TeamMember {
                     agent_id: a,
