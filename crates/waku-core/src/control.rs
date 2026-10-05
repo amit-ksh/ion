@@ -261,7 +261,27 @@ impl ControlStore {
                 .any(|record| matches!(record,ControlRecord::Artifact(a) if a.id==id)),
             "Document no longer exists"
         );
-        let bytes = std::fs::read(self.document_dir().join(id.to_string()))?;
+        // Team documents commit their payload, provenance and tool receipt in
+        // the same control transaction. Older imported documents remain files.
+        let db = self.connect()?;
+        let has_team_documents = db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ion_team_document_receipts')",
+            [], |row| row.get::<_, bool>(0),
+        )?;
+        let stored: Option<Vec<u8>> = if has_team_documents {
+            db.query_row(
+                "SELECT content FROM ion_team_document_receipts WHERE artifact_id=?",
+                [id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?
+        } else {
+            None
+        };
+        let bytes = match stored {
+            Some(bytes) => bytes,
+            None => std::fs::read(self.document_dir().join(id.to_string()))?,
+        };
         ensure!(bytes.len() <= 16 * 1024 * 1024, "Document is too large");
         Ok(bytes)
     }

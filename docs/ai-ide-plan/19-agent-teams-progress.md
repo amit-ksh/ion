@@ -1,7 +1,7 @@
 # Agent teams: implementation progress and review checklist
 
 Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
-`ion-prod` in a separate managed worktree. This records the foundation, invocation and continuation
+`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation and native adapter
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
 ## Foundation implementation
@@ -115,6 +115,45 @@ Invocation checkpoint committed as `c64810c`.
 - These are coordinator operations. Actual adapter dispatch, child execution,
   review/rework and live task projections remain the next implementation work.
 
+## Native adapter increment (2026-10-05)
+
+Parent continuation checkpoint committed as `54c26cd`.
+
+- A native Nebius Teams worker runs separately from the existing solo driver.
+  Its opaque lease selects the authoritative pinned assignment and profile;
+  caller projections cannot substitute objective, harness/model or grants.
+  It requires a Local attempt (including confirmed Local fallback) and an
+  explicit Nebius model. A cloud model API does not change the selected host.
+- Structured tools delegate to direct reports, await their results, publish/read
+  assignment documents and report a result or blocker. Models cannot supply
+  caller/task/project identity, host, model, access grants or trusted receipt IDs.
+- Parent model messages and pending tool calls are checkpointed before effects.
+  Yield commits the completed tool reply and continuation with lease revocation.
+  Resume retains that conversation and adds only bounded child handoffs.
+  No unfinished effect is blindly replayed as a continuation.
+- The worker retains a limit of 16 model calls across yields, at most eight tools
+  per response, 64 KiB of message context, 128 KiB of private checkpoint, bounded
+  tool replies, 4,096 requested output tokens and 1 MiB of SSE response data.
+  These bounds are not dollar-budget enforcement; reservations remain pending.
+- Workspace read tools are offered only with read authorization, enforce the
+  project root, reject traversal/links/private paths, and bound directory walks
+  and UTF-8 excerpts. No workspace write, shell, arbitrary network or connector
+  tools are exposed yet. Host isolation and exact resource policies for external
+  harnesses remain pending.
+- Completion requires document evidence; plain text cannot finish an assignment.
+  Unknown documents, unfinished children and invalid waits return feedback.
+  Blockers are recorded with an unsuccessful turn outcome. Yield emits a parked
+  turn rather than a completion event; resume continues that open turn.
+- Generated document payload, exact tool receipt, artifact provenance and audit
+  event commit together in the control database. Repeated/concurrent publication
+  yields one document; changed arguments or stale leases are rejected. The normal
+  document reader supports these payloads alongside existing imported files.
+  Parent reads are limited to its own work and child/dependency handoff scope.
+- This adapter is available to a trusted host worker. The daemon dispatcher,
+  durable transcript projection, readiness/budget gates and UI runtime attachment
+  are not connected yet. User and normal-agent invocation remain queue-only;
+  this increment does not claim that the application executes a queued team.
+
 ## Remaining development
 
 - [ ] Wire each delegation to the materializer and dispatcher wakeup; drain
@@ -123,11 +162,14 @@ Invocation checkpoint committed as `c64810c`.
   and daemon-owned durable queue creation.
 - [x] Add the native normal-agent team invocation queue bridge.
 - [ ] Implement actual team start/dispatch and authenticated harness execution.
-- [ ] Native Nebius adapter: bind leases to driver sessions, enforce grants,
-  expose delegation/report tools, return child results and resume parents.
+- [x] Native Nebius worker with lease-bound delegation/report/document tools,
+  enforced read grant and bounded resumed child context.
+- [ ] Connect native workers to the daemon dispatcher, durable transcripts,
+  readiness/budget gates and attached runtime events.
 - [x] Durable parent waiting/resume and bounded child result handoffs.
-- [ ] Adapter delivery of handoffs, review/rework, required output contracts and
-  acceptance checks beyond recorded evidence.
+- [x] Native adapter delivery of bounded child handoffs and document evidence.
+- [ ] Review/rework, required output contracts and acceptance checks beyond
+  recorded evidence.
 - [ ] Per-call token/model/cost reservations and budget enforcement. Current
   concurrency/work/depth/attempt/deadline caps do not enforce dollar budgets.
 - [ ] Exact filesystem/resource/egress grants and Composio action grant editor.
@@ -169,10 +211,16 @@ git diff --check
 Verified 2026-10-05 against this worktree:
 
 - Team coordinator, invocation, recovery and daemon integration checks:
-  **33 passed**, including **29 coordinator tests**. The six continuation
+  **43 passed**, including **32 coordinator tests** and **7 native adapter
+  tests**. The six continuation
   regressions cover three-level execution with one slot, restart, stale leases,
   exact replay, racing resume, shared capacity, cancellation/deadlines and
-  uncertain children with escaped/Unicode handoffs.
+  uncertain children with escaped/Unicode handoffs. The native adapter checks
+  a three-level document/review chain, pinned definitions, denied tools and
+  identity overrides, private/traversal reads, bounded replies, invalid waits,
+  unfinished children, cancellation before effects and plain text without a
+  completion receipt. Document checks cover atomic replay, concurrent publication
+  and assignment/handoff provenance.
 - Team addressing parser: **3 passed**.
 - Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
@@ -187,8 +235,8 @@ Cargo checks/tests reused the existing dependency cache with
 `--target-dir D:/personal/apps/waku/target`; source changes live in the new
 worktree. No app executable was launched or replaced by these check/test runs.
 The existing dev watcher was not restarted. Foundation commit: `d093fa9`.
-Invocation checkpoint: `c64810c`. Parent continuation changes are delivered
-in a separate commit after verification.
+Invocation checkpoint: `c64810c`. Parent continuation checkpoint: `54c26cd`.
+The native adapter increment is committed separately after verification.
 No live provider, sandbox, mobile build or visual acceptance is claimed.
 
 ## User review of invocation (queue only)

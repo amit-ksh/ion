@@ -1557,3 +1557,187 @@ fn uncertain_children_do_not_wake_the_parent_and_handoffs_stay_bounded() {
     assert_eq!(resumed.children[0].checks.len(), 2);
     assert!(serde_json::to_vec(&resumed.children).unwrap().len() < 2048);
 }
+
+#[test]
+fn assignment_documents_commit_payload_provenance_and_exact_replay_across_restart() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_document(
+            &root.lease,
+            request,
+            "report.md",
+            "md",
+            "Reviewed project",
+            102,
+        )
+        .unwrap();
+    assert_eq!(artifact.project_id, Some(f.project));
+    assert_eq!(artifact.task_id, Some(root.assignment.task_id));
+    let revision = f.definitions.load().unwrap().revision;
+    let reopened = TeamCoordinator::new(f.definitions.path());
+    let replay = reopened
+        .publish_document(
+            &root.lease,
+            request,
+            "report.md",
+            "md",
+            "Reviewed project",
+            103,
+        )
+        .unwrap();
+    assert_eq!(artifact.id, replay.id);
+    assert_eq!(f.definitions.load().unwrap().revision, revision);
+    assert_eq!(
+        f.definitions.read_document(artifact.id).unwrap(),
+        b"Reviewed project"
+    );
+    assert!(
+        reopened
+            .publish_document(
+                &root.lease,
+                request,
+                "report.md",
+                "md",
+                "Changed result",
+                103
+            )
+            .is_err()
+    );
+    assert_eq!(
+        f.definitions.read_document(artifact.id).unwrap(),
+        b"Reviewed project"
+    );
+    assert_eq!(
+        f.store
+            .audit_events(run.id, 0, 100)
+            .unwrap()
+            .iter()
+            .filter(|e| e.event == "document")
+            .count(),
+        1
+    );
+    f.store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Review complete".into(),
+                artifact_ids: vec![artifact.id],
+                checks: vec![],
+            }),
+            104,
+        )
+        .unwrap();
+}
+
+#[test]
+fn racing_assignment_document_publications_create_one_artifact_and_receipt() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let request = Uuid::new_v4();
+    let path = f.definitions.path();
+    let ids = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                let path = path.clone();
+                let lease = root.lease.clone();
+                scope.spawn(move || {
+                    TeamCoordinator::new(path)
+                        .publish_document(&lease, request, "result.json", "json", "{}", 102)
+                        .unwrap()
+                        .id
+                })
+            })
+            .collect();
+        threads
+            .into_iter()
+            .map(|t| t.join().unwrap())
+            .collect::<HashSet<_>>()
+    });
+    assert_eq!(ids.len(), 1);
+    assert_eq!(
+        f.definitions
+            .load()
+            .unwrap()
+            .records
+            .iter()
+            .filter(|r| matches!(r, ControlRecord::Artifact(_)))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn assignment_document_reads_and_writes_are_fenced_by_lease_and_handoff_scope() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    let child = f
+        .store
+        .claim(run.id, child.id, DispatchHost::Local, 103, 100)
+        .unwrap();
+    let parent_doc = f
+        .store
+        .publish_document(
+            &root.lease,
+            Uuid::new_v4(),
+            "parent.md",
+            "md",
+            "Parent private context",
+            104,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .read_assignment_document(&child.lease, parent_doc.id, 105)
+            .is_err()
+    );
+    let child_doc = f
+        .store
+        .publish_document(
+            &child.lease,
+            Uuid::new_v4(),
+            "child.md",
+            "md",
+            "Child evidence",
+            104,
+        )
+        .unwrap();
+    assert_eq!(
+        f.store
+            .read_assignment_document(&root.lease, child_doc.id, 105)
+            .unwrap(),
+        b"Child evidence"
+    );
+    assert!(
+        f.store
+            .publish_document(&root.lease, Uuid::new_v4(), "../bad.md", "md", "bad", 105)
+            .is_err()
+    );
+    f.store
+        .suspend_for_children(&root.lease, &[child.assignment.id], "{}", 106)
+        .unwrap();
+    assert!(
+        f.store
+            .publish_document(&root.lease, Uuid::new_v4(), "stale.md", "md", "bad", 107)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .read_assignment_document(&root.lease, child_doc.id, 107)
+            .is_err()
+    );
+    let other = f.run();
+    let other_root = f.claim(other.id, other.work[0].id);
+    assert!(
+        f.store
+            .read_assignment_document(&other_root.lease, child_doc.id, 107)
+            .is_err()
+    );
+}

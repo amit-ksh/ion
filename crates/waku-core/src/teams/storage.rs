@@ -28,6 +28,10 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_continuations (
             work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
             generation INTEGER NOT NULL, dependencies TEXT NOT NULL, checkpoint TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_document_receipts (
+            work_id TEXT NOT NULL REFERENCES ion_team_work(id), request_id TEXT NOT NULL,
+            artifact_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, format TEXT NOT NULL,
+            content BLOB NOT NULL, PRIMARY KEY(work_id,request_id));
         CREATE TABLE IF NOT EXISTS ion_team_invocations (
             task_id TEXT NOT NULL, request_id TEXT NOT NULL, signature TEXT NOT NULL,
             run_id TEXT NOT NULL UNIQUE REFERENCES ion_team_runs(id), PRIMARY KEY(task_id,request_id));

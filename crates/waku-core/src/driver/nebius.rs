@@ -21,6 +21,7 @@ use crate::credentials::{CredentialService, TOKEN_FACTORY_BASE_URL};
 use crate::model::{ActivityKind, DriverEvent, PermissionOption, ProviderResumeCursor};
 
 mod nemoclaw;
+pub(super) mod team;
 mod workflow;
 mod workspace;
 pub(crate) use workspace::WorkspaceContext;

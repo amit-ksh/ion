@@ -13,6 +13,7 @@ use uuid::Uuid;
 use waku_protocol::{control::*, teams::*};
 
 mod continuation;
+mod documents;
 mod materialize;
 mod storage;
 #[cfg(test)]
