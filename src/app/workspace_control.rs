@@ -139,6 +139,11 @@ pub(super) struct ControlUi {
     apps_generation: u64,
     pub(super) app_search: Entity<TextInput>,
     apps_connected_only: bool,
+    team_decisions: Rc<Vec<waku_client::teams::TeamDecision>>,
+    decisions_after: Option<Uuid>,
+    decisions_cursor: Option<Uuid>,
+    decisions_previous: Vec<Option<Uuid>>,
+    pending_team_decisions: u32,
     team_runs: Rc<Vec<TeamRunSummary>>,
     team_run: Option<Rc<TeamRunSnapshot>>,
     selected_run: Option<Uuid>,
@@ -163,6 +168,7 @@ enum Row {
     AgentInTeam(AgentProfile, usize, Option<String>),
     TeamRun(Rc<TeamRunSummary>),
     Assignment(Rc<team_activity::AssignmentRow>),
+    TeamDecision(Rc<waku_client::teams::TeamDecision>),
     Account(String, String, String),
     Empty(&'static str),
     Notice(Notice),
@@ -221,6 +227,7 @@ struct Notice {
     timestamp: u64,
     record: Option<ControlRecord>,
     run: Option<Uuid>,
+    decision: Option<Rc<waku_client::teams::TeamDecision>>,
 }
 impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
@@ -277,6 +284,11 @@ impl ControlUi {
             apps_generation: 0,
             app_search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search apps")),
             apps_connected_only: false,
+            team_decisions: Rc::new(Vec::new()),
+            decisions_after: None,
+            decisions_cursor: None,
+            decisions_previous: Vec::new(),
+            pending_team_decisions: 0,
             team_runs: Rc::new(Vec::new()),
             team_run: None,
             selected_run: None,
@@ -408,6 +420,7 @@ impl Waku {
                     timestamp: session.updated_at,
                     record: None,
                     run: None,
+                    decision: None,
                 })
             };
             if let Some(permission) = runtime.and_then(|r| r.pending_permission.as_ref()) {
@@ -500,6 +513,7 @@ impl Waku {
                     timestamp: action.created_at,
                     record: Some(record.clone()),
                     run: None,
+                    decision: None,
                 }),
                 ControlRecord::Artifact(artifact) => notices.push(Notice {
                     project: artifact.project_id,
@@ -514,6 +528,7 @@ impl Waku {
                     timestamp: artifact.created_at,
                     record: Some(record.clone()),
                     run: None,
+                    decision: None,
                 }),
                 _ => {}
             }
@@ -693,12 +708,17 @@ impl Waku {
                                             this.control_ui.filter_task = None;
                                             this.control_ui.runs_after = None;
                                             this.control_ui.runs_previous.clear();
+                                            this.control_ui.decisions_after = None;
+                                            this.control_ui.decisions_previous.clear();
                                             this.refresh_team_activity(true, cx);
                                         }
                                         Filter::Task(id) => this.control_ui.filter_task = id,
                                         Filter::Kind(kind) => this.control_ui.filter_kind = kind,
                                         Filter::Status(status) => {
-                                            this.control_ui.filter_status = status
+                                            this.control_ui.filter_status = status;
+                                            this.control_ui.decisions_after = None;
+                                            this.control_ui.decisions_previous.clear();
+                                            this.refresh_team_activity(true, cx);
                                         }
                                     }
                                     cx.notify();
@@ -795,6 +815,8 @@ impl Waku {
             self.control_ui.team_run = None;
             self.control_ui.runs_after = None;
             self.control_ui.runs_previous.clear();
+            self.control_ui.decisions_after = None;
+            self.control_ui.decisions_previous.clear();
             self.control_ui.runs_team = None;
         }
         if self.control_ui.page != Some(page)
@@ -1391,7 +1413,10 @@ impl Waku {
                         NoticeStatus::Pending => n.pending,
                         NoticeStatus::Resolved => !n.pending,
                     })
-                    .map(Row::Notice),
+                    .map(|notice| match &notice.decision {
+                        Some(decision) => Row::TeamDecision(decision.clone()),
+                        None => Row::Notice(notice),
+                    }),
             ),
             Page::Dashboard | Page::Tasks => {
                 let mut sessions = self
@@ -1648,8 +1673,9 @@ impl Waku {
                 .state
                 .sessions
                 .iter()
-                .filter(|s| s.status == SessionStatus::Waiting)
-                .count();
+                .filter(|s| s.status == SessionStatus::Waiting && s.team_assignment.is_none())
+                .count()
+                + self.control_ui.pending_team_decisions as usize;
             let agents = self
                 .control_ui
                 .snapshot
@@ -1745,6 +1771,7 @@ impl Waku {
         }
         if matches!(page, Page::Inbox | Page::Decisions) {
             content = content.child(self.render_workspace_filters(cx));
+            content = content.child(self.render_team_decision_pages(cx));
         }
         if matches!(page, Page::Inbox | Page::Dashboard) {
             content = content.child(self.render_team_collection_pages(cx));
@@ -1797,6 +1824,7 @@ impl Waku {
             .gap(px(14.0));
         let mut actions = div().flex_none().flex().gap(px(8.0));
         let (title, detail, icon_path) = match row {
+            Row::TeamDecision(decision) => return self.render_team_decision_row(decision, cx),
             Row::TeamRun(run) => return self.render_team_run_row(run, cx),
             Row::Assignment(row) => return self.render_team_assignment_row(row, cx),
             Row::AppPair(configs) => {

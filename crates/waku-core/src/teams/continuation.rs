@@ -6,6 +6,7 @@ pub struct AssignmentContinuation {
     pub claimed: ClaimedAssignment,
     pub checkpoint: String,
     pub children: Vec<AssignmentHandoff>,
+    pub decision: Option<TeamDecision>,
 }
 #[derive(Debug, Serialize)]
 pub struct AssignmentHandoff {
@@ -51,7 +52,7 @@ pub(super) fn check_capacity(
     );
     Ok(())
 }
-fn validate_checkpoint(checkpoint: &str) -> Result<()> {
+pub(super) fn validate_checkpoint(checkpoint: &str) -> Result<()> {
     ensure!(
         !checkpoint.is_empty() && checkpoint.len() <= 128 * 1024,
         "Runtime checkpoint must fit in 128 KiB"
@@ -67,7 +68,7 @@ fn checkpoint_row(
     Ok(tx.query_row("SELECT attempt_id,generation,dependencies,checkpoint FROM ion_team_continuations WHERE work_id=?",
         [work.to_string()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?)
 }
-fn write_checkpoint(
+pub(super) fn write_checkpoint(
     tx: &Transaction<'_>,
     lease: &AssignmentLease,
     children: &str,
@@ -278,10 +279,34 @@ impl TeamCoordinator {
         let (attempt_id, generation, dependencies, checkpoint) =
             checkpoint_row(&tx, work.id)?.context("Waiting checkpoint missing")?;
         let children: Vec<Uuid> = serde_json::from_str(&dependencies)?;
+        let decision = super::decisions::waiting_decision(&tx, work.id)?;
         ensure!(
-            !children.is_empty() && children.len() <= 16,
+            children.len() <= 16 && (!children.is_empty() || decision.is_some()),
             "Invalid continuation dependency count"
         );
+        if let Some(decision) = &decision {
+            ensure!(
+                children.is_empty(),
+                "Decision wait cannot contain child dependencies"
+            );
+            ensure!(
+                matches!(
+                    decision.status,
+                    TeamDecisionStatus::Approved | TeamDecisionStatus::Declined
+                ),
+                "User decision is still pending"
+            );
+            ensure!(
+                decision.run_id == run.id
+                    && decision.assignment_id == work.id
+                    && decision.definition_revision == run.definition_revision
+                    && work
+                        .attempts
+                        .last()
+                        .is_some_and(|a| a.id == decision.attempt_id && a.host == decision.host),
+                "Decision assignment or host changed"
+            );
+        }
         let results: Vec<_> = children
             .iter()
             .map(|id| {
@@ -333,13 +358,21 @@ impl TeamCoordinator {
             [attempt_id],
         )?;
         save_work(&tx, &work, false)?;
+        tx.execute(
+            "DELETE FROM ion_team_decision_waits WHERE work_id=?",
+            [work.id.to_string()],
+        )?;
         bump(&tx, run.id)?;
         audit(
             &tx,
             run.id,
             Some(work.id),
             "resumed",
-            "Settled child handoffs delivered under a fresh lease generation",
+            if decision.is_some() {
+                "User decision receipt delivered under a fresh lease generation"
+            } else {
+                "Settled child handoffs delivered under a fresh lease generation"
+            },
             now,
         )?;
         tx.commit()?;
@@ -351,6 +384,7 @@ impl TeamCoordinator {
             },
             checkpoint,
             children: results,
+            decision,
         })
     }
 }

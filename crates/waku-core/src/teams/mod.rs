@@ -14,6 +14,7 @@ use waku_protocol::{control::*, teams::*};
 
 mod budget;
 mod continuation;
+mod decisions;
 mod dispatch;
 mod documents;
 mod materialize;
@@ -492,6 +493,7 @@ impl TeamCoordinator {
             created_at: now,
             deadline,
             work: vec![],
+            decisions: vec![],
             source_prompt: request.source_prompt,
             origin: request.origin.clone(),
         };
@@ -1066,6 +1068,9 @@ impl TeamCoordinator {
             )?;
             changed = true;
         }
+        if run.deadline <= now {
+            decisions::cancel_pending(&tx, run_id)?;
+        }
         if changed {
             bump(&tx, run_id)?;
         }
@@ -1352,6 +1357,7 @@ impl TeamCoordinator {
             }
             save_work(&tx, &work, false)?;
         }
+        decisions::cancel_pending(&tx, run_id)?;
         set_run_status(&tx, run_id, TeamRunStatus::Stopping)?;
         bump(&tx, run_id)?;
         audit(

@@ -3,12 +3,13 @@ import type { AgentAccess } from "./AgentAccess";
 import type { AgentProfile } from "./AgentProfile";
 import type { Team } from "./Team";
 import type { TeamAssignment } from "./TeamAssignment";
+import type { TeamDecision } from "./TeamDecision";
 import type { TeamRunLimits } from "./TeamRunLimits";
 import type { TeamRunStatus } from "./TeamRunStatus";
 import type { TeamTaskOrigin } from "./TeamTaskOrigin";
 import type { TeamTokenUsage } from "./TeamTokenUsage";
 
-export type TeamRunSnapshot = { id: string, rootTaskId: string, projectId: string, definitionRevision: number, revision: number, status: TeamRunStatus, team: Team, profiles: Array<AgentProfile>, limits: TeamRunLimits, usage: TeamTokenUsage, access: AgentAccess, createdAt: number, deadline: number, work: Array<TeamAssignment>,
+export type TeamRunSnapshot = { id: string, rootTaskId: string, projectId: string, definitionRevision: number, revision: number, status: TeamRunStatus, team: Team, profiles: Array<AgentProfile>, limits: TeamRunLimits, usage: TeamTokenUsage, access: AgentAccess, createdAt: number, deadline: number, work: Array<TeamAssignment>, decisions: Array<TeamDecision>,
 /**
  * Original user text for a queued root, retained separately from its objective.
  */

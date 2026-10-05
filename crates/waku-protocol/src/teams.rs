@@ -152,6 +152,8 @@ pub struct TeamRunSnapshot {
     pub created_at: u64,
     pub deadline: u64,
     pub work: Vec<TeamAssignment>,
+    #[serde(default)]
+    pub decisions: Vec<TeamDecision>,
     /// Original user text for a queued root, retained separately from its objective.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_prompt: Option<String>,
@@ -185,6 +187,43 @@ pub struct TeamRunSummary {
 pub struct TeamRunPage {
     pub runs: Vec<TeamRunSummary>,
     pub next_cursor: Option<Uuid>,
+}
+
+/// A planning decision binds the exact proposal to a pinned assignment and host.
+/// Approval does not enlarge tool, filesystem, connector or spending permissions.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamDecision {
+    pub id: Uuid,
+    pub run_id: Uuid,
+    pub project_id: Uuid,
+    pub assignment_id: Uuid,
+    pub task_id: Uuid,
+    pub agent_id: Uuid,
+    pub definition_revision: u64,
+    pub run_revision: u64,
+    pub attempt_id: Uuid,
+    pub host: String,
+    pub title: String,
+    pub proposal: String,
+    pub status: TeamDecisionStatus,
+    pub revision: u64,
+    pub created_at: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TeamDecisionStatus {
+    Pending,
+    Approved,
+    Declined,
+    Canceled,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamDecisionPage {
+    pub decisions: Vec<TeamDecision>,
+    pub next_cursor: Option<Uuid>,
+    pub pending_count: u32,
 }
 
 /// Completed provider usage and allowances retained for requests without a receipt.

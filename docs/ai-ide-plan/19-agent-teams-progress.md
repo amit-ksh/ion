@@ -322,8 +322,8 @@ hydrates that task on a worker and guards against a changed user selection.
 Pagination exposes older runs; project filters default to all projects.
 Dashboard and Inbox use real run summaries. Team waiting/review states are no
 longer mislabeled as solo human decisions. Artifacts refresh from the same durable
-control store. Human team decisions still need the exact-action decision adapter
-listed below; parent review and execution blockers are not fabricated approvals.
+control store. Human planning decisions are now persisted as described in the checkpoint below;
+parent review and execution blockers are not fabricated approvals.
 
 Verification: 85 team regressions passed, including bounded pagination,
 project/team filtering, deleted-definition history, setup blockers and metered
@@ -376,6 +376,41 @@ User review:
   the stored definition.
 - [ ] Review required/optional parent-review behavior and correction limits.
 
+## Human team decisions checkpoint
+
+A lease-bound `request_decision` tool checkpoints and parks an assignment until
+an authenticated user approves or declines its exact proposal. The durable
+record includes its project/task, pinned team revision, attempt, host and answer
+revision. Parking revokes the old lease and releases capacity. A restart resumes
+once under a fresh generation, delivering the full approved/declined receipt to
+the same harness and model. Stop and deadlines cancel unanswered decisions;
+conflicting or stale answers cannot authorize progress. Approval does not change
+filesystem, connector, network or spending grants.
+
+Inbox, Decisions and Teams → Runs show the full proposal with task/run links.
+The background collection is bounded and project filtered, has paginated history
+and a pending total for Dashboard. Answering is a background RPC with optimistic
+revision checks. There is no model tool that can answer its own decision.
+These are planning decisions. Privileged action-specific approvals belong to
+the corresponding execution adapter and remain separately listed below.
+
+Verification: **94 team tests passed**, including seven new coordinator/native
+adapter checks for private checkpoints, lease fencing, shared capacity, restart,
+exact replay, racing verdicts, decline, cancellation/deadlines, collection bounds
+and rejection of model-supplied identity/host overrides. All 8 protocol wire tests, native app/daemon compilation, generated binding
+checks, 23 TypeScript client tests and TypeScript type checking passed. Rust
+formatting and diff checks passed.
+No visual or live provider test was performed.
+
+User review:
+
+- [ ] Ask a team for a concrete decision; inspect its full proposal in Decisions.
+- [ ] Approve and confirm the original task resumes with the selected harness.
+- [ ] Decline and confirm the team revises its plan or reports a blocker.
+- [ ] Restart while a decision is pending; confirm it survives without duplicates.
+- [ ] Stop a waiting team; confirm its pending decision becomes canceled.
+- [ ] Review project/task filters, history pagination and Dashboard pending totals.
+
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
@@ -405,12 +440,13 @@ User review:
 - [ ] Team readiness matrix and supported model validation for each harness.
 - [x] Native hierarchy/roster with live child links, blockers and results; cached
   run projections across Dashboard, Inbox and Artifacts. Solo-style false decisions
-  are removed; real team human decisions remain a separate pending adapter.
+  are removed; human planning decisions now have persisted pause/resume receipts.
 - [ ] One validated external harness bridge, then additional mixed harnesses.
 - [ ] Serialized writers, isolated coding worktrees and integration/patch review.
 - [ ] Registered Nebius execution host: actual harness launch, explicit transfer,
   host readiness, remote status/cancel/checkpoint and tested local fallback.
-- [ ] Persisted user decisions bound to exact action/revision/host.
+- [x] Persisted human planning decisions bound to exact proposal/revision/host.
+- [ ] Effect-specific approvals for privileged filesystem/app/cloud actions.
 - [ ] Routine scheduling and workflow execution over the same coordinator.
 
 The Team “New task” action now prepares an explicit team address in the normal

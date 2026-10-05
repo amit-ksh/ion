@@ -3109,3 +3109,290 @@ fn team_saved_limit_validation_rejects_invalid_definitions_atomically() {
         assert!(validate_limits(&limits).is_err());
     }
 }
+
+#[test]
+fn team_decision_fences_worker_releases_capacity_and_resumes_once_after_restart() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let request = Uuid::new_v4();
+    let decision = f
+        .store
+        .suspend_for_decision(
+            &root.lease,
+            request,
+            "Choose the release scope",
+            "Include the documented migration?",
+            "{\"private\":true}",
+            102,
+        )
+        .unwrap();
+    assert_eq!(decision.task_id, root.assignment.task_id);
+    assert_eq!(decision.host, "local");
+    assert_eq!(decision.definition_revision, run.definition_revision);
+    assert!(f.store.renew(&root.lease, 103, 100).is_err());
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 103, 100)
+            .is_err()
+    );
+    let other = f.run();
+    let active_other = f.claim(other.id, other.work[0].id);
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    let approved = reopened
+        .resolve_decision(decision.id, decision.revision, true, 103)
+        .unwrap();
+    assert_eq!(approved.status, TeamDecisionStatus::Approved);
+    assert_eq!(
+        reopened
+            .resolve_decision(decision.id, 1, true, 103)
+            .unwrap()
+            .revision,
+        2
+    );
+    assert!(
+        reopened
+            .resolve_decision(decision.id, 1, false, 103)
+            .is_err()
+    );
+    assert!(
+        reopened
+            .resume_after_children(run.id, root.assignment.id, 104, 100)
+            .is_err()
+    );
+    f.complete(&active_other.lease);
+    let resumed = reopened
+        .resume_after_children(run.id, root.assignment.id, 105, 100)
+        .unwrap();
+    assert_eq!(resumed.claimed.lease.attempt_id(), root.lease.attempt_id());
+    assert_eq!(resumed.claimed.assignment.access, root.assignment.access);
+    assert_eq!(resumed.checkpoint, "{\"private\":true}");
+    assert!(resumed.children.is_empty());
+    assert_eq!(resumed.decision.unwrap().proposal, decision.proposal);
+    assert!(
+        reopened
+            .resume_after_children(run.id, root.assignment.id, 106, 100)
+            .is_err()
+    );
+    f.complete(&resumed.claimed.lease);
+    assert_eq!(
+        reopened
+            .resolve_decision(decision.id, 1, true, 5000)
+            .unwrap()
+            .status,
+        TeamDecisionStatus::Approved
+    );
+    assert!(
+        !serde_json::to_string(&f.store.snapshot(run.id).unwrap())
+            .unwrap()
+            .contains("private")
+    );
+}
+#[test]
+fn team_decision_replay_preserves_proposal_and_decline_is_a_durable_receipt() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let request = Uuid::new_v4();
+    let decision = f
+        .store
+        .suspend_for_decision(&root.lease, request, "Scope", "Leave CI paused", "{}", 102)
+        .unwrap();
+    assert_eq!(
+        f.store
+            .suspend_for_decision(&root.lease, request, "Scope", "Leave CI paused", "{}", 103)
+            .unwrap()
+            .id,
+        decision.id
+    );
+    assert!(
+        f.store
+            .suspend_for_decision(&root.lease, request, "Scope", "Deploy", "{}", 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .suspend_for_decision(&root.lease, request, "Scope", "Leave CI paused", "[]", 103)
+            .is_err()
+    );
+    assert!(f.store.resolve_decision(decision.id, 0, true, 103).is_err());
+    let declined = f
+        .store
+        .resolve_decision(decision.id, 1, false, 103)
+        .unwrap();
+    assert_eq!(declined.status, TeamDecisionStatus::Declined);
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 104, 100)
+        .unwrap();
+    assert_eq!(
+        resumed.decision.unwrap().status,
+        TeamDecisionStatus::Declined
+    );
+    assert_eq!(
+        serde_json::to_value(&resumed.claimed.profile).unwrap(),
+        serde_json::to_value(&root.profile).unwrap()
+    );
+    assert!(
+        f.store
+            .suspend_for_decision(&root.lease, request, "Scope", "Leave CI paused", "{}", 105)
+            .is_err()
+    );
+    let fresh = f
+        .store
+        .suspend_for_decision(
+            &resumed.claimed.lease,
+            Uuid::new_v4(),
+            "Revised scope",
+            "Produce a review document",
+            "{}",
+            105,
+        )
+        .unwrap();
+    assert_ne!(fresh.id, decision.id);
+    assert_eq!(f.store.snapshot(run.id).unwrap().decisions.len(), 2);
+}
+#[test]
+fn team_decision_stop_and_deadline_cancel_pending_without_resuming() {
+    for expired in [false, true] {
+        let f = Fixture::new();
+        let run = f.run();
+        let root = f.claim(run.id, run.work[0].id);
+        let decision = f
+            .store
+            .suspend_for_decision(
+                &root.lease,
+                Uuid::new_v4(),
+                "Scope",
+                "Wait for release",
+                "{}",
+                102,
+            )
+            .unwrap();
+        let now = if expired { run.deadline } else { 103 };
+        if expired {
+            assert!(f.store.resolve_decision(decision.id, 1, true, now).is_err());
+            f.store.reconcile_expired(run.id, now).unwrap();
+        } else {
+            f.store
+                .stop(run.id, f.store.snapshot(run.id).unwrap().revision, now)
+                .unwrap();
+        }
+        assert_eq!(
+            f.store.snapshot(run.id).unwrap().decisions[0].status,
+            TeamDecisionStatus::Canceled
+        );
+        assert_eq!(
+            f.store
+                .list_decisions(None, true, None, 64)
+                .unwrap()
+                .pending_count,
+            0
+        );
+        assert!(f.store.resolve_decision(decision.id, 1, true, now).is_err());
+        assert!(
+            f.store
+                .resume_after_children(run.id, root.assignment.id, now, 100)
+                .is_err()
+        );
+    }
+}
+#[test]
+fn team_decision_racing_verdicts_have_one_winner() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let decision = f
+        .store
+        .suspend_for_decision(
+            &root.lease,
+            Uuid::new_v4(),
+            "Scope",
+            "Approve plan",
+            "{}",
+            102,
+        )
+        .unwrap();
+    let gate = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let handles: Vec<_> = [true, false]
+        .into_iter()
+        .map(|approve| {
+            let store = TeamCoordinator::new(f.dir.join("control.db"));
+            let gate = gate.clone();
+            std::thread::spawn(move || {
+                gate.wait();
+                store.resolve_decision(decision.id, 1, approve, 103).is_ok()
+            })
+        })
+        .collect();
+    gate.wait();
+    assert_eq!(
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .filter(|ok| *ok)
+            .count(),
+        1
+    );
+    assert_eq!(f.store.snapshot(run.id).unwrap().decisions[0].revision, 2);
+}
+#[test]
+fn team_decision_collection_is_bounded_filtered_and_immutable_cursor_paged() {
+    let f = Fixture::new();
+    let mut ids = std::collections::HashSet::new();
+    for i in 0..3 {
+        let mut request = f.request();
+        request.project_id = if i == 2 { Uuid::new_v4() } else { f.project };
+        let run = f.store.prepare(request, 100).unwrap();
+        let root = f.claim(run.id, run.work[0].id);
+        let d = f
+            .store
+            .suspend_for_decision(
+                &root.lease,
+                Uuid::new_v4(),
+                "Scope",
+                "Concrete proposal",
+                "{}",
+                102 + i,
+            )
+            .unwrap();
+        ids.insert(d.id);
+        if i == 0 {
+            f.store.resolve_decision(d.id, 1, false, 103).unwrap();
+        }
+    }
+    let page = f.store.list_decisions(None, false, None, 2).unwrap();
+    assert_eq!(page.pending_count, 2);
+    assert_eq!(page.decisions.len(), 2);
+    let older = f
+        .store
+        .list_decisions(None, false, page.next_cursor, 2)
+        .unwrap();
+    assert_eq!(older.decisions.len(), 1);
+    assert!(older.next_cursor.is_none());
+    let seen: std::collections::HashSet<_> = page
+        .decisions
+        .iter()
+        .chain(&older.decisions)
+        .map(|d| d.id)
+        .collect();
+    assert_eq!(seen, ids);
+    let filtered = f
+        .store
+        .list_decisions(Some(f.project), true, None, 64)
+        .unwrap();
+    assert_eq!(filtered.pending_count, 1);
+    assert_eq!(filtered.decisions.len(), 1);
+    assert!(
+        filtered
+            .decisions
+            .iter()
+            .all(|d| d.project_id == f.project && d.status == TeamDecisionStatus::Pending)
+    );
+    assert!(f.store.list_decisions(None, false, None, 65).is_err());
+    assert!(
+        f.store
+            .list_decisions(None, false, Some(Uuid::new_v4()), 1)
+            .is_err()
+    );
+}

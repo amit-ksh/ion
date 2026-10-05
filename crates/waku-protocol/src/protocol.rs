@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 18;
+pub const PROTOCOL_VERSION: u32 = 19;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -201,6 +201,17 @@ pub enum Command {
         team_id: Option<Uuid>,
         after: Option<Uuid>,
         limit: usize,
+    },
+    ListTeamDecisions {
+        project_id: Option<Uuid>,
+        pending_only: bool,
+        after: Option<Uuid>,
+        limit: usize,
+    },
+    ResolveTeamDecision {
+        decision_id: Uuid,
+        expected_revision: u64,
+        approve: bool,
     },
     GetTeamRun {
         run_id: Uuid,
@@ -453,6 +464,12 @@ pub enum ResponsePayload {
     TeamRuns {
         page: crate::teams::TeamRunPage,
     },
+    TeamDecisions {
+        page: crate::teams::TeamDecisionPage,
+    },
+    TeamDecision {
+        decision: crate::teams::TeamDecision,
+    },
     TeamAudit {
         events: Vec<crate::teams::TeamAuditEvent>,
     },
@@ -657,6 +674,47 @@ mod tests {
             serde_json::to_value(crate::teams::ExecutionEnvironment::NebiusSandbox).unwrap(),
             "nebiusSandbox"
         );
+    }
+
+    #[test]
+    fn team_decision_commands_bind_the_exact_persisted_revision() {
+        let id = Uuid::new_v4();
+        let value = serde_json::to_value(Command::ResolveTeamDecision {
+            decision_id: id,
+            expected_revision: 7,
+            approve: false,
+        })
+        .unwrap();
+        assert_eq!(value["type"], "resolveTeamDecision");
+        assert_eq!(value["decisionId"], id.to_string());
+        assert_eq!(value["expectedRevision"], 7);
+        assert_eq!(value["approve"], false);
+        assert!(matches!(
+            serde_json::from_value::<Command>(value).unwrap(),
+            Command::ResolveTeamDecision {
+                expected_revision: 7,
+                approve: false,
+                ..
+            }
+        ));
+        let value = serde_json::to_value(Command::ListTeamDecisions {
+            project_id: Some(id),
+            pending_only: true,
+            after: None,
+            limit: 32,
+        })
+        .unwrap();
+        assert_eq!(value["type"], "listTeamDecisions");
+        assert_eq!(value["projectId"], id.to_string());
+        assert_eq!(value["pendingOnly"], true);
+        assert!(matches!(
+            serde_json::from_value::<Command>(value).unwrap(),
+            Command::ListTeamDecisions {
+                pending_only: true,
+                limit: 32,
+                ..
+            }
+        ));
     }
 
     #[test]

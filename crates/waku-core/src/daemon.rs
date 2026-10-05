@@ -422,6 +422,30 @@ impl Backend for WakuBackend {
             } => Ok(ResponsePayload::TeamRuns {
                 page: self.teams.list_runs(project_id, team_id, after, limit)?,
             }),
+            Command::ListTeamDecisions {
+                project_id,
+                pending_only,
+                after,
+                limit,
+            } => Ok(ResponsePayload::TeamDecisions {
+                page: self
+                    .teams
+                    .list_decisions(project_id, pending_only, after, limit)?,
+            }),
+            Command::ResolveTeamDecision {
+                decision_id,
+                expected_revision,
+                approve,
+            } => {
+                let decision = self.teams.resolve_decision(
+                    decision_id,
+                    expected_revision,
+                    approve,
+                    crate::model::unix_time(),
+                )?;
+                self.team_runtime.wake();
+                Ok(ResponsePayload::TeamDecision { decision })
+            }
             Command::GetTeamRun { run_id } => Ok(ResponsePayload::TeamRun {
                 snapshot: self
                     .teams
@@ -2225,6 +2249,8 @@ fn handle_driver_command(
         | Command::QueueTeamTask { .. }
         | Command::PrepareTeamRun { .. }
         | Command::ListTeamRuns { .. }
+        | Command::ListTeamDecisions { .. }
+        | Command::ResolveTeamDecision { .. }
         | Command::GetTeamRun { .. }
         | Command::GetTeamAudit { .. }
         | Command::StopTeamRun { .. }

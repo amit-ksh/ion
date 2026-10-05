@@ -585,3 +585,84 @@ fn native_team_model_metadata_requires_exact_unique_context_bound() {
         assert!(allowance_from_catalog(&catalog, "model-0").is_err());
     }
 }
+
+#[test]
+fn native_team_decision_parks_and_delivers_only_the_pinned_human_receipt() {
+    for approved in [true, false] {
+        let f = Fixture::new(false);
+        let root = f.claim(f.run.work[0].id);
+        let mut calls = 0;
+        assert_eq!(
+            f.worker(NativeTeamStart::Fresh(root), |_, _, _, _| {
+                calls += 1;
+                Ok(call(
+                    "request_decision",
+                    json!({"title":"Release scope","proposal":"Include the documented migration?"}),
+                ))
+            })
+            .unwrap(),
+            NativeTeamExit::Yielded
+        );
+        assert_eq!(calls, 1);
+        let snapshot = f.store.snapshot(f.run.id).unwrap();
+        let d = &snapshot.decisions[0];
+        assert_eq!(snapshot.work[0].status, AssignmentStatus::Waiting);
+        assert!(
+            f.store
+                .resume_after_children(f.run.id, f.run.work[0].id, crate::model::unix_time(), 180)
+                .is_err()
+        );
+        f.store
+            .resolve_decision(d.id, d.revision, approved, crate::model::unix_time())
+            .unwrap();
+        let continuation = f
+            .store
+            .resume_after_children(f.run.id, f.run.work[0].id, crate::model::unix_time(), 180)
+            .unwrap();
+        assert!(!continuation.claimed.assignment.access.workspace_write);
+        assert_eq!(
+            f.worker(
+                NativeTeamStart::Resumed(continuation),
+                |model, system, messages, _| {
+                    assert_eq!(model, "model-0");
+                    assert!(system.contains("No shell"));
+                    let receipt = messages.last().unwrap()["content"].as_str().unwrap();
+                    assert!(receipt.contains(&d.id.to_string()));
+                    assert!(receipt.contains(&d.proposal));
+                    assert!(receipt.contains(if approved { "approved" } else { "declined" }));
+                    assert!(receipt.contains("does not enlarge"));
+                    Ok(call(
+                        "report_blocker",
+                        json!({"reason":"No additional execution grants"}),
+                    ))
+                }
+            )
+            .unwrap(),
+            NativeTeamExit::Settled
+        );
+    }
+}
+#[test]
+fn native_team_decision_rejects_identity_overrides_and_nonfinal_yield() {
+    let f = Fixture::new(false);
+    let root = f.claim(f.run.work[0].id);
+    let invalid = call(
+        "request_decision",
+        json!({"title":"Scope","proposal":"Plan","host":"other"}),
+    )
+    .1
+    .remove(0);
+    let mut journal = TeamJournal::new("Test");
+    journal.stage(String::new(), vec![invalid]).unwrap();
+    assert!(execute(&f.store, &root, &f.workspace, &journal.pending[0], true).is_err());
+    let valid = call(
+        "request_decision",
+        json!({"title":"Scope","proposal":"Plan"}),
+    )
+    .1
+    .remove(0);
+    let mut journal = TeamJournal::new("Test");
+    journal.stage(String::new(), vec![valid]).unwrap();
+    assert!(execute(&f.store, &root, &f.workspace, &journal.pending[0], false).is_err());
+    assert!(f.store.snapshot(f.run.id).unwrap().decisions.is_empty());
+}

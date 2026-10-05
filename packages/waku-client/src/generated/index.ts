@@ -98,6 +98,9 @@ export type { StoredTranscriptBlockContent } from "./StoredTranscriptBlockConten
 export type { Team } from "./Team";
 export type { TeamAssignment } from "./TeamAssignment";
 export type { TeamAuditEvent } from "./TeamAuditEvent";
+export type { TeamDecision } from "./TeamDecision";
+export type { TeamDecisionPage } from "./TeamDecisionPage";
+export type { TeamDecisionStatus } from "./TeamDecisionStatus";
 export type { TeamMember } from "./TeamMember";
 export type { TeamRunLimits } from "./TeamRunLimits";
 export type { TeamRunPage } from "./TeamRunPage";

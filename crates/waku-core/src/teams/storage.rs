@@ -40,6 +40,19 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             run_id TEXT NOT NULL REFERENCES ion_team_runs(id), parent_id TEXT NOT NULL,
             request_id TEXT NOT NULL, signature TEXT NOT NULL, body TEXT NOT NULL,
             UNIQUE(run_id,parent_id,request_id));
+        CREATE TABLE IF NOT EXISTS ion_team_decisions (
+            id TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
+            work_id TEXT NOT NULL REFERENCES ion_team_work(id),request_id TEXT NOT NULL,
+            project_id TEXT NOT NULL,status TEXT NOT NULL,revision INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,signature TEXT NOT NULL,body TEXT NOT NULL,
+            UNIQUE(work_id,request_id));
+        CREATE INDEX IF NOT EXISTS ion_team_decision_run ON ion_team_decisions(run_id,work_id,status);
+        CREATE INDEX IF NOT EXISTS ion_team_decision_pending ON ion_team_decisions(status,project_id,created_at DESC,id DESC);
+        CREATE INDEX IF NOT EXISTS ion_team_decision_recent ON ion_team_decisions(created_at DESC,id DESC);
+        CREATE INDEX IF NOT EXISTS ion_team_decision_project ON ion_team_decisions(project_id,created_at DESC,id DESC);
+        CREATE TABLE IF NOT EXISTS ion_team_decision_waits (
+            work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),
+            decision_id TEXT NOT NULL UNIQUE REFERENCES ion_team_decisions(id));
         CREATE TABLE IF NOT EXISTS ion_team_model_calls (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
@@ -72,6 +85,7 @@ pub(super) fn load(db: &Connection, id: Uuid) -> Result<TeamRunSnapshot> {
     run.revision = revision;
     run.status = serde_json::from_value(serde_json::Value::String(status))?;
     run.usage = super::budget::usage(db, id)?;
+    run.decisions = super::decisions::for_run(db, id)?;
     let mut query =
         db.prepare("SELECT body FROM ion_team_work WHERE run_id=? ORDER BY rowid LIMIT 257")?;
     run.work = query

@@ -156,6 +156,10 @@ impl Waku {
             None
         };
         let after = self.control_ui.runs_after;
+        let decisions_after = self.control_ui.decisions_after;
+        let pending_only = self.control_ui.page == Some(Page::Decisions)
+            || (self.control_ui.page == Some(Page::Inbox)
+                && self.control_ui.filter_status == NoticeStatus::Pending);
         let client = self.daemon.client();
         self.control_ui.activity_busy = true;
         cx.spawn(async move |this, cx| {
@@ -193,7 +197,20 @@ impl Waku {
                         else {
                             anyhow::bail!("Unexpected document response");
                         };
-                        Ok((page, detail, snapshot))
+                        let ResponsePayload::TeamDecisions { page: decisions } = client.request(
+                            Uuid::nil(),
+                            Uuid::nil(),
+                            Rpc::ListTeamDecisions {
+                                project_id: project,
+                                pending_only,
+                                after: decisions_after,
+                                limit: 64,
+                            },
+                        )?
+                        else {
+                            anyhow::bail!("Unexpected decision collection response");
+                        };
+                        Ok((page, detail, snapshot, decisions))
                     })
                     .await
                 })
@@ -204,7 +221,7 @@ impl Waku {
                 }
                 this.control_ui.activity_busy = false;
                 match response {
-                    Ok((page, detail, control)) => {
+                    Ok((page, detail, control, decisions)) => {
                         // No notifications for an unchanged poll; streaming keeps its own cadence.
                         let changed = !this.control_ui.activity_loaded
                             || page.next_cursor != this.control_ui.runs_cursor
@@ -226,11 +243,27 @@ impl Waku {
                                     .as_ref()
                                     .map(|r| (r.id, r.revision))
                             || control.revision > this.control_ui.snapshot.revision
-                            || this.control_ui.activity_error.is_some();
+                            || this.control_ui.activity_error.is_some()
+                            || this.control_ui.pending_team_decisions != decisions.pending_count
+                            || this.control_ui.decisions_cursor != decisions.next_cursor
+                            || this
+                                .control_ui
+                                .team_decisions
+                                .iter()
+                                .map(|d| (d.id, d.revision))
+                                .collect::<Vec<_>>()
+                                != decisions
+                                    .decisions
+                                    .iter()
+                                    .map(|d| (d.id, d.revision))
+                                    .collect::<Vec<_>>();
                         this.control_ui.activity_error = None;
                         this.control_ui.activity_loaded = true;
                         this.control_ui.runs_cursor = page.next_cursor;
                         this.control_ui.team_runs = Rc::new(page.runs);
+                        this.control_ui.pending_team_decisions = decisions.pending_count;
+                        this.control_ui.decisions_cursor = decisions.next_cursor;
+                        this.control_ui.team_decisions = Rc::new(decisions.decisions);
                         if this.control_ui.selected_run == selected {
                             this.control_ui.team_run = detail.map(Rc::new);
                         }
@@ -356,41 +389,56 @@ impl Waku {
         .detach();
     }
     pub(super) fn team_activity_notices(&self) -> Vec<Notice> {
-        self.control_ui
-            .team_runs
+        let mut notices = self
+            .control_ui
+            .team_decisions
             .iter()
-            .filter_map(|run| {
-                let (kind, pending, title) = if run.needs_attention > 0 {
-                    (
-                        NoticeKind::Issue,
-                        true,
-                        format!("{} needs attention", run.team_name),
-                    )
-                } else if run.status == TeamRunStatus::Completed {
-                    (
-                        NoticeKind::Completed,
-                        false,
-                        format!("{} completed", run.team_name),
-                    )
-                } else {
-                    return None;
-                };
-                Some(Notice {
-                    project: Some(run.project_id),
-                    task: Some(run.root_task_id),
-                    title,
-                    detail: format!(
-                        "{} · {} assignments · {} need attention",
-                        run.objective, run.assignments, run.needs_attention
-                    ),
-                    kind,
-                    pending,
-                    timestamp: run.updated_at,
-                    record: None,
-                    run: Some(run.id),
-                })
+            .map(|decision| Notice {
+                project: Some(decision.project_id),
+                task: Some(decision.task_id),
+                title: decision.title.clone(),
+                detail: decision.proposal.clone(),
+                kind: NoticeKind::Decision,
+                pending: decision.status == waku_client::teams::TeamDecisionStatus::Pending,
+                timestamp: decision.created_at,
+                record: None,
+                run: Some(decision.run_id),
+                decision: Some(Rc::new(decision.clone())),
             })
-            .collect()
+            .collect::<Vec<_>>();
+        notices.extend(self.control_ui.team_runs.iter().filter_map(|run| {
+            let (kind, pending, title) = if run.needs_attention > 0 {
+                (
+                    NoticeKind::Issue,
+                    true,
+                    format!("{} needs attention", run.team_name),
+                )
+            } else if run.status == TeamRunStatus::Completed {
+                (
+                    NoticeKind::Completed,
+                    false,
+                    format!("{} completed", run.team_name),
+                )
+            } else {
+                return None;
+            };
+            Some(Notice {
+                project: Some(run.project_id),
+                task: Some(run.root_task_id),
+                title,
+                detail: format!(
+                    "{} · {} assignments · {} need attention",
+                    run.objective, run.assignments, run.needs_attention
+                ),
+                kind,
+                pending,
+                timestamp: run.updated_at,
+                record: None,
+                run: Some(run.id),
+                decision: None,
+            })
+        }));
+        notices
     }
     pub(super) fn team_activity_rows(&self) -> Vec<Row> {
         if self.control_ui.selected_run.is_some() {
@@ -409,63 +457,72 @@ impl Waku {
                     _ => None,
                 })
                 .collect();
-            return hierarchy(
-                &run.work
-                    .iter()
-                    .map(|w| (w.id, w.parent_id))
-                    .collect::<Vec<_>>(),
-            )
-            .into_iter()
-            .filter_map(|(id, depth)| {
-                let w = work.get(&id)?;
-                let profile = profiles.get(&w.agent_id)?;
-                let host = w
-                    .attempts
-                    .last()
-                    .map(|a| {
-                        format!(
-                            "{}{}",
-                            a.host,
-                            a.fallback_reason
-                                .as_ref()
-                                .map(|r| format!(" · Local fallback: {r}"))
-                                .unwrap_or_default()
-                        )
-                    })
-                    .unwrap_or_else(|| profile.execution.environment.label().into());
-                Some(Row::Assignment(Rc::new(AssignmentRow {
-                    id,
-                    task_id: w.task_id,
-                    parent_task: w.parent_id.and_then(|id| work.get(&id)).map(|w| w.task_id),
-                    depth,
-                    title: format!("{} · {}", profile.name, w.objective),
-                    detail: format!(
-                        "{} · {} · {}{}",
-                        status(w.status),
-                        profile.provider.display_name(),
-                        host,
-                        if w.rework_of.is_some() {
-                            " · Correction task"
-                        } else {
-                            ""
-                        }
-                    ),
-                    reason: w.reason.clone(),
-                    summary: w.result.as_ref().map(|r| r.summary.clone()),
-                    review: w
-                        .review
-                        .as_ref()
-                        .map(|r| format!("Parent review: {}", r.feedback)),
-                    documents: w
-                        .result
-                        .as_ref()
-                        .into_iter()
-                        .flat_map(|r| &r.artifact_ids)
-                        .filter_map(|id| artifacts.get(id).map(|a| (*a).clone()))
-                        .collect(),
-                })))
-            })
-            .collect();
+            let mut rows: Vec<Row> = run
+                .decisions
+                .iter()
+                .rev()
+                .map(|d| Row::TeamDecision(Rc::new(d.clone())))
+                .collect();
+            rows.extend(
+                hierarchy(
+                    &run.work
+                        .iter()
+                        .map(|w| (w.id, w.parent_id))
+                        .collect::<Vec<_>>(),
+                )
+                .into_iter()
+                .filter_map(|(id, depth)| {
+                    let w = work.get(&id)?;
+                    let profile = profiles.get(&w.agent_id)?;
+                    let host = w
+                        .attempts
+                        .last()
+                        .map(|a| {
+                            format!(
+                                "{}{}",
+                                a.host,
+                                a.fallback_reason
+                                    .as_ref()
+                                    .map(|r| format!(" · Local fallback: {r}"))
+                                    .unwrap_or_default()
+                            )
+                        })
+                        .unwrap_or_else(|| profile.execution.environment.label().into());
+                    Some(Row::Assignment(Rc::new(AssignmentRow {
+                        id,
+                        task_id: w.task_id,
+                        parent_task: w.parent_id.and_then(|id| work.get(&id)).map(|w| w.task_id),
+                        depth,
+                        title: format!("{} · {}", profile.name, w.objective),
+                        detail: format!(
+                            "{} · {} · {}{}",
+                            status(w.status),
+                            profile.provider.display_name(),
+                            host,
+                            if w.rework_of.is_some() {
+                                " · Correction task"
+                            } else {
+                                ""
+                            }
+                        ),
+                        reason: w.reason.clone(),
+                        summary: w.result.as_ref().map(|r| r.summary.clone()),
+                        review: w
+                            .review
+                            .as_ref()
+                            .map(|r| format!("Parent review: {}", r.feedback)),
+                        documents: w
+                            .result
+                            .as_ref()
+                            .into_iter()
+                            .flat_map(|r| &r.artifact_ids)
+                            .filter_map(|id| artifacts.get(id).map(|a| (*a).clone()))
+                            .collect(),
+                    })))
+                })
+                .collect::<Vec<_>>(),
+            );
+            return rows;
         }
         let mut runs = self.control_ui.team_runs.iter().collect::<Vec<_>>();
         runs.sort_by_key(|run| std::cmp::Reverse(run.updated_at));
@@ -513,6 +570,162 @@ impl Waku {
             ));
         }
         bar
+    }
+    pub(super) fn render_team_decision_pages(&self, cx: &mut Context<Self>) -> Div {
+        let mut bar = div().flex().items_center().gap(px(8.0));
+        if !self.control_ui.decisions_previous.is_empty() {
+            bar = bar.child(self.control_button(
+                "decisions-previous",
+                "Previous decisions",
+                cx,
+                |this, _, cx| {
+                    if !this.control_ui.activity_busy {
+                        this.control_ui.decisions_after =
+                            this.control_ui.decisions_previous.pop().flatten();
+                        this.refresh_team_activity(true, cx);
+                    }
+                },
+            ));
+        }
+        if let Some(cursor) = self.control_ui.decisions_cursor {
+            bar = bar.child(self.control_button(
+                "decisions-next",
+                "Next decisions",
+                cx,
+                move |this, _, cx| {
+                    if !this.control_ui.activity_busy {
+                        this.control_ui
+                            .decisions_previous
+                            .push(this.control_ui.decisions_after);
+                        this.control_ui.decisions_after = Some(cursor);
+                        this.refresh_team_activity(true, cx);
+                    }
+                },
+            ));
+        }
+        bar
+    }
+    fn answer_team_decision(
+        &mut self,
+        decision: waku_client::teams::TeamDecision,
+        approve: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let client = self.daemon.client();
+        cx.spawn(async move |this, cx| {
+            let response = cx
+                .background_executor()
+                .spawn(async move {
+                    smol::unblock(move || {
+                        client.request(
+                            Uuid::nil(),
+                            Uuid::nil(),
+                            Rpc::ResolveTeamDecision {
+                                decision_id: decision.id,
+                                expected_revision: decision.revision,
+                                approve,
+                            },
+                        )
+                    })
+                    .await
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                match response {
+                    Ok(ResponsePayload::TeamDecision { .. }) => {
+                        this.refresh_team_activity(true, cx)
+                    }
+                    Ok(_) => {
+                        this.show_toast("Unexpected decision response. Refresh before retrying.")
+                    }
+                    Err(error) => this.show_toast(format!(
+                        "Could not answer this decision: {error}. Refresh before retrying."
+                    )),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+    pub(super) fn render_team_decision_row(
+        &self,
+        decision: Rc<waku_client::teams::TeamDecision>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        use waku_client::teams::TeamDecisionStatus;
+        let theme = Theme::current(cx);
+        let id = decision.id;
+        let project = self
+            .state
+            .projects
+            .iter()
+            .find(|p| p.id == decision.project_id)
+            .map(|p| p.name.as_str())
+            .unwrap_or("Project");
+        let state = match decision.status {
+            TeamDecisionStatus::Pending => "Needs your decision",
+            TeamDecisionStatus::Approved => "Approved",
+            TeamDecisionStatus::Declined => "Declined",
+            TeamDecisionStatus::Canceled => "Canceled",
+        };
+        let mut actions = div().flex().flex_wrap().gap(px(8.0));
+        if decision.status == TeamDecisionStatus::Pending {
+            for (approve, label) in [(true, "Approve proposal"), (false, "Decline")] {
+                let decision = (*decision).clone();
+                actions = actions.child(self.control_button(
+                    format!("decision-answer-{id}-{approve}"),
+                    label,
+                    cx,
+                    move |this, _, cx| this.answer_team_decision(decision.clone(), approve, cx),
+                ));
+            }
+        }
+        let task = decision.task_id;
+        let run = decision.run_id;
+        actions = actions
+            .child(self.control_button(
+                format!("decision-task-{id}"),
+                "Open task",
+                cx,
+                move |this, _, cx| this.open_team_activity_task(task, cx),
+            ))
+            .child(self.control_button(
+                format!("decision-run-{id}"),
+                "Open run",
+                cx,
+                move |this, _, cx| this.open_workspace_run(run, cx),
+            ));
+        div()
+            .id(SharedString::from(format!("team-decision-{id}")))
+            .py(px(18.0))
+            .border_b_1()
+            .border_color(theme.border)
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .child(
+                div()
+                    .text_size(sp(14.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(decision.title.clone()),
+            )
+            .child(
+                div()
+                    .text_size(sp(12.5))
+                    .text_color(theme.text_secondary)
+                    .child(format!(
+                        "{project} · {state} · {} · Decision revision {} · Team definition {}",
+                        decision.host, decision.revision, decision.definition_revision
+                    )),
+            )
+            .child(
+                div()
+                    .text_size(sp(13.0))
+                    .text_color(theme.text)
+                    .child(decision.proposal.clone()),
+            )
+            .child(actions)
+            .into_any_element()
     }
     pub(super) fn render_team_activity_header(&self, cx: &mut Context<Self>) -> Div {
         let theme = Theme::current(cx);

@@ -1102,6 +1102,7 @@ fn task_catalog_action(command: &Command) -> TaskCatalogAction {
         | Command::QueueTeamTask { .. }
         | Command::PrepareTeamRun { .. }
         | Command::StopTeamRun { .. }
+        | Command::ResolveTeamDecision { .. }
         | Command::ForkSessionFromResponse { .. }
         | Command::RewindSessionToMessage { .. } => TaskCatalogAction::Changed,
         _ => TaskCatalogAction::None,
