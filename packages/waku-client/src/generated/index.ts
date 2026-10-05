@@ -99,6 +99,8 @@ export type { TeamMember } from "./TeamMember";
 export type { TeamRunLimits } from "./TeamRunLimits";
 export type { TeamRunSnapshot } from "./TeamRunSnapshot";
 export type { TeamRunStatus } from "./TeamRunStatus";
+export type { TeamTaskBinding } from "./TeamTaskBinding";
+export type { TeamTaskOrigin } from "./TeamTaskOrigin";
 export type { ThreadGoal } from "./ThreadGoal";
 export type { ThreadGoalStatus } from "./ThreadGoalStatus";
 export type { TokenTotals } from "./TokenTotals";

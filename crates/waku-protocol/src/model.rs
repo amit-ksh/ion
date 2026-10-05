@@ -978,6 +978,8 @@ pub struct AgentSession {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_title: Option<String>,
     pub project_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_assignment: Option<crate::teams::TeamTaskBinding>,
     /// Local project checkout or an isolated Git worktree for this task.
     #[serde(default, skip_serializing_if = "SessionWorkspace::is_local")]
     pub workspace: SessionWorkspace,
@@ -1063,6 +1065,7 @@ impl AgentSession {
             title: Self::DEFAULT_TITLE.to_owned(),
             auto_title: None,
             project_id,
+            team_assignment: None,
             workspace: SessionWorkspace::Local,
             provider,
             model: None,
@@ -1100,6 +1103,7 @@ impl AgentSession {
             title: self.title.clone(),
             auto_title: self.auto_title.clone(),
             project_id: self.project_id,
+            team_assignment: self.team_assignment.clone(),
             workspace: SessionWorkspace::Local,
             provider: self.provider,
             model: self.model.clone(),

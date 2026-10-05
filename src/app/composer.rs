@@ -2264,6 +2264,9 @@ impl Waku {
         prompt: &str,
         cx: &mut Context<Self>,
     ) -> Option<ComposerSubmission> {
+        if self.handle_team_composer_submission(prompt, cx) {
+            return None;
+        }
         if self.execute_local_composer_command(prompt, cx) {
             return None;
         }
@@ -2849,11 +2852,11 @@ impl Waku {
         });
         let has_draft = !self.composer.read(cx).content(cx).trim().is_empty()
             || !self.composer_attachments.is_empty();
-        // With no provider to run it, a draft has nowhere to go. The button
-        // reads as unavailable and the submission path refuses too, so
-        // `enter` cannot slip past a disabled control.
+        // Solo drafts require an available provider. A team address can still
+        // enter the durable queue, where the saved lead selects its provider.
         let no_providers = self.model_picker_has_no_providers();
-        let can_send = has_draft && !no_providers;
+        let team_address = self.composer_has_team_address(cx);
+        let can_send = has_draft && (!no_providers || team_address);
         let (autocomplete, autocomplete_actionable) =
             match self.render_composer_autocomplete(window, cx) {
                 Some((element, actionable)) => (Some(element), actionable),
@@ -3189,7 +3192,7 @@ impl Waku {
                                 ))
                                 // Says why the button is dead, for the case
                                 // the draft is ready and the machine is not.
-                                .when(no_providers, |element| {
+                                .when(no_providers && !team_address, |element| {
                                     element.tooltip(Tooltip::text(tr!("composer.no_providers")))
                                 })
                                 .on_click(cx.listener(|this, _, _, cx| {

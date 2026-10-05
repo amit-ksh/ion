@@ -1,4 +1,6 @@
 //! Team definitions and execution projections. No scheduler or host I/O lives here.
+pub mod mentions;
+
 use crate::control::{AgentProfile, Team};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -133,6 +135,11 @@ pub struct TeamRunSnapshot {
     pub created_at: u64,
     pub deadline: u64,
     pub work: Vec<TeamAssignment>,
+    /// Original user text for a queued root, retained separately from its objective.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_prompt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<TeamTaskOrigin>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
@@ -180,4 +187,20 @@ pub struct TeamAuditEvent {
     pub event: String,
     pub detail: String,
     pub timestamp: u64,
+}
+
+/// Daemon-owned task identity. A team task cannot enter a solo provider runtime.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamTaskBinding {
+    pub run_id: Uuid,
+    pub assignment_id: Uuid,
+    pub team_name: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamTaskOrigin {
+    pub task_id: Uuid,
+    pub request_id: String,
 }

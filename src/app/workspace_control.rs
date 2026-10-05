@@ -91,6 +91,10 @@ enum FormKind {
 pub(super) struct ControlUi {
     pub page: Option<Page>,
     pub snapshot: ControlSnapshot,
+    pub(super) snapshot_loaded: bool,
+    pub(super) team_index: Rc<Vec<Team>>,
+    pub(super) team_names: HashSet<String>,
+    pub(super) duplicate_team_names: HashSet<String>,
     pub busy: bool,
     generation: u64,
     editor_generation: u64,
@@ -198,6 +202,10 @@ impl ControlUi {
         Self {
             page: Some(Page::Dashboard),
             snapshot: ControlSnapshot::default(),
+            snapshot_loaded: false,
+            team_index: Rc::new(Vec::new()),
+            team_names: HashSet::new(),
+            duplicate_team_names: HashSet::new(),
             busy: false,
             generation: 0,
             editor_generation: 0,
@@ -785,7 +793,17 @@ impl Waku {
                 this.control_ui.busy = false;
                 match response {
                     Ok(ResponsePayload::WorkspaceControl { snapshot }) => {
-                        if snapshot.revision>=this.control_ui.snapshot.revision {this.control_ui.snapshot = snapshot;}
+                        if snapshot.revision>=this.control_ui.snapshot.revision {
+                            this.control_ui.team_index = Rc::new(snapshot.records.iter().filter_map(|r| if let ControlRecord::Team(t)=r {Some(t.clone())} else {None}).collect());
+                            let mut seen=HashSet::new();
+                            this.control_ui.duplicate_team_names=this.control_ui.team_index.iter().filter_map(|t|{
+                                let name=t.name.trim().to_lowercase();
+                                (!seen.insert(name.clone())).then_some(name)
+                            }).collect();
+                            this.control_ui.team_names=seen;
+                            this.control_ui.snapshot = snapshot;
+                            this.control_ui.snapshot_loaded = true;
+                        }
                         if saving && this.control_ui.editor_generation==editor_generation {this.control_ui.form = None;}
                         if saving && let Some(proposal) = this.control_ui.accepted_proposal.take() {
                             if this.control_ui.snapshot.records.iter().any(|r| matches!(r, ControlRecord::Action(a) if a.id==proposal.id && a.status==WorkspaceActionStatus::Accepted)) {
@@ -1090,61 +1108,16 @@ impl Waku {
             }
             ControlRecord::Team(team) => {
                 if let Some(project) = project {
-                    let profiles: HashMap<_, _> = self
-                        .control_ui
-                        .snapshot
-                        .records
-                        .iter()
-                        .filter_map(|v| {
-                            if let ControlRecord::Agent(a) = v {
-                                Some((a.id, a))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                    if team
-                        .members
-                        .iter()
-                        .filter_map(|m| profiles.get(&m.agent_id))
-                        .any(|a| a.execution.environment == ExecutionEnvironment::NebiusSandbox)
-                    {
-                        self.show_toast(
-                            "Sandbox team execution requires the Teams runtime adapter.",
-                        );
-                        return;
-                    }
-                    let lead = team
-                        .members
-                        .iter()
-                        .find(|m| m.parent_id.is_none())
-                        .and_then(|m| profiles.get(&m.agent_id));
-                    let provider = lead
-                        .map(|agent| agent.provider)
-                        .unwrap_or(ProviderKind::Nebius);
-                    let lead_model = lead.and_then(|agent| agent.model.clone());
-                    let mut prompt = format!(
-                        "Team: {}\nObjective: {}\nHigher agents delegate to their direct reports. Respect the current task's approval policy and project scope.\n",
-                        team.name, team.objective
+                    let mention =
+                        waku_client::teams::mentions::mention(&team, &self.control_ui.team_index);
+                    // Keep New task; picking a team only inserts an explicit address.
+                    // Never combine every member's instructions into a solo prompt.
+                    self.prepare_control_task(
+                        project,
+                        self.state.last_provider,
+                        format!("{mention} {}", team.objective),
+                        cx,
                     );
-                    for member in team.members {
-                        if let Some(agent) = profiles.get(&member.agent_id) {
-                            let parent = member
-                                .parent_id
-                                .and_then(|id| profiles.get(&id))
-                                .map(|p| p.name.as_str())
-                                .unwrap_or("User");
-                            prompt.push_str(&format!(
-                                "\n{} — {}. Reports to {}. Instructions: {}\n",
-                                agent.name, agent.expertise, parent, agent.instructions
-                            ));
-                        }
-                    }
-                    self.prepare_control_task(project, provider, prompt, cx);
-                    if let Some(session) = self.selected_session_mut() {
-                        session.model = lead_model;
-                    }
-                    self.save();
                 }
             }
             ControlRecord::Workflow(workflow) => {

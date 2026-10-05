@@ -1089,6 +1089,128 @@ mod tests {
     use std::path::PathBuf;
     use waku_client::{DaemonClient, DaemonSupervisor};
 
+    #[test]
+    fn team_queue_ack_survives_stale_saves_and_cannot_enter_solo_runtime() {
+        use crate::{
+            control::ControlStore, daemon::WakuBackend, persistence::StateStore,
+            settings::DaemonSettingsStore,
+        };
+        use waku_protocol::control::{AgentProfile, ControlRecord, Team, TeamMember};
+        let root = std::env::temp_dir().join(format!("ion-team-rpc-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let backend = WakuBackend::new(
+            DaemonSettingsStore::open(root.join("settings.json")).unwrap(),
+            StateStore::daemon(root.join("app.db")),
+        )
+        .unwrap();
+        let control = ControlStore::new(root.join("ion-control.db"));
+        let agent_id = Uuid::new_v4();
+        let team_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let profile:AgentProfile=serde_json::from_value(json!({"id":agent_id,"name":"Lead","expertise":"Research","instructions":"Check evidence","provider":"nebius","model":"chosen-model"})).unwrap();
+        control.save(0, ControlRecord::Agent(profile)).unwrap();
+        let definitions = control
+            .save(
+                1,
+                ControlRecord::Team(Team {
+                    id: team_id,
+                    name: "Research".into(),
+                    objective: "Inspect".into(),
+                    members: vec![TeamMember {
+                        agent_id,
+                        parent_id: None,
+                    }],
+                }),
+            )
+            .unwrap();
+        let project = Project::from_path(root.clone());
+        let hub = Arc::new(Hub::default());
+        let call = |command| {
+            backend.handle(
+                Request {
+                    request_id: Uuid::new_v4(),
+                    session_id,
+                    runtime_id: Uuid::nil(),
+                    command,
+                },
+                hub.event_sink(session_id, Uuid::nil()),
+            )
+        };
+        call(Command::SaveTaskState {
+            projects: vec![project.clone()],
+            live_session_ids: vec![],
+            sessions: vec![],
+        })
+        .unwrap();
+        let queue = Command::QueueTeamTask {
+            run_id: session_id,
+            project_id: project.id,
+            expected_definition_revision: definitions.revision,
+            team_id,
+            source_prompt: "@Research inspect files".into(),
+        };
+        let ResponsePayload::TeamTaskQueued { snapshot, session } = call(queue.clone()).unwrap()
+        else {
+            panic!("queue response")
+        };
+        assert_eq!(session.model.as_deref(), Some("chosen-model"));
+        assert_eq!(session.messages[0].content, "@Research inspect files");
+        let ResponsePayload::TeamTaskQueued {
+            snapshot: again, ..
+        } = call(queue).unwrap()
+        else {
+            panic!("queue replay")
+        };
+        assert_eq!(snapshot.id, again.id);
+        assert_eq!(snapshot.work[0].id, again.work[0].id);
+        let mut stale = session.clone();
+        stale.team_assignment = None;
+        stale.provider = ProviderKind::Codex;
+        stale.messages.clear();
+        call(Command::SaveTaskState {
+            projects: vec![],
+            live_session_ids: vec![],
+            sessions: vec![stale],
+        })
+        .unwrap();
+        let ResponsePayload::Session {
+            session: Some(saved),
+        } = call(Command::HydrateSession { session_id }).unwrap()
+        else {
+            panic!("saved task")
+        };
+        assert_eq!(saved.team_assignment, session.team_assignment);
+        assert_eq!(saved.messages[0].content, "@Research inspect files");
+        let error = call(Command::Start {
+            options: waku_protocol::WireDriverStartOptions {
+                provider: "must-not-be-decoded".into(),
+                binary: root.join("never-launch.exe"),
+                cwd: root.clone(),
+                mode: "fullAccess".into(),
+                model: None,
+                reasoning_effort: None,
+                service_tier: None,
+                context_window: None,
+                agent_preset: None,
+                computer_use_enabled: false,
+                provider_cursor: None,
+            },
+        })
+        .unwrap_err();
+        assert!(error.to_string().contains("Teams execution adapter"));
+        drop(backend);
+        drop(control);
+        assert!(
+            root.starts_with(std::env::temp_dir())
+                && root
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("ion-team-rpc-")
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[derive(Default)]
     struct TestBackend {
         runtimes: Mutex<HashMap<Uuid, Uuid>>,

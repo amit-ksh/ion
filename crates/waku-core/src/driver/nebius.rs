@@ -384,7 +384,7 @@ fn completion(
     };
     let system = if workspace.is_some() {
         format!(
-            "{system} Publish generated reports and documents with save_document. If you identify a follow-up task, use propose_task so the user can accept it in Inbox. Use request_decision when the user must choose before further progress; wait for the result. Token Factory sandbox commands need explicit approval and never receive local files automatically."
+            "{system} Publish generated reports and documents with save_document. Use list_teams and invoke_team when a saved team would help the current task. Team invocations inherit this project and conservative read-only access; obey the bounded limits. The current Teams bridge only queues work: use get_team_runs for status, never claim queued work has executed or completed.  If you identify a follow-up task, use propose_task so the user can accept it in Inbox. Use request_decision when the user must choose before further progress; wait for the result. Token Factory sandbox commands need explicit approval and never receive local files automatically."
         )
     } else {
         system.to_owned()
@@ -586,7 +586,13 @@ fn execute_tool(
     let args: Value = serde_json::from_str(&call.arguments).context("invalid tool arguments")?;
     if matches!(
         call.name.as_str(),
-        "propose_task" | "save_document" | "request_decision" | "tokenfactory_exec"
+        "propose_task"
+            | "save_document"
+            | "request_decision"
+            | "tokenfactory_exec"
+            | "list_teams"
+            | "invoke_team"
+            | "get_team_runs"
     ) {
         return workspace::execute(
             workspace.context("Workspace tools are unavailable")?,
@@ -905,6 +911,8 @@ fn reconcile_incomplete_calls(cwd: &Path, path: &Path, journal: &mut Journal) ->
                 Some("nemoclaw_exec" | "tokenfactory_exec")
             ) {
                 "Sandbox command outcome is uncertain after interruption. Inspect the sandbox before requesting any follow-up; the command was not repeated.".to_owned()
+            } else if call["function"]["name"] == "invoke_team" {
+                "Team invocation was interrupted. Its durable queue may already exist. Use get_team_runs to inspect it before requesting another invocation. No team invocation was replayed.".to_owned()
             } else if call["function"]["name"] == "write_file" {
                 let args: Value =
                     serde_json::from_str(call["function"]["arguments"].as_str().unwrap_or(""))
@@ -965,6 +973,37 @@ fn persist(path: &Path, journal: &Journal) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interrupted_team_queue_is_not_blindly_replayed() {
+        let root = std::env::temp_dir().join(format!("ion-team-journal-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("journal.json");
+        let mut journal = Journal {
+            messages: vec![
+                json!({"role":"assistant","tool_calls":[{"id":"team-call","function":{"name":"invoke_team","arguments":"{}"}}]}),
+            ],
+            pending_effect: Some("team-call".into()),
+            ..Default::default()
+        };
+        reconcile_incomplete_calls(&root, &path, &mut journal).unwrap();
+        assert!(journal.pending_effect.is_none());
+        assert!(
+            journal.messages[1]["content"]
+                .as_str()
+                .unwrap()
+                .contains("get_team_runs")
+        );
+        assert!(
+            root.starts_with(std::env::temp_dir())
+                && root
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("ion-team-journal-")
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn streamed_tool_fragments_keep_model_order() {

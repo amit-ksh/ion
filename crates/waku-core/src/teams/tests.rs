@@ -92,6 +92,8 @@ impl Fixture {
             team_id: self.team,
             expected_definition_revision: self.definitions.load().unwrap().revision,
             objective: "Implement and validate".into(),
+            source_prompt: None,
+            origin: None,
             limits: TeamRunLimits::default(),
             access: AgentAccess {
                 workspace_read: true,
@@ -927,6 +929,8 @@ fn task_db_commit_before_outbox_ack_replays_without_duplicate_or_lost_transcript
         });
         let pending = f.store.pending_materializations(1).unwrap();
         let mut session = materialize::task_session(&pending[0]);
+        // Older task rows have no binding; replay adopts it and preserves detail.
+        session.team_assignment = None;
         session.messages.push(Message::new(
             MessageRole::Assistant,
             "Preserve this existing transcript",
@@ -960,5 +964,239 @@ fn task_db_commit_before_outbox_ack_replays_without_duplicate_or_lost_transcript
         session.messages[1].content,
         "Preserve this existing transcript"
     );
+    assert!(f.store.pending_materializations(128).unwrap().is_empty());
+    assert!(session.team_assignment.is_some());
+    let restarted = StateStore::daemon(f.dir.join("tasks.db"));
+    let mut loaded = restarted.load().unwrap();
+    restarted.hydrate(&mut loaded.sessions[0]).unwrap();
+    assert_eq!(loaded.sessions[0].team_assignment, session.team_assignment);
+    assert_eq!(loaded.sessions[0].messages.len(), 2);
+}
+
+#[test]
+fn explicit_invocation_recovers_its_root_with_pinned_settings() {
+    use crate::{
+        model::Project,
+        persistence::{PersistedState, StateStore},
+    };
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.access = Default::default();
+    request.source_prompt = Some(format!("@team:{} {}", f.team, request.objective));
+    let run = f.store.queue_task(request.clone(), 100).unwrap();
+    assert_eq!(run.source_prompt, request.source_prompt);
+    assert_eq!(
+        f.store
+            .binding_for_task(run.root_task_id)
+            .unwrap()
+            .unwrap()
+            .run_id,
+        run.id
+    );
+    assert!(
+        f.store
+            .claim(run.id, run.work[0].id, DispatchHost::Local, 101, 100)
+            .is_err()
+    );
+    let mut state = PersistedState::empty();
+    state.projects.push(Project {
+        id: f.project,
+        name: "Project".into(),
+        path: f.dir.clone(),
+        created_at: 100,
+    });
+    let task_store = StateStore::daemon(f.dir.join("tasks.db"));
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    assert_eq!(
+        reopened
+            .materialize_run(run.id, &task_store, &mut state, 102)
+            .unwrap(),
+        1
+    );
+    let task = state
+        .sessions
+        .iter()
+        .find(|s| s.id == run.root_task_id)
+        .unwrap()
+        .clone();
+    assert_eq!(task.provider, ProviderKind::Nebius);
+    assert_eq!(task.model.as_deref(), Some("model-0"));
+    assert_eq!(task.messages[0].content, request.source_prompt.unwrap());
+    assert_eq!(
+        task.team_assignment.as_ref().unwrap().assignment_id,
+        run.work[0].id
+    );
+    assert_eq!(
+        reopened
+            .materialize_run(run.id, &task_store, &mut state, 103)
+            .unwrap(),
+        0
+    );
+    assert_eq!(state.sessions.len(), 1);
+    let mut loaded = task_store.load().unwrap();
+    task_store.hydrate(&mut loaded.sessions[0]).unwrap();
+    assert_eq!(loaded.sessions[0].team_assignment, task.team_assignment);
+}
+#[test]
+fn agent_invocation_pins_scope_deduplicates_and_rejects_changed_arguments() {
+    let f = Fixture::new();
+    let task = Uuid::new_v4();
+    let revision = f.definitions.load().unwrap().revision;
+    let run = f
+        .store
+        .queue_from_agent(
+            task,
+            f.project,
+            "call-1".into(),
+            f.team,
+            revision,
+            "Research".into(),
+            100,
+        )
+        .unwrap();
+    assert_eq!(run.origin.as_ref().unwrap().task_id, task);
+    assert_eq!(run.access, AgentAccess::default());
+    assert!(!run.work[0].access.workspace_write);
+    assert!(run.work[0].access.app_actions.is_empty());
+    assert_eq!(
+        f.store
+            .queue_from_agent(
+                task,
+                f.project,
+                "call-1".into(),
+                f.team,
+                revision,
+                "Research".into(),
+                101
+            )
+            .unwrap()
+            .root_task_id,
+        run.root_task_id
+    );
+    assert!(
+        f.store
+            .queue_from_agent(
+                task,
+                f.project,
+                "call-1".into(),
+                f.team,
+                revision,
+                "Changed".into(),
+                102
+            )
+            .is_err()
+    );
+    assert!(
+        f.store
+            .queue_from_agent(
+                task,
+                Uuid::new_v4(),
+                "call-1".into(),
+                f.team,
+                revision,
+                "Research".into(),
+                102
+            )
+            .is_err()
+    );
+    assert_eq!(f.store.runs_for_source(task).unwrap().len(), 1);
+    assert!(f.store.runs_for_source(Uuid::new_v4()).unwrap().is_empty());
+    // A retry is the same immutable run even if the published profile changed.
+    let mut agent = run.profiles[0].clone();
+    agent.model = Some("new-model".into());
+    f.definitions
+        .save(revision, ControlRecord::Agent(agent))
+        .unwrap();
+    assert_eq!(
+        f.store
+            .queue_from_agent(
+                task,
+                f.project,
+                "call-1".into(),
+                f.team,
+                revision,
+                "Research".into(),
+                103
+            )
+            .unwrap()
+            .profiles[0]
+            .model,
+        run.profiles[0].model
+    );
+}
+#[test]
+fn concurrent_agent_invocations_create_one_run_and_enforce_the_source_cap() {
+    let f = Fixture::new();
+    let task = Uuid::new_v4();
+    let revision = f.definitions.load().unwrap().revision;
+    let path = f.dir.join("control.db");
+    let project = f.project;
+    let team = f.team;
+    let results = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let path = path.clone();
+                scope.spawn(move || {
+                    TeamCoordinator::new(path)
+                        .queue_from_agent(
+                            task,
+                            project,
+                            "same-call".into(),
+                            team,
+                            revision,
+                            "Inspect".into(),
+                            100,
+                        )
+                        .unwrap()
+                        .id
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert!(results.iter().all(|id| *id == results[0]));
+    for i in 1..4 {
+        f.store
+            .queue_from_agent(
+                task,
+                project,
+                format!("call-{i}"),
+                team,
+                revision,
+                "Inspect".into(),
+                101,
+            )
+            .unwrap();
+    }
+    assert!(
+        f.store
+            .queue_from_agent(
+                task,
+                project,
+                "call-5".into(),
+                team,
+                revision,
+                "Inspect".into(),
+                102
+            )
+            .is_err()
+    );
+    assert_eq!(f.store.runs_for_source(task).unwrap().len(), 4);
+}
+#[test]
+fn queue_rejects_plain_or_mismatched_invocations_without_outbox_effects() {
+    let f = Fixture::new();
+    for text in [
+        "Implement and validate".to_owned(),
+        format!("@team:{} Different objective", f.team),
+        format!("@team:{} Implement and validate", Uuid::new_v4()),
+    ] {
+        let mut request = f.request();
+        request.source_prompt = Some(text);
+        assert!(f.store.queue_task(request, 100).is_err());
+    }
     assert!(f.store.pending_materializations(128).unwrap().is_empty());
 }

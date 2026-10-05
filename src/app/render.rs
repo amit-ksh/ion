@@ -375,6 +375,9 @@ impl Render for Waku {
                             .cached(StyleRefinement::default().flex_1().min_h(px(0.0)).w_full())
                             .into_any_element()
                     })
+                    .when(self.control_ui.page.is_none(), |element| {
+                        element.children(self.render_team_task_status(cx))
+                    })
                     .children(permission)
                     .when(
                         self.control_ui.page.is_none() && self.selected_project().is_some(),

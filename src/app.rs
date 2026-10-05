@@ -1659,6 +1659,7 @@ mod sidebar;
 mod skills_page;
 mod streaming;
 mod task_switcher;
+mod team_tasks;
 mod transcript;
 mod transcript_search;
 mod transcript_view;

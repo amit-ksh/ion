@@ -55,6 +55,7 @@ pub fn init(cx: &mut App) {
 pub(super) enum AutocompleteRow {
     Command(Scored<SlashCommand>),
     File(Scored<FileEntry>),
+    Team(Scored<waku_client::control::Team>),
 }
 
 /// Filter results for one (kind, query, source index) — the popup's rows are
@@ -63,7 +64,7 @@ struct ResultsMemo {
     kind: TriggerKind,
     query: String,
     /// `Rc::as_ptr` identity of the source index the rows were filtered from.
-    source: usize,
+    source: (usize, usize, bool),
     rows: Rc<Vec<AutocompleteRow>>,
 }
 
@@ -286,10 +287,20 @@ impl Waku {
 
     /// The filtered rows for `trigger`, shared by the popup body, the keyboard
     /// cursor and `enter` so an index always means the same row everywhere.
-    fn autocomplete_rows(&self, trigger: &Trigger) -> Rc<Vec<AutocompleteRow>> {
+    fn autocomplete_rows(&self, trigger: &Trigger, cx: &App) -> Rc<Vec<AutocompleteRow>> {
+        let team_site = self.composer.read(cx).content(cx)[..trigger.range.start]
+            .trim()
+            .is_empty()
+            && self
+                .selected_session()
+                .is_some_and(|s| s.detail_loaded && !s.has_started() && s.turns.is_empty());
         let source = match trigger.kind {
-            TriggerKind::Command => Rc::as_ptr(&self.slash_command_index) as usize,
-            TriggerKind::File => Rc::as_ptr(&self.mention_file_index) as usize,
+            TriggerKind::Command => (Rc::as_ptr(&self.slash_command_index) as usize, 0, false),
+            TriggerKind::File => (
+                Rc::as_ptr(&self.mention_file_index) as usize,
+                Rc::as_ptr(&self.control_ui.team_index) as usize,
+                team_site,
+            ),
         };
         {
             let memo = self.composer_autocomplete.results.borrow();
@@ -309,14 +320,35 @@ impl Waku {
             .into_iter()
             .map(AutocompleteRow::Command)
             .collect::<Vec<_>>(),
-            TriggerKind::File => composer_complete::filter_files(
-                &self.mention_file_index,
-                &trigger.query,
-                &mut matcher,
-            )
-            .into_iter()
-            .map(AutocompleteRow::File)
-            .collect(),
+            TriggerKind::File => {
+                let mut rows = if team_site {
+                    composer_complete::filter_teams(
+                        &self.control_ui.team_index,
+                        &trigger.query,
+                        &mut matcher,
+                    )
+                    .into_iter()
+                    .map(AutocompleteRow::Team)
+                    .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
+                if !trigger.query.starts_with("team:") {
+                    // Reserve space for files even when the workspace has many teams.
+                    rows.truncate(16);
+                    rows.extend(
+                        composer_complete::filter_files(
+                            &self.mention_file_index,
+                            &trigger.query,
+                            &mut matcher,
+                        )
+                        .into_iter()
+                        .map(AutocompleteRow::File),
+                    );
+                }
+                rows.truncate(composer_complete::FILTER_CAP);
+                rows
+            }
         };
         let rows = Rc::new(rows);
         *self.composer_autocomplete.results.borrow_mut() = Some(ResultsMemo {
@@ -337,7 +369,7 @@ impl Waku {
         let Some(trigger) = self.composer_trigger(window, cx) else {
             return;
         };
-        let rows = self.autocomplete_rows(&trigger);
+        let rows = self.autocomplete_rows(&trigger, cx);
         let ui = &self.composer_autocomplete;
         let current = ui.highlight.get().min(rows.len().saturating_sub(1));
         let Some(next) = next_picker_highlight(Some(current), rows.len(), key) else {
@@ -360,7 +392,7 @@ impl Waku {
         let Some(trigger) = self.composer_trigger(window, cx) else {
             return;
         };
-        let rows = self.autocomplete_rows(&trigger);
+        let rows = self.autocomplete_rows(&trigger, cx);
         let index = index.unwrap_or_else(|| {
             self.composer_autocomplete
                 .highlight
@@ -375,7 +407,18 @@ impl Waku {
                 let composer_text = composer_complete::command_composer_text(&scored.item);
                 format!("{composer_text} ")
             }
-            AutocompleteRow::File(scored) => format!("@{} ", scored.item.path),
+            AutocompleteRow::File(scored) => {
+                let path = &scored.item.path;
+                if self.control_ui.team_names.contains(&path.to_lowercase()) {
+                    format!("@./{path} ")
+                } else {
+                    format!("@{path} ")
+                }
+            }
+            AutocompleteRow::Team(scored) => format!(
+                "{} ",
+                waku_client::teams::mentions::mention(&scored.item, &self.control_ui.team_index)
+            ),
         };
         if matches!(row, AutocompleteRow::Command(_)) {
             let mut submission = self.composer.read(cx).content(cx).to_owned();
@@ -404,7 +447,7 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> Option<(AnyElement, bool)> {
         let trigger = self.composer_trigger(window, cx)?;
-        let rows = self.autocomplete_rows(&trigger);
+        let rows = self.autocomplete_rows(&trigger, cx);
         let loading = match trigger.kind {
             TriggerKind::Command => self.slash_command_index_loading,
             TriggerKind::File => self.mention_file_index_loading,
@@ -579,6 +622,38 @@ impl Waku {
                     )
                     .into_any_element()
             }
+            AutocompleteRow::Team(scored) => base
+                .child(icon("icons/fork.svg", 13.0, theme.text_secondary))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text)
+                        .child(scored.item.name.clone()),
+                )
+                .child(
+                    div()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_secondary)
+                        .child(
+                            if self
+                                .control_ui
+                                .duplicate_team_names
+                                .contains(&scored.item.name.trim().to_lowercase())
+                            {
+                                format!(
+                                    "Team · {} agents · {}",
+                                    scored.item.members.len(),
+                                    &scored.item.id.to_string()[..8]
+                                )
+                            } else {
+                                format!("Team · {} agents", scored.item.members.len())
+                            },
+                        ),
+                )
+                .into_any_element(),
             AutocompleteRow::File(scored) => {
                 let file = &scored.item;
                 // The row draws basename then directory, but the positions

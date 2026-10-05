@@ -8,7 +8,8 @@ Nebius agents fall back to a compatible local machine when sandbox execution
 cannot start or a known failure permits a safe retry.
 Each agent also has a user-selected harness; teams may mix harnesses. Harness
 selection is independent of environment and remains unchanged on local fallback.
-No app code changes accompany this plan.
+The original proposal is implemented in increments recorded in
+[the progress checklist](19-agent-teams-progress.md).
 
 ## What exists and what changes
 
@@ -46,11 +47,17 @@ Verified starting points:
 2. Assemble several teams. Each has one lead; members report to another member.
    An agent may join multiple teams with different reporting lines. Shared
    agent concurrency limits apply across those teams.
-3. Choose a project and a team in New task, then describe the outcome. The task
-   records the selected team/profile versions, acceptance criteria, permitted
-   selected environments, permitted local fallback, access, budget, and
-   autonomy policy. The confirmed default lets the
-   lead delegate automatically within those limits.
+3. Keep the existing New task flow for ordinary prompts. To address a team,
+   start the prompt with `@teamname` and the task. `@{Team Name}` supports
+   spaces; the @ picker inserts a qualified address such as
+   `@team:{Engineering team}`. The Teams page's New task action pre-fills that
+   address and the team's objective without launching work. Names in ordinary
+   text, quoted text, file contents or expanded commands do not select a team.
+   The selected team/profile versions, outcome, limits and allowed resources
+   belong to the durable run. Normal agents may also invoke a saved team through
+   a structured, authenticated runtime tool when it helps their task; caller
+   identity/project and authorization come from the runtime rather than model
+   arguments. Delegation remains automatic within those configured limits.
 4. The lead breaks the outcome into assignments. A manager delegates to direct
    reports; those reports may delegate to their own reports. The daemon checks
    each assignment against the hierarchy and permitted scope.

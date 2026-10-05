@@ -42,6 +42,7 @@ pub(super) fn tools(mut tools: Value, context: Option<&WorkspaceContext>) -> Val
         return tools;
     };
     let list = tools.as_array_mut().unwrap();
+    list.extend(team_tools().as_array().unwrap().iter().cloned());
     list.push(json!({"type":"function","function":{"name":"request_decision","description":"Ask the user to approve or decline a decision before further task or workflow progress. Blocks until the user answers.","parameters":{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"}},"required":["title","detail"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"propose_task","description":"Extract a follow-up task for the user to accept or decline in Inbox. Does not execute the task.","parameters":{"type":"object","properties":{"title":{"type":"string"},"instructions":{"type":"string"}},"required":["title","instructions"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"save_document","description":"Publish a generated HTML, Markdown, text, CSV or JSON document to the project's Artifacts collection.","parameters":{"type":"object","properties":{"name":{"type":"string"},"format":{"type":"string","enum":["html","md","txt","csv","json"]},"content":{"type":"string"}},"required":["name","format","content"],"additionalProperties":false}}}));
@@ -60,8 +61,29 @@ pub(super) fn execute(
     call: &ToolCall,
     args: &Value,
 ) -> Result<String> {
+    anyhow::ensure!(!cancelled.load(Ordering::Relaxed), "Task stopped");
     let store = crate::control::ControlStore::new(context.control_path.clone());
     let result = match call.name.as_str() {
+        "list_teams" => team_catalog(&store, args)?,
+        "invoke_team" => {
+            journal.pending_effect = Some(call.id.clone());
+            persist(journal_path, journal)?;
+            let result = invoke_team(context, &call.id, args);
+            if result.is_err() {
+                journal.pending_effect = None;
+                persist(journal_path, journal)?;
+            }
+            result?
+        }
+        "get_team_runs" => {
+            anyhow::ensure!(
+                args.as_object().is_some_and(|o| o.is_empty()),
+                "No arguments accepted"
+            );
+            let runs = crate::teams::TeamCoordinator::new(context.control_path.clone())
+                .runs_for_source(context.task_id)?;
+            serde_json::to_string(&runs.iter().map(team_summary).collect::<Vec<_>>())?
+        }
         "request_decision" => {
             let title = required_str(args, "title")?;
             let detail = required_str(args, "detail")?;
@@ -197,6 +219,75 @@ pub(super) fn execute(
     });
     Ok(result)
 }
+fn team_tools() -> Value {
+    json!([
+        {"type":"function","function":{"name":"list_teams","description":"Find saved agent teams and the definition revision. Team queues are available; execution adapters are under development.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"additionalProperties":false}}},
+        {"type":"function","function":{"name":"invoke_team","description":"Queue a saved team to help this task, in the same project with read-only access. Maximum four invocations per source task. Does not launch a harness yet; inspect get_team_runs and never claim completion from a queue acknowledgment.","parameters":{"type":"object","properties":{"team_id":{"type":"string"},"definition_revision":{"type":"integer"},"objective":{"type":"string"}},"required":["team_id","definition_revision","objective"],"additionalProperties":false}}},
+        {"type":"function","function":{"name":"get_team_runs","description":"Inspect the durable team runs invoked from this task. Queued means waiting for an execution adapter, not completed work.","parameters":{"type":"object","properties":{},"additionalProperties":false}}}
+    ])
+}
+fn team_catalog(store: &crate::control::ControlStore, args: &Value) -> Result<String> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Search {
+        #[serde(default)]
+        query: String,
+    }
+    let search: Search = serde_json::from_value(args.clone())?;
+    anyhow::ensure!(search.query.len() <= 256, "Team query is too long");
+    let snapshot = store.load()?;
+    let query = search.query.to_lowercase();
+    let teams: Vec<_> = snapshot
+        .records
+        .iter()
+        .filter_map(|r| {
+            if let ControlRecord::Team(t) = r {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .filter(|t| t.name.to_lowercase().contains(&query))
+        .take(64)
+        .map(|t| json!({"id":t.id,"name":t.name,"agents":t.members.len()}))
+        .collect();
+    Ok(
+        json!({"definition_revision":snapshot.revision,"teams":teams,"execution_ready":false})
+            .to_string(),
+    )
+}
+fn invoke_team(context: &WorkspaceContext, request_id: &str, args: &Value) -> Result<String> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Invocation {
+        team_id: Uuid,
+        definition_revision: u64,
+        objective: String,
+    }
+    let request: Invocation = serde_json::from_value(args.clone())?;
+    let run = crate::teams::TeamCoordinator::new(context.control_path.clone()).queue_from_agent(
+        context.task_id,
+        context.project_id,
+        request_id.into(),
+        request.team_id,
+        request.definition_revision,
+        request.objective,
+        crate::model::unix_time(),
+    )?;
+    Ok(team_summary(&run).to_string())
+}
+fn team_summary(run: &waku_protocol::teams::TeamRunSnapshot) -> Value {
+    json!({"run_id":run.id,"task_id":run.root_task_id,"team":run.team.name,"status":run.status,
+        "invocation_id":run.origin.as_ref().map(|origin|&origin.request_id),
+        "objective":run.work.first().map(|w|w.objective.chars().take(512).collect::<String>()),
+        "total_assignments":run.work.len(),"omitted_assignments":run.work.len().saturating_sub(8),
+        "assignments":run.work.iter().take(8).map(|w|json!({"id":w.id,"task_id":w.task_id,"status":w.status,
+            "reason":w.reason.as_ref().map(|r|r.chars().take(256).collect::<String>()),
+            "summary":w.result.as_ref().map(|r|r.summary.chars().take(512).collect::<String>()),
+            "artifacts":w.result.as_ref().map(|r|r.artifact_ids.iter().take(8).collect::<Vec<_>>())})).collect::<Vec<_>>(),
+        "execution_ready":false,"message":"Queued work cannot execute until the Teams harness adapters are implemented."})
+}
+
 struct ChildGuard(std::process::Child);
 impl std::ops::Deref for ChildGuard {
     type Target = std::process::Child;
@@ -281,6 +372,30 @@ fn run_contree(session: &str, argv: &[String], cancelled: &AtomicBool) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn team_tool_rejects_model_selected_task_or_project() {
+        let context = WorkspaceContext {
+            task_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            control_path: PathBuf::new(),
+            settings_path: PathBuf::new(),
+        };
+        let args = json!({"team_id":Uuid::new_v4(),"definition_revision":0,"objective":"Research","project_id":Uuid::new_v4()});
+        assert!(
+            invoke_team(&context, "call", &args)
+                .unwrap_err()
+                .to_string()
+                .contains("unknown field")
+        );
+        let names: Vec<_> = team_tools()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["function"]["name"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(names, ["list_teams", "invoke_team", "get_team_runs"]);
+    }
+
     #[test]
     fn sandbox_is_hidden_by_default_and_switch_is_read_live() {
         let path = std::env::temp_dir().join(format!("ion-sandbox-test-{}.json", Uuid::new_v4()));

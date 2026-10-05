@@ -59,6 +59,7 @@ pub struct WakuBackend {
     default_cwd: std::path::PathBuf,
     control: crate::control::ControlStore,
     teams: crate::teams::TeamCoordinator,
+    task_start_gates: Mutex<HashMap<Uuid, std::sync::Weak<Mutex<()>>>>,
 }
 
 impl WakuBackend {
@@ -90,6 +91,7 @@ impl WakuBackend {
             eprintln!("Could not replay team child tasks: {error}");
         }
         Ok(Self {
+            task_start_gates: Mutex::new(HashMap::new()),
             teams,
             control: crate::control::ControlStore::new(
                 task_store.path().with_file_name("ion-control.db"),
@@ -115,6 +117,17 @@ impl WakuBackend {
     pub(crate) fn with_terminal_shell(mut self, shell: alacritty_terminal::tty::Shell) -> Self {
         self.terminal_shell = Some(shell);
         self
+    }
+
+    fn task_start_gate(&self, task: Uuid) -> Arc<Mutex<()>> {
+        let mut gates = self.task_start_gates.lock();
+        gates.retain(|_, gate| gate.strong_count() > 0);
+        if let Some(gate) = gates.get(&task).and_then(std::sync::Weak::upgrade) {
+            return gate;
+        }
+        let gate = Arc::new(Mutex::new(()));
+        gates.insert(task, Arc::downgrade(&gate));
+        gate
     }
 
     fn open_terminal(
@@ -242,6 +255,97 @@ impl Backend for WakuBackend {
         let session_id = request.session_id;
         let runtime_id = request.runtime_id;
         match request.command {
+            Command::QueueTeamTask {
+                run_id,
+                project_id,
+                expected_definition_revision,
+                team_id,
+                source_prompt,
+            } => {
+                let gate = self.task_start_gate(session_id);
+                let _guard = gate.lock();
+                anyhow::ensure!(
+                    !self.sessions.lock().contains_key(&session_id),
+                    "Use New task to invoke a team"
+                );
+                anyhow::ensure!(
+                    !self.removed_session_ids.lock().contains(&session_id),
+                    "This task was removed"
+                );
+                let mut state = self.task_state.lock();
+                anyhow::ensure!(
+                    state.projects.iter().any(|p| p.id == project_id),
+                    "Choose an existing project"
+                );
+                let binding = self.teams.binding_for_task(session_id)?;
+                if binding.is_none() {
+                    if let Some(existing) = state.sessions.iter_mut().find(|s| s.id == session_id) {
+                        self.task_store.hydrate(existing)?;
+                        anyhow::ensure!(
+                            existing.project_id == project_id
+                                && !existing.has_started()
+                                && existing.turns.is_empty()
+                                && existing.queued_messages.is_empty(),
+                            "Use New task to invoke a team"
+                        );
+                    }
+                }
+                let definitions = self.control.load()?;
+                let teams: Vec<_> = definitions
+                    .records
+                    .iter()
+                    .filter_map(|r| {
+                        if let waku_protocol::control::ControlRecord::Team(t) = r {
+                            Some(t.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                // For exact retries, use the pinned team rather than a renamed/deleted current definition.
+                let address_teams = if let Some(binding) = &binding {
+                    vec![self.teams.snapshot(binding.run_id)?.team]
+                } else {
+                    teams
+                };
+                let invocation =
+                    waku_protocol::teams::mentions::resolve(&source_prompt, &address_teams)
+                        .map_err(anyhow::Error::msg)?
+                        .context("Explicit @team invocation required")?;
+                anyhow::ensure!(
+                    invocation.team_id == team_id,
+                    "The team mention changed; choose the team again"
+                );
+                let snapshot = self.teams.queue_task(
+                    crate::teams::PrepareRun {
+                        id: run_id,
+                        root_task_id: session_id,
+                        project_id,
+                        team_id,
+                        expected_definition_revision,
+                        objective: invocation.objective,
+                        limits: Default::default(),
+                        access: Default::default(),
+                        source_prompt: Some(source_prompt),
+                        origin: None,
+                    },
+                    crate::model::unix_time(),
+                )?;
+                self.teams.materialize_run(
+                    snapshot.id,
+                    &self.task_store,
+                    &mut state,
+                    crate::model::unix_time(),
+                )?;
+                let session = state
+                    .sessions
+                    .iter_mut()
+                    .find(|s| s.id == session_id)
+                    .context("Team root remains pending; retry the same invocation")?;
+                self.task_store.hydrate(session)?;
+                let session = session.clone();
+                Ok(ResponsePayload::TeamTaskQueued { snapshot, session })
+            }
             Command::PrepareTeamRun {
                 run_id,
                 expected_definition_revision,
@@ -250,6 +354,12 @@ impl Backend for WakuBackend {
                 limits,
                 access,
             } => {
+                let gate = self.task_start_gate(session_id);
+                let _guard = gate.lock();
+                anyhow::ensure!(
+                    !self.sessions.lock().contains_key(&session_id),
+                    "Use a new idle task for team preparation"
+                );
                 let root = {
                     let mut state = self.task_state.lock();
                     let root = state
@@ -277,6 +387,8 @@ impl Backend for WakuBackend {
                             team_id,
                             expected_definition_revision,
                             objective,
+                            source_prompt: None,
+                            origin: None,
                             limits,
                             access,
                         },
@@ -458,7 +570,14 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Ack)
             }
             Command::LoadTaskState => {
-                let state = self.task_state.lock();
+                let mut state = self.task_state.lock();
+                if let Err(error) = self.teams.materialize_pending(
+                    &self.task_store,
+                    &mut state,
+                    crate::model::unix_time(),
+                ) {
+                    eprintln!("Could not materialize queued team tasks: {error}");
+                }
                 Ok(ResponsePayload::TaskState {
                     projects: state.projects.clone(),
                     sessions: state
@@ -503,7 +622,11 @@ impl Backend for WakuBackend {
                     .iter()
                     .map(|session| session.id)
                     .collect::<Vec<_>>();
+                let team_task_ids = self.teams.team_task_ids(sessions.iter().map(|s| s.id))?;
                 for mut session in sessions {
+                    if team_task_ids.contains(&session.id) {
+                        continue;
+                    }
                     if let Some(existing) = state
                         .sessions
                         .iter_mut()
@@ -912,6 +1035,12 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Ack)
             }
             Command::Start { options } => {
+                let gate = self.task_start_gate(session_id);
+                let _guard = gate.lock();
+                anyhow::ensure!(
+                    self.teams.binding_for_task(session_id)?.is_none(),
+                    "Team tasks require the Teams execution adapter; solo launch is disabled"
+                );
                 let provider = decode_enum(&options.provider)?;
                 waku_protocol::distribution::ProviderPolicy::require_new_task(provider)?;
                 let previous = self.sessions.lock().remove(&session_id);
@@ -986,6 +1115,10 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Ack)
             }
             command => {
+                anyhow::ensure!(
+                    self.teams.binding_for_task(session_id)?.is_none(),
+                    "Team tasks require the Teams execution adapter"
+                );
                 let driver = {
                     let sessions = self.sessions.lock();
                     let (active_runtime_id, driver) = sessions
@@ -1999,6 +2132,7 @@ fn handle_driver_command(
         | Command::TrashSkills { .. }
         | Command::LoadTaskState
         | Command::LoadWorkspaceControl
+        | Command::QueueTeamTask { .. }
         | Command::PrepareTeamRun { .. }
         | Command::GetTeamRun { .. }
         | Command::GetTeamAudit { .. }

@@ -1,10 +1,10 @@
 # Agent teams: implementation progress and review checklist
 
 Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
-`ion-prod` in a separate managed worktree. This is the first implementation
-increment of [the agreed plan](18-agent-teams-implementation.md).
+`ion-prod` in a separate managed worktree. This records the foundation and invocation
+increments of [the agreed plan](18-agent-teams-implementation.md).
 
-## Implemented in this increment
+## Foundation implementation
 
 - Agent definitions retain their own harness/model and add an explicit Local or
   Nebius sandbox environment, target reference, local fallback policy, expected
@@ -39,7 +39,7 @@ increment of [the agreed plan](18-agent-teams-implementation.md).
   cannot complete with unfinished children. Repeated identical reports produce
   one durable result event; changed reports are rejected.
 - Audit events are indexed and paged by cursor. Typed daemon commands prepare,
-  query and stop runs. Protocol version is **11**; desktop/daemon/mobile clients
+  query and stop runs. Protocol version is **12**; desktop/daemon/mobile clients
   must rebuild together.
 
 `PrepareTeamRun` prepares a durable queue for an existing idle root task. It does
@@ -47,12 +47,58 @@ not launch a harness. `GetTeamRun`, `GetTeamAudit` and `StopTeamRun` return the
 shared state. Delegation, claims, reports and reconciliation remain trusted
 internal operations, pending authenticated harness bridges.
 
+## Invocation increment (2026-10-05)
+
+Foundation committed as `d093fa9` on `codex/ion-agent-teams`.
+
+- The existing New task flow stays intact. Ordinary prompts use their selected
+  solo harness. A leading `@teamname <task>`, `@{Team Name} <task>` or a qualified
+  address from @ suggestions opts into Teams. Team suggestions use the existing
+  keyboard cursor, Enter/Tab acceptance and Escape dismissal alongside files.
+  Team queue submissions remain available without an installed solo harness;
+  a cached name lookup keeps that control consistent with keyboard submission.
+- The Teams page's New task action inserts an explicit team address and its
+  objective. It no longer concatenates member instructions into one lead prompt.
+- Duplicate names require the picker's UUID-qualified address. Deleted qualified
+  teams, missing objectives, stale definitions and file/name collisions cannot
+  silently start a solo task. Quoted/code/later mentions are ordinary text.
+- The daemon queues the run with pinned profiles, then materializes its root
+  through the same durable outbox as children. It preserves typed text and the
+  lead's saved harness/model. Exact repeated submissions reuse the run/task IDs.
+- Every materialized task carries its daemon-owned team binding. A per-task
+  startup gate and indexed membership check prevent a team task entering a solo
+  runtime, including the gap before outbox replay. Client state saves cannot
+  overwrite the daemon's pinned team task. Membership checks are batched per
+  save rather than reconnecting for each projection. Restart hydration restores
+  the binding; outbox replay can adopt older rows without losing their transcript.
+- The native Nebius **normal task** runtime advertises `list_teams`, `invoke_team`
+  and `get_team_runs`. It can choose an existing team when useful without the
+  user having to type a mention. Its trusted workspace context supplies the
+  source task/project. Model arguments cannot change those identities or grants.
+- Agent invocations are correlated by source task and provider tool-call ID.
+  Identical repeats and concurrent requests yield one durable run; changed
+  arguments are rejected. Each source task can create at most four team runs.
+  Invocations preserve the source link, use conservative read-only authorization
+  and the coordinator's depth/work/concurrency/attempt/deadline defaults.
+- Normal task catalog refresh replays one bounded outbox batch on a daemon worker.
+  Direct user submission materializes its own run so an unrelated broken project
+  cannot block that submission. Restart never blindly repeats an interrupted
+  invocation; the agent inspects its own durable runs first.
+- Team status appears in the task. UI and tool responses explicitly say execution
+  is unavailable. The current bridge **queues work only**: it does not launch
+  child harnesses or claim completion. Normal-agent invocation for external
+  harnesses remains pending their authenticated tool bridges.
+- Team attachment handoffs and team follow-ups are pending. Rejected submissions
+  retain their text and attachments. No new task-creation screen was added.
+
 ## Remaining development
 
 - [ ] Wire each delegation to the materializer and dispatcher wakeup; drain
   additional batches during normal operation.
-- [ ] Replace the legacy single-prompt Team task preparation with a run start
-  action and daemon-owned dispatch.
+- [x] Replace legacy single-prompt Team preparation with explicit @ addressing
+  and daemon-owned durable queue creation.
+- [x] Add the native normal-agent team invocation queue bridge.
+- [ ] Implement actual team start/dispatch and authenticated harness execution.
 - [ ] Native Nebius adapter: bind leases to driver sessions, enforce grants,
   expose delegation/report tools, return child results and resume parents.
 - [ ] Bounded context handoffs, parent waiting/resume, review/rework, required
@@ -71,40 +117,66 @@ internal operations, pending authenticated harness bridges.
 - [ ] Persisted user decisions bound to exact action/revision/host.
 - [ ] Routine scheduling and workflow execution over the same coordinator.
 
-The existing Team “New task” action still prepares one lead prompt and uses the
-lead's saved model. It is not hierarchical team execution. Sandbox-configured
-profiles/teams do not silently use that legacy local action.
+The Team “New task” action now prepares an explicit team address in the normal
+composer. Both user addressing and native agent invocation queue a real run.
+Hierarchical harness execution remains under development. Neither Local nor
+Nebius configurations silently run through the old solo action.
 
 ## Developer verification
 
-Run from this worktree:
+Run from this worktree with dependencies installed:
 
 ```powershell
-cargo test --locked -p waku-core teams:: -- --test-threads=4
+cargo test --locked -p waku-core team -- --test-threads=4
 cargo test --locked -p waku-core control::tests:: -- --test-threads=4
 cargo test --locked -p waku-protocol protocol::tests::
+cargo test --locked -p waku-protocol teams::mentions::
+cargo test --locked -p waku-client composer_complete::tests::
 cargo check --locked -p waku -p waku-daemon
 bun run protocol:generate
 bun run protocol:check
+bun test packages/waku-client
+bun run --cwd packages/waku-client check
 cargo fmt --all -- --check
 git diff --check
 ```
 
 Verified 2026-10-05 against this worktree:
 
-- Teams regression suite: **19 passed**.
+- Team coordinator, invocation, recovery and daemon integration checks:
+  **27 passed**, including **23 coordinator tests**.
+- Team addressing parser: **3 passed**.
+- Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
 - Protocol wire contract suite: **7 passed**.
 - Native app and daemon: `cargo check --locked -p waku -p waku-daemon` passed.
 - TypeScript bindings regenerated and the generator's `--check` passed.
-- TypeScript client: **23 tests passed**, and its TypeScript type check passed.
+- TypeScript client: **23 tests passed**, and its TypeScript type check passed
+  using the primary checkout's existing TypeScript dependencies.
 - Rust formatting and `git diff --check` passed.
 
 Cargo checks/tests reused the existing dependency cache with
 `--target-dir D:/personal/apps/waku/target`; source changes live in the new
 worktree. No app executable was launched or replaced by these check/test runs.
-The existing dev watcher was not restarted. Changes are uncommitted.
+The existing dev watcher was not restarted. Foundation commit: `d093fa9`.
+Invocation changes are delivered in a separate commit after verification.
 No live provider, sandbox, mobile build or visual acceptance is claimed.
+
+## User review of invocation (queue only)
+
+- [ ] Send a plain New task prompt; confirm normal solo behavior.
+- [ ] Start a prompt with `@teamname` or choose a team from @ suggestions.
+- [ ] Use a spaced team name, duplicate names and an unknown qualified team.
+- [ ] Press Enter/Tab/Escape and use arrows in the shared @ picker.
+- [ ] Confirm a team reference in quotes, code or later text does not route work.
+- [ ] Confirm path mentions such as `@./engineering` still address files.
+- [ ] Confirm the queued task preserves the lead harness/model and typed prompt.
+- [ ] Refresh/restart and confirm the same task/run survives without duplicates.
+- [ ] Observe that queued work is not shown as executing or complete.
+- [ ] In a native Nebius solo task, ask it to use a saved team; inspect the
+  `invoke_team` call and its queue/status result. Requires a privately saved key.
+- [ ] Confirm actor/project overrides, changed repeated calls and a fifth
+  invocation are rejected; external harness bridges remain pending.
 
 ## User review when the execution adapters are ready
 

@@ -40,6 +40,16 @@ pub fn detect_trigger(text: &str, cursor: usize) -> Option<Trigger> {
         }
         return None;
     }
+    let leading = text[..cursor].trim_start();
+    if (leading.starts_with("@team:{") || leading.starts_with("@{"))
+        && !leading.contains(['}', '\n', '\r'])
+    {
+        return Some(Trigger {
+            kind: TriggerKind::File,
+            query: leading[1..].to_owned(),
+            range: cursor - leading.len()..cursor,
+        });
+    }
     let token_start = text[..cursor]
         .rfind(char::is_whitespace)
         .map_or(0, |index| {
@@ -336,6 +346,25 @@ pub fn filter_commands(
         .collect()
 }
 
+pub fn filter_teams(
+    teams: &[waku_protocol::control::Team],
+    query: &str,
+    matcher: &mut Matcher,
+) -> Vec<Scored<waku_protocol::control::Team>> {
+    let query = query
+        .strip_prefix("team:")
+        .unwrap_or(query)
+        .trim_start_matches('{');
+    let names = teams.iter().map(|t| t.name.as_str()).collect::<Vec<_>>();
+    filter_scored(&names, query, matcher, FILTER_CAP)
+        .into_iter()
+        .map(|(i, positions)| Scored {
+            item: teams[i].clone(),
+            positions,
+        })
+        .collect()
+}
+
 pub fn filter_files(
     files: &[FileEntry],
     query: &str,
@@ -375,6 +404,25 @@ pub fn highlight_byte_ranges(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn team_addresses_keep_spaced_names_and_keyboard_trigger_ranges() {
+        let trigger = detect_trigger("  @team:{Design te", 18).unwrap();
+        assert_eq!(trigger.kind, TriggerKind::File);
+        assert_eq!(trigger.range, 2..18);
+        assert_eq!(trigger.query, "team:{Design te");
+        assert!(detect_trigger("@team:{Design team} ", 20).is_none());
+        let teams = vec![waku_protocol::control::Team {
+            id: uuid::Uuid::new_v4(),
+            name: "Design team".into(),
+            objective: "Design".into(),
+            members: vec![],
+        }];
+        assert_eq!(
+            filter_teams(&teams, "team:{Design", &mut matcher()).len(),
+            1
+        );
+    }
 
     #[test]
     fn merged_command_picker_puts_builtins_first_and_skills_last() {

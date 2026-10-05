@@ -5,5 +5,10 @@ import type { Team } from "./Team";
 import type { TeamAssignment } from "./TeamAssignment";
 import type { TeamRunLimits } from "./TeamRunLimits";
 import type { TeamRunStatus } from "./TeamRunStatus";
+import type { TeamTaskOrigin } from "./TeamTaskOrigin";
 
-export type TeamRunSnapshot = { id: string, rootTaskId: string, projectId: string, definitionRevision: number, revision: number, status: TeamRunStatus, team: Team, profiles: Array<AgentProfile>, limits: TeamRunLimits, access: AgentAccess, createdAt: number, deadline: number, work: Array<TeamAssignment>, };
+export type TeamRunSnapshot = { id: string, rootTaskId: string, projectId: string, definitionRevision: number, revision: number, status: TeamRunStatus, team: Team, profiles: Array<AgentProfile>, limits: TeamRunLimits, access: AgentAccess, createdAt: number, deadline: number, work: Array<TeamAssignment>,
+/**
+ * Original user text for a queued root, retained separately from its objective.
+ */
+sourcePrompt?: string | null, origin?: TeamTaskOrigin | null, };

@@ -10,6 +10,7 @@ import type { RuntimeEventCursor } from "./RuntimeEventCursor";
 import type { RuntimeMode } from "./RuntimeMode";
 import type { SessionStatus } from "./SessionStatus";
 import type { SessionWorkspace } from "./SessionWorkspace";
+import type { TeamTaskBinding } from "./TeamTaskBinding";
 import type { ThreadGoal } from "./ThreadGoal";
 import type { TranscriptBlock } from "./TranscriptBlock";
 
@@ -23,7 +24,7 @@ title: string,
  * Best-effort title supplied by the provider, or derived locally from the
  * first prompt until the provider reports a better one.
  */
-auto_title?: string | null, project_id: string,
+auto_title?: string | null, project_id: string, team_assignment?: TeamTaskBinding | null,
 /**
  * Local project checkout or an isolated Git worktree for this task.
  */

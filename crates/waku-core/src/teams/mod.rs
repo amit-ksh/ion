@@ -33,6 +33,10 @@ pub struct PrepareRun {
     pub limits: TeamRunLimits,
     /// Already intersected with project/task authorization by the trusted caller.
     pub access: AgentAccess,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<TeamTaskOrigin>,
 }
 
 pub struct Delegation {
@@ -70,6 +74,8 @@ pub struct TaskMaterialization {
     pub project_id: Uuid,
     pub assignment: TeamAssignment,
     pub profile: AgentProfile,
+    pub binding: TeamTaskBinding,
+    pub source_prompt: Option<String>,
 }
 
 /// Explicit host supplied after adapter readiness checks, never workload routing.
@@ -192,6 +198,75 @@ impl TeamCoordinator {
     /// Prepare a durable queue only. Starting harness execution is a separate step.
     pub fn prepare(&self, request: PrepareRun, now: u64) -> Result<TeamRunSnapshot> {
         ensure!(
+            request.source_prompt.is_none(),
+            "Use the new-task outbox for a team invocation"
+        );
+        self.prepare_inner(request, now, true)
+    }
+
+    /// Persist the root in the same recoverable outbox as children. No harness launch.
+    pub fn queue_task(&self, request: PrepareRun, now: u64) -> Result<TeamRunSnapshot> {
+        ensure!(
+            request.source_prompt.is_some(),
+            "Explicit team invocation required"
+        );
+        self.prepare_inner(request, now, false)
+    }
+
+    pub(crate) fn queue_from_agent(
+        &self,
+        task_id: Uuid,
+        project_id: Uuid,
+        request_id: String,
+        team_id: Uuid,
+        expected_definition_revision: u64,
+        objective: String,
+        now: u64,
+    ) -> Result<TeamRunSnapshot> {
+        let objective = objective.trim().to_owned();
+        self.queue_task(
+            PrepareRun {
+                id: Uuid::new_v4(),
+                root_task_id: Uuid::new_v4(),
+                project_id,
+                team_id,
+                expected_definition_revision,
+                source_prompt: Some(format!("@team:{team_id} {objective}")),
+                objective,
+                limits: Default::default(),
+                access: Default::default(),
+                origin: Some(TeamTaskOrigin {
+                    task_id,
+                    request_id,
+                }),
+            },
+            now,
+        )
+    }
+    pub(crate) fn runs_for_source(&self, task_id: Uuid) -> Result<Vec<TeamRunSnapshot>> {
+        let mut db = self.connect()?;
+        let tx = db.transaction()?;
+        let ids: Vec<String> = tx
+            .prepare(
+                "SELECT run_id FROM ion_team_invocations WHERE task_id=? ORDER BY rowid LIMIT 4",
+            )?
+            .query_map([task_id.to_string()], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        let runs = ids
+            .into_iter()
+            .map(|id| load(&tx, Uuid::parse_str(&id)?))
+            .collect::<Result<_>>()?;
+        tx.commit()?;
+        Ok(runs)
+    }
+
+    fn prepare_inner(
+        &self,
+        request: PrepareRun,
+        now: u64,
+        root_materialized: bool,
+    ) -> Result<TeamRunSnapshot> {
+        ensure!(
             !request.id.is_nil() && !request.root_task_id.is_nil() && !request.project_id.is_nil(),
             "Run and task identities are required"
         );
@@ -209,6 +284,29 @@ impl TeamCoordinator {
         let body = serde_json::to_string(&request)?;
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let origin_signature = if let Some(origin) = &request.origin {
+            ensure!(!origin.task_id.is_nil(), "Source task identity required");
+            text(&origin.request_id, 256, "Invocation ID")?;
+            let signature = serde_json::to_string(
+                &serde_json::json!({"project":request.project_id,"team":request.team_id,"objective":request.objective,"access":request.access,"limits":request.limits}),
+            )?;
+            if let Some((id,existing)) = tx.query_row("SELECT run_id,signature FROM ion_team_invocations WHERE task_id=? AND request_id=?",params![origin.task_id.to_string(),origin.request_id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
+                ensure!(existing==signature,"Invocation ID reused with changed arguments");
+                return load(&tx,Uuid::parse_str(&id)?);
+            }
+            let count: u16 = tx.query_row(
+                "SELECT count(*) FROM ion_team_invocations WHERE task_id=?",
+                [origin.task_id.to_string()],
+                |r| r.get(0),
+            )?;
+            ensure!(
+                count < 4,
+                "This source task reached its four team invocation limit"
+            );
+            Some(signature)
+        } else {
+            None
+        };
         if let Some((id, original)) = tx
             .query_row(
                 "SELECT id,request FROM ion_team_runs WHERE root_task_id=? OR id=?",
@@ -237,6 +335,29 @@ impl TeamCoordinator {
                 _ => None,
             })
             .context("Team no longer exists")?;
+        if let Some(prompt) = &request.source_prompt {
+            text(prompt, 32_000, "Team invocation")?;
+            let invocation = mentions::resolve(
+                prompt,
+                &definitions
+                    .records
+                    .iter()
+                    .filter_map(|r| {
+                        if let ControlRecord::Team(t) = r {
+                            Some(t.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(anyhow::Error::msg)?
+            .context("Explicit team invocation required")?;
+            ensure!(
+                invocation.team_id == request.team_id && invocation.objective == request.objective,
+                "Team invocation does not match the requested work"
+            );
+        }
         let profiles: Vec<_> = team
             .members
             .iter()
@@ -290,10 +411,15 @@ impl TeamCoordinator {
             created_at: now,
             deadline,
             work: vec![],
+            source_prompt: request.source_prompt,
+            origin: request.origin.clone(),
         };
         tx.execute("INSERT INTO ion_team_runs(id,root_task_id,project_id,status,revision,request,body) VALUES(?,?,?,?,1,?,?)",
             params![run.id.to_string(),run.root_task_id.to_string(),run.project_id.to_string(),run_status(run.status),body,serde_json::to_string(&run)?])?;
-        insert_work(&tx, run.id, &root, None, None, true)?;
+        insert_work(&tx, run.id, &root, None, None, root_materialized)?;
+        if let Some(origin) = &run.origin {
+            tx.execute("INSERT INTO ion_team_invocations(task_id,request_id,signature,run_id) VALUES(?,?,?,?)",params![origin.task_id.to_string(),origin.request_id,origin_signature,run.id.to_string()])?;
+        }
         audit(
             &tx,
             run.id,
@@ -305,6 +431,38 @@ impl TeamCoordinator {
         tx.commit()?;
         self.snapshot(run.id)
     }
+    /// One connection and an indexed lookup per incoming projection; never scan transcripts.
+    pub fn team_task_ids(&self, ids: impl IntoIterator<Item = Uuid>) -> Result<HashSet<Uuid>> {
+        let db = self.connect()?;
+        let mut query = db.prepare("SELECT 1 FROM ion_team_work WHERE task_id=?")?;
+        let mut bound = HashSet::new();
+        for id in ids {
+            if query
+                .query_row([id.to_string()], |r| r.get::<_, u8>(0))
+                .optional()?
+                .is_some()
+            {
+                bound.insert(id);
+            }
+        }
+        Ok(bound)
+    }
+
+    /// Indexed membership lookup used to fence solo entry points, even before outbox replay.
+    pub fn binding_for_task(&self, task_id: Uuid) -> Result<Option<TeamTaskBinding>> {
+        let db = self.connect()?;
+        let row: Option<(String, String, String)> = db.query_row("SELECT w.run_id,w.id,r.body FROM ion_team_work w JOIN ion_team_runs r ON r.id=w.run_id WHERE w.task_id=?", [task_id.to_string()], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional()?;
+        row.map(|(run, id, body)| {
+            let run_body: TeamRunSnapshot = serde_json::from_str(&body)?;
+            Ok(TeamTaskBinding {
+                run_id: Uuid::parse_str(&run)?,
+                assignment_id: Uuid::parse_str(&id)?,
+                team_name: run_body.team.name,
+            })
+        })
+        .transpose()
+    }
+
     /// Called once by the owner daemon after a restart. An old host may still
     /// be running, so revoke its lease and require reconciliation, preserving capacity.
     pub fn reconcile_owner_restart(&self, now: u64) -> Result<()> {
@@ -500,10 +658,17 @@ impl TeamCoordinator {
         Ok(work)
     }
     pub fn pending_materializations(&self, limit: usize) -> Result<Vec<TaskMaterialization>> {
+        self.pending_materializations_for_run(None, limit)
+    }
+    pub(super) fn pending_materializations_for_run(
+        &self,
+        run: Option<Uuid>,
+        limit: usize,
+    ) -> Result<Vec<TaskMaterialization>> {
         let mut db = self.connect()?;
         let tx = db.transaction()?;
-        let ids: Vec<(String,String)> = tx.prepare("SELECT o.run_id,o.work_id FROM ion_team_outbox o JOIN ion_team_work w ON w.id=o.work_id JOIN ion_team_runs r ON r.id=o.run_id WHERE o.materialized=0 AND w.status='queued' AND r.status='active' ORDER BY o.rowid LIMIT ?")?
-            .query_map([limit.clamp(1,128)], |row| Ok((row.get(0)?,row.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
+        let ids: Vec<(String,String)> = tx.prepare("SELECT o.run_id,o.work_id FROM ion_team_outbox o JOIN ion_team_work w ON w.id=o.work_id JOIN ion_team_runs r ON r.id=o.run_id WHERE o.materialized=0 AND w.status='queued' AND r.status='active' AND (? IS NULL OR o.run_id=?) ORDER BY o.rowid LIMIT ?")?
+            .query_map(params![run.map(|r|r.to_string()),run.map(|r|r.to_string()),limit.clamp(1,128)], |row| Ok((row.get(0)?,row.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
         let mut result = Vec::new();
         for (run_id, work_id) in ids {
             let run = load(&tx, Uuid::parse_str(&run_id)?)?;
@@ -520,6 +685,16 @@ impl TeamCoordinator {
             result.push(TaskMaterialization {
                 run_id: run.id,
                 project_id: run.project_id,
+                binding: TeamTaskBinding {
+                    run_id: run.id,
+                    assignment_id: assignment.id,
+                    team_name: run.team.name.clone(),
+                },
+                source_prompt: if assignment.parent_id.is_none() {
+                    run.source_prompt
+                } else {
+                    None
+                },
                 assignment,
                 profile,
             });

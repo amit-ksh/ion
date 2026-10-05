@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 11;
+pub const PROTOCOL_VERSION: u32 = 12;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -180,6 +180,14 @@ pub enum Command {
     LoadTaskState,
     LoadWorkspaceControl,
     /// Persist a run queue; this does not start a provider process.
+    QueueTeamTask {
+        run_id: Uuid,
+        project_id: Uuid,
+        expected_definition_revision: u64,
+        team_id: Uuid,
+        source_prompt: String,
+    },
+    /// Prepare coordination for an already-persisted idle root task.
     PrepareTeamRun {
         run_id: Uuid,
         expected_definition_revision: u64,
@@ -429,6 +437,10 @@ pub enum ResponseOutcome {
     rename_all_fields = "camelCase"
 )]
 pub enum ResponsePayload {
+    TeamTaskQueued {
+        snapshot: crate::teams::TeamRunSnapshot,
+        session: AgentSession,
+    },
     TeamRun {
         snapshot: crate::teams::TeamRunSnapshot,
     },
@@ -611,6 +623,20 @@ mod tests {
         assert!(matches!(
             serde_json::from_value::<Command>(json).unwrap(),
             Command::PrepareTeamRun { .. }
+        ));
+        let queued = serde_json::to_value(Command::QueueTeamTask {
+            run_id,
+            project_id: Uuid::new_v4(),
+            expected_definition_revision: 3,
+            team_id: Uuid::new_v4(),
+            source_prompt: "@engineering Inspect files".into(),
+        })
+        .unwrap();
+        assert_eq!(queued["type"], "queueTeamTask");
+        assert_eq!(queued["sourcePrompt"], "@engineering Inspect files");
+        assert!(matches!(
+            serde_json::from_value::<Command>(queued).unwrap(),
+            Command::QueueTeamTask { .. }
         ));
         let execution = serde_json::to_value(crate::teams::AgentExecution::default()).unwrap();
         assert_eq!(execution["environment"], "local");
