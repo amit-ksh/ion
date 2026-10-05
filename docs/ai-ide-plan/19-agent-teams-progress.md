@@ -1,7 +1,7 @@
 # Agent teams: implementation progress and review checklist
 
 Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
-`ion-prod` in a separate managed worktree. This records the foundation and invocation
+`ion-prod` in a separate managed worktree. This records the foundation, invocation and continuation
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
 ## Foundation implementation
@@ -39,7 +39,7 @@ increments of [the agreed plan](18-agent-teams-implementation.md).
   cannot complete with unfinished children. Repeated identical reports produce
   one durable result event; changed reports are rejected.
 - Audit events are indexed and paged by cursor. Typed daemon commands prepare,
-  query and stop runs. Protocol version is **12**; desktop/daemon/mobile clients
+  query and stop runs. Protocol version is **13**; desktop/daemon/mobile clients
   must rebuild together.
 
 `PrepareTeamRun` prepares a durable queue for an existing idle root task. It does
@@ -91,6 +91,30 @@ Foundation committed as `d093fa9` on `codex/ion-agent-teams`.
 - Team attachment handoffs and team follow-ups are pending. Rejected submissions
   retain their text and attachments. No new task-creation screen was added.
 
+## Parent continuation increment (2026-10-05)
+
+Invocation checkpoint committed as `c64810c`.
+
+- A trusted adapter can persist a private JSON checkpoint and yield while it
+  awaits up to 16 of its own direct children. Checkpoints are capped at 128 KiB
+  and never appear in task projections or public wire responses.
+- Yield commits the checkpoint and releases the execution slot atomically.
+  Three-level teams therefore work even with a team concurrency limit of one.
+  Waiting parents survive owner restart without being treated as live hosts.
+- Resume requires all watched children to have settled; an uncertain child
+  keeps its parent waiting. Resume checks shared/profile/team capacity again,
+  retains the same attempt, host, harness/model and access, and consumes no retry.
+- A fresh lease generation on resume rejects old workers' renew, delegation,
+  checkpoint and report calls. Racing resumes issue one continuation; exact
+  repeated suspension is idempotent and changed replay arguments are rejected.
+- Child handoffs contain bounded summary/check evidence, artifact IDs, task
+  links and omission counts. JSON escaping counts toward their context budget.
+- Stop cancels waiting parents; active children still require host confirmation.
+  Deadlines block waiting and queued assignments. Live expired hosts remain
+  uncertain until reconciled.
+- These are coordinator operations. Actual adapter dispatch, child execution,
+  review/rework and live task projections remain the next implementation work.
+
 ## Remaining development
 
 - [ ] Wire each delegation to the materializer and dispatcher wakeup; drain
@@ -101,8 +125,9 @@ Foundation committed as `d093fa9` on `codex/ion-agent-teams`.
 - [ ] Implement actual team start/dispatch and authenticated harness execution.
 - [ ] Native Nebius adapter: bind leases to driver sessions, enforce grants,
   expose delegation/report tools, return child results and resume parents.
-- [ ] Bounded context handoffs, parent waiting/resume, review/rework, required
-  output contracts and acceptance checks beyond recorded evidence.
+- [x] Durable parent waiting/resume and bounded child result handoffs.
+- [ ] Adapter delivery of handoffs, review/rework, required output contracts and
+  acceptance checks beyond recorded evidence.
 - [ ] Per-call token/model/cost reservations and budget enforcement. Current
   concurrency/work/depth/attempt/deadline caps do not enforce dollar budgets.
 - [ ] Exact filesystem/resource/egress grants and Composio action grant editor.
@@ -144,7 +169,10 @@ git diff --check
 Verified 2026-10-05 against this worktree:
 
 - Team coordinator, invocation, recovery and daemon integration checks:
-  **27 passed**, including **23 coordinator tests**.
+  **33 passed**, including **29 coordinator tests**. The six continuation
+  regressions cover three-level execution with one slot, restart, stale leases,
+  exact replay, racing resume, shared capacity, cancellation/deadlines and
+  uncertain children with escaped/Unicode handoffs.
 - Team addressing parser: **3 passed**.
 - Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
@@ -159,7 +187,8 @@ Cargo checks/tests reused the existing dependency cache with
 `--target-dir D:/personal/apps/waku/target`; source changes live in the new
 worktree. No app executable was launched or replaced by these check/test runs.
 The existing dev watcher was not restarted. Foundation commit: `d093fa9`.
-Invocation changes are delivered in a separate commit after verification.
+Invocation checkpoint: `c64810c`. Parent continuation changes are delivered
+in a separate commit after verification.
 No live provider, sandbox, mobile build or visual acceptance is claimed.
 
 ## User review of invocation (queue only)

@@ -106,6 +106,7 @@ pub enum TeamRunStatus {
 pub enum AssignmentStatus {
     Queued,
     Running,
+    Waiting,
     Blocked,
     Completed,
     Failed,
@@ -168,6 +169,9 @@ pub struct AssignmentAttempt {
     pub fallback_reason: Option<String>,
     pub started_at: u64,
     pub lease_expires_at: u64,
+    /// Incremented across suspension and resume; stale workers cannot reuse a lease.
+    #[serde(default)]
+    pub generation: u32,
     pub status: AssignmentStatus,
 }
 

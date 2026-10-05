@@ -25,6 +25,9 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             task_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL UNIQUE REFERENCES ion_team_work(id), materialized INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS ion_team_pending_tasks ON ion_team_outbox(materialized,run_id);
+        CREATE TABLE IF NOT EXISTS ion_team_continuations (
+            work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
+            generation INTEGER NOT NULL, dependencies TEXT NOT NULL, checkpoint TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_invocations (
             task_id TEXT NOT NULL, request_id TEXT NOT NULL, signature TEXT NOT NULL,
             run_id TEXT NOT NULL UNIQUE REFERENCES ion_team_runs(id), PRIMARY KEY(task_id,request_id));
@@ -157,6 +160,7 @@ pub(super) fn assignment_status(status: AssignmentStatus) -> &'static str {
     match status {
         AssignmentStatus::Queued => "queued",
         AssignmentStatus::Running => "running",
+        AssignmentStatus::Waiting => "waiting",
         AssignmentStatus::Blocked => "blocked",
         AssignmentStatus::Completed => "completed",
         AssignmentStatus::Failed => "failed",

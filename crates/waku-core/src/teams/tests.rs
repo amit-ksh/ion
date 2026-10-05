@@ -1200,3 +1200,360 @@ fn queue_rejects_plain_or_mismatched_invocations_without_outbox_effects() {
     }
     assert!(f.store.pending_materializations(128).unwrap().is_empty());
 }
+
+#[test]
+fn waiting_parents_release_capacity_and_resume_a_three_level_team_after_restart() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.max_parallel_tasks = 1;
+    request.limits.max_attempts = 1;
+    let run = f.store.prepare(request, 100).unwrap();
+    let root = f.claim(run.id, run.work[0].id);
+    let manager = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    let checkpoint = r#"{"messages":[{"role":"assistant","content":"Manager will investigate"}]}"#;
+    let waiting = f
+        .store
+        .suspend_for_children(&root.lease, &[manager.id], checkpoint, 102)
+        .unwrap();
+    assert_eq!(waiting.work[0].status, AssignmentStatus::Waiting);
+    assert_eq!(
+        f.store
+            .suspend_for_children(&root.lease, &[manager.id], checkpoint, 103)
+            .unwrap()
+            .revision,
+        waiting.revision
+    );
+    assert!(f.store.renew(&root.lease, 103, 100).is_err());
+    assert!(
+        f.store
+            .save_runtime_checkpoint(&root.lease, "{}", 103)
+            .is_err()
+    );
+    assert!(f.store.delegate(&root.lease, f.delegation(1), 103).is_err());
+    assert!(
+        f.store
+            .report(
+                &root.lease,
+                AssignmentOutcome::Blocked("Old worker".into()),
+                103
+            )
+            .is_err()
+    );
+    let manager = f
+        .store
+        .claim(run.id, manager.id, DispatchHost::Local, 103, 100)
+        .unwrap();
+    let leaf = f
+        .store
+        .delegate(&manager.lease, f.delegation(2), 104)
+        .unwrap();
+    f.materialize();
+    f.store
+        .suspend_for_children(&manager.lease, &[leaf.id], "{\"messages\":[]}", 104)
+        .unwrap();
+    let leaf = f
+        .store
+        .claim(run.id, leaf.id, DispatchHost::Local, 105, 100)
+        .unwrap();
+    f.store
+        .report(&leaf.lease, AssignmentOutcome::Completed(result()), 106)
+        .unwrap();
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    reopened.reconcile_owner_restart(107).unwrap();
+    let manager = reopened
+        .resume_after_children(run.id, manager.assignment.id, 108, 100)
+        .unwrap();
+    assert_eq!(manager.claimed.profile.provider, ProviderKind::Codex);
+    assert_eq!(manager.claimed.profile.model.as_deref(), Some("model-1"));
+    assert_eq!(manager.claimed.assignment.attempts.len(), 1);
+    assert_eq!(manager.children[0].task_id, leaf.assignment.task_id);
+    assert_eq!(manager.children[0].status, AssignmentStatus::Completed);
+    assert_eq!(
+        reopened
+            .runtime_checkpoint(&manager.claimed.lease, 108)
+            .unwrap()
+            .as_deref(),
+        Some("{\"messages\":[]}")
+    );
+    reopened
+        .report(
+            &manager.claimed.lease,
+            AssignmentOutcome::Completed(result()),
+            109,
+        )
+        .unwrap();
+    let resumed = reopened
+        .resume_after_children(run.id, root.assignment.id, 110, 100)
+        .unwrap();
+    assert_eq!(resumed.checkpoint, checkpoint);
+    assert_eq!(resumed.claimed.assignment.attempts.len(), 1);
+    assert!(
+        reopened
+            .report(&root.lease, AssignmentOutcome::Completed(result()), 111)
+            .is_err()
+    );
+    assert_eq!(
+        reopened
+            .report(
+                &resumed.claimed.lease,
+                AssignmentOutcome::Completed(result()),
+                111
+            )
+            .unwrap()
+            .status,
+        TeamRunStatus::Completed
+    );
+    assert_eq!(
+        reopened
+            .audit_events(run.id, 0, 100)
+            .unwrap()
+            .iter()
+            .filter(|e| e.event == "resumed")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn continuation_scope_checkpoint_and_replay_arguments_are_validated() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[], "{}", 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[child.id, child.id], "{}", 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[Uuid::new_v4()], "{}", 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[root.assignment.id], "{}", 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[child.id], "not JSON", 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .save_runtime_checkpoint(&root.lease, &format!("\"{}\"", "x".repeat(128 * 1024)), 103)
+            .is_err()
+    );
+    f.store
+        .save_runtime_checkpoint(&root.lease, "{\"step\":1}", 103)
+        .unwrap();
+    assert_eq!(
+        f.store
+            .runtime_checkpoint(&root.lease, 103)
+            .unwrap()
+            .as_deref(),
+        Some("{\"step\":1}")
+    );
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{\"step\":2}", 104)
+        .unwrap();
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[child.id], "{\"step\":3}", 104)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 105, 100)
+            .is_err()
+    );
+    assert!(f.store.runtime_checkpoint(&root.lease, 105).is_err());
+}
+
+#[test]
+fn racing_parent_resumes_issue_one_continuation_without_consuming_a_retry() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 103)
+        .unwrap();
+    let child = f
+        .store
+        .claim(run.id, child.id, DispatchHost::Local, 104, 100)
+        .unwrap();
+    f.store
+        .report(&child.lease, AssignmentOutcome::Completed(result()), 105)
+        .unwrap();
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            let barrier = barrier.clone();
+            let path = f.dir.join("control.db");
+            let work = root.assignment.id;
+            std::thread::spawn(move || {
+                barrier.wait();
+                TeamCoordinator::new(path).resume_after_children(run.id, work, 106, 100)
+            })
+        })
+        .collect();
+    let winners: Vec<_> = threads
+        .into_iter()
+        .filter_map(|t| t.join().unwrap().ok())
+        .collect();
+    assert_eq!(winners.len(), 1);
+    assert_eq!(winners[0].claimed.assignment.attempts.len(), 1);
+    assert!(
+        f.store
+            .suspend_for_children(&root.lease, &[child.assignment.id], "{}", 107)
+            .is_err()
+    );
+}
+
+#[test]
+fn resumption_respects_shared_agent_capacity_and_preserves_the_selected_host() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 103)
+        .unwrap();
+    let other = f.run();
+    let other_root = f
+        .store
+        .claim(other.id, other.work[0].id, DispatchHost::Local, 104, 100)
+        .unwrap();
+    let child = f
+        .store
+        .claim(run.id, child.id, DispatchHost::Local, 104, 100)
+        .unwrap();
+    f.store
+        .report(&child.lease, AssignmentOutcome::Completed(result()), 105)
+        .unwrap();
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 106, 100)
+            .is_err()
+    );
+    f.store
+        .report(
+            &other_root.lease,
+            AssignmentOutcome::Completed(result()),
+            107,
+        )
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 108, 100)
+        .unwrap();
+    let attempt = &resumed.claimed.assignment.attempts[0];
+    assert_eq!(attempt.host, "local");
+    assert_eq!(attempt.environment, ExecutionEnvironment::Local);
+    assert_eq!(resumed.claimed.profile.model, root.profile.model);
+}
+
+#[test]
+fn stop_and_deadline_prevent_a_waiting_parent_from_resuming() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.timeout_seconds = 60;
+    let run = f.store.prepare(request, 100).unwrap();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 103)
+        .unwrap();
+    let expired = f.store.reconcile_expired(run.id, 160).unwrap();
+    assert!(
+        expired
+            .work
+            .iter()
+            .all(|w| w.status == AssignmentStatus::Blocked)
+    );
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 160, 100)
+            .is_err()
+    );
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 103)
+        .unwrap();
+    let child = f
+        .store
+        .claim(run.id, child.id, DispatchHost::Local, 104, 100)
+        .unwrap();
+    let current = f.store.snapshot(run.id).unwrap();
+    let stopping = f.store.stop(run.id, current.revision, 105).unwrap();
+    assert_eq!(stopping.work[0].status, AssignmentStatus::Canceled);
+    assert_eq!(stopping.work[1].status, AssignmentStatus::Canceling);
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 106, 100)
+            .is_err()
+    );
+    assert_eq!(
+        f.store
+            .report(&child.lease, AssignmentOutcome::Canceled, 107)
+            .unwrap()
+            .status,
+        TeamRunStatus::Canceled
+    );
+}
+
+#[test]
+fn uncertain_children_do_not_wake_the_parent_and_handoffs_stay_bounded() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    f.materialize();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 103)
+        .unwrap();
+    let child = f
+        .store
+        .claim(run.id, child.id, DispatchHost::Local, 104, 10)
+        .unwrap();
+    f.store.reconcile_expired(run.id, 114).unwrap();
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 115, 100)
+            .is_err()
+    );
+    let evidence = AssignmentResult {
+        summary: "文\u{1}\"".repeat(1000),
+        artifact_ids: vec![],
+        checks: vec!["Confirmed evidence".into(); 64],
+    };
+    f.store
+        .resolve_uncertain(
+            run.id,
+            child.assignment.id,
+            child.lease.attempt_id(),
+            AssignmentOutcome::Completed(evidence),
+            116,
+        )
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 117, 100)
+        .unwrap();
+    assert_eq!(resumed.children[0].omitted_checks, 62);
+    assert_eq!(resumed.children[0].checks.len(), 2);
+    assert!(serde_json::to_vec(&resumed.children).unwrap().len() < 2048);
+}

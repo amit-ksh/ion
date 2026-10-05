@@ -12,10 +12,12 @@ use std::{collections::HashSet, path::PathBuf};
 use uuid::Uuid;
 use waku_protocol::{control::*, teams::*};
 
+mod continuation;
 mod materialize;
 mod storage;
 #[cfg(test)]
 mod tests;
+pub use continuation::{AssignmentContinuation, AssignmentHandoff};
 use storage::*;
 
 pub struct TeamCoordinator {
@@ -55,8 +57,12 @@ pub struct AssignmentLease {
     run_id: Uuid,
     work_id: Uuid,
     attempt_id: Uuid,
+    generation: u32,
 }
 impl AssignmentLease {
+    pub fn run_id(&self) -> Uuid {
+        self.run_id
+    }
     pub fn work_id(&self) -> Uuid {
         self.work_id
     }
@@ -777,7 +783,9 @@ impl TeamCoordinator {
                 run.work.iter().any(|w| w.id == parent_id
                     && matches!(
                         w.status,
-                        AssignmentStatus::Running | AssignmentStatus::Blocked
+                        AssignmentStatus::Running
+                            | AssignmentStatus::Waiting
+                            | AssignmentStatus::Blocked
                     )),
                 "Parent is no longer accepting child work"
             );
@@ -796,24 +804,7 @@ impl TeamCoordinator {
             .find(|p| p.id == work.agent_id)
             .context("Pinned profile missing")?
             .clone();
-        let (shared, capacity): (u32, Option<u16>) = tx.query_row(
-            "SELECT count(*),min(capacity) FROM ion_team_attempts WHERE agent_id=? AND live=1",
-            [profile.id.to_string()],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )?;
-        let capacity = capacity.map_or(profile.max_parallel_tasks, |cap| {
-            cap.min(profile.max_parallel_tasks)
-        });
-        let active_work = run
-            .work
-            .iter()
-            .filter(|w| w.status.holds_capacity())
-            .count();
-        ensure!(
-            shared < u32::from(capacity)
-                && active_work < usize::from(run.limits.max_parallel_tasks),
-            "Agent or team concurrency limit reached"
-        );
+        continuation::check_capacity(&tx, &run, &profile)?;
         let (environment, host_name, fallback_reason) = match host {
             DispatchHost::Local => {
                 ensure!(
@@ -865,6 +856,7 @@ impl TeamCoordinator {
             lease_expires_at: now
                 .saturating_add(u64::from(lease_seconds))
                 .min(run.deadline),
+            generation: 0,
             status: AssignmentStatus::Running,
         };
         if let Some(reason) = &attempt.fallback_reason {
@@ -881,6 +873,7 @@ impl TeamCoordinator {
             run_id,
             work_id,
             attempt_id: attempt.id,
+            generation: attempt.generation,
         };
         tx.execute("INSERT INTO ion_team_attempts(id,run_id,work_id,agent_id,live,capacity) VALUES(?,?,?,?,1,?)",params![attempt.id.to_string(),run_id.to_string(),work_id.to_string(),profile.id.to_string(),profile.max_parallel_tasks])?;
         work.attempts.push(attempt);
@@ -934,24 +927,49 @@ impl TeamCoordinator {
             .work
             .iter()
             .filter(|w| {
-                matches!(
-                    w.status,
-                    AssignmentStatus::Running | AssignmentStatus::Canceling
-                ) && w.attempts.last().is_some_and(|a| a.lease_expires_at <= now)
+                (run.deadline <= now
+                    && matches!(
+                        w.status,
+                        AssignmentStatus::Queued | AssignmentStatus::Waiting
+                    ))
+                    || (matches!(
+                        w.status,
+                        AssignmentStatus::Running | AssignmentStatus::Canceling
+                    ) && w.attempts.last().is_some_and(|a| a.lease_expires_at <= now))
             })
             .cloned()
         {
-            work.status = AssignmentStatus::Uncertain;
-            work.reason = Some("Worker lease expired; confirm host outcome before retry".into());
-            work.attempts.last_mut().context("Attempt missing")?.status =
-                AssignmentStatus::Uncertain;
+            let inactive = matches!(
+                work.status,
+                AssignmentStatus::Queued | AssignmentStatus::Waiting
+            );
+            work.status = if inactive {
+                AssignmentStatus::Blocked
+            } else {
+                AssignmentStatus::Uncertain
+            };
+            work.reason = Some(
+                if inactive {
+                    "Team deadline reached before dispatch or resume"
+                } else {
+                    "Worker lease expired; confirm host outcome before retry"
+                }
+                .into(),
+            );
+            if let Some(attempt) = work.attempts.last_mut() {
+                attempt.status = work.status;
+            }
             save_work(&tx, &work, false)?;
             audit(
                 &tx,
                 run_id,
                 Some(work.id),
-                "uncertain",
-                "Expired lease is not proof the process stopped",
+                if inactive { "deadline" } else { "uncertain" },
+                if inactive {
+                    "Unstarted work blocked after deadline"
+                } else {
+                    "Expired lease is not proof the process stopped"
+                },
                 now,
             )?;
             changed = true;
@@ -972,6 +990,14 @@ impl TeamCoordinator {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let run = load(&tx, lease.run_id)?;
         let signature = serde_json::to_string(&outcome)?;
+        ensure!(
+            run.work
+                .iter()
+                .find(|w| w.id == lease.work_id)
+                .and_then(|w| w.attempts.iter().find(|a| a.id == lease.attempt_id))
+                .is_some_and(|a| a.generation == lease.generation),
+            "Assignment lease generation is stale"
+        );
         let previous: Option<String> = tx
             .query_row(
                 "SELECT report FROM ion_team_attempts WHERE id=? AND run_id=? AND work_id=?",
@@ -1186,6 +1212,7 @@ impl TeamCoordinator {
                 matches!(
                     w.status,
                     AssignmentStatus::Queued
+                        | AssignmentStatus::Waiting
                         | AssignmentStatus::Running
                         | AssignmentStatus::Blocked
                         | AssignmentStatus::Failed
@@ -1241,6 +1268,7 @@ fn checked_lease<'a>(
     let attempt = work.attempts.last().context("Assignment has no attempt")?;
     ensure!(
         attempt.id == lease.attempt_id
+            && attempt.generation == lease.generation
             && attempt.lease_expires_at > now
             && (work.status == AssignmentStatus::Running
                 || allow_canceling && work.status == AssignmentStatus::Canceling),

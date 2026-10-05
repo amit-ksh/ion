@@ -2,4 +2,8 @@
 import type { AssignmentStatus } from "./AssignmentStatus";
 import type { ExecutionEnvironment } from "./ExecutionEnvironment";
 
-export type AssignmentAttempt = { id: string, environment: ExecutionEnvironment, host: string, fallbackReason: string | null, startedAt: number, leaseExpiresAt: number, status: AssignmentStatus, };
+export type AssignmentAttempt = { id: string, environment: ExecutionEnvironment, host: string, fallbackReason: string | null, startedAt: number, leaseExpiresAt: number,
+/**
+ * Incremented across suspension and resume; stale workers cannot reuse a lease.
+ */
+generation: number, status: AssignmentStatus, };
