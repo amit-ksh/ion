@@ -1,7 +1,7 @@
 # Agent teams: implementation progress and review checklist
 
 Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
-`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter and daemon dispatch
+`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch and review/rework
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
 ## Foundation implementation
@@ -39,7 +39,7 @@ increments of [the agreed plan](18-agent-teams-implementation.md).
   cannot complete with unfinished children. Repeated identical reports produce
   one durable result event; changed reports are rejected.
 - Audit events are indexed and paged by cursor. Typed daemon commands prepare,
-  query and stop runs. Protocol version is **14**; desktop/daemon/mobile clients
+  query and stop runs. Protocol version is **15**; desktop/daemon/mobile clients
   must rebuild together.
 
 `PrepareTeamRun` prepares a durable queue for an existing idle root task. It does
@@ -208,6 +208,54 @@ Native adapter checkpoint: `d2a770f`.
   tools report daemon dispatch rather than the former queue-only placeholder.
 
 
+## Result review and rework increment (2026-10-05)
+
+Daemon dispatch checkpoint: `1400e86`.
+
+- New runs require parent review of child results by default. Submitted output
+  enters **In review**, releases its execution slot and resumes a waiting parent
+  with a bounded handoff. A dependent consumer remains queued until acceptance.
+  Root completion requires every current child to be accepted; historical
+  superseded results stay connected to their correction tasks.
+- `review_child` is a structured native tool bound to the live parent lease and
+  its direct child assignment. It records feedback and document/declared check
+  evidence. Self-review, another parent's child, stale leases, changed receipt
+  replay, stopped runs and unsubmitted results are rejected. Concurrent exact
+  replays produce one review and one correction task UUID.
+- Rework atomically retains the rejected result, publishes its review, and queues
+  a separate task for the same pinned agent, objective, output contract and
+  access. It does not repeat the original attempt. Its input includes the full
+  bounded parent feedback and prior document IDs. Queued consumers are redirected
+  to the corrected output. Older correction-input dependencies do not prevent
+  later rounds from starting.
+- Correction rounds are capped at two per result lineage by default, configurable
+  from zero to eight through run limits; the aggregate work/model-call/deadline
+  caps also remain in force. Exhausting the cap leaves the candidate unaccepted;
+  the parent receives the reason and can report the remaining blocker.
+- Delegation can pin an output contract: minimum unique documents, required
+  formats and required declared check labels. Reporting rejects missing output,
+  duplicated documents and superseded document reuse. Reading prior evidence
+  still uses provenance authorization without demanding a completion contract.
+  Declared check labels do **not** certify that a command or test was executed.
+  Semantic output quality remains the parent's recorded review; executed check
+  receipts and independent verification are still pending.
+- Native tools expose contract delegation, declared checks and parent review.
+  Child authorization is derived from the intersection of parent and pinned
+  child grants. Correction workers receive the original objective and full
+  feedback without copying unrelated conversations or changing harness/model.
+- Accepted/superseded child status persists in a background batch even after the
+  run exits the dispatch index. Task labels distinguish awaiting parent review
+  from replacement by a correction task. Closing an attachment still does not
+  cancel the worker. Stop and deadlines block pending reviews as well as work.
+- Protocol **15** adds review/contract projections and review limits. Rebuild
+  desktop, daemon and clients together. Older persisted runs retain their
+  previous review policy and empty contract defaults; changing that policy is
+  a changed invocation, not an exact replay.
+- Acceptance rechecks current document provenance and structural output
+  requirements. A removed document prevents acceptance while still permitting
+  a correction request with valid observed evidence. Handoffs explicitly mark
+  truncated output/feedback excerpts; full feedback is retained for corrections.
+
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
@@ -224,8 +272,9 @@ Native adapter checkpoint: `d2a770f`.
 - [ ] Enforce token and dollar budgets before billable execution.
 - [x] Durable parent waiting/resume and bounded child result handoffs.
 - [x] Native adapter delivery of bounded child handoffs and document evidence.
-- [ ] Review/rework, required output contracts and acceptance checks beyond
-  recorded evidence.
+- [x] Native parent review/rework and structural document/check output contracts.
+- [ ] Executed check receipts, independent semantic acceptance and review gates
+  for additional harness adapters.
 - [ ] Per-call token/model/cost reservations and budget enforcement. Current
   concurrency/work/depth/attempt/deadline caps do not enforce dollar budgets.
 - [ ] Exact filesystem/resource/egress grants and Composio action grant editor.
@@ -243,7 +292,8 @@ Native adapter checkpoint: `d2a770f`.
 The Team “New task” action now prepares an explicit team address in the normal
 composer. Both user addressing and native agent invocation queue a real run.
 Ready native Nebius assignments now execute through the daemon's dedicated Teams
-worker. Mixed harnesses, coding/tools, review gates and remote execution remain
+worker with parent review and bounded correction tasks. Mixed harnesses,
+coding/tools, independent acceptance verification and remote execution remain
 under development. Team tasks never enter the old solo action.
 
 ## Developer verification
@@ -269,8 +319,8 @@ git diff --check
 Verified 2026-10-05 against this worktree:
 
 - Team coordinator, invocation, recovery and daemon integration checks:
-  **56 passed**, including **35 coordinator tests**, **7 native adapter tests**
-  and **9 dispatcher tests**. The six continuation
+  **67 passed**, including **44 coordinator tests**, **7 native adapter tests**
+  and **11 dispatcher tests**. The six continuation
   regressions cover three-level execution with one slot, restart, stale leases,
   exact replay, racing resume, shared capacity, cancellation/deadlines and
   uncertain children with escaped/Unicode handoffs. The native adapter checks
@@ -286,13 +336,25 @@ Verified 2026-10-05 against this worktree:
   actual worker joins. Server ownership coverage keeps the team stream alive
   after client Close and rejects solo Start over the same task. Legacy request
   replay accepts only the documented default for the added run limit.
+  Review checks cover pending result capacity, acceptance before dependent
+  dispatch, racing/exact rework receipts, unchanged agent/model/access, two-round
+  correction limits, stop/deadline fencing, missing formats/checks/documents,
+  removed evidence, superseded output reuse and legacy defaults. Sixteen
+  superseded children with escaped Unicode evidence fit the handoff budget.
+  The native dispatcher executes a correction task through real adapter tools
+  and restores the exact review status from persisted task details. A separate
+  regression protects that update when a matching catalog hides stale detail.
+The following unaffected suites also passed at the daemon-dispatch checkpoint:
+
 - Runtime publisher cursor/replay regression: **1 passed**.
 - Server lifecycle and reconnect suite: **17 passed**, including the team-owned
   attachment and rejected solo-start regression.
 - Team addressing parser: **3 passed**.
 - Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
-- Protocol wire contract suite: **7 passed**.
+Current review increment verification:
+
+- Protocol wire contract suite: **7 passed** (including the new review limits).
 - Native app and daemon: `cargo check --locked -p waku -p waku-daemon` passed.
 - TypeScript bindings regenerated and the generator's `--check` passed.
 - TypeScript client: **23 tests passed**, and its TypeScript type check passed
@@ -304,8 +366,8 @@ Cargo checks/tests reused the existing dependency cache with
 worktree. No app executable was launched or replaced by these check/test runs.
 The existing dev watcher was not restarted. Foundation commit: `d093fa9`.
 Invocation checkpoint: `c64810c`. Parent continuation checkpoint: `54c26cd`.
-Native adapter checkpoint: `d2a770f`. Daemon dispatch is committed after the checks
-recorded above.
+Native adapter checkpoint: `d2a770f`. Daemon dispatch checkpoint: `1400e86`.
+The result-review increment is committed after the verification recorded above.
 No live provider, sandbox, mobile build or visual acceptance is claimed.
 
 ## User review of invocation and native dispatch
@@ -321,6 +383,12 @@ No live provider, sandbox, mobile build or visual acceptance is claimed.
 - [ ] Without setup, confirm a queued task shows the actual setup reason and
   consumes no attempt. With ready native agents, observe child execution and resume.
 - [ ] Refresh a completed team task and confirm its transcript and documents remain.
+- [ ] Observe a child enter In review; confirm the parent accepts it or creates
+  a separate correction task, preserving the rejected document and feedback.
+- [ ] Check that a consumer waits for accepted corrected output and that a
+  parent cannot finish with an unaccepted child.
+- [ ] Request missing documents/formats/check labels; confirm reporting returns
+  feedback and does not commit a completed result. Declared checks are not executed tests.
 - [ ] Close the team task attachment while children run; reopen it and confirm
   the same run continues. Use Stop separately to cancel the owning team run.
 - [ ] In a native Nebius solo task, ask it to use a saved team; inspect the

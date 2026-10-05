@@ -80,6 +80,10 @@ pub struct TeamRunLimits {
     pub max_depth: u16,
     pub max_attempts: u16,
     pub max_model_calls: u16,
+    /// Old pinned runs retain their original completion policy.
+    #[serde(default)]
+    pub require_child_review: bool,
+    pub max_rework_rounds: u16,
     pub timeout_seconds: u32,
 }
 impl Default for TeamRunLimits {
@@ -90,6 +94,8 @@ impl Default for TeamRunLimits {
             max_depth: 8,
             max_attempts: 2,
             max_model_calls: 64,
+            require_child_review: true,
+            max_rework_rounds: 2,
             timeout_seconds: 3600,
         }
     }
@@ -111,6 +117,8 @@ pub enum AssignmentStatus {
     Waiting,
     Blocked,
     Completed,
+    InReview,
+    Superseded,
     Failed,
     Canceling,
     Canceled,
@@ -154,12 +162,48 @@ pub struct TeamAssignment {
     pub agent_id: Uuid,
     pub objective: String,
     pub expected_output: String,
+    #[serde(default)]
+    pub output_contract: OutputContract,
+    #[serde(default)]
+    pub requires_review: bool,
+    #[serde(default)]
+    pub rework_of: Option<Uuid>,
+    #[serde(default)]
+    pub review: Option<AssignmentReview>,
     pub dependencies: Vec<Uuid>,
     pub access: AgentAccess,
     pub status: AssignmentStatus,
     pub reason: Option<String>,
     pub attempts: Vec<AssignmentAttempt>,
     pub result: Option<AssignmentResult>,
+}
+
+/// Structural output requirements; declared checks are evidence, not proof of execution.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+pub struct OutputContract {
+    pub minimum_documents: u16,
+    pub required_formats: Vec<String>,
+    pub required_checks: Vec<String>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewVerdict {
+    Accepted,
+    Rework,
+}
+/// Review of one immutable submitted result. Rework retains a linked replacement task.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AssignmentReview {
+    pub id: Uuid,
+    pub verdict: ReviewVerdict,
+    pub feedback: String,
+    pub artifact_ids: Vec<Uuid>,
+    pub checks: Vec<String>,
+    pub reviewer_task_id: Uuid,
+    pub replacement_assignment_id: Option<Uuid>,
+    pub created_at: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

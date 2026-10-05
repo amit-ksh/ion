@@ -13,6 +13,11 @@ pub struct AssignmentHandoff {
     pub task_id: Uuid,
     pub agent_id: Uuid,
     pub status: AssignmentStatus,
+    pub expected_output: String,
+    pub expected_output_truncated: bool,
+    pub rework_of: Option<Uuid>,
+    pub review_feedback: Option<String>,
+    pub review_feedback_truncated: bool,
     pub summary: Option<String>,
     pub reason: Option<String>,
     pub artifact_ids: Vec<Uuid>,
@@ -76,6 +81,8 @@ fn settled(status: AssignmentStatus) -> bool {
     matches!(
         status,
         AssignmentStatus::Completed
+            | AssignmentStatus::InReview
+            | AssignmentStatus::Superseded
             | AssignmentStatus::Blocked
             | AssignmentStatus::Failed
             | AssignmentStatus::Canceled
@@ -103,8 +110,17 @@ fn handoff(work: &TeamAssignment) -> AssignmentHandoff {
         task_id: work.task_id,
         agent_id: work.agent_id,
         status: work.status,
-        summary: result.map(|r| bounded_text(&r.summary, 768)),
-        reason: work.reason.as_ref().map(|r| bounded_text(r, 256)),
+        expected_output: bounded_text(&work.expected_output, 128),
+        expected_output_truncated: bounded_text(&work.expected_output, 128).len()
+            != work.expected_output.len(),
+        rework_of: work.rework_of,
+        review_feedback: work.review.as_ref().map(|r| bounded_text(&r.feedback, 128)),
+        review_feedback_truncated: work
+            .review
+            .as_ref()
+            .is_some_and(|r| bounded_text(&r.feedback, 128).len() != r.feedback.len()),
+        summary: result.map(|r| bounded_text(&r.summary, 512)),
+        reason: work.reason.as_ref().map(|r| bounded_text(r, 128)),
         artifact_ids: result
             .map(|r| r.artifact_ids.iter().take(4).copied().collect())
             .unwrap_or_default(),

@@ -215,6 +215,8 @@ impl Waku {
         let binding = session.team_assignment.as_ref()?;
         let status = match session.team_assignment_status {
             Some(waku_client::teams::AssignmentStatus::Canceled) => "Stopped",
+            Some(waku_client::teams::AssignmentStatus::InReview) => "Awaiting parent review",
+            Some(waku_client::teams::AssignmentStatus::Superseded) => "Replaced by correction task",
             Some(waku_client::teams::AssignmentStatus::Uncertain) => {
                 "Host outcome needs confirmation"
             }

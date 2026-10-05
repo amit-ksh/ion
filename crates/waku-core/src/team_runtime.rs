@@ -314,6 +314,7 @@ impl TeamRuntime {
         if run.status == TeamRunStatus::Stopping {
             self.cancel_jobs(run.id);
         }
+        self.sync_review_statuses(&run)?;
         if run.status == TeamRunStatus::Active {
             let count = {
                 let mut state = self.state.lock();
@@ -423,6 +424,41 @@ impl TeamRuntime {
                 }
             };
             self.launch(start, workspace)?;
+        }
+        Ok(())
+    }
+    // A parent can accept or supersede an already detached child. Persist
+    // metadata in one background pass, including when the run has just ended
+    // and therefore no longer appears in the active dispatch index.
+    fn sync_review_statuses(&self, run: &TeamRunSnapshot) -> Result<()> {
+        let mut state = self.state.lock();
+        let mut changed = false;
+        for work in run.work.iter().filter(|w| {
+            matches!(
+                w.status,
+                AssignmentStatus::Completed
+                    | AssignmentStatus::InReview
+                    | AssignmentStatus::Superseded
+            )
+        }) {
+            let needs_update = state
+                .sessions
+                .iter()
+                .find(|s| s.id == work.task_id)
+                .is_some_and(|s| !s.detail_loaded || s.team_assignment_status != Some(work.status));
+            if needs_update {
+                let task = state.session_mut(work.task_id).unwrap();
+                self.store.hydrate(task)?;
+                task.team_assignment_status = Some(work.status);
+                changed = true;
+            }
+        }
+        if changed {
+            self.store.save(&mut state)?;
+        }
+        drop(state);
+        if changed {
+            self.publisher().tasks_changed();
         }
         Ok(())
     }
@@ -635,6 +671,13 @@ impl TeamRuntime {
         if let Err(error) = self.store.save(&mut self.state.lock()) {
             eprintln!("Teams final persistence: {error}");
         }
+        if let Err(error) = self
+            .coordinator
+            .snapshot(lease.run_id())
+            .and_then(|run| self.sync_review_statuses(&run))
+        {
+            eprintln!("Teams review status persistence: {error:#}");
+        }
         self.publisher().tasks_changed();
         self.wake();
     }
@@ -705,7 +748,12 @@ impl TeamRuntime {
                         Some(stream.sink.record(crate::daemon::event_to_wire(event)?)?);
                 }
                 let event = DriverEvent::TurnFinished {
-                    success: work.status == AssignmentStatus::Completed,
+                    success: matches!(
+                        work.status,
+                        AssignmentStatus::Completed
+                            | AssignmentStatus::InReview
+                            | AssignmentStatus::Superseded
+                    ),
                     summary: None,
                 };
                 projection.apply(session, &event);
@@ -735,6 +783,8 @@ impl TeamRuntime {
                 && matches!(
                     work.status,
                     AssignmentStatus::Completed
+                        | AssignmentStatus::InReview
+                        | AssignmentStatus::Superseded
                         | AssignmentStatus::Blocked
                         | AssignmentStatus::Failed
                         | AssignmentStatus::Canceled

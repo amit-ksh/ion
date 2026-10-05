@@ -87,6 +87,7 @@ impl Fixture {
                     objective: "Review the project".into(),
                     limits: TeamRunLimits {
                         max_parallel_tasks: 1,
+                        require_child_review: false,
                         ..Default::default()
                     },
                     access,

@@ -35,6 +35,11 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_invocations (
             task_id TEXT NOT NULL, request_id TEXT NOT NULL, signature TEXT NOT NULL,
             run_id TEXT NOT NULL UNIQUE REFERENCES ion_team_runs(id), PRIMARY KEY(task_id,request_id));
+        CREATE TABLE IF NOT EXISTS ion_team_reviews (
+            child_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),
+            run_id TEXT NOT NULL REFERENCES ion_team_runs(id), parent_id TEXT NOT NULL,
+            request_id TEXT NOT NULL, signature TEXT NOT NULL, body TEXT NOT NULL,
+            UNIQUE(run_id,parent_id,request_id));
         CREATE TABLE IF NOT EXISTS ion_team_model_calls (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
@@ -158,10 +163,12 @@ pub(super) fn settle_run(tx: &Transaction<'_>, run_id: Uuid) -> Result<()> {
     {
         set_run_status(tx, run_id, TeamRunStatus::Canceled)?;
     } else if run.status == TeamRunStatus::Active
-        && run
-            .work
-            .iter()
-            .all(|w| w.status == AssignmentStatus::Completed)
+        && run.work.iter().all(|w| {
+            matches!(
+                w.status,
+                AssignmentStatus::Completed | AssignmentStatus::Superseded
+            )
+        })
     {
         set_run_status(tx, run_id, TeamRunStatus::Completed)?;
     }
@@ -174,6 +181,8 @@ pub(super) fn assignment_status(status: AssignmentStatus) -> &'static str {
         AssignmentStatus::Waiting => "waiting",
         AssignmentStatus::Blocked => "blocked",
         AssignmentStatus::Completed => "completed",
+        AssignmentStatus::InReview => "inReview",
+        AssignmentStatus::Superseded => "superseded",
         AssignmentStatus::Failed => "failed",
         AssignmentStatus::Canceling => "canceling",
         AssignmentStatus::Canceled => "canceled",

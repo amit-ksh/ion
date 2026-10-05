@@ -7,6 +7,7 @@ use waku_protocol::control::*;
 struct Scripted {
     ready: AtomicBool,
     leaf_ready: AtomicBool,
+    rework_first: AtomicBool,
     starts: Mutex<Vec<(Uuid, Uuid)>>,
     models: Mutex<Vec<String>>,
 }
@@ -52,6 +53,11 @@ impl Executor for Scripted {
                 self.models.lock().push(actual.into());
                 let run = coordinator.snapshot(run_id)?;
                 let work = run.work.iter().find(|w| w.id == work_id).unwrap();
+                if work.rework_of.is_some() {
+                    assert!(
+                        system.contains("Include concrete source evidence in the corrected report")
+                    );
+                }
                 // Tool receipts come from the real native adapter, not fabricated coordinator results.
                 if let Some(artifact) = messages
                     .iter()
@@ -84,10 +90,44 @@ impl Executor for Scripted {
                             json!({"agent_id":member.agent_id,"objective":"Produce document evidence","expected_output":"Markdown report"}),
                         ));
                     }
-                    if children
+                    if let Some(child) = children
                         .iter()
-                        .any(|w| w.status != AssignmentStatus::Completed)
+                        .find(|w| w.status == AssignmentStatus::InReview)
                     {
+                        let artifact = child.result.as_ref().unwrap().artifact_ids[0];
+                        let has_read = messages
+                            .iter()
+                            .filter(|m| m["role"] == "tool")
+                            .filter_map(|m| {
+                                serde_json::from_str::<Value>(m["content"].as_str()?).ok()
+                            })
+                            .any(|reply| {
+                                reply["artifact_id"] == json!(artifact)
+                                    && reply.get("content").is_some()
+                            });
+                        if !has_read {
+                            return Ok(tool_sse(
+                                messages,
+                                "read_document",
+                                json!({"artifact_id":artifact}),
+                            ));
+                        }
+                        let correction = child.agent_id == run.profiles[2].id
+                            && child.rework_of.is_none()
+                            && self.rework_first.swap(false, Ordering::AcqRel);
+                        return Ok(tool_sse(
+                            messages,
+                            "review_child",
+                            json!({"assignment_id":child.id,"verdict":if correction {"rework"} else {"accepted"},
+                            "feedback":if correction {"Include concrete source evidence in the corrected report"} else {"Document read and reviewed against expected output"},"artifact_ids":[artifact]}),
+                        ));
+                    }
+                    if children.iter().any(|w| {
+                        !matches!(
+                            w.status,
+                            AssignmentStatus::Completed | AssignmentStatus::Superseded
+                        )
+                    }) {
                         return Ok(tool_sse(
                             messages,
                             "await_children",
@@ -201,6 +241,7 @@ impl Fixture {
         let script = Arc::new(Scripted {
             ready: AtomicBool::new(true),
             leaf_ready: AtomicBool::new(true),
+            rework_first: AtomicBool::new(false),
             starts: Mutex::new(vec![]),
             models: Mutex::new(vec![]),
         });
@@ -262,6 +303,11 @@ fn team_dispatch_executes_three_levels_and_resumes_with_persisted_transcripts() 
     let f = Fixture::new(64);
     let run = f.until(|run| run.status == TeamRunStatus::Completed);
     assert_eq!(run.work.len(), 3);
+    assert!(run.work.iter().filter(|w| w.parent_id.is_some()).all(|w| {
+        w.review
+            .as_ref()
+            .is_some_and(|r| r.verdict == ReviewVerdict::Accepted)
+    }));
     assert!(
         run.work
             .iter()
@@ -602,4 +648,78 @@ fn team_background_scheduler_runs_saved_queue_and_starts_only_once() {
     f.runtime.shutdown();
     let scheduler = f.runtime.scheduler.lock().take().unwrap();
     scheduler.join().unwrap();
+}
+
+#[test]
+fn team_dispatch_executes_bounded_rework_with_new_task_and_persisted_review_status() {
+    let f = Fixture::new(64);
+    f.script.rework_first.store(true, Ordering::Release);
+    let run = f.until(|r| r.status == TeamRunStatus::Completed);
+    assert_eq!(run.work.len(), 4);
+    let original = run
+        .work
+        .iter()
+        .find(|w| w.status == AssignmentStatus::Superseded)
+        .unwrap();
+    let correction = run
+        .work
+        .iter()
+        .find(|w| w.rework_of == Some(original.id))
+        .unwrap();
+    assert_ne!(original.task_id, correction.task_id);
+    assert_eq!(original.agent_id, correction.agent_id);
+    assert_eq!(original.output_contract, correction.output_contract);
+    assert_eq!(original.access, correction.access);
+    assert_eq!(original.result.as_ref().unwrap().artifact_ids.len(), 1);
+    assert_eq!(correction.status, AssignmentStatus::Completed);
+    assert_eq!(
+        correction.review.as_ref().unwrap().verdict,
+        ReviewVerdict::Accepted
+    );
+    let mut restored = f.runtime.store.load().unwrap();
+    for session in &mut restored.sessions {
+        f.runtime.store.hydrate(session).unwrap();
+        let work = run.work.iter().find(|w| w.task_id == session.id).unwrap();
+        assert_eq!(session.team_assignment_status, Some(work.status));
+        assert_eq!(session.turns.len(), 1);
+    }
+    assert!(f.runtime.streams.lock().is_empty());
+}
+
+#[test]
+fn team_review_metadata_persists_when_catalog_projection_matches_but_detail_is_stale() {
+    let f = Fixture::new(64);
+    let run = f.until(|r| r.status == TeamRunStatus::Completed);
+    let child = run.work.iter().find(|w| w.parent_id.is_some()).unwrap();
+    {
+        let mut state = f.runtime.state.lock();
+        state
+            .session_mut(child.task_id)
+            .unwrap()
+            .team_assignment_status = Some(AssignmentStatus::InReview);
+        f.runtime.store.save(&mut state).unwrap();
+    }
+    let mut catalog = f.runtime.store.load().unwrap();
+    let child_catalog = catalog
+        .sessions
+        .iter_mut()
+        .find(|s| s.id == child.task_id)
+        .unwrap();
+    assert!(!child_catalog.detail_loaded);
+    child_catalog.team_assignment_status = Some(AssignmentStatus::Completed);
+    *f.runtime.state.lock() = catalog;
+    f.runtime.sync_review_statuses(&run).unwrap();
+    let mut restored = f.runtime.store.load().unwrap();
+    let session = restored
+        .sessions
+        .iter_mut()
+        .find(|s| s.id == child.task_id)
+        .unwrap();
+    f.runtime.store.hydrate(session).unwrap();
+    assert_eq!(
+        session.team_assignment_status,
+        Some(AssignmentStatus::Completed)
+    );
+    assert!(!session.transcript_blocks.is_empty());
+    assert_eq!(session.turns.len(), 1);
 }

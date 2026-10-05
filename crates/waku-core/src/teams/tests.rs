@@ -94,7 +94,10 @@ impl Fixture {
             objective: "Implement and validate".into(),
             source_prompt: None,
             origin: None,
-            limits: TeamRunLimits::default(),
+            limits: TeamRunLimits {
+                require_child_review: false,
+                ..Default::default()
+            },
             access: AgentAccess {
                 workspace_read: true,
                 workspace_write: true,
@@ -1840,4 +1843,656 @@ fn legacy_run_limit_default_preserves_exact_replay_without_allowing_changed_quot
         run.work[0].id
     );
     assert_eq!(projections[&run.root_task_id].1, AssignmentStatus::Queued);
+}
+
+fn review_run(f: &Fixture) -> TeamRunSnapshot {
+    let mut request = f.request();
+    request.limits.require_child_review = true;
+    f.store.prepare(request, 100).unwrap()
+}
+fn review_request(child: Uuid, verdict: ReviewVerdict) -> ReviewRequest {
+    ReviewRequest {
+        request_id: Uuid::new_v4(),
+        assignment_id: child,
+        verdict,
+        feedback: "Reviewed against the requested output; source evidence needs correction".into(),
+        artifact_ids: vec![],
+        checks: vec!["Compared declared output and evidence".into()],
+    }
+}
+
+#[test]
+fn review_candidates_release_capacity_and_block_consumers_until_parent_acceptance() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    let mut consumer_request = f.delegation(1);
+    consumer_request.dependencies = vec![child.id];
+    let consumer = f
+        .store
+        .delegate(&root.lease, consumer_request, 102)
+        .unwrap();
+    f.materialize();
+    let child_lease = f.claim(run.id, child.id);
+    let candidate = f.complete(&child_lease.lease);
+    let submitted = candidate.work.iter().find(|w| w.id == child.id).unwrap();
+    assert_eq!(submitted.status, AssignmentStatus::InReview);
+    assert!(!submitted.status.holds_capacity());
+    assert!(
+        f.store
+            .claim(run.id, consumer.id, DispatchHost::Local, 105, 100)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .report(&root.lease, AssignmentOutcome::Completed(result()), 105)
+            .is_err()
+    );
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", 105)
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 106, 100)
+        .unwrap();
+    assert_eq!(resumed.children[0].status, AssignmentStatus::InReview);
+    assert!(
+        f.store
+            .review_child(
+                &root.lease,
+                review_request(child.id, ReviewVerdict::Accepted),
+                107
+            )
+            .is_err()
+    );
+    let review = f
+        .store
+        .review_child(
+            &resumed.claimed.lease,
+            review_request(child.id, ReviewVerdict::Accepted),
+            107,
+        )
+        .unwrap();
+    assert_eq!(review.reviewer_task_id, root.assignment.task_id);
+    assert_eq!(
+        f.store
+            .snapshot(run.id)
+            .unwrap()
+            .work
+            .iter()
+            .find(|w| w.id == child.id)
+            .unwrap()
+            .status,
+        AssignmentStatus::Completed
+    );
+    assert!(
+        f.store
+            .claim(run.id, consumer.id, DispatchHost::Local, 108, 100)
+            .is_ok()
+    );
+}
+
+#[test]
+fn review_rework_commits_one_new_task_preserves_scope_and_redirects_consumers() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let root = f.claim(run.id, run.work[0].id);
+    let child = f.store.delegate(&root.lease, f.delegation(1), 102).unwrap();
+    let mut consumer_request = f.delegation(1);
+    consumer_request.dependencies = vec![child.id];
+    let consumer = f
+        .store
+        .delegate(&root.lease, consumer_request, 102)
+        .unwrap();
+    f.materialize();
+    let original = f.claim(run.id, child.id);
+    f.complete(&original.lease);
+    let request_id = Uuid::new_v4();
+    let replies = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..2)
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut request = review_request(child.id, ReviewVerdict::Rework);
+                    request.request_id = request_id;
+                    f.store.review_child(&root.lease, request, 105).unwrap()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        replies[0].replacement_assignment_id,
+        replies[1].replacement_assignment_id
+    );
+    let replacement = replies[0].replacement_assignment_id.unwrap();
+    let saved = f.store.snapshot(run.id).unwrap();
+    assert_eq!(saved.work.len(), 4);
+    let old = saved.work.iter().find(|w| w.id == child.id).unwrap();
+    assert_eq!(old.status, AssignmentStatus::Superseded);
+    assert!(old.result.is_some());
+    let corrected = saved.work.iter().find(|w| w.id == replacement).unwrap();
+    assert_ne!(corrected.task_id, old.task_id);
+    assert_eq!(corrected.agent_id, old.agent_id);
+    assert_eq!(corrected.objective, old.objective);
+    assert_eq!(corrected.expected_output, old.expected_output);
+    assert_eq!(corrected.access, old.access);
+    assert_eq!(corrected.output_contract, old.output_contract);
+    assert!(corrected.attempts.is_empty());
+    assert!(corrected.requires_review);
+    assert_eq!(
+        saved
+            .work
+            .iter()
+            .find(|w| w.id == consumer.id)
+            .unwrap()
+            .dependencies,
+        vec![replacement]
+    );
+    let mut changed = review_request(child.id, ReviewVerdict::Accepted);
+    changed.request_id = request_id;
+    assert!(f.store.review_child(&root.lease, changed, 106).is_err());
+    f.materialize();
+    let claimed = f.claim(run.id, replacement);
+    assert_eq!(claimed.profile.model.as_deref(), Some("model-1"));
+    assert_eq!(
+        claimed.profile.provider,
+        waku_protocol::model::ProviderKind::Codex
+    );
+    assert_eq!(
+        claimed.assignment.attempts[0].environment,
+        ExecutionEnvironment::Local
+    );
+    let audits = f.store.audit_events(run.id, 0, 100).unwrap();
+    assert_eq!(
+        audits
+            .iter()
+            .filter(|e| e.event == "rework_requested")
+            .count(),
+        1
+    );
+    let restarted = TeamCoordinator::new(f.definitions.path());
+    assert_eq!(restarted.snapshot(run.id).unwrap().work.len(), 4);
+}
+
+#[test]
+fn review_rework_round_limit_does_not_create_partial_replacement_or_acceptance() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let parent = f.claim(run.id, run.work[0].id);
+    let mut child = f
+        .store
+        .delegate(&parent.lease, f.delegation(1), 102)
+        .unwrap()
+        .id;
+    for _ in 0..2 {
+        f.materialize();
+        let lease = f.claim(run.id, child);
+        f.complete(&lease.lease);
+        child = f
+            .store
+            .review_child(
+                &parent.lease,
+                review_request(child, ReviewVerdict::Rework),
+                105,
+            )
+            .unwrap()
+            .replacement_assignment_id
+            .unwrap();
+    }
+    f.materialize();
+    let final_child = f.claim(run.id, child);
+    f.complete(&final_child.lease);
+    let before = f.store.snapshot(run.id).unwrap();
+    assert!(
+        f.store
+            .review_child(
+                &parent.lease,
+                review_request(child, ReviewVerdict::Rework),
+                106
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("round limit")
+    );
+    let after = f.store.snapshot(run.id).unwrap();
+    assert_eq!(before.revision, after.revision);
+    assert_eq!(before.work.len(), after.work.len());
+    assert_eq!(
+        after.work.iter().find(|w| w.id == child).unwrap().status,
+        AssignmentStatus::InReview
+    );
+    assert!(
+        f.store
+            .report(&parent.lease, AssignmentOutcome::Completed(result()), 106)
+            .is_err()
+    );
+    f.store
+        .review_child(
+            &parent.lease,
+            review_request(child, ReviewVerdict::Accepted),
+            107,
+        )
+        .unwrap();
+    let completed = f
+        .store
+        .report(&parent.lease, AssignmentOutcome::Completed(result()), 108)
+        .unwrap();
+    assert_eq!(completed.status, TeamRunStatus::Completed);
+    assert_eq!(
+        completed
+            .work
+            .iter()
+            .filter(|w| w.status == AssignmentStatus::Superseded)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn output_contract_requires_unique_documents_format_and_declared_checks_before_submission() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let parent = f.claim(run.id, run.work[0].id);
+    let request = f.delegation(1);
+    let request_id = request.request_id;
+    let contract = OutputContract {
+        minimum_documents: 1,
+        required_formats: vec!["md".into()],
+        required_checks: vec!["Source audit".into()],
+    };
+    let child = f
+        .store
+        .delegate_with_contract(&parent.lease, request, contract.clone(), 102)
+        .unwrap();
+    let mut changed = f.delegation(1);
+    changed.request_id = request_id;
+    assert!(
+        f.store
+            .delegate_with_contract(&parent.lease, changed, OutputContract::default(), 102)
+            .is_err()
+    );
+    f.materialize();
+    let worker = f.claim(run.id, child.id);
+    let html = f
+        .store
+        .publish_document(
+            &worker.lease,
+            Uuid::new_v4(),
+            "Report.html",
+            "html",
+            "<h1>Report</h1>",
+            103,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .report(
+                &worker.lease,
+                AssignmentOutcome::Completed(AssignmentResult {
+                    summary: "Evidence".into(),
+                    artifact_ids: vec![html.id],
+                    checks: vec!["Source audit".into()]
+                }),
+                104
+            )
+            .is_err()
+    );
+    let md = f
+        .store
+        .publish_document(
+            &worker.lease,
+            Uuid::new_v4(),
+            "Report.md",
+            "md",
+            "# Source evidence",
+            103,
+        )
+        .unwrap();
+    // Reads authorize provenance, rather than demanding a completion contract.
+    assert!(
+        f.store
+            .read_assignment_document(&worker.lease, md.id, 103)
+            .is_ok()
+    );
+    for (ids, checks) in [
+        (vec![md.id], vec![]),
+        (vec![md.id, md.id], vec!["Source audit".into()]),
+    ] {
+        assert!(
+            f.store
+                .report(
+                    &worker.lease,
+                    AssignmentOutcome::Completed(AssignmentResult {
+                        summary: "Evidence".into(),
+                        artifact_ids: ids,
+                        checks
+                    }),
+                    104
+                )
+                .is_err()
+        );
+    }
+    let candidate = f
+        .store
+        .report(
+            &worker.lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Evidence".into(),
+                artifact_ids: vec![md.id],
+                checks: vec!["Source audit".into()],
+            }),
+            104,
+        )
+        .unwrap();
+    assert_eq!(
+        candidate
+            .work
+            .iter()
+            .find(|w| w.id == child.id)
+            .unwrap()
+            .status,
+        AssignmentStatus::InReview
+    );
+    let review = f
+        .store
+        .review_child(
+            &parent.lease,
+            ReviewRequest {
+                request_id: Uuid::new_v4(),
+                assignment_id: child.id,
+                verdict: ReviewVerdict::Rework,
+                feedback: "Correct the cited source".into(),
+                artifact_ids: vec![md.id],
+                checks: vec![],
+            },
+            105,
+        )
+        .unwrap();
+    f.materialize();
+    let corrected = f.claim(run.id, review.replacement_assignment_id.unwrap());
+    assert!(
+        f.store
+            .read_assignment_document(&corrected.lease, md.id, 106)
+            .is_ok()
+    );
+    assert!(
+        f.store
+            .report(
+                &corrected.lease,
+                AssignmentOutcome::Completed(AssignmentResult {
+                    summary: "Reused rejected output".into(),
+                    artifact_ids: vec![md.id],
+                    checks: vec!["Source audit".into()]
+                }),
+                106
+            )
+            .is_err()
+    );
+    assert_eq!(corrected.assignment.output_contract, contract);
+}
+
+#[test]
+fn review_rejects_self_wrong_parent_missing_evidence_stop_and_stale_outcome() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let parent = f.claim(run.id, run.work[0].id);
+    let child = f
+        .store
+        .delegate(&parent.lease, f.delegation(1), 102)
+        .unwrap();
+    f.materialize();
+    let worker = f.claim(run.id, child.id);
+    assert!(
+        f.store
+            .review_child(
+                &parent.lease,
+                review_request(child.id, ReviewVerdict::Accepted),
+                103
+            )
+            .is_err()
+    );
+    f.complete(&worker.lease);
+    assert!(
+        f.store
+            .review_child(
+                &worker.lease,
+                review_request(child.id, ReviewVerdict::Accepted),
+                105
+            )
+            .is_err()
+    );
+    assert!(
+        f.store
+            .review_child(
+                &parent.lease,
+                review_request(parent.assignment.id, ReviewVerdict::Accepted),
+                105
+            )
+            .is_err()
+    );
+    let mut request = review_request(child.id, ReviewVerdict::Accepted);
+    request.checks.clear();
+    assert!(f.store.review_child(&parent.lease, request, 105).is_err());
+    let latest = f.store.snapshot(run.id).unwrap();
+    let stopped = f.store.stop(run.id, latest.revision, 106).unwrap();
+    assert_eq!(
+        stopped
+            .work
+            .iter()
+            .find(|w| w.id == child.id)
+            .unwrap()
+            .status,
+        AssignmentStatus::Canceled
+    );
+    assert!(
+        f.store
+            .review_child(
+                &parent.lease,
+                review_request(child.id, ReviewVerdict::Rework),
+                107
+            )
+            .is_err()
+    );
+    assert_eq!(f.store.snapshot(run.id).unwrap().work.len(), 2);
+}
+
+#[test]
+fn legacy_review_policy_and_contract_defaults_preserve_pinned_behavior() {
+    assert!(TeamRunLimits::default().require_child_review);
+    let limits: TeamRunLimits =
+        serde_json::from_value(serde_json::json!({"maxModelCalls":64})).unwrap();
+    assert!(!limits.require_child_review);
+    assert_eq!(limits.max_rework_rounds, 2);
+    let f = Fixture::new();
+    let run = f.run();
+    let mut body = serde_json::to_value(&run.work[0]).unwrap();
+    for key in ["outputContract", "requiresReview", "reworkOf", "review"] {
+        body.as_object_mut().unwrap().remove(key);
+    }
+    let restored: TeamAssignment = serde_json::from_value(body).unwrap();
+    assert!(!restored.requires_review);
+    assert_eq!(restored.output_contract, OutputContract::default());
+    let parent = f.claim(run.id, run.work[0].id);
+    let request = f.delegation(1);
+    let id = request.request_id;
+    let child = f.store.delegate(&parent.lease, request, 102).unwrap();
+    let db = f.store.connect().unwrap();
+    db.execute(
+        "UPDATE ion_team_work SET request=json_remove(request,'$.contract') WHERE id=?",
+        [child.id.to_string()],
+    )
+    .unwrap();
+    drop(db);
+    let mut replay = f.delegation(1);
+    replay.request_id = id;
+    assert_eq!(
+        f.store.delegate(&parent.lease, replay, 103).unwrap().id,
+        child.id
+    );
+    f.materialize();
+    let worker = f.claim(run.id, child.id);
+    assert_eq!(
+        f.complete(&worker.lease)
+            .work
+            .iter()
+            .find(|w| w.id == child.id)
+            .unwrap()
+            .status,
+        AssignmentStatus::Completed
+    );
+}
+
+#[test]
+fn review_deadline_blocks_pending_candidates_and_waiting_parents() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let parent = f.claim(run.id, run.work[0].id);
+    let child = f
+        .store
+        .delegate(&parent.lease, f.delegation(1), 102)
+        .unwrap();
+    f.materialize();
+    let worker = f.claim(run.id, child.id);
+    f.complete(&worker.lease);
+    f.store
+        .suspend_for_children(&parent.lease, &[child.id], "{}", 105)
+        .unwrap();
+    let expired = f.store.reconcile_expired(run.id, run.deadline + 1).unwrap();
+    assert!(
+        expired
+            .work
+            .iter()
+            .all(|w| w.status == AssignmentStatus::Blocked)
+    );
+    assert!(
+        f.store
+            .review_child(
+                &parent.lease,
+                review_request(child.id, ReviewVerdict::Rework),
+                run.deadline + 1
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn review_revalidates_candidate_documents_before_acceptance() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let parent = f.claim(run.id, run.work[0].id);
+    let child = f
+        .store
+        .delegate_with_contract(
+            &parent.lease,
+            f.delegation(1),
+            OutputContract {
+                minimum_documents: 1,
+                ..Default::default()
+            },
+            102,
+        )
+        .unwrap();
+    f.materialize();
+    let worker = f.claim(run.id, child.id);
+    let document = f
+        .store
+        .publish_document(
+            &worker.lease,
+            Uuid::new_v4(),
+            "Evidence.md",
+            "md",
+            "# Source evidence",
+            103,
+        )
+        .unwrap();
+    f.store
+        .report(
+            &worker.lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Evidence".into(),
+                artifact_ids: vec![document.id],
+                checks: vec![],
+            }),
+            104,
+        )
+        .unwrap();
+    f.definitions
+        .remove(f.definitions.load().unwrap().revision, document.id)
+        .unwrap();
+    let before = f.store.snapshot(run.id).unwrap();
+    assert!(
+        f.store
+            .review_child(
+                &parent.lease,
+                review_request(child.id, ReviewVerdict::Accepted),
+                105
+            )
+            .is_err()
+    );
+    let after = f.store.snapshot(run.id).unwrap();
+    assert_eq!(before.revision, after.revision);
+    assert_eq!(
+        after.work.iter().find(|w| w.id == child.id).unwrap().status,
+        AssignmentStatus::InReview
+    );
+    let correction = f
+        .store
+        .review_child(
+            &parent.lease,
+            review_request(child.id, ReviewVerdict::Rework),
+            106,
+        )
+        .unwrap();
+    assert!(correction.replacement_assignment_id.is_some());
+}
+
+#[test]
+fn review_handoffs_fit_context_for_sixteen_superseded_children_with_escaped_evidence() {
+    let f = Fixture::new();
+    let run = review_run(&f);
+    let parent = f.claim(run.id, run.work[0].id);
+    let mut children = vec![];
+    for _ in 0..16 {
+        let mut request = f.delegation(1);
+        request.expected_output = "\n\t\"Evidence 界\"".repeat(300);
+        let child = f.store.delegate(&parent.lease, request, 102).unwrap();
+        f.materialize();
+        let worker = f.claim(run.id, child.id);
+        f.store
+            .report(
+                &worker.lease,
+                AssignmentOutcome::Completed(AssignmentResult {
+                    summary: "\n\t\"Source 界\"".repeat(400),
+                    artifact_ids: vec![],
+                    checks: vec!["\n\t\"Checked 界\"".repeat(100)],
+                }),
+                104,
+            )
+            .unwrap();
+        let mut review = review_request(child.id, ReviewVerdict::Rework);
+        review.feedback = "\n\t\"Correct 界\"".repeat(100);
+        f.store.review_child(&parent.lease, review, 105).unwrap();
+        children.push(child.id);
+    }
+    f.store
+        .suspend_for_children(&parent.lease, &children, "{}", 106)
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(run.id, parent.assignment.id, 107, 100)
+        .unwrap();
+    assert_eq!(resumed.children.len(), 16);
+    assert!(serde_json::to_vec(&resumed.children).unwrap().len() <= 32 * 1024);
+    assert!(
+        resumed
+            .children
+            .iter()
+            .all(|w| w.status == AssignmentStatus::Superseded
+                && w.expected_output_truncated
+                && w.review_feedback_truncated)
+    );
 }

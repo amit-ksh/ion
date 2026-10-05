@@ -16,10 +16,12 @@ mod continuation;
 mod dispatch;
 mod documents;
 mod materialize;
+mod reviews;
 mod storage;
 #[cfg(test)]
 mod tests;
 pub use continuation::{AssignmentContinuation, AssignmentHandoff};
+pub use reviews::ReviewRequest;
 use storage::*;
 
 pub struct TeamCoordinator {
@@ -286,6 +288,7 @@ impl TeamCoordinator {
                 && (1..=16).contains(&limits.max_parallel_tasks)
                 && (1..=16).contains(&limits.max_depth)
                 && (1..=8).contains(&limits.max_attempts)
+                && limits.max_rework_rounds <= 8
                 && (60..=604800).contains(&limits.timeout_seconds),
             "Invalid team execution limits"
         );
@@ -401,6 +404,10 @@ impl TeamCoordinator {
             agent_id: lead_id,
             objective: request.objective.clone(),
             expected_output: lead.expected_output.clone(),
+            output_contract: OutputContract::default(),
+            requires_review: false,
+            rework_of: None,
+            review: None,
             dependencies: vec![],
             access: intersect_access(&request.access, &lead.access),
             status: AssignmentStatus::Queued,
@@ -560,6 +567,16 @@ impl TeamCoordinator {
         request: Delegation,
         now: u64,
     ) -> Result<TeamAssignment> {
+        self.delegate_with_contract(lease, request, OutputContract::default(), now)
+    }
+    pub fn delegate_with_contract(
+        &self,
+        lease: &AssignmentLease,
+        request: Delegation,
+        contract: OutputContract,
+        now: u64,
+    ) -> Result<TeamAssignment> {
+        reviews::validate_contract(&contract)?;
         text(&request.objective, 32_000, "Assignment objective")?;
         text(&request.expected_output, 16_000, "Expected output")?;
         validate_access(&request.access)?;
@@ -568,7 +585,7 @@ impl TeamCoordinator {
             "Delegation request ID is required"
         );
         let request_body = serde_json::to_string(
-            &serde_json::json!({"agent":request.agent_id,"objective":request.objective,"output":request.expected_output,"dependencies":request.dependencies,"access":request.access}),
+            &serde_json::json!({"agent":request.agent_id,"objective":request.objective,"output":request.expected_output,"dependencies":request.dependencies,"access":request.access,"contract":contract}),
         )?;
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -577,7 +594,7 @@ impl TeamCoordinator {
         let parent = checked_lease(&run, lease, now, false)?;
         if let Some((original,body)) = tx.query_row("SELECT request,body FROM ion_team_work WHERE run_id=? AND parent_id=? AND request_id=?",
             params![run.id.to_string(),parent.id.to_string(),request.request_id.to_string()], |row| Ok((row.get::<_,String>(0)?, row.get::<_,String>(1)?))).optional()? {
-            ensure!(original == request_body, "Delegation ID reused with changed arguments");
+            ensure!(reviews::same_delegation(&original, &request_body)?, "Delegation ID reused with changed arguments");
             return Ok(serde_json::from_str(&body)?);
         }
         ensure!(
@@ -642,6 +659,10 @@ impl TeamCoordinator {
             agent_id: profile.id,
             objective: request.objective,
             expected_output: request.expected_output,
+            output_contract: contract,
+            requires_review: run.limits.require_child_review,
+            rework_of: None,
+            review: None,
             dependencies: request.dependencies,
             access: request.access,
             status: AssignmentStatus::Queued,
@@ -778,9 +799,10 @@ impl TeamCoordinator {
         );
         for dependency in &work.dependencies {
             ensure!(
-                run.work
-                    .iter()
-                    .any(|w| w.id == *dependency && w.status == AssignmentStatus::Completed),
+                run.work.iter().any(|w| w.id == *dependency
+                    && (w.status == AssignmentStatus::Completed
+                        || work.rework_of == Some(w.id)
+                            && w.status == AssignmentStatus::Superseded)),
                 "Assignment dependency has not completed"
             );
         }
@@ -936,7 +958,9 @@ impl TeamCoordinator {
                 (run.deadline <= now
                     && matches!(
                         w.status,
-                        AssignmentStatus::Queued | AssignmentStatus::Waiting
+                        AssignmentStatus::Queued
+                            | AssignmentStatus::Waiting
+                            | AssignmentStatus::InReview
                     ))
                     || (matches!(
                         w.status,
@@ -947,7 +971,7 @@ impl TeamCoordinator {
         {
             let inactive = matches!(
                 work.status,
-                AssignmentStatus::Queued | AssignmentStatus::Waiting
+                AssignmentStatus::Queued | AssignmentStatus::Waiting | AssignmentStatus::InReview
             );
             work.status = if inactive {
                 AssignmentStatus::Blocked
@@ -1027,14 +1051,26 @@ impl TeamCoordinator {
         let (status, reason, result) = match outcome {
             AssignmentOutcome::Completed(result) => {
                 validate_result(&tx, &run, &work, &result)?;
+                reviews::validate_output(&tx, &run, &work, &result)?;
                 ensure!(
                     run.work
                         .iter()
                         .filter(|w| w.parent_id == Some(work.id))
-                        .all(|w| w.status == AssignmentStatus::Completed),
+                        .all(|w| matches!(
+                            w.status,
+                            AssignmentStatus::Completed | AssignmentStatus::Superseded
+                        )),
                     "Assignment cannot complete with unfinished child work"
                 );
-                (AssignmentStatus::Completed, None, Some(result))
+                (
+                    if run.status == TeamRunStatus::Active {
+                        reviews::submitted_status(&work)
+                    } else {
+                        AssignmentStatus::Completed
+                    },
+                    None,
+                    Some(result),
+                )
             }
             AssignmentOutcome::Blocked(reason) => {
                 text(&reason, 4096, "Blocker")?;
@@ -1120,14 +1156,26 @@ impl TeamCoordinator {
             }
             AssignmentOutcome::Completed(result) => {
                 validate_result(&tx, &run, &work, &result)?;
+                reviews::validate_output(&tx, &run, &work, &result)?;
                 ensure!(
                     run.work
                         .iter()
                         .filter(|w| w.parent_id == Some(work_id))
-                        .all(|w| w.status == AssignmentStatus::Completed),
+                        .all(|w| matches!(
+                            w.status,
+                            AssignmentStatus::Completed | AssignmentStatus::Superseded
+                        )),
                     "Child work is unfinished"
                 );
-                (AssignmentStatus::Completed, None, Some(result))
+                (
+                    if run.status == TeamRunStatus::Active {
+                        reviews::submitted_status(&work)
+                    } else {
+                        AssignmentStatus::Completed
+                    },
+                    None,
+                    Some(result),
+                )
             }
             _ => anyhow::bail!("Reconciliation requires a confirmed terminal outcome"),
         };
@@ -1226,6 +1274,7 @@ impl TeamCoordinator {
                         | AssignmentStatus::Running
                         | AssignmentStatus::Blocked
                         | AssignmentStatus::Failed
+                        | AssignmentStatus::InReview
                 )
             })
             .cloned()
@@ -1266,6 +1315,12 @@ fn same_request(old: &str, new: &str) -> Result<bool> {
             limits
                 .entry("maxModelCalls")
                 .or_insert(serde_json::json!(TeamRunLimits::default().max_model_calls));
+            limits
+                .entry("requireChildReview")
+                .or_insert(serde_json::json!(false));
+            limits
+                .entry("maxReworkRounds")
+                .or_insert(serde_json::json!(2));
         }
         Ok(value)
     };
@@ -1318,6 +1373,10 @@ fn validate_result(
             && result.artifact_ids.len() <= 64
             && (!result.checks.is_empty() || !result.artifact_ids.is_empty()),
         "A result needs bounded validation evidence or documents"
+    );
+    ensure!(
+        result.artifact_ids.iter().collect::<HashSet<_>>().len() == result.artifact_ids.len(),
+        "Duplicate result document"
     );
     for check in &result.checks {
         text(check, 4096, "Validation evidence")?;

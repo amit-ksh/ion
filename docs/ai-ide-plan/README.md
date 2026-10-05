@@ -124,4 +124,5 @@ behavior. Personal cloud speech deployment is prepared but awaits a Nebius
 target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Agent teams implementation progress and review checklist](19-agent-teams-progress.md):
-  first durable coordinator increment, remaining adapters and live acceptance.
+  durable coordination, native dispatch, parent review/rework, remaining
+  adapters and live acceptance.
