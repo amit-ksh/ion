@@ -7,6 +7,7 @@ pub struct AssignmentContinuation {
     pub checkpoint: String,
     pub children: Vec<AssignmentHandoff>,
     pub decision: Option<TeamDecision>,
+    pub recovery_note: Option<String>,
 }
 #[derive(Debug, Serialize)]
 pub struct AssignmentHandoff {
@@ -64,7 +65,7 @@ pub(super) fn validate_checkpoint(checkpoint: &str) -> Result<()> {
         .context("Invalid runtime checkpoint JSON")?;
     Ok(())
 }
-fn checkpoint_row(
+pub(super) fn checkpoint_row(
     tx: &Transaction<'_>,
     work: Uuid,
 ) -> Result<Option<(String, u32, String, String)>> {
@@ -77,6 +78,10 @@ pub(super) fn write_checkpoint(
     children: &str,
     checkpoint: &str,
 ) -> Result<()> {
+    tx.execute(
+        "DELETE FROM ion_team_recovery_points WHERE work_id=?",
+        [lease.work_id.to_string()],
+    )?;
     tx.execute("INSERT INTO ion_team_continuations(work_id,attempt_id,generation,dependencies,checkpoint) VALUES(?,?,?,?,?) ON CONFLICT(work_id) DO UPDATE SET attempt_id=excluded.attempt_id,generation=excluded.generation,dependencies=excluded.dependencies,checkpoint=excluded.checkpoint",
         params![lease.work_id.to_string(),lease.attempt_id.to_string(),lease.generation,children,checkpoint])?;
     Ok(())
@@ -151,13 +156,39 @@ impl TeamCoordinator {
         checkpoint: &str,
         now: u64,
     ) -> Result<()> {
+        self.save_recoverable_runtime_checkpoint(lease, checkpoint, false, now)
+    }
+    /// Only the trusted adapter marks a checkpoint safe, after all tool receipts.
+    pub(crate) fn save_recoverable_runtime_checkpoint(
+        &self,
+        lease: &AssignmentLease,
+        checkpoint: &str,
+        recoverable: bool,
+        now: u64,
+    ) -> Result<()> {
         validate_checkpoint(checkpoint)?;
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let run = load(&tx, lease.run_id)?;
         active(&run, now)?;
-        checked_lease(&run, lease, now, false)?;
+        let work = checked_lease(&run, lease, now, false)?;
         write_checkpoint(&tx, lease, "[]", checkpoint)?;
+        if recoverable
+            && work
+                .attempts
+                .last()
+                .is_some_and(|a| a.environment == ExecutionEnvironment::Local)
+        {
+            workspace::require_settled_effects(&tx, run.id)?;
+            tx.execute(
+                "INSERT INTO ion_team_recovery_points VALUES(?,?,?)",
+                params![
+                    lease.work_id.to_string(),
+                    lease.attempt_id.to_string(),
+                    lease.generation
+                ],
+            )?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -284,10 +315,18 @@ impl TeamCoordinator {
             checkpoint_row(&tx, work.id)?.context("Waiting checkpoint missing")?;
         let children: Vec<Uuid> = serde_json::from_str(&dependencies)?;
         let decision = super::decisions::waiting_decision(&tx, work.id)?;
+        let recovery_note = super::recovery::waiting_note(&tx, &work)?;
         ensure!(
-            children.len() <= 16 && (!children.is_empty() || decision.is_some()),
+            children.len() <= 16
+                && (!children.is_empty() || decision.is_some() || recovery_note.is_some()),
             "Invalid continuation dependency count"
         );
+        if recovery_note.is_some() {
+            ensure!(
+                children.is_empty() && decision.is_none(),
+                "Recovery cannot replay a decision or child wait"
+            );
+        }
         if let Some(decision) = &decision {
             ensure!(
                 children.is_empty(),
@@ -366,13 +405,19 @@ impl TeamCoordinator {
             "DELETE FROM ion_team_decision_waits WHERE work_id=?",
             [work.id.to_string()],
         )?;
+        tx.execute(
+            "DELETE FROM ion_team_recovery_waits WHERE work_id=?",
+            [work.id.to_string()],
+        )?;
         bump(&tx, run.id)?;
         audit(
             &tx,
             run.id,
             Some(work.id),
             "resumed",
-            if decision.is_some() {
+            if recovery_note.is_some() {
+                "User requested continuation from a safe stopped local checkpoint"
+            } else if decision.is_some() {
                 "User decision receipt delivered under a fresh lease generation"
             } else {
                 "Settled child handoffs delivered under a fresh lease generation"
@@ -389,6 +434,7 @@ impl TeamCoordinator {
             checkpoint,
             children: results,
             decision,
+            recovery_note,
         })
     }
 }

@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 21;
+pub const PROTOCOL_VERSION: u32 = 22;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -220,6 +220,11 @@ pub enum Command {
         run_id: Uuid,
         after: u64,
         limit: usize,
+    },
+    ResumeTeamAssignment {
+        run_id: Uuid,
+        assignment_id: Uuid,
+        expected_revision: u64,
     },
     StopTeamRun {
         run_id: Uuid,
@@ -712,6 +717,29 @@ mod tests {
             Command::ListTeamDecisions {
                 pending_only: true,
                 limit: 32,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn team_checkpoint_resume_command_binds_assignment_and_run_revision() {
+        let run = Uuid::new_v4();
+        let work = Uuid::new_v4();
+        let value = serde_json::to_value(Command::ResumeTeamAssignment {
+            run_id: run,
+            assignment_id: work,
+            expected_revision: 9,
+        })
+        .unwrap();
+        assert_eq!(value["type"], "resumeTeamAssignment");
+        assert_eq!(value["runId"], run.to_string());
+        assert_eq!(value["assignmentId"], work.to_string());
+        assert_eq!(value["expectedRevision"], 9);
+        assert!(matches!(
+            serde_json::from_value::<Command>(value).unwrap(),
+            Command::ResumeTeamAssignment {
+                expected_revision: 9,
                 ..
             }
         ));

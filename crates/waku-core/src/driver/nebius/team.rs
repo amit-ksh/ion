@@ -68,7 +68,12 @@ impl TeamJournal {
         Ok(checkpoint)
     }
     fn save(&self, coordinator: &TeamCoordinator, lease: &AssignmentLease) -> Result<()> {
-        coordinator.save_runtime_checkpoint(lease, &self.encode()?, crate::model::unix_time())
+        coordinator.save_recoverable_runtime_checkpoint(
+            lease,
+            &self.encode()?,
+            self.pending.is_empty() && self.steps < MAX_TEAM_STEPS,
+            crate::model::unix_time(),
+        )
     }
     fn stage(&mut self, text: String, calls: Vec<ToolCall>) -> Result<()> {
         anyhow::ensure!(
@@ -307,10 +312,10 @@ pub(in crate::driver) fn run_with_harness_and_apps(
     mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
     apps: &dyn TeamApps,
 ) -> Result<NativeTeamExit> {
-    let (mut claimed, mut journal, children, decision) = match start {
+    let (mut claimed, mut journal, children, decision, recovery_note) = match start {
         NativeTeamStart::Fresh(claimed) => {
             let journal = TeamJournal::new(&claimed.assignment.objective);
-            (claimed, journal, vec![], None)
+            (claimed, journal, vec![], None, None)
         }
         NativeTeamStart::Resumed(continuation) => {
             let journal: TeamJournal = serde_json::from_str(&continuation.checkpoint)
@@ -324,6 +329,7 @@ pub(in crate::driver) fn run_with_harness_and_apps(
                 journal,
                 continuation.children,
                 continuation.decision,
+                continuation.recovery_note,
             )
         }
     };
@@ -405,6 +411,9 @@ pub(in crate::driver) fn run_with_harness_and_apps(
         system.len() <= 32 * 1024,
         "Native agent instruction context is too large"
     );
+    if let Some(note) = recovery_note {
+        journal.messages.push(json!({"role":"user","content":format!("The user resumed this existing assignment from a safe durable checkpoint after its Local worker stopped. Retain the original objective, grants, harness, model and all budget history. Unknown provider usage remains reserved. Previous blocker: {note}")}));
+    }
     if !children.is_empty() {
         journal.messages.push(json!({"role":"user","content":format!("Child work has settled. Review these handoffs and read their documents before reporting your result:\n{}", serde_json::to_string(&children)?)}));
     }

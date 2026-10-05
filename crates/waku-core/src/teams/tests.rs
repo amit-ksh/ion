@@ -3806,3 +3806,364 @@ fn team_source_stop_only_revokes_its_own_runs_and_leaves_other_sources_active() 
         vec![first.id]
     );
 }
+
+#[test]
+fn team_checkpoint_resume_preserves_attempt_host_grants_and_unknown_usage() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let checkpoint = r#"{"messages":[{"role":"user","content":"Pinned"}],"pending":[]}"#;
+    f.store
+        .save_recoverable_runtime_checkpoint(&root.lease, checkpoint, true, 102)
+        .unwrap();
+    let reservation = f
+        .store
+        .reserve_model_call(
+            &root.lease,
+            1,
+            ModelCallAllowance {
+                model: "model-0".into(),
+                max_input_tokens: 1000,
+                max_output_tokens: 100,
+            },
+            102,
+        )
+        .unwrap();
+    let blocked = f
+        .store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Blocked("Temporary connection failure".into()),
+            103,
+        )
+        .unwrap();
+    assert!(blocked.work[0].can_resume);
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision - 1, 104)
+            .is_err()
+    );
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    let waiting = reopened
+        .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 104)
+        .unwrap();
+    assert_eq!(waiting.work[0].status, AssignmentStatus::Waiting);
+    assert!(!waiting.work[0].can_resume);
+    let repeated = reopened
+        .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 104)
+        .unwrap();
+    assert_eq!(repeated.revision, waiting.revision);
+    let resumed = reopened
+        .resume_after_children(run.id, root.assignment.id, 105, 100)
+        .unwrap();
+    assert_eq!(resumed.checkpoint, checkpoint);
+    assert_eq!(
+        resumed.recovery_note.as_deref(),
+        Some("Temporary connection failure")
+    );
+    assert_eq!(resumed.claimed.lease.attempt_id(), root.lease.attempt_id());
+    assert_eq!(resumed.claimed.assignment.attempts.len(), 1);
+    assert_eq!(resumed.claimed.assignment.access, root.assignment.access);
+    assert_eq!(resumed.claimed.profile.model, root.profile.model);
+    assert_eq!(
+        resumed.claimed.assignment.attempts[0].host,
+        root.assignment.attempts[0].host
+    );
+    assert!(f.store.renew(&root.lease, 105, 100).is_err());
+    assert!(
+        f.store
+            .report(&root.lease, AssignmentOutcome::Blocked("stale".into()), 105)
+            .is_err()
+    );
+    assert!(
+        reopened
+            .resume_after_children(run.id, root.assignment.id, 105, 100)
+            .is_err()
+    );
+    assert_eq!(
+        reopened.snapshot(run.id).unwrap().usage.reserved_tokens,
+        1100
+    );
+    reopened
+        .record_model_usage(
+            &reservation,
+            ModelTokenUsage {
+                input_tokens: 25,
+                output_tokens: 5,
+            },
+            106,
+        )
+        .unwrap();
+    let done = reopened
+        .report(
+            &resumed.claimed.lease,
+            AssignmentOutcome::Completed(result()),
+            106,
+        )
+        .unwrap();
+    assert_eq!(done.status, TeamRunStatus::Completed);
+    assert_eq!(done.usage.consumed_tokens, 30);
+    assert_eq!(done.usage.model_calls, 1);
+}
+#[test]
+fn team_checkpoint_resume_rejects_unmarked_superseded_unknown_and_stopped_work() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .save_runtime_checkpoint(&root.lease, "{}", 102)
+        .unwrap();
+    let blocked = f
+        .store
+        .report(&root.lease, AssignmentOutcome::Blocked("setup".into()), 103)
+        .unwrap();
+    assert!(!blocked.work[0].can_resume);
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 104)
+            .is_err()
+    );
+
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .save_recoverable_runtime_checkpoint(&root.lease, "{}", true, 102)
+        .unwrap();
+    f.store
+        .save_runtime_checkpoint(&root.lease, r#"{"pending":["unfinished"]}"#, 102)
+        .unwrap();
+    let blocked = f
+        .store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Blocked("tool stopped".into()),
+            103,
+        )
+        .unwrap();
+    assert!(!blocked.work[0].can_resume);
+
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .save_recoverable_runtime_checkpoint(&root.lease, "{}", true, 102)
+        .unwrap();
+    f.store.reconcile_owner_restart(103).unwrap();
+    let unknown = f.store.snapshot(run.id).unwrap();
+    assert_eq!(unknown.work[0].status, AssignmentStatus::Uncertain);
+    assert!(!unknown.work[0].can_resume);
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, unknown.revision, 104)
+            .is_err()
+    );
+    let blocked = f
+        .store
+        .resolve_uncertain(
+            run.id,
+            root.assignment.id,
+            root.lease.attempt_id(),
+            AssignmentOutcome::Blocked("Host confirmed stopped".into()),
+            104,
+        )
+        .unwrap();
+    assert!(blocked.work[0].can_resume);
+    let canceled = f.store.stop(run.id, blocked.revision, 105).unwrap();
+    assert!(!canceled.work[0].can_resume);
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, canceled.revision, 106)
+            .is_err()
+    );
+}
+#[test]
+fn team_checkpoint_resume_cannot_bypass_unfinished_file_effects_or_result_reconciliation() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .save_recoverable_runtime_checkpoint(&root.lease, "{}", true, 102)
+        .unwrap();
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "INSERT INTO ion_team_workspace_edits VALUES(?,?,?,?,?,?,'pending',NULL)",
+            params![
+                Uuid::new_v4().to_string(),
+                run.id.to_string(),
+                root.assignment.id.to_string(),
+                root.lease.attempt_id().to_string(),
+                Uuid::new_v4().to_string(),
+                "{}"
+            ],
+        )
+        .unwrap();
+    let blocked = f
+        .store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Blocked("Unknown file effect".into()),
+            103,
+        )
+        .unwrap();
+    assert!(!blocked.work[0].can_resume);
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 104)
+            .is_err()
+    );
+    // A trusted terminal host confirmation still cannot turn a pending effect
+    // into successful work. Restart uncertainty cannot bypass the result gate.
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "INSERT INTO ion_team_workspace_edits VALUES(?,?,?,?,?,?,'pending',NULL)",
+            params![
+                Uuid::new_v4().to_string(),
+                run.id.to_string(),
+                root.assignment.id.to_string(),
+                root.lease.attempt_id().to_string(),
+                Uuid::new_v4().to_string(),
+                "{}"
+            ],
+        )
+        .unwrap();
+    f.store.reconcile_owner_restart(103).unwrap();
+    assert!(
+        f.store
+            .resolve_uncertain(
+                run.id,
+                root.assignment.id,
+                root.lease.attempt_id(),
+                AssignmentOutcome::Completed(result()),
+                104
+            )
+            .is_err()
+    );
+    assert_eq!(
+        f.store.snapshot(run.id).unwrap().work[0].status,
+        AssignmentStatus::Uncertain
+    );
+}
+#[test]
+fn team_checkpoint_resume_keeps_deadlines_and_shared_capacity() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .save_recoverable_runtime_checkpoint(&root.lease, "{}", true, 102)
+        .unwrap();
+    let blocked = f
+        .store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Blocked("transient".into()),
+            103,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, run.deadline)
+            .is_err()
+    );
+    f.store
+        .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 104)
+        .unwrap();
+    let other = f.run();
+    let busy = f.claim(other.id, other.work[0].id);
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 105, 100)
+            .is_err()
+    );
+    f.store
+        .report(
+            &busy.lease,
+            AssignmentOutcome::Blocked("stopped".into()),
+            106,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .resume_after_children(run.id, root.assignment.id, 107, 100)
+            .is_ok()
+    );
+}
+#[test]
+fn team_checkpoint_resume_request_races_queue_one_continuation_and_obey_limit() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    f.store
+        .save_recoverable_runtime_checkpoint(&root.lease, "{}", true, 102)
+        .unwrap();
+    let blocked = f
+        .store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Blocked("transient".into()),
+            103,
+        )
+        .unwrap();
+    let callers: Vec<_> = (0..4)
+        .map(|_| {
+            let db = TeamCoordinator::new(f.dir.join("control.db"));
+            let revision = blocked.revision;
+            let work = root.assignment.id;
+            std::thread::spawn(move || {
+                db.queue_checkpoint_resume(run.id, work, revision, 104)
+                    .unwrap()
+                    .revision
+            })
+        })
+        .collect();
+    let revisions: Vec<_> = callers.into_iter().map(|t| t.join().unwrap()).collect();
+    assert!(revisions.iter().all(|r| *r == revisions[0]));
+    let mut next = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 105, 100)
+        .unwrap();
+    for _ in 1..8 {
+        f.store
+            .save_recoverable_runtime_checkpoint(&next.claimed.lease, "{}", true, 106)
+            .unwrap();
+        let blocked = f
+            .store
+            .report(
+                &next.claimed.lease,
+                AssignmentOutcome::Blocked("transient".into()),
+                107,
+            )
+            .unwrap();
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 108)
+            .unwrap();
+        next = f
+            .store
+            .resume_after_children(run.id, root.assignment.id, 109, 100)
+            .unwrap();
+    }
+    f.store
+        .save_recoverable_runtime_checkpoint(&next.claimed.lease, "{}", true, 110)
+        .unwrap();
+    let blocked = f
+        .store
+        .report(
+            &next.claimed.lease,
+            AssignmentOutcome::Blocked("transient".into()),
+            111,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .queue_checkpoint_resume(run.id, root.assignment.id, blocked.revision, 112)
+            .is_err()
+    );
+    assert_eq!(f.store.snapshot(run.id).unwrap().work[0].attempts.len(), 1);
+}

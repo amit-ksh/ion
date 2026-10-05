@@ -471,6 +471,17 @@ impl Backend for WakuBackend {
                 self.team_runtime.wake();
                 Ok(ResponsePayload::TeamDecision { decision })
             }
+            Command::ResumeTeamAssignment {
+                run_id,
+                assignment_id,
+                expected_revision,
+            } => Ok(ResponsePayload::TeamRun {
+                snapshot: self.team_runtime.resume_checkpoint(
+                    run_id,
+                    assignment_id,
+                    expected_revision,
+                )?,
+            }),
             Command::GetTeamRun { run_id } => Ok(ResponsePayload::TeamRun {
                 snapshot: self
                     .teams
@@ -2290,6 +2301,7 @@ fn handle_driver_command(
         | Command::GetTeamRun { .. }
         | Command::GetTeamAudit { .. }
         | Command::StopTeamRun { .. }
+        | Command::ResumeTeamAssignment { .. }
         | Command::SaveWorkspaceRecord { .. }
         | Command::RemoveWorkspaceRecord { .. }
         | Command::GenerateWorkflow { .. }

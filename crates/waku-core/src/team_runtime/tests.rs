@@ -793,3 +793,101 @@ fn team_dispatch_mixed_harnesses_preserve_selected_provider_on_real_child_tasks(
             .all(|work| !work.result.as_ref().unwrap().artifact_ids.is_empty())
     );
 }
+
+#[test]
+fn team_runtime_checkpoint_resume_waits_for_join_then_completes_existing_task() {
+    let f = Fixture::new(64);
+    f.runtime
+        .coordinator
+        .materialize_run(
+            f.run.id,
+            &f.runtime.store,
+            &mut f.runtime.state.lock(),
+            unix_time(),
+        )
+        .unwrap();
+    let root = f
+        .runtime
+        .coordinator
+        .claim(
+            f.run.id,
+            f.run.work[0].id,
+            DispatchHost::Local,
+            unix_time(),
+            180,
+        )
+        .unwrap();
+    let lease = root.lease.clone();
+    let (events, _) = driver::test_event_channel();
+    assert!(
+        driver::run_scripted_team_assignment(
+            &f.runtime.coordinator,
+            NativeTeamStart::Fresh(root),
+            &f.dir,
+            &events,
+            &AtomicBool::new(false),
+            |_, _, _, _| anyhow::bail!("Fixture request interrupted")
+        )
+        .is_err()
+    );
+    f.runtime
+        .confirm_stopped(&lease, Some("Fixture request interrupted".into()))
+        .unwrap();
+    let blocked = f.runtime.coordinator.snapshot(f.run.id).unwrap();
+    assert!(blocked.work[0].can_resume);
+    let release = Arc::new(AtomicBool::new(false));
+    let release_worker = release.clone();
+    let thread = thread::spawn(move || {
+        while !release_worker.load(Ordering::Acquire) {
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+    f.runtime.jobs.lock().insert(
+        lease.work_id(),
+        Job {
+            run: f.run.id,
+            cancelled: Arc::new(AtomicBool::new(false)),
+            thread,
+        },
+    );
+    assert!(
+        f.runtime
+            .resume_checkpoint(f.run.id, lease.work_id(), blocked.revision)
+            .unwrap_err()
+            .to_string()
+            .contains("still finishing")
+    );
+    release.store(true, Ordering::Release);
+    f.runtime
+        .jobs
+        .lock()
+        .remove(&lease.work_id())
+        .unwrap()
+        .thread
+        .join()
+        .unwrap();
+    let queued = f
+        .runtime
+        .resume_checkpoint(f.run.id, lease.work_id(), blocked.revision)
+        .unwrap();
+    assert_eq!(queued.work[0].status, AssignmentStatus::Waiting);
+    let completed = f.until(|run| run.status == TeamRunStatus::Completed);
+    assert_eq!(completed.work[0].task_id, f.run.root_task_id);
+    assert_eq!(completed.work[0].attempts.len(), 1);
+    assert_eq!(completed.work[0].attempts[0].id, lease.attempt_id());
+    assert!(
+        completed
+            .work
+            .iter()
+            .all(|w| w.status == AssignmentStatus::Completed)
+    );
+    assert!(completed.usage.reserved_tokens >= blocked.usage.reserved_tokens);
+    let mut persisted = f.runtime.store.load().unwrap();
+    let task = persisted.session_mut(f.run.root_task_id).unwrap();
+    f.runtime.store.hydrate(task).unwrap();
+    assert_eq!(task.status, SessionStatus::Idle);
+    assert_eq!(
+        task.team_assignment_status,
+        Some(AssignmentStatus::Completed)
+    );
+}

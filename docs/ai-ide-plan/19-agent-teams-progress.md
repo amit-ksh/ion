@@ -823,3 +823,48 @@ User review:
 Verification: **118 team tests**, **23 TypeScript client tests**, TypeScript
 checking, desktop/daemon checking, Rust formatting and diff whitespace gates
 passed. No live provider, visual acceptance or app launch is claimed.
+
+
+## Safe local checkpoint continuation increment (2026-10-05)
+
+Normal-task invocation checkpoint: `02f604a`.
+
+- A stopped Local worker can continue from its durable private checkpoint using
+  the Teams run's **Continue from checkpoint** action. This is explicit user work,
+  not automatic retry. The owner rejects it while the previous worker is finishing.
+- The trusted native/Claude loop marks only checkpoints with no unfinished tool
+  calls and remaining model-call capacity as recoverable. A newer unsafe checkpoint
+  removes the marker. Legacy/opaque checkpoints do not silently become resumable.
+- The continuation retains the same task and attempt, actual host, selected harness
+  and model, pinned permissions and all consumed/reserved token history. A fresh
+  lease generation fences the old worker. No new attempt or spending limit is granted.
+- Queueing is transactional, checks the displayed run revision and is idempotent
+  while the continuation is queued. It observes the original deadline, shared agent
+  and team capacity, and a maximum of eight user continuations per assignment.
+- Unconfirmed hosts, remote assignments, pending file/app effects, child/decision
+  waits, stopped runs and exhausted safe checkpoints cannot use this action.
+  A trusted reconciliation cannot claim success while an effect is still pending.
+- The UI reads a cached availability projection and submits its RPC in the
+  background, retaining the existing hierarchy, task links and keyboard controls.
+  Protocol **22** adds this action and the defaulted availability flag; desktop,
+  daemon and clients must rebuild together.
+
+User review:
+
+- [ ] Interrupt a model request temporarily and observe a blocked Local assignment.
+- [ ] Restore provider access and use Continue from checkpoint on the run.
+- [ ] Verify the existing task, harness/model, host, permissions and token history
+  remain intact as the hierarchy finishes and publishes its final document.
+- [ ] Confirm Stop or expiry prevents continuation.
+- [ ] Confirm unknown host/file/app outcomes expose no safe-continuation action.
+
+This increment covers safe checkpoints after a known Local worker exit. Confirmation
+of a host left behind by owner restart and file/app outcome reconciliation remain
+separate implementation work; no unknown action is retried by this control.
+
+
+Verification: the **124-test Teams suite** passed, followed by **7 focused
+checkpoint-continuation tests**, including the added runtime join → continue →
+hierarchical completion test. **9 protocol tests**, current generated bindings, **23 TypeScript client tests**,
+TypeScript checking, native desktop/daemon checking, formatting and whitespace
+gates also passed. No live provider or visual acceptance ran.

@@ -28,6 +28,12 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_continuations (
             work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
             generation INTEGER NOT NULL, dependencies TEXT NOT NULL, checkpoint TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_recovery_points (
+            work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,
+            generation INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_recovery_waits (
+            work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,
+            requested_revision INTEGER NOT NULL,reason TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_document_receipts (
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), request_id TEXT NOT NULL,
             artifact_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, format TEXT NOT NULL,
@@ -111,6 +117,7 @@ pub(super) fn load(db: &Connection, id: Uuid) -> Result<TeamRunSnapshot> {
         run.work.len() <= 256,
         "Team run exceeded its work item limit"
     );
+    super::recovery::project(db, &mut run)?;
     Ok(run)
 }
 pub(super) fn insert_work(

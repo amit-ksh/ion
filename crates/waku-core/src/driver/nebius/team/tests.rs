@@ -954,3 +954,61 @@ fn native_team_app_schema_is_grant_scoped_and_cannot_execute_or_override_identit
             .contains("describe_app_action")
     );
 }
+
+#[test]
+fn native_team_checkpoint_resume_after_transport_failure_keeps_context_and_reserved_usage() {
+    let f = Fixture::new(true);
+    let root = f.claim(f.run.work[0].id);
+    let lease = root.lease.clone();
+    let error = f
+        .worker(NativeTeamStart::Fresh(root), |_, _, _, _| {
+            bail!("Fixture connection failed")
+        })
+        .unwrap_err();
+    let blocked = f
+        .store
+        .report(
+            &lease,
+            AssignmentOutcome::Blocked(error.to_string()),
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    assert!(blocked.work[0].can_resume);
+    assert_eq!(blocked.usage.unknown_calls, 1);
+    let waiting = f
+        .store
+        .queue_checkpoint_resume(
+            f.run.id,
+            lease.work_id(),
+            blocked.revision,
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    let continuation = f
+        .store
+        .resume_after_children(waiting.id, lease.work_id(), crate::model::unix_time(), 180)
+        .unwrap();
+    let mut calls = 0;
+    assert_eq!(f.worker(NativeTeamStart::Resumed(continuation), |model, _, messages, _| {
+        calls += 1;
+        assert_eq!(model, "model-0");
+        assert!(messages.iter().any(|m| m["content"].as_str().is_some_and(|s| s.contains("safe durable checkpoint"))));
+        if calls == 1 {
+            Ok(call("save_document", json!({"name":"Recovered.md","format":"md","content":"# Verified recovered result"})))
+        } else {
+            let artifact = f.artifacts().into_iter().find(|a| a.name == "Recovered.md").unwrap();
+            Ok(call("report_result", json!({"summary":"Recovered with evidence","artifact_ids":[artifact.id]})))
+        }
+    }).unwrap(), NativeTeamExit::Settled);
+    let done = f.store.snapshot(f.run.id).unwrap();
+    assert_eq!(done.status, TeamRunStatus::Completed);
+    assert_eq!(done.work[0].attempts.len(), 1);
+    assert_eq!(done.usage.model_calls, 3);
+    assert_eq!(done.usage.unknown_calls, 3);
+    assert!(done.usage.reserved_tokens >= blocked.usage.reserved_tokens);
+    assert!(
+        f.store
+            .renew(&lease, crate::model::unix_time(), 180)
+            .is_err()
+    );
+}

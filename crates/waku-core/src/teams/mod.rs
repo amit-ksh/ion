@@ -20,6 +20,7 @@ mod dispatch;
 mod documents;
 mod materialize;
 mod projections;
+mod recovery;
 mod reviews;
 mod storage;
 #[cfg(test)]
@@ -492,6 +493,7 @@ impl TeamCoordinator {
             .find(|a| a.id == lead_id)
             .context("Lead profile missing")?;
         let root = TeamAssignment {
+            can_resume: false,
             id: Uuid::new_v4(),
             task_id: request.root_task_id,
             parent_id: None,
@@ -750,6 +752,7 @@ impl TeamCoordinator {
             "Delegation cannot expand parent/profile access"
         );
         let work = TeamAssignment {
+            can_resume: false,
             id: Uuid::new_v4(),
             task_id: Uuid::new_v4(),
             parent_id: Some(parent.id),
@@ -1256,6 +1259,7 @@ impl TeamCoordinator {
                 (AssignmentStatus::Failed, Some(reason), None)
             }
             AssignmentOutcome::Completed(result) => {
+                workspace::require_settled_effects(&tx, run.id)?;
                 validate_result(&tx, &run, &work, &result)?;
                 reviews::validate_output(&tx, &run, &work, &result)?;
                 ensure!(

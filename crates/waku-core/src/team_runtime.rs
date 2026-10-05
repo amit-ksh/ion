@@ -264,6 +264,24 @@ impl TeamRuntime {
     pub(crate) fn pinned(&self) -> HashSet<Uuid> {
         self.streams.lock().keys().copied().collect()
     }
+    pub(crate) fn resume_checkpoint(
+        &self,
+        run: Uuid,
+        work: Uuid,
+        expected_revision: u64,
+    ) -> Result<TeamRunSnapshot> {
+        // The scheduler is the sole launcher. A blocked assignment cannot be
+        // launched until this transaction queues it, so this absence check is stable.
+        ensure!(
+            !self.jobs.lock().contains_key(&work),
+            "The Local worker is still finishing; refresh and try again"
+        );
+        let snapshot =
+            self.coordinator
+                .queue_checkpoint_resume(run, work, expected_revision, unix_time())?;
+        self.wake();
+        Ok(snapshot)
+    }
     pub(crate) fn cancel_run(&self, run: Uuid) {
         self.cancel_jobs(run);
         let started = self.publisher.lock().is_some();

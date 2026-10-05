@@ -267,6 +267,9 @@ pub struct TeamTokenUsage {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamAssignment {
+    /// A stopped local worker has a safe private checkpoint available.
+    #[serde(default)]
+    pub can_resume: bool,
     pub id: Uuid,
     pub task_id: Uuid,
     pub parent_id: Option<Uuid>,

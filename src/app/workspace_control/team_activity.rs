@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct AssignmentRow {
     id: Uuid,
     task_id: Uuid,
+    resume: Option<(Uuid, u64)>,
     parent_task: Option<Uuid>,
     depth: usize,
     title: String,
@@ -347,6 +348,71 @@ impl Waku {
         .detach();
         cx.notify();
     }
+    fn resume_workspace_assignment(
+        &mut self,
+        run_id: Uuid,
+        assignment_id: Uuid,
+        expected_revision: u64,
+        cx: &mut Context<Self>,
+    ) {
+        if self.control_ui.activity_busy {
+            return;
+        }
+        self.control_ui.activity_error = None;
+        self.control_ui.activity_generation += 1;
+        let generation = self.control_ui.activity_generation;
+        self.control_ui.activity_busy = true;
+        let client = self.daemon.client();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    smol::unblock(move || {
+                        client.request(
+                            Uuid::nil(),
+                            Uuid::nil(),
+                            Rpc::ResumeTeamAssignment {
+                                assignment_id,
+                                run_id,
+                                expected_revision,
+                            },
+                        )
+                    })
+                    .await
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.control_ui.activity_generation != generation {
+                    return;
+                }
+                this.control_ui.activity_busy = false;
+                match result {
+                    Ok(ResponsePayload::TeamRun { snapshot }) => {
+                        this.control_ui.activity_error = None;
+                        if this.control_ui.selected_run == Some(run_id) {
+                            this.control_ui.team_run = Some(Rc::new(snapshot));
+                        }
+                        this.control_ui.activity_revision += 1;
+                    }
+                    Ok(_) => {
+                        this.control_ui.activity_error =
+                            Some("Unexpected continuation response. Refresh the run.".into())
+                    }
+                    Err(error) => {
+                        this.control_ui.activity_error = Some(format!(
+                            "Could not continue the assignment: {error}. Refresh before retrying."
+                        ))
+                    }
+                }
+                if this.control_ui.activity_error.is_none() {
+                    this.refresh_team_activity(true, cx);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
     pub(super) fn open_team_activity_task(&mut self, id: Uuid, cx: &mut Context<Self>) {
         if self.state.sessions.iter().any(|s| s.id == id) {
             self.select_session(id, cx);
@@ -491,6 +557,7 @@ impl Waku {
                     Some(Row::Assignment(Rc::new(AssignmentRow {
                         id,
                         task_id: w.task_id,
+                        resume: w.can_resume.then_some((run.id, run.revision)),
                         parent_task: w.parent_id.and_then(|id| work.get(&id)).map(|w| w.task_id),
                         depth,
                         title: format!("{} · {}", profile.name, w.objective),
@@ -936,6 +1003,15 @@ impl Waku {
             cx,
             move |this, _, cx| this.open_team_activity_task(task, cx),
         ));
+        if let Some((run, revision)) = row.resume {
+            let work = row.id;
+            actions = actions.child(self.control_button(
+                format!("assignment-resume-{work}"),
+                "Continue from checkpoint",
+                cx,
+                move |this, _, cx| this.resume_workspace_assignment(run, work, revision, cx),
+            ));
+        }
         if let Some(parent) = row.parent_task {
             actions = actions.child(self.control_button(
                 format!("assignment-parent-{task}"),

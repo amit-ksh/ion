@@ -6,4 +6,8 @@ import type { AssignmentReview } from "./AssignmentReview";
 import type { AssignmentStatus } from "./AssignmentStatus";
 import type { OutputContract } from "./OutputContract";
 
-export type TeamAssignment = { id: string, taskId: string, parentId: string | null, agentId: string, objective: string, expectedOutput: string, outputContract: OutputContract, requiresReview: boolean, reworkOf: string | null, review: AssignmentReview | null, dependencies: Array<string>, access: AgentAccess, status: AssignmentStatus, reason: string | null, attempts: Array<AssignmentAttempt>, result: AssignmentResult | null, };
+export type TeamAssignment = {
+/**
+ * A stopped local worker has a safe private checkpoint available.
+ */
+canResume: boolean, id: string, taskId: string, parentId: string | null, agentId: string, objective: string, expectedOutput: string, outputContract: OutputContract, requiresReview: boolean, reworkOf: string | null, review: AssignmentReview | null, dependencies: Array<string>, access: AgentAccess, status: AssignmentStatus, reason: string | null, attempts: Array<AssignmentAttempt>, result: AssignmentResult | null, };
