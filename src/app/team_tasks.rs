@@ -45,7 +45,7 @@ impl Waku {
         {
             restore_error(
                 self,
-                "Team execution is not available yet. This task remains in the team queue.",
+                "Start a New task to give this team another assignment.",
                 cx,
             );
             return true;
@@ -194,7 +194,7 @@ impl Waku {
                             this.reset_visible_state();
                             this.reset_transcript_rows(this.transcript_row_count());
                         }
-                        this.show_toast("Team task queued. Team execution is not available yet.");
+                        this.show_toast("Team task queued.");
                     }
                     Ok(_) => this
                         .show_toast("Unexpected Teams response. Refresh the task before retrying."),
@@ -211,7 +211,42 @@ impl Waku {
     }
 
     pub(super) fn render_team_task_status(&self, cx: &App) -> Option<AnyElement> {
-        let binding = self.selected_session()?.team_assignment.as_ref()?;
+        let session = self.selected_session()?;
+        let binding = session.team_assignment.as_ref()?;
+        let status = match session.team_assignment_status {
+            Some(waku_client::teams::AssignmentStatus::Canceled) => "Stopped",
+            Some(waku_client::teams::AssignmentStatus::Uncertain) => {
+                "Host outcome needs confirmation"
+            }
+            Some(waku_client::teams::AssignmentStatus::Canceling) => "Stopping",
+            Some(
+                waku_client::teams::AssignmentStatus::Blocked
+                | waku_client::teams::AssignmentStatus::Failed,
+            ) => "Needs attention",
+            _ => match session.status {
+                SessionStatus::Connecting => "Starting",
+                SessionStatus::Working => "Running",
+                SessionStatus::Waiting | SessionStatus::Background => "Waiting for team",
+                SessionStatus::Failed => "Needs attention",
+                SessionStatus::Idle
+                    if session
+                        .turns
+                        .last()
+                        .is_some_and(|t| t.status == crate::model::TurnStatus::Completed) =>
+                {
+                    "Completed"
+                }
+                SessionStatus::Idle
+                    if session
+                        .turns
+                        .last()
+                        .is_some_and(|t| t.status == crate::model::TurnStatus::Interrupted) =>
+                {
+                    "Stopped"
+                }
+                SessionStatus::Idle => "Queued",
+            },
+        };
         let theme = Theme::current(cx);
         Some(
             div()
@@ -223,10 +258,7 @@ impl Waku {
                 .text_size(sp(12.5))
                 .text_color(theme.text_secondary)
                 .child(icon("icons/fork.svg", 14.0, theme.text_secondary))
-                .child(format!(
-                    "{} · Team task · Execution not available yet",
-                    binding.team_name
-                ))
+                .child(format!("{} · Team task · {}", binding.team_name, status))
                 .into_any_element(),
         )
     }

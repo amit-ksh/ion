@@ -1,7 +1,7 @@
 # Agent teams: implementation progress and review checklist
 
 Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
-`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation and native adapter
+`ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter and daemon dispatch
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
 ## Foundation implementation
@@ -39,11 +39,12 @@ increments of [the agreed plan](18-agent-teams-implementation.md).
   cannot complete with unfinished children. Repeated identical reports produce
   one durable result event; changed reports are rejected.
 - Audit events are indexed and paged by cursor. Typed daemon commands prepare,
-  query and stop runs. Protocol version is **13**; desktop/daemon/mobile clients
+  query and stop runs. Protocol version is **14**; desktop/daemon/mobile clients
   must rebuild together.
 
 `PrepareTeamRun` prepares a durable queue for an existing idle root task. It does
-not launch a harness. `GetTeamRun`, `GetTeamAudit` and `StopTeamRun` return the
+not launch a harness inline; the daemon dispatches ready assignments in the
+background. `GetTeamRun`, `GetTeamAudit` and `StopTeamRun` return the
 shared state. Delegation, claims, reports and reconciliation remain trusted
 internal operations, pending authenticated harness bridges.
 
@@ -84,10 +85,9 @@ Foundation committed as `d093fa9` on `codex/ion-agent-teams`.
   Direct user submission materializes its own run so an unrelated broken project
   cannot block that submission. Restart never blindly repeats an interrupted
   invocation; the agent inspects its own durable runs first.
-- Team status appears in the task. UI and tool responses explicitly say execution
-  is unavailable. The current bridge **queues work only**: it does not launch
-  child harnesses or claim completion. Normal-agent invocation for external
-  harnesses remains pending their authenticated tool bridges.
+- Team status appears in the task. This checkpoint originally queued work only;
+  the dispatcher increment below connects ready native workers. Normal-agent
+  invocation for external harnesses remains pending their authenticated bridges.
 - Team attachment handoffs and team follow-ups are pending. Rejected submissions
   retain their text and attachments. No new task-creation screen was added.
 
@@ -149,23 +149,79 @@ Parent continuation checkpoint committed as `54c26cd`.
   yields one document; changed arguments or stale leases are rejected. The normal
   document reader supports these payloads alongside existing imported files.
   Parent reads are limited to its own work and child/dependency handoff scope.
-- This adapter is available to a trusted host worker. The daemon dispatcher,
-  durable transcript projection, readiness/budget gates and UI runtime attachment
-  are not connected yet. User and normal-agent invocation remain queue-only;
-  this increment does not claim that the application executes a queued team.
+- This adapter checkpoint supplied the trusted worker. The dispatcher increment
+  below connects it to actual queued work. Additional harnesses and remote hosts
+  remain under development.
+
+## Daemon dispatch increment (2026-10-05)
+
+Native adapter checkpoint: `d2a770f`.
+
+- The server supplies one publisher to the owner daemon before accepting clients.
+  Its Teams dispatcher scans bounded, indexed pages of eligible runs, materializes
+  each run's outbox, claims ready assignments and launches native worker threads.
+  A broken project does not prevent other runs from being considered. Queue,
+  settings, stop and completed-worker changes wake it; trusted solo-agent queues
+  are discovered by the same polling path.
+- Children execute as real tasks. Waiting parents release coordinator capacity,
+  retain their event stream and resume only after their watched child outcomes
+  settle and the preceding worker joins. The same attempt/runtime and open turn
+  continue, including after owner restart. Unknown live hosts stay uncertain.
+- Worker events update daemon-owned transcripts incrementally and retain exact
+  replay cursors. Text, reasoning and tool order are preserved; stable tool IDs
+  update existing rows. Saves are batched at most once per 120 ms during streaming,
+  with final persistence at lifecycle boundaries. Client saves cannot overwrite
+  team task state. Desktop attachment also hydrates team setup blockers and final
+  transcripts when no live worker exists.
+- Readiness checks distribution policy, enabled harness, project folder, explicit
+  pinned model and the actual Nebius account catalog. Missing setup consumes no
+  attempt, remains queued with a concrete reason, and can recover after setup.
+  Repeated identical reasons do not flood audit events. A model change requires
+  a new run because existing profiles remain pinned.
+- Current execution supports the native Nebius adapter on Local, including the
+  saved Local fallback policy when no sandbox host can start. Other selected
+  harnesses remain queued with a setup reason. No harness/model substitution or
+  automatic workload routing occurs. Actual remote execution is still pending.
+- Every completion reserves a durable per-run model-call slot before the request.
+  The default cap is 64 calls per run, configurable from 1 to 4,096 through the
+  run limits. Calls with unknown provider outcomes remain counted across yields,
+  retries and restarts. Racing reservations and repeated steps cannot exceed the
+  cap. Exact invocation replay from protocol 13 retains the new default cap; a
+  changed cap still rejects the replay. This does **not** enforce token or dollar
+  budgets; those remain below.
+- Stop signals active workers immediately; capacity remains held until their local
+  worker actually joins. A joined worker's known terminal failure is recorded as
+  a blocker without automatic retry. Expired leases can be reconciled only to
+  this same confirmed Local attempt. Removing a team task first stops its run;
+  closing a client attachment leaves daemon-owned work running. The server rejects
+  client Start/OpenTerminal attempts before they can replace that stream, even
+  if the request reuses the same runtime ID.
+- The dispatcher limits live workers to 16 and resident streams to 256 globally,
+  in addition to pinned team and shared-agent limits. Transcript projection and
+  provider/catalog I/O run on background threads, never in render.
+- Task projection stores the assignment status separately from its immutable
+  binding. Stopped unstarted children have no invented execution turn. Restarted
+  unknown hosts show their reason while retaining coordinator capacity; they
+  cannot silently start another worker.
+- Protocol **14** adds aggregate model-call limits and task execution status.
+  Rebuild desktop, daemon and clients together. The UI now shows actual task status, and native invocation
+  tools report daemon dispatch rather than the former queue-only placeholder.
+
 
 ## Remaining development
 
-- [ ] Wire each delegation to the materializer and dispatcher wakeup; drain
+- [x] Wire native delegation to the materializer and dispatcher wakeup; drain
   additional batches during normal operation.
 - [x] Replace legacy single-prompt Team preparation with explicit @ addressing
   and daemon-owned durable queue creation.
 - [x] Add the native normal-agent team invocation queue bridge.
-- [ ] Implement actual team start/dispatch and authenticated harness execution.
+- [x] Implement native Nebius team start/dispatch on Local.
+- [ ] Implement authenticated external harness execution.
 - [x] Native Nebius worker with lease-bound delegation/report/document tools,
   enforced read grant and bounded resumed child context.
-- [ ] Connect native workers to the daemon dispatcher, durable transcripts,
-  readiness/budget gates and attached runtime events.
+- [x] Connect native workers to the daemon dispatcher, durable transcripts,
+  setup readiness, model-call quotas and attached runtime events.
+- [ ] Enforce token and dollar budgets before billable execution.
 - [x] Durable parent waiting/resume and bounded child result handoffs.
 - [x] Native adapter delivery of bounded child handoffs and document evidence.
 - [ ] Review/rework, required output contracts and acceptance checks beyond
@@ -186,8 +242,9 @@ Parent continuation checkpoint committed as `54c26cd`.
 
 The Team “New task” action now prepares an explicit team address in the normal
 composer. Both user addressing and native agent invocation queue a real run.
-Hierarchical harness execution remains under development. Neither Local nor
-Nebius configurations silently run through the old solo action.
+Ready native Nebius assignments now execute through the daemon's dedicated Teams
+worker. Mixed harnesses, coding/tools, review gates and remote execution remain
+under development. Team tasks never enter the old solo action.
 
 ## Developer verification
 
@@ -196,6 +253,7 @@ Run from this worktree with dependencies installed:
 ```powershell
 cargo test --locked -p waku-core team -- --test-threads=4
 cargo test --locked -p waku-core control::tests:: -- --test-threads=4
+cargo test --locked -p waku-core server::tests:: -- --test-threads=4
 cargo test --locked -p waku-protocol protocol::tests::
 cargo test --locked -p waku-protocol teams::mentions::
 cargo test --locked -p waku-client composer_complete::tests::
@@ -211,8 +269,8 @@ git diff --check
 Verified 2026-10-05 against this worktree:
 
 - Team coordinator, invocation, recovery and daemon integration checks:
-  **43 passed**, including **32 coordinator tests** and **7 native adapter
-  tests**. The six continuation
+  **56 passed**, including **35 coordinator tests**, **7 native adapter tests**
+  and **9 dispatcher tests**. The six continuation
   regressions cover three-level execution with one slot, restart, stale leases,
   exact replay, racing resume, shared capacity, cancellation/deadlines and
   uncertain children with escaped/Unicode handoffs. The native adapter checks
@@ -221,6 +279,16 @@ Verified 2026-10-05 against this worktree:
   unfinished children, cancellation before effects and plain text without a
   completion receipt. Document checks cover atomic replay, concurrent publication
   and assignment/handoff provenance.
+  Dispatcher checks execute a three-level chain through real adapter tools,
+  restart waiting parents, retain uncertain host outcomes, preserve transcript
+  event order and stable tool identities, recover missing setup without a new
+  task, enforce aggregate model-call caps and hold cancel capacity until the
+  actual worker joins. Server ownership coverage keeps the team stream alive
+  after client Close and rejects solo Start over the same task. Legacy request
+  replay accepts only the documented default for the added run limit.
+- Runtime publisher cursor/replay regression: **1 passed**.
+- Server lifecycle and reconnect suite: **17 passed**, including the team-owned
+  attachment and rejected solo-start regression.
 - Team addressing parser: **3 passed**.
 - Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
@@ -236,10 +304,11 @@ Cargo checks/tests reused the existing dependency cache with
 worktree. No app executable was launched or replaced by these check/test runs.
 The existing dev watcher was not restarted. Foundation commit: `d093fa9`.
 Invocation checkpoint: `c64810c`. Parent continuation checkpoint: `54c26cd`.
-The native adapter increment is committed separately after verification.
+Native adapter checkpoint: `d2a770f`. Daemon dispatch is committed after the checks
+recorded above.
 No live provider, sandbox, mobile build or visual acceptance is claimed.
 
-## User review of invocation (queue only)
+## User review of invocation and native dispatch
 
 - [ ] Send a plain New task prompt; confirm normal solo behavior.
 - [ ] Start a prompt with `@teamname` or choose a team from @ suggestions.
@@ -249,7 +318,11 @@ No live provider, sandbox, mobile build or visual acceptance is claimed.
 - [ ] Confirm path mentions such as `@./engineering` still address files.
 - [ ] Confirm the queued task preserves the lead harness/model and typed prompt.
 - [ ] Refresh/restart and confirm the same task/run survives without duplicates.
-- [ ] Observe that queued work is not shown as executing or complete.
+- [ ] Without setup, confirm a queued task shows the actual setup reason and
+  consumes no attempt. With ready native agents, observe child execution and resume.
+- [ ] Refresh a completed team task and confirm its transcript and documents remain.
+- [ ] Close the team task attachment while children run; reopen it and confirm
+  the same run continues. Use Stop separately to cancel the owning team run.
 - [ ] In a native Nebius solo task, ask it to use a saved team; inspect the
   `invoke_team` call and its queue/status result. Requires a privately saved key.
 - [ ] Confirm actor/project overrides, changed repeated calls and a fifth

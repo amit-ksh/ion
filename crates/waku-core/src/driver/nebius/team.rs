@@ -165,6 +165,28 @@ pub fn run_native_team_assignment(
     )
 }
 
+#[cfg(test)]
+pub(crate) fn run_scripted_team_assignment(
+    coordinator: &TeamCoordinator,
+    start: NativeTeamStart,
+    workspace: &Path,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    mut response: impl FnMut(&str, &str, &[Value], Value) -> Result<String>,
+) -> Result<NativeTeamExit> {
+    run_with_completion(
+        coordinator,
+        start,
+        workspace,
+        events,
+        cancelled,
+        |model, system, messages, tools| {
+            let sse = response(model, system, messages, tools)?;
+            parse_stream_scoped(BufReader::new(sse.as_bytes()), events, cancelled, false)
+        },
+    )
+}
+
 fn run_with_completion(
     coordinator: &TeamCoordinator,
     start: NativeTeamStart,
@@ -262,6 +284,11 @@ fn run_with_completion(
             coordinator.renew(&claimed.lease, crate::model::unix_time(), 180)?;
             journal.steps += 1;
             journal.save(coordinator, &claimed.lease)?;
+            coordinator.reserve_model_call(
+                &claimed.lease,
+                journal.steps,
+                crate::model::unix_time(),
+            )?;
             let (text, calls) = completion(
                 model,
                 &system,

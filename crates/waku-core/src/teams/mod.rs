@@ -13,6 +13,7 @@ use uuid::Uuid;
 use waku_protocol::{control::*, teams::*};
 
 mod continuation;
+mod dispatch;
 mod documents;
 mod materialize;
 mod storage;
@@ -289,6 +290,10 @@ impl TeamCoordinator {
             "Invalid team execution limits"
         );
         let body = serde_json::to_string(&request)?;
+        ensure!(
+            (1..=4096).contains(&request.limits.max_model_calls),
+            "Team model-call limit must be 1-4096"
+        );
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let origin_signature = if let Some(origin) = &request.origin {
@@ -298,7 +303,7 @@ impl TeamCoordinator {
                 &serde_json::json!({"project":request.project_id,"team":request.team_id,"objective":request.objective,"access":request.access,"limits":request.limits}),
             )?;
             if let Some((id,existing)) = tx.query_row("SELECT run_id,signature FROM ion_team_invocations WHERE task_id=? AND request_id=?",params![origin.task_id.to_string(),origin.request_id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
-                ensure!(existing==signature,"Invocation ID reused with changed arguments");
+                ensure!(same_request(&existing,&signature)?,"Invocation ID reused with changed arguments");
                 return load(&tx,Uuid::parse_str(&id)?);
             }
             let count: u16 = tx.query_row(
@@ -323,7 +328,7 @@ impl TeamCoordinator {
             .optional()?
         {
             ensure!(
-                original == body,
+                same_request(&original, &body)?,
                 "This root task already has a different team run"
             );
             return load(&tx, Uuid::parse_str(&id)?);
@@ -1105,6 +1110,10 @@ impl TeamCoordinator {
                 Some("Host confirmed cancellation".into()),
                 None,
             ),
+            AssignmentOutcome::Blocked(reason) => {
+                text(&reason, 4096, "Confirmed host blocker")?;
+                (AssignmentStatus::Blocked, Some(reason), None)
+            }
             AssignmentOutcome::FailedBeforeEffects(reason) => {
                 text(&reason, 4096, "Failure")?;
                 (AssignmentStatus::Failed, Some(reason), None)
@@ -1247,6 +1256,22 @@ impl TeamCoordinator {
         self.snapshot(run_id)
     }
 }
+// Adding a defaulted run limit must not invalidate an exact durable invocation
+// saved by protocol 13. Normalize only this documented default; all identities,
+// access and requested limits still compare exactly.
+fn same_request(old: &str, new: &str) -> Result<bool> {
+    let normalize = |body: &str| -> Result<serde_json::Value> {
+        let mut value: serde_json::Value = serde_json::from_str(body)?;
+        if let Some(limits) = value.get_mut("limits").and_then(|v| v.as_object_mut()) {
+            limits
+                .entry("maxModelCalls")
+                .or_insert(serde_json::json!(TeamRunLimits::default().max_model_calls));
+        }
+        Ok(value)
+    };
+    Ok(normalize(old)? == normalize(new)?)
+}
+
 fn active(run: &TeamRunSnapshot, now: u64) -> Result<()> {
     ensure!(
         run.status == TeamRunStatus::Active,

@@ -1741,3 +1741,103 @@ fn assignment_document_reads_and_writes_are_fenced_by_lease_and_handoff_scope() 
             .is_err()
     );
 }
+
+#[test]
+fn aggregate_model_call_reservations_are_transactional_and_replay_is_rejected() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.limits.max_model_calls = 1;
+    let run = f.store.prepare(request, 100).unwrap();
+    f.materialize();
+    let claimed = f.claim(run.id, run.work[0].id);
+    let gate = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let handles: Vec<_> = (1..=2)
+        .map(|step| {
+            let gate = gate.clone();
+            let lease = claimed.lease.clone();
+            let path = f.dir.join("control.db");
+            std::thread::spawn(move || {
+                gate.wait();
+                TeamCoordinator::new(path).reserve_model_call(&lease, step, 102)
+            })
+        })
+        .collect();
+    gate.wait();
+    assert_eq!(
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .filter(|result| result.is_ok())
+            .count(),
+        1
+    );
+    assert!(f.store.reserve_model_call(&claimed.lease, 1, 102).is_err());
+    assert_eq!(
+        f.store
+            .audit_events(run.id, 0, 128)
+            .unwrap()
+            .iter()
+            .filter(|e| e.event == "model_call")
+            .count(),
+        1
+    );
+}
+#[test]
+fn dispatcher_pages_active_runs_and_setup_deferrals_do_not_churn() {
+    let f = Fixture::new();
+    let a = f.run();
+    let b = f.run();
+    let first = f.store.dispatch_runs(None, 1).unwrap();
+    assert_eq!(first.len(), 1);
+    let second = f.store.dispatch_runs(Some(first[0].id), 1).unwrap();
+    assert_eq!(second.len(), 1);
+    assert_ne!(first[0].id, second[0].id);
+    assert!(
+        f.store
+            .dispatch_runs(Some(second[0].id), 1)
+            .unwrap()
+            .is_empty()
+    );
+    let reason = Some("Harness setup required".to_owned());
+    f.store
+        .defer_dispatch(a.id, a.work[0].id, reason.clone(), 101)
+        .unwrap();
+    let revision = f.store.snapshot(a.id).unwrap().revision;
+    f.store
+        .defer_dispatch(a.id, a.work[0].id, reason, 102)
+        .unwrap();
+    assert_eq!(f.store.snapshot(a.id).unwrap().revision, revision);
+    assert!(f.store.snapshot(b.id).unwrap().work[0].attempts.is_empty());
+}
+
+#[test]
+fn legacy_run_limit_default_preserves_exact_replay_without_allowing_changed_quota() {
+    let f = Fixture::new();
+    let mut request = f.request();
+    request.origin = Some(TeamTaskOrigin {
+        task_id: Uuid::new_v4(),
+        request_id: "legacy-call".into(),
+    });
+    let run = f.store.prepare(request.clone(), 100).unwrap();
+    let db = Connection::open(f.dir.join("control.db")).unwrap();
+    db.execute(
+        "UPDATE ion_team_runs SET request=json_remove(request,'$.limits.maxModelCalls') WHERE id=?",
+        [run.id.to_string()],
+    )
+    .unwrap();
+    db.execute("UPDATE ion_team_invocations SET signature=json_remove(signature,'$.limits.maxModelCalls') WHERE run_id=?",[run.id.to_string()]).unwrap();
+    drop(db);
+    assert_eq!(f.store.prepare(request.clone(), 101).unwrap().id, run.id);
+    request.limits.max_model_calls = 65;
+    assert!(f.store.prepare(request, 102).is_err());
+    let projections = f
+        .store
+        .task_projections([run.root_task_id, Uuid::new_v4()])
+        .unwrap();
+    assert_eq!(projections.len(), 1);
+    assert_eq!(
+        projections[&run.root_task_id].0.assignment_id,
+        run.work[0].id
+    );
+    assert_eq!(projections[&run.root_task_id].1, AssignmentStatus::Queued);
+}

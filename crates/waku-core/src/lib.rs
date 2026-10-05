@@ -57,6 +57,7 @@ pub mod settings;
 pub mod skills;
 mod slash_command_catalog;
 pub mod speech;
+mod team_runtime;
 pub mod teams;
 pub mod terminal;
 pub mod theme;
@@ -75,6 +76,6 @@ pub use protocol::{
     SequencedEvent, ServerMessage, WireComputerToolRequest, WireDriverEvent,
     WireDriverStartOptions, WireSessionOptions,
 };
-pub use server::{Backend, EventSink, ServerOptions, serve};
+pub use server::{Backend, EventSink, RuntimePublisher, ServerOptions, serve};
 pub use settings::{DaemonSettings, DaemonSettingsStore};
 pub use workspace::{WorkspaceOperation, WorkspaceResult};

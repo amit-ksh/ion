@@ -980,6 +980,9 @@ pub struct AgentSession {
     pub project_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team_assignment: Option<crate::teams::TeamTaskBinding>,
+    /// Mutable daemon execution projection, separate from the pinned identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_assignment_status: Option<crate::teams::AssignmentStatus>,
     /// Local project checkout or an isolated Git worktree for this task.
     #[serde(default, skip_serializing_if = "SessionWorkspace::is_local")]
     pub workspace: SessionWorkspace,
@@ -1066,6 +1069,7 @@ impl AgentSession {
             auto_title: None,
             project_id,
             team_assignment: None,
+            team_assignment_status: None,
             workspace: SessionWorkspace::Local,
             provider,
             model: None,
@@ -1104,6 +1108,7 @@ impl AgentSession {
             auto_title: self.auto_title.clone(),
             project_id: self.project_id,
             team_assignment: self.team_assignment.clone(),
+            team_assignment_status: self.team_assignment_status,
             workspace: SessionWorkspace::Local,
             provider: self.provider,
             model: self.model.clone(),

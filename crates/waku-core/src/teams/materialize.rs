@@ -10,6 +10,7 @@ pub(super) fn task_session(task: &TaskMaterialization) -> AgentSession {
     session.id = task.assignment.task_id;
     session.model = task.profile.model.clone();
     session.team_assignment = Some(task.binding.clone());
+    session.team_assignment_status = Some(AssignmentStatus::Queued);
     // A materialized assignment is an idle record, not an execution authorization.
     session.runtime_mode = RuntimeMode::Ask;
     session.title = task.assignment.objective.chars().take(120).collect();

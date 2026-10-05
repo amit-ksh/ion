@@ -47,10 +47,10 @@ pub struct WakuBackend {
     terminals: Mutex<HashMap<Uuid, (Uuid, crate::terminal::DaemonTerminal)>>,
     #[cfg(all(test, unix))]
     terminal_shell: Option<alacritty_terminal::tty::Shell>,
-    settings: DaemonSettingsStore,
-    task_store: StateStore,
-    task_state: Mutex<PersistedState>,
-    removed_session_ids: Mutex<HashSet<Uuid>>,
+    settings: Arc<DaemonSettingsStore>,
+    task_store: Arc<StateStore>,
+    task_state: Arc<Mutex<PersistedState>>,
+    removed_session_ids: Arc<Mutex<HashSet<Uuid>>>,
     composer_drafts: ComposerDraftStore,
     attachments: AttachmentStore,
     usage_scan_cache: Mutex<crate::usage_history::ScanCache>,
@@ -58,7 +58,8 @@ pub struct WakuBackend {
     usage_rates_dir: std::path::PathBuf,
     default_cwd: std::path::PathBuf,
     control: crate::control::ControlStore,
-    teams: crate::teams::TeamCoordinator,
+    teams: Arc<crate::teams::TeamCoordinator>,
+    team_runtime: Arc<crate::team_runtime::TeamRuntime>,
     task_start_gates: Mutex<HashMap<Uuid, std::sync::Weak<Mutex<()>>>>,
 }
 
@@ -90,7 +91,20 @@ impl WakuBackend {
         {
             eprintln!("Could not replay team child tasks: {error}");
         }
+        let task_store = Arc::new(task_store);
+        let task_state = Arc::new(Mutex::new(task_state));
+        let settings = Arc::new(settings);
+        let teams = Arc::new(teams);
+        let removed_session_ids = Arc::new(Mutex::new(HashSet::new()));
+        let team_runtime = crate::team_runtime::TeamRuntime::new(
+            teams.clone(),
+            task_store.clone(),
+            task_state.clone(),
+            settings.clone(),
+            removed_session_ids.clone(),
+        );
         Ok(Self {
+            team_runtime,
             task_start_gates: Mutex::new(HashMap::new()),
             teams,
             control: crate::control::ControlStore::new(
@@ -102,8 +116,8 @@ impl WakuBackend {
             terminal_shell: None,
             settings,
             task_store,
-            task_state: Mutex::new(task_state),
-            removed_session_ids: Mutex::new(HashSet::new()),
+            task_state,
+            removed_session_ids,
             composer_drafts,
             attachments,
             usage_scan_cache: Mutex::new(HashMap::new()),
@@ -251,6 +265,9 @@ fn migrate_projectless_state(
 }
 
 impl Backend for WakuBackend {
+    fn start(&self, publisher: crate::RuntimePublisher) -> anyhow::Result<()> {
+        self.team_runtime.start(publisher)
+    }
     fn handle(&self, request: Request, events: EventSink) -> anyhow::Result<ResponsePayload> {
         let session_id = request.session_id;
         let runtime_id = request.runtime_id;
@@ -344,6 +361,7 @@ impl Backend for WakuBackend {
                     .context("Team root remains pending; retry the same invocation")?;
                 self.task_store.hydrate(session)?;
                 let session = session.clone();
+                self.team_runtime.wake();
                 Ok(ResponsePayload::TeamTaskQueued { snapshot, session })
             }
             Command::PrepareTeamRun {
@@ -378,23 +396,23 @@ impl Backend for WakuBackend {
                     );
                     root.clone()
                 };
-                Ok(ResponsePayload::TeamRun {
-                    snapshot: self.teams.prepare(
-                        crate::teams::PrepareRun {
-                            id: run_id,
-                            root_task_id: root.id,
-                            project_id: root.project_id,
-                            team_id,
-                            expected_definition_revision,
-                            objective,
-                            source_prompt: None,
-                            origin: None,
-                            limits,
-                            access,
-                        },
-                        crate::model::unix_time(),
-                    )?,
-                })
+                let snapshot = self.teams.prepare(
+                    crate::teams::PrepareRun {
+                        id: run_id,
+                        root_task_id: root.id,
+                        project_id: root.project_id,
+                        team_id,
+                        expected_definition_revision,
+                        objective,
+                        source_prompt: None,
+                        origin: None,
+                        limits,
+                        access,
+                    },
+                    crate::model::unix_time(),
+                )?;
+                self.team_runtime.wake();
+                Ok(ResponsePayload::TeamRun { snapshot })
             }
             Command::GetTeamRun { run_id } => Ok(ResponsePayload::TeamRun {
                 snapshot: self
@@ -411,11 +429,13 @@ impl Backend for WakuBackend {
             Command::StopTeamRun {
                 run_id,
                 expected_revision,
-            } => Ok(ResponsePayload::TeamRun {
-                snapshot: self
-                    .teams
-                    .stop(run_id, expected_revision, crate::model::unix_time())?,
-            }),
+            } => {
+                let snapshot =
+                    self.teams
+                        .stop(run_id, expected_revision, crate::model::unix_time())?;
+                self.team_runtime.cancel_run(run_id);
+                Ok(ResponsePayload::TeamRun { snapshot })
+            }
             Command::LoadWorkspaceControl => Ok(ResponsePayload::WorkspaceControl {
                 snapshot: self.control.load()?,
             }),
@@ -457,6 +477,12 @@ impl Backend for WakuBackend {
                 bytes: self.control.read_document(id)?,
             }),
             Command::AttachSession => {
+                if let Some(runtime_id) = self.team_runtime.runtime(session_id) {
+                    return Ok(ResponsePayload::SessionRuntime {
+                        runtime_id: Some(runtime_id),
+                        supports_steer: false,
+                    });
+                }
                 let sessions = self.sessions.lock();
                 let Some((runtime_id, driver)) = sessions.get(&session_id) else {
                     return Ok(ResponsePayload::SessionRuntime {
@@ -474,6 +500,7 @@ impl Backend for WakuBackend {
             }),
             Command::UpdateSettings { settings } => {
                 self.settings.replace(settings)?;
+                self.team_runtime.wake();
                 Ok(ResponsePayload::Ack)
             }
             Command::ProbeProvider {
@@ -577,6 +604,15 @@ impl Backend for WakuBackend {
                     crate::model::unix_time(),
                 ) {
                     eprintln!("Could not materialize queued team tasks: {error}");
+                }
+                let team_projections = self
+                    .teams
+                    .task_projections(state.sessions.iter().map(|s| s.id))?;
+                for session in &mut state.sessions {
+                    if let Some((binding, status)) = team_projections.get(&session.id) {
+                        session.team_assignment = Some(binding.clone());
+                        session.team_assignment_status = Some(*status);
+                    }
                 }
                 Ok(ResponsePayload::TaskState {
                     projects: state.projects.clone(),
@@ -682,6 +718,30 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::TaskStateSaved { sessions })
             }
             Command::RemoveSession => {
+                let gate = self.task_start_gate(session_id);
+                let _guard = gate.lock();
+                if let Some(binding) = self.teams.binding_for_task(session_id)? {
+                    // Removing one assignment stops its owning run before any
+                    // task row can disappear. The dispatcher never recreates it.
+                    for attempt in 0..4 {
+                        let run = self.teams.snapshot(binding.run_id)?;
+                        if run.status != waku_protocol::teams::TeamRunStatus::Active {
+                            break;
+                        }
+                        match self
+                            .teams
+                            .stop(run.id, run.revision, crate::model::unix_time())
+                        {
+                            Ok(_) => break,
+                            Err(error) if attempt == 3 => {
+                                return Err(error)
+                                    .context("Could not stop team before removing task");
+                            }
+                            Err(_) => {}
+                        }
+                    }
+                    self.team_runtime.cancel_run(binding.run_id);
+                }
                 {
                     let mut state = self.task_state.lock();
                     self.removed_session_ids.lock().insert(session_id);
@@ -714,7 +774,7 @@ impl Backend for WakuBackend {
             Command::HydrateSession { session_id } => {
                 // Live runtimes stay resident; everything else is trimmed to
                 // the recency window once the response is built.
-                let pinned = self.sessions.lock().keys().copied().collect();
+                let mut pinned: HashSet<Uuid> = self.sessions.lock().keys().copied().collect();
                 let mut state = self.task_state.lock();
                 let session = if let Some(session) = state
                     .sessions
@@ -726,6 +786,7 @@ impl Backend for WakuBackend {
                 } else {
                     None
                 };
+                pinned.extend(self.team_runtime.pinned());
                 trim_resident_transcripts(&mut state, &pinned);
                 Ok(ResponsePayload::Session { session })
             }
@@ -1103,6 +1164,9 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Started { supports_steer })
             }
             Command::CloseSession => {
+                if self.teams.binding_for_task(session_id)?.is_some() {
+                    return Ok(ResponsePayload::Ack);
+                }
                 let removed = {
                     let mut sessions = self.sessions.lock();
                     sessions
@@ -1115,6 +1179,21 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Ack)
             }
             command => {
+                if matches!(&command, Command::Cancel) {
+                    if let Some(binding) = self.teams.binding_for_task(session_id)? {
+                        anyhow::ensure!(
+                            self.team_runtime.runtime(session_id) == Some(runtime_id),
+                            "Team runtime changed; attach before canceling"
+                        );
+                        let run = self.teams.snapshot(binding.run_id)?;
+                        if run.status == waku_protocol::teams::TeamRunStatus::Active {
+                            self.teams
+                                .stop(run.id, run.revision, crate::model::unix_time())?;
+                        }
+                        self.team_runtime.cancel_run(binding.run_id);
+                        return Ok(ResponsePayload::Ack);
+                    }
+                }
                 anyhow::ensure!(
                     self.teams.binding_for_task(session_id)?.is_none(),
                     "Team tasks require the Teams execution adapter"
@@ -1156,6 +1235,7 @@ impl Backend for WakuBackend {
     }
 
     fn shutdown(&self) {
+        self.team_runtime.shutdown();
         let sessions = std::mem::take(&mut *self.sessions.lock());
         drop(sessions);
         let terminals = std::mem::take(&mut *self.terminals.lock());
@@ -1320,7 +1400,7 @@ impl WakuBackend {
                 .err()
                 .map(|error| error.to_string());
 
-        let pinned = self.sessions.lock().keys().copied().collect();
+        let mut pinned: HashSet<Uuid> = self.sessions.lock().keys().copied().collect();
         let mut state = self.task_state.lock();
         state.push_session(forked.clone());
         if let Err(error) = self.task_store.save(&mut state) {
@@ -1328,6 +1408,7 @@ impl WakuBackend {
             let _ = crate::checkpoint::delete_all_session_refs(&cwd, fork_id);
             return Err(error).context("could not save the forked task");
         }
+        pinned.extend(self.team_runtime.pinned());
         trim_resident_transcripts(&mut state, &pinned);
         Ok((forked, checkpoint_warning))
     }
@@ -1461,7 +1542,7 @@ impl WakuBackend {
         rewound.truncate_after_turn(retained_turn_count);
         rewound.status = SessionStatus::Idle;
 
-        let pinned = self.sessions.lock().keys().copied().collect();
+        let mut pinned: HashSet<Uuid> = self.sessions.lock().keys().copied().collect();
         let mut state = self.task_state.lock();
         let existing = state
             .sessions
@@ -1473,6 +1554,7 @@ impl WakuBackend {
         self.task_store
             .save(&mut state)
             .context("could not save the rewound task")?;
+        pinned.extend(self.team_runtime.pinned());
         trim_resident_transcripts(&mut state, &pinned);
         Ok((rewound, cleanup_warning))
     }
@@ -2191,7 +2273,7 @@ pub fn encode_enum<T: Serialize>(value: T) -> anyhow::Result<String> {
         .ok_or_else(|| anyhow!("protocol enum did not serialize as a string"))
 }
 
-fn event_to_wire(event: DriverEvent) -> anyhow::Result<WireDriverEvent> {
+pub(crate) fn event_to_wire(event: DriverEvent) -> anyhow::Result<WireDriverEvent> {
     let (kind, payload) = match event {
         DriverEvent::RuntimeEventCursorAdvanced(_) => {
             bail!("client-only runtime cursors cannot be sent by the daemon")

@@ -72,9 +72,41 @@ impl Drop for ConnectionPermit {
 pub trait Backend: Send + Sync + 'static {
     fn handle(&self, request: Request, events: EventSink) -> anyhow::Result<ResponsePayload>;
 
+    /// Attach the daemon's publisher once, before accepting clients.
+    fn start(&self, _publisher: RuntimePublisher) -> anyhow::Result<()> {
+        Ok(())
+    }
     fn shutdown(&self) {}
 }
 
+/// Trusted background runtimes share the server's epoch, replay and catalog.
+#[derive(Clone)]
+pub struct RuntimePublisher {
+    hub: Arc<Hub>,
+}
+impl RuntimePublisher {
+    #[cfg(test)]
+    pub(crate) fn for_test() -> Self {
+        Self {
+            hub: Arc::new(Hub::default()),
+        }
+    }
+    pub fn begin(&self, session_id: Uuid, runtime_id: Uuid) -> EventSink {
+        self.hub.begin_owned_runtime(session_id, runtime_id);
+        self.hub.event_sink(session_id, runtime_id)
+    }
+    pub fn finish(&self, session_id: Uuid, runtime_id: Uuid) {
+        self.hub.end_runtime(session_id, Some(runtime_id));
+    }
+    pub fn tasks_changed(&self) {
+        let mut state = self.hub.state.lock();
+        state.task_state_revision = state.task_state_revision.saturating_add(1);
+        let message = ServerMessage::TaskStateChanged {
+            revision: state.task_state_revision,
+        };
+        Hub::broadcast(&mut state, &message, None);
+    }
+}
 #[derive(Clone)]
 pub struct EventSink {
     session_id: Uuid,
@@ -84,8 +116,17 @@ pub struct EventSink {
 
 impl EventSink {
     pub fn send(&self, event: WireDriverEvent) -> anyhow::Result<()> {
-        self.hub.emit(self.session_id, self.runtime_id, event, true);
+        let _ = self.hub.emit(self.session_id, self.runtime_id, event, true);
         Ok(())
+    }
+
+    pub fn record(
+        &self,
+        event: WireDriverEvent,
+    ) -> anyhow::Result<crate::model::RuntimeEventCursor> {
+        self.hub
+            .emit(self.session_id, self.runtime_id, event, true)
+            .context("Runtime stream was superseded")
     }
 
     /// Broadcast a live-only event without retaining it in the replay journal.
@@ -93,7 +134,8 @@ impl EventSink {
     /// is currently attached; replaying raw chunks into a fresh emulator would
     /// also retain an unbounded terminal transcript in daemon memory.
     pub fn send_ephemeral(&self, event: WireDriverEvent) -> anyhow::Result<()> {
-        self.hub
+        let _ = self
+            .hub
             .emit(self.session_id, self.runtime_id, event, false);
         Ok(())
     }
@@ -121,6 +163,7 @@ struct HubState {
     task_state_revision: u64,
     subscribers: HashMap<u64, Subscriber>,
     active_runtimes: HashMap<Uuid, Uuid>,
+    daemon_owned_runtimes: HashSet<Uuid>,
     next_sequences: HashMap<(Uuid, Uuid), u64>,
     journal: HashMap<(Uuid, Uuid), VecDeque<SequencedEvent>>,
     responses: VecDeque<(Uuid, ResponseOutcome, usize)>,
@@ -217,15 +260,44 @@ impl Hub {
         }
     }
 
-    fn begin_runtime(&self, session_id: Uuid, runtime_id: Uuid) {
-        let mut state = self.state.lock();
+    fn install_runtime(state: &mut HubState, session_id: Uuid, runtime_id: Uuid, owned: bool) {
         state.active_runtimes.insert(session_id, runtime_id);
+        if owned {
+            state.daemon_owned_runtimes.insert(session_id);
+        } else {
+            state.daemon_owned_runtimes.remove(&session_id);
+        }
         state
             .next_sequences
             .retain(|(candidate, _), _| *candidate != session_id);
         state
             .journal
             .retain(|(candidate, _), _| *candidate != session_id);
+    }
+
+    #[cfg(test)]
+    fn begin_runtime(&self, session_id: Uuid, runtime_id: Uuid) {
+        Self::install_runtime(&mut self.state.lock(), session_id, runtime_id, false);
+    }
+
+    fn begin_owned_runtime(&self, session_id: Uuid, runtime_id: Uuid) {
+        Self::install_runtime(&mut self.state.lock(), session_id, runtime_id, true);
+    }
+
+    fn begin_client_runtime(&self, session_id: Uuid, runtime_id: Uuid) -> anyhow::Result<()> {
+        let mut state = self.state.lock();
+        anyhow::ensure!(
+            !state.daemon_owned_runtimes.contains(&session_id),
+            "This task has a daemon-owned team runtime"
+        );
+        Self::install_runtime(&mut state, session_id, runtime_id, false);
+        Ok(())
+    }
+
+    fn is_owned_runtime(&self, session_id: Uuid, runtime_id: Uuid) -> bool {
+        let state = self.state.lock();
+        state.daemon_owned_runtimes.contains(&session_id)
+            && state.active_runtimes.get(&session_id) == Some(&runtime_id)
     }
 
     fn end_runtime(&self, session_id: Uuid, runtime_id: Option<Uuid>) {
@@ -236,6 +308,7 @@ impl Hub {
             return;
         }
         state.active_runtimes.remove(&session_id);
+        state.daemon_owned_runtimes.remove(&session_id);
         state
             .next_sequences
             .retain(|(candidate, _), _| *candidate != session_id);
@@ -244,10 +317,16 @@ impl Hub {
             .retain(|(candidate, _), _| *candidate != session_id);
     }
 
-    fn emit(&self, session_id: Uuid, runtime_id: Uuid, event: WireDriverEvent, replayable: bool) {
+    fn emit(
+        &self,
+        session_id: Uuid,
+        runtime_id: Uuid,
+        event: WireDriverEvent,
+        replayable: bool,
+    ) -> Option<crate::model::RuntimeEventCursor> {
         let mut state = self.state.lock();
         if state.active_runtimes.get(&session_id) != Some(&runtime_id) {
-            return;
+            return None;
         }
         let sequence = state
             .next_sequences
@@ -268,7 +347,13 @@ impl Hub {
                 journal.pop_front();
             }
         }
+        let cursor = crate::model::RuntimeEventCursor {
+            runtime_id,
+            epoch: self.epoch,
+            sequence: event.sequence,
+        };
         Self::broadcast(&mut state, &ServerMessage::Event(event), None);
+        Some(cursor)
     }
 
     fn subscribe(&self, resume_from: &[ReplayCursor], subscriber: Subscriber) -> u64 {
@@ -559,6 +644,7 @@ pub fn serve(
         .set_nonblocking(true)
         .context("could not configure Waku daemon listener")?;
     let hub = Arc::new(Hub::default());
+    backend.start(RuntimePublisher { hub: hub.clone() })?;
     let dispatcher = Arc::new(RequestDispatcher::new(backend.clone(), hub.clone()));
     let options = Arc::new(options);
     let active_connections = Arc::new(AtomicUsize::new(0));
@@ -830,6 +916,8 @@ fn run_runtime_mailbox(
             Command::CloseSession | Command::CloseTerminal | Command::RemoveSession
         );
         let removes_session = matches!(&dispatched.request.command, Command::RemoveSession);
+        let detaches_owned = matches!(&dispatched.request.command, Command::CloseSession)
+            && hub.is_owned_runtime(session_id, runtime_id);
         let handled = handle_request(
             dispatched.request,
             dispatched.outgoing,
@@ -840,8 +928,9 @@ fn run_runtime_mailbox(
 
         if handled.executed {
             if starts_runtime {
-                active_runtime_id =
-                    matches!(&handled.outcome, ResponseOutcome::Ok { .. }).then_some(runtime_id);
+                if matches!(&handled.outcome, ResponseOutcome::Ok { .. }) {
+                    active_runtime_id = Some(runtime_id);
+                }
             } else if let ResponseOutcome::Ok {
                 payload:
                     ResponsePayload::SessionRuntime {
@@ -857,7 +946,11 @@ fn run_runtime_mailbox(
                 if (removes_session || active_runtime_id == Some(runtime_id))
                     && matches!(&handled.outcome, ResponseOutcome::Ok { .. })
                 {
-                    hub.end_runtime(session_id, (!removes_session).then_some(runtime_id));
+                    // Closing a client attachment does not stop a team worker.
+                    // RemoveSession still ends the stream after the backend stops its run.
+                    if !detaches_owned {
+                        hub.end_runtime(session_id, (!removes_session).then_some(runtime_id));
+                    }
                     active_runtime_id = None;
                 }
             } else if active_runtime_id.is_none()
@@ -941,14 +1034,19 @@ fn handle_request(
         &request.command,
         Command::Start { .. } | Command::OpenTerminal { .. }
     );
+    let mut installed_runtime = false;
     let (outcome, executed) = if !notification && let Some(cached) = hub.cached_response(request_id)
     {
         (cached, false)
     } else {
-        if starts_runtime {
-            hub.begin_runtime(session_id, runtime_id);
-        }
-        let outcome = match backend.handle(request, hub.event_sink(session_id, runtime_id)) {
+        let result = (|| {
+            if starts_runtime {
+                hub.begin_client_runtime(session_id, runtime_id)?;
+                installed_runtime = true;
+            }
+            backend.handle(request, hub.event_sink(session_id, runtime_id))
+        })();
+        let outcome = match result {
             Ok(payload) => ResponseOutcome::Ok { payload },
             Err(error) => ResponseOutcome::Error {
                 error: RpcError::from(error),
@@ -959,7 +1057,7 @@ fn handle_request(
         }
         (outcome, true)
     };
-    if executed && starts_runtime && matches!(&outcome, ResponseOutcome::Error { .. }) {
+    if installed_runtime && matches!(&outcome, ResponseOutcome::Error { .. }) {
         hub.end_runtime(session_id, Some(runtime_id));
     }
     if executed {
@@ -1001,6 +1099,9 @@ fn task_catalog_action(command: &Command) -> TaskCatalogAction {
             projects: projects.clone(),
         },
         Command::RemoveSession
+        | Command::QueueTeamTask { .. }
+        | Command::PrepareTeamRun { .. }
+        | Command::StopTeamRun { .. }
         | Command::ForkSessionFromResponse { .. }
         | Command::RewindSessionToMessage { .. } => TaskCatalogAction::Changed,
         _ => TaskCatalogAction::None,
@@ -2378,5 +2479,140 @@ mod tests {
             computer_use_enabled: false,
             provider_cursor: None,
         }
+    }
+    #[test]
+    fn team_owned_runtime_survives_client_close_and_rejects_solo_start() {
+        struct Owned(Uuid);
+        impl Backend for Owned {
+            fn handle(
+                &self,
+                request: Request,
+                _events: EventSink,
+            ) -> anyhow::Result<ResponsePayload> {
+                match request.command {
+                    Command::AttachSession => Ok(ResponsePayload::SessionRuntime {
+                        runtime_id: Some(self.0),
+                        supports_steer: false,
+                    }),
+                    Command::CloseSession => Ok(ResponsePayload::Ack),
+                    _ => panic!("a client must not start over the owned team runtime"),
+                }
+            }
+        }
+        let publisher = RuntimePublisher::for_test();
+        let task = Uuid::new_v4();
+        let attempt = Uuid::new_v4();
+        let sink = publisher.begin(task, attempt);
+        let dispatcher = RequestDispatcher::new(Arc::new(Owned(attempt)), publisher.hub.clone());
+        let (outgoing, responses) = unbounded();
+        for command in [Command::AttachSession, Command::CloseSession] {
+            dispatcher.dispatch(
+                Request {
+                    request_id: Uuid::new_v4(),
+                    session_id: task,
+                    runtime_id: attempt,
+                    command,
+                },
+                outgoing.clone(),
+                0,
+            );
+            assert!(matches!(
+                responses.recv_timeout(Duration::from_secs(3)).unwrap(),
+                ServerMessage::Response {
+                    outcome: ResponseOutcome::Ok { .. },
+                    ..
+                }
+            ));
+        }
+        for runtime_id in [attempt, Uuid::new_v4()] {
+            dispatcher.dispatch(
+                Request {
+                    request_id: Uuid::new_v4(),
+                    session_id: task,
+                    runtime_id,
+                    command: Command::Start {
+                        options: test_start_options(),
+                    },
+                },
+                outgoing.clone(),
+                0,
+            );
+            assert!(matches!(
+                responses.recv_timeout(Duration::from_secs(3)).unwrap(),
+                ServerMessage::Response {
+                    outcome: ResponseOutcome::Error { .. },
+                    ..
+                }
+            ));
+            assert!(
+                sink.record(WireDriverEvent::new(
+                    "textDelta",
+                    serde_json::json!("Still running")
+                ))
+                .is_ok()
+            );
+        }
+        publisher.finish(task, attempt);
+        assert!(
+            publisher
+                .hub
+                .begin_client_runtime(task, Uuid::new_v4())
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn background_runtime_records_exact_cursor_and_rejects_superseded_worker() {
+        let publisher = RuntimePublisher::for_test();
+        let task = Uuid::new_v4();
+        let attempt = Uuid::new_v4();
+        let sink = publisher.begin(task, attempt);
+        let cursor = sink
+            .record(WireDriverEvent::new(
+                "textDelta",
+                serde_json::json!("Persisted"),
+            ))
+            .unwrap();
+        assert_eq!(cursor.runtime_id, attempt);
+        assert_eq!(cursor.sequence, 1);
+        assert_eq!(cursor.epoch, publisher.hub.epoch);
+        assert_eq!(
+            publisher.hub.state.lock().journal[&(task, attempt)][0].sequence,
+            cursor.sequence
+        );
+        let next = Uuid::new_v4();
+        let next_sink = publisher.begin(task, next);
+        assert!(
+            sink.record(WireDriverEvent::new(
+                "textDelta",
+                serde_json::json!("Stale")
+            ))
+            .is_err()
+        );
+        assert_eq!(
+            next_sink
+                .record(WireDriverEvent::new("turnStarted", serde_json::Value::Null))
+                .unwrap()
+                .sequence,
+            1
+        );
+        publisher.finish(task, attempt);
+        assert!(
+            next_sink
+                .record(WireDriverEvent::new(
+                    "textDelta",
+                    serde_json::json!("Current")
+                ))
+                .is_ok()
+        );
+        publisher.finish(task, next);
+        assert!(
+            next_sink
+                .record(WireDriverEvent::new(
+                    "turnFinished",
+                    serde_json::Value::Null
+                ))
+                .is_err()
+        );
     }
 }

@@ -37,13 +37,19 @@ fn start_driver(mut request: DriverStartRequest, cwd: PathBuf) -> anyhow::Result
     Ok(PreparedDriver { handle, events })
 }
 
+enum DriverAttachment {
+    Live(AgentSession, PreparedDriver),
+    TeamSnapshot(AgentSession),
+    Missing,
+}
+
 fn attach_driver(
     daemon: waku_client::DaemonSupervisor,
     session_id: Uuid,
     event_wake: smol::channel::Sender<()>,
-) -> anyhow::Result<Option<(AgentSession, PreparedDriver)>> {
+) -> anyhow::Result<DriverAttachment> {
     let Some(session) = waku_client::persistence::hydrate_session(&daemon, session_id)? else {
-        return Ok(None);
+        return Ok(DriverAttachment::Missing);
     };
     let client = daemon.client();
     let response = client.request(session_id, Uuid::nil(), waku_client::Command::AttachSession)?;
@@ -55,7 +61,11 @@ fn attach_driver(
         anyhow::bail!("Waku daemon returned an invalid runtime attachment response");
     };
     let Some(runtime_id) = runtime_id else {
-        return Ok(None);
+        return Ok(if session.team_assignment.is_some() {
+            DriverAttachment::TeamSnapshot(session)
+        } else {
+            DriverAttachment::Missing
+        });
     };
     let (event_tx, events) = driver::event_channel(event_wake);
     let handle = driver::attach_remote(
@@ -67,7 +77,10 @@ fn attach_driver(
         session.runtime_event_cursor,
         event_tx,
     )?;
-    Ok(Some((session, PreparedDriver { handle, events })))
+    Ok(DriverAttachment::Live(
+        session,
+        PreparedDriver { handle, events },
+    ))
 }
 
 fn load_remote_task_state(
@@ -141,6 +154,8 @@ pub(super) fn merge_remote_session_catalog(
             local.title = remote.title;
             local.auto_title = remote.auto_title;
             local.project_id = remote.project_id;
+            local.team_assignment = remote.team_assignment;
+            local.team_assignment_status = remote.team_assignment_status;
             local.provider = remote.provider;
             local.model = remote.model;
             local.created_at = remote.created_at;
@@ -1087,7 +1102,8 @@ impl Waku {
             .iter()
             .filter(|session| {
                 session.status.is_busy()
-                    || (self.state.selected_session == Some(session.id) && session.has_started())
+                    || (self.state.selected_session == Some(session.id)
+                        && (session.has_started() || session.team_assignment.is_some()))
             })
             .map(|session| session.id)
             .collect::<Vec<_>>();
@@ -1162,14 +1178,14 @@ impl Waku {
     fn finish_runtime_attachment(
         &mut self,
         session_id: Uuid,
-        result: anyhow::Result<Option<(AgentSession, PreparedDriver)>>,
+        result: anyhow::Result<DriverAttachment>,
         cx: &mut Context<Self>,
     ) {
         if !self.runtime_attach_pending.remove(&session_id) {
             return;
         }
         match result {
-            Ok(Some((session, prepared))) => {
+            Ok(DriverAttachment::Live(session, prepared)) => {
                 self.runtime_attach_misses.remove(&session_id);
                 let Some(index) = self
                     .state
@@ -1189,7 +1205,22 @@ impl Waku {
                     cx.notify();
                 }
             }
-            Ok(None) => {
+            Ok(DriverAttachment::TeamSnapshot(session)) => {
+                self.runtime_attach_misses.remove(&session_id);
+                if !self.runtimes.contains_key(&session_id) {
+                    if let Some(existing) = self.state.session_mut(session_id) {
+                        *existing = session;
+                    } else {
+                        return;
+                    }
+                    if self.state.selected_session == Some(session_id) {
+                        self.reset_visible_state();
+                        self.reset_transcript_rows(self.transcript_row_count());
+                    }
+                    cx.notify();
+                }
+            }
+            Ok(DriverAttachment::Missing) => {
                 let busy = self
                     .state
                     .sessions

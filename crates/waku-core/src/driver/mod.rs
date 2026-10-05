@@ -17,6 +17,8 @@ mod support;
 mod title_refresh;
 
 pub(crate) use acp::catalog_agent;
+#[cfg(test)]
+pub(crate) use nebius::team::run_scripted_team_assignment;
 pub use nebius::team::{NativeTeamExit, NativeTeamStart, run_native_team_assignment};
 
 use std::path::PathBuf;

@@ -252,7 +252,7 @@ fn team_catalog(store: &crate::control::ControlStore, args: &Value) -> Result<St
         .map(|t| json!({"id":t.id,"name":t.name,"agents":t.members.len()}))
         .collect();
     Ok(
-        json!({"definition_revision":snapshot.revision,"teams":teams,"execution_ready":false})
+        json!({"definition_revision":snapshot.revision,"teams":teams,"dispatch_available":true})
             .to_string(),
     )
 }
@@ -285,7 +285,7 @@ fn team_summary(run: &waku_protocol::teams::TeamRunSnapshot) -> Value {
             "reason":w.reason.as_ref().map(|r|r.chars().take(256).collect::<String>()),
             "summary":w.result.as_ref().map(|r|r.summary.chars().take(512).collect::<String>()),
             "artifacts":w.result.as_ref().map(|r|r.artifact_ids.iter().take(8).collect::<Vec<_>>())})).collect::<Vec<_>>(),
-        "execution_ready":false,"message":"Queued work cannot execute until the Teams harness adapters are implemented."})
+        "dispatch_available":true,"message":"Queued for daemon dispatch. Inspect assignment status for progress or setup requirements."})
 }
 
 struct ChildGuard(std::process::Child);

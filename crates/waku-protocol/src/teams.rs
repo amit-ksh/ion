@@ -79,6 +79,7 @@ pub struct TeamRunLimits {
     pub max_parallel_tasks: u16,
     pub max_depth: u16,
     pub max_attempts: u16,
+    pub max_model_calls: u16,
     pub timeout_seconds: u32,
 }
 impl Default for TeamRunLimits {
@@ -88,6 +89,7 @@ impl Default for TeamRunLimits {
             max_parallel_tasks: 4,
             max_depth: 8,
             max_attempts: 2,
+            max_model_calls: 64,
             timeout_seconds: 3600,
         }
     }

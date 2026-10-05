@@ -35,6 +35,13 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_invocations (
             task_id TEXT NOT NULL, request_id TEXT NOT NULL, signature TEXT NOT NULL,
             run_id TEXT NOT NULL UNIQUE REFERENCES ion_team_runs(id), PRIMARY KEY(task_id,request_id));
+        CREATE TABLE IF NOT EXISTS ion_team_model_calls (
+            id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
+            work_id TEXT NOT NULL REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
+            generation INTEGER NOT NULL, step INTEGER NOT NULL, model TEXT NOT NULL,
+            started_at INTEGER NOT NULL, UNIQUE(attempt_id,step));
+        CREATE INDEX IF NOT EXISTS ion_team_calls_run ON ion_team_model_calls(run_id);
+        CREATE INDEX IF NOT EXISTS ion_team_active_runs ON ion_team_runs(status,id);
         CREATE TABLE IF NOT EXISTS ion_team_audit (
             cursor INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT, event TEXT NOT NULL, detail TEXT NOT NULL, timestamp INTEGER NOT NULL);

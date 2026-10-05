@@ -1276,6 +1276,7 @@ impl StateStore {
         session.turns = stored.turns;
         session.queued_messages = stored.queued_messages;
         session.team_assignment = stored.team_assignment;
+        session.team_assignment_status = stored.team_assignment_status;
         session.workspace = stored.workspace;
         session.provider_cursor = stored.provider_cursor;
         session.runtime_mode = stored.runtime_mode;
@@ -1554,6 +1555,7 @@ fn session_skeleton(row: SessionColumns) -> Option<AgentSession> {
     ) = row;
     Some(AgentSession {
         team_assignment: None,
+        team_assignment_status: None,
         id: Uuid::parse_str(&id).ok()?,
         title,
         auto_title,
