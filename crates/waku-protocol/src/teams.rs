@@ -159,6 +159,34 @@ pub struct TeamRunSnapshot {
     pub origin: Option<TeamTaskOrigin>,
 }
 
+/// Bounded collection projection. Full assignments are loaded only for an opened run.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRunSummary {
+    pub id: Uuid,
+    pub root_task_id: Uuid,
+    pub project_id: Uuid,
+    pub team_id: Uuid,
+    pub team_name: String,
+    pub objective: String,
+    pub status: TeamRunStatus,
+    pub revision: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub assignments: u32,
+    pub running: u32,
+    pub waiting: u32,
+    pub completed: u32,
+    pub needs_attention: u32,
+    pub usage: TeamTokenUsage,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRunPage {
+    pub runs: Vec<TeamRunSummary>,
+    pub next_cursor: Option<Uuid>,
+}
+
 /// Completed provider usage and allowances retained for requests without a receipt.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

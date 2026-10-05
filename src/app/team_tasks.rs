@@ -210,7 +210,7 @@ impl Waku {
         true
     }
 
-    pub(super) fn render_team_task_status(&self, cx: &App) -> Option<AnyElement> {
+    pub(super) fn render_team_task_status(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let session = self.selected_session()?;
         let binding = session.team_assignment.as_ref()?;
         let status = match session.team_assignment_status {
@@ -249,6 +249,7 @@ impl Waku {
                 SessionStatus::Idle => "Queued",
             },
         };
+        let run_id = binding.run_id;
         let theme = Theme::current(cx);
         Some(
             div()
@@ -261,6 +262,12 @@ impl Waku {
                 .text_color(theme.text_secondary)
                 .child(icon("icons/fork.svg", 14.0, theme.text_secondary))
                 .child(format!("{} · Team task · {}", binding.team_name, status))
+                .child(self.control_button(
+                    "task-team-run",
+                    "Open team run",
+                    cx,
+                    move |this, _, cx| this.open_workspace_run(run_id, cx),
+                ))
                 .into_any_element(),
         )
     }

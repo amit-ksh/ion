@@ -2,7 +2,11 @@
 //! model and document work runs on workers; render reads in-memory snapshots.
 use super::*;
 use waku_client::control::*;
-use waku_client::teams::{AgentAccess, AgentExecution, ExecutionEnvironment};
+use waku_client::teams::{
+    AgentAccess, AgentExecution, AssignmentStatus, ExecutionEnvironment, TeamRunSnapshot,
+    TeamRunStatus, TeamRunSummary,
+};
+mod team_activity;
 use waku_client::{Command as Rpc, ResponsePayload};
 
 fn app_name(slug: &str) -> String {
@@ -132,13 +136,30 @@ pub(super) struct ControlUi {
     apps_generation: u64,
     pub(super) app_search: Entity<TextInput>,
     apps_connected_only: bool,
+    team_runs: Rc<Vec<TeamRunSummary>>,
+    team_run: Option<Rc<TeamRunSnapshot>>,
+    selected_run: Option<Uuid>,
+    runs_tab: bool,
+    runs_team: Option<Uuid>,
+    runs_cursor: Option<Uuid>,
+    runs_after: Option<Uuid>,
+    runs_previous: Vec<Option<Uuid>>,
+    activity_busy: bool,
+    activity_loaded: bool,
+    activity_generation: u64,
+    activity_revision: u64,
+    activity_polling: bool,
+    activity_open_generation: u64,
+    activity_error: Option<String>,
 }
 #[derive(Clone)]
 enum Row {
     Task(Uuid),
     Project(Uuid),
     Record(ControlRecord),
-    AgentInTeam(AgentProfile, usize),
+    AgentInTeam(AgentProfile, usize, Option<String>),
+    TeamRun(Rc<TeamRunSummary>),
+    Assignment(Rc<team_activity::AssignmentRow>),
     Account(String, String, String),
     Empty(&'static str),
     Notice(Notice),
@@ -196,6 +217,7 @@ struct Notice {
     pending: bool,
     timestamp: u64,
     record: Option<ControlRecord>,
+    run: Option<Uuid>,
 }
 impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
@@ -250,6 +272,21 @@ impl ControlUi {
             apps_generation: 0,
             app_search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search apps")),
             apps_connected_only: false,
+            team_runs: Rc::new(Vec::new()),
+            team_run: None,
+            selected_run: None,
+            runs_tab: false,
+            runs_team: None,
+            runs_cursor: None,
+            runs_after: None,
+            runs_previous: Vec::new(),
+            activity_busy: false,
+            activity_loaded: false,
+            activity_generation: 0,
+            activity_revision: 0,
+            activity_polling: false,
+            activity_open_generation: 0,
+            activity_error: None,
         }
     }
 }
@@ -348,7 +385,12 @@ impl Waku {
     }
     fn workspace_notices(&self) -> Vec<Notice> {
         let mut notices = Vec::new();
-        for session in self.state.sessions.iter().filter(|s| s.has_started()) {
+        for session in self
+            .state
+            .sessions
+            .iter()
+            .filter(|s| s.has_started() && s.team_assignment.is_none())
+        {
             let runtime = self.runtimes.get(&session.id);
             let mut add = |kind, pending, title: String, detail: String| {
                 notices.push(Notice {
@@ -360,6 +402,7 @@ impl Waku {
                     pending,
                     timestamp: session.updated_at,
                     record: None,
+                    run: None,
                 })
             };
             if let Some(permission) = runtime.and_then(|r| r.pending_permission.as_ref()) {
@@ -435,6 +478,7 @@ impl Waku {
                 );
             }
         }
+        notices.extend(self.team_activity_notices());
         for record in &self.control_ui.snapshot.records {
             match record {
                 ControlRecord::Action(action) => notices.push(Notice {
@@ -450,6 +494,7 @@ impl Waku {
                     pending: action.status == WorkspaceActionStatus::Pending,
                     timestamp: action.created_at,
                     record: Some(record.clone()),
+                    run: None,
                 }),
                 ControlRecord::Artifact(artifact) => notices.push(Notice {
                     project: artifact.project_id,
@@ -463,6 +508,7 @@ impl Waku {
                     pending: false,
                     timestamp: artifact.created_at,
                     record: Some(record.clone()),
+                    run: None,
                 }),
                 _ => {}
             }
@@ -640,6 +686,9 @@ impl Waku {
                                         Filter::Project(id) => {
                                             this.control_ui.filter_project = id;
                                             this.control_ui.filter_task = None;
+                                            this.control_ui.runs_after = None;
+                                            this.control_ui.runs_previous.clear();
+                                            this.refresh_team_activity(true, cx);
                                         }
                                         Filter::Task(id) => this.control_ui.filter_task = id,
                                         Filter::Kind(kind) => this.control_ui.filter_kind = kind,
@@ -696,7 +745,7 @@ impl Waku {
         })
         .detach();
     }
-    fn control_button(
+    pub(super) fn control_button(
         &self,
         id: impl Into<SharedString>,
         label: impl Into<SharedString>,
@@ -734,7 +783,18 @@ impl Waku {
     }
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.settings_page = None;
-        if self.control_ui.page != Some(page) && matches!(page, Page::Inbox | Page::Decisions) {
+        if self.control_ui.page != Some(page) {
+            self.control_ui.activity_generation += 1;
+            self.control_ui.activity_busy = false;
+            self.control_ui.selected_run = None;
+            self.control_ui.team_run = None;
+            self.control_ui.runs_after = None;
+            self.control_ui.runs_previous.clear();
+            self.control_ui.runs_team = None;
+        }
+        if self.control_ui.page != Some(page)
+            && matches!(page, Page::Inbox | Page::Decisions | Page::Teams)
+        {
             self.control_ui.filter_project = None;
             self.control_ui.filter_task = None;
             self.control_ui.filter_kind = NoticeKind::All;
@@ -760,6 +820,8 @@ impl Waku {
     }
     pub(super) fn refresh_workspace_control(&mut self, cx: &mut Context<Self>) {
         self.control_request(Rpc::LoadWorkspaceControl, cx);
+        self.refresh_team_activity(true, cx);
+        self.start_team_activity_poll(cx);
     }
     fn control_request(&mut self, command: Rpc, cx: &mut Context<Self>) {
         if self.control_ui.busy {
@@ -793,17 +855,7 @@ impl Waku {
                 this.control_ui.busy = false;
                 match response {
                     Ok(ResponsePayload::WorkspaceControl { snapshot }) => {
-                        if snapshot.revision>=this.control_ui.snapshot.revision {
-                            this.control_ui.team_index = Rc::new(snapshot.records.iter().filter_map(|r| if let ControlRecord::Team(t)=r {Some(t.clone())} else {None}).collect());
-                            let mut seen=HashSet::new();
-                            this.control_ui.duplicate_team_names=this.control_ui.team_index.iter().filter_map(|t|{
-                                let name=t.name.trim().to_lowercase();
-                                (!seen.insert(name.clone())).then_some(name)
-                            }).collect();
-                            this.control_ui.team_names=seen;
-                            this.control_ui.snapshot = snapshot;
-                            this.control_ui.snapshot_loaded = true;
-                        }
+                        this.install_control_snapshot(snapshot);
                         if saving && this.control_ui.editor_generation==editor_generation {this.control_ui.form = None;}
                         if saving && let Some(proposal) = this.control_ui.accepted_proposal.take() {
                             if this.control_ui.snapshot.records.iter().any(|r| matches!(r, ControlRecord::Action(a) if a.id==proposal.id && a.status==WorkspaceActionStatus::Accepted)) {
@@ -1233,7 +1285,8 @@ impl Waku {
     pub(super) fn render_workspace_header(&self, page: Page, cx: &mut Context<Self>) -> Div {
         let theme = Theme::current(cx);
         let mut actions = div().flex().items_center().gap(px(8.0));
-        let busy = self.control_ui.busy || self.control_ui.apps_busy;
+        let busy =
+            self.control_ui.busy || self.control_ui.apps_busy || self.control_ui.activity_busy;
         actions = actions.child(
             self.control_button("workspace-refresh", "", cx, |this, _, cx| {
                 this.refresh_workspace_control(cx);
@@ -1288,7 +1341,17 @@ impl Waku {
             Page::Inbox | Page::Decisions => rows.extend(
                 self.workspace_notices()
                     .into_iter()
-                    .filter(|n| page != Page::Decisions || n.pending)
+                    .filter(|n| {
+                        page != Page::Decisions
+                            || (n.pending
+                                && matches!(
+                                    n.kind,
+                                    NoticeKind::Decision
+                                        | NoticeKind::Approval
+                                        | NoticeKind::Question
+                                        | NoticeKind::Proposal
+                                ))
+                    })
                     .filter(|n| {
                         self.control_ui
                             .filter_project
@@ -1321,8 +1384,19 @@ impl Waku {
                     })
                     .collect::<Vec<_>>();
                 sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
+                if page == Page::Dashboard {
+                    rows.extend(
+                        self.control_ui
+                            .team_runs
+                            .iter()
+                            .cloned()
+                            .map(|run| Row::TeamRun(Rc::new(run))),
+                    );
+                    sessions.retain(|s| s.team_assignment.is_none());
+                }
                 rows.extend(sessions.into_iter().map(|s| Row::Task(s.id)));
             }
+            Page::Teams if self.control_ui.runs_tab => rows.extend(self.team_activity_rows()),
             Page::Projects => rows.extend(
                 self.state
                     .projects
@@ -1373,38 +1447,34 @@ impl Waku {
                     ) {
                         rows.push(Row::Record(record.clone()));
                         if let ControlRecord::Team(team) = record {
-                            let parents: HashMap<_, _> = team
-                                .members
+                            let profiles: HashMap<_, _> = self
+                                .control_ui
+                                .snapshot
+                                .records
                                 .iter()
-                                .map(|m| (m.agent_id, m.parent_id))
+                                .filter_map(|r| match r {
+                                    ControlRecord::Agent(a) => Some((a.id, a)),
+                                    _ => None,
+                                })
                                 .collect();
-                            let mut members = Vec::new();
-                            for member in &team.members {
-                                if let Some(ControlRecord::Agent(agent)) = self
-                                    .control_ui
-                                    .snapshot
-                                    .records
+                            for (id, depth) in team_activity::hierarchy(
+                                &team
+                                    .members
                                     .iter()
-                                    .find(|r| r.id() == member.agent_id)
-                                {
-                                    let mut depth = 0;
-                                    let mut parent = member.parent_id;
-                                    while let Some(id) = parent {
-                                        depth += 1;
-                                        if depth > 32 {
-                                            break;
-                                        }
-                                        parent = parents.get(&id).copied().flatten();
-                                    }
-                                    members.push((depth, agent.clone()));
+                                    .map(|m| (m.agent_id, m.parent_id))
+                                    .collect::<Vec<_>>(),
+                            ) {
+                                if let Some(agent) = profiles.get(&id) {
+                                    let parent = team
+                                        .members
+                                        .iter()
+                                        .find(|m| m.agent_id == id)
+                                        .and_then(|m| m.parent_id)
+                                        .and_then(|id| profiles.get(&id))
+                                        .map(|a| a.name.clone());
+                                    rows.push(Row::AgentInTeam((*agent).clone(), depth, parent));
                                 }
                             }
-                            members.sort_by_key(|(depth, _)| *depth);
-                            rows.extend(
-                                members
-                                    .into_iter()
-                                    .map(|(depth, agent)| Row::AgentInTeam(agent, depth)),
-                            );
                         }
                     }
                 }
@@ -1480,6 +1550,9 @@ impl Waku {
         let mut key = std::collections::hash_map::DefaultHasher::new();
         page.hash(&mut key);
         self.control_ui.snapshot.revision.hash(&mut key);
+        self.control_ui.activity_revision.hash(&mut key);
+        self.control_ui.runs_tab.hash(&mut key);
+        self.control_ui.selected_run.hash(&mut key);
         self.control_ui.filter_project.hash(&mut key);
         self.control_ui.filter_task.hash(&mut key);
         self.control_ui.filter_kind.hash(&mut key);
@@ -1537,6 +1610,17 @@ impl Waku {
                     .text_color(theme.danger)
                     .child(error.clone()),
             );
+        }
+        if let Some(error) = &self.control_ui.activity_error {
+            content = content.child(
+                div()
+                    .text_size(sp(13.0))
+                    .text_color(theme.danger)
+                    .child(error.clone()),
+            );
+        }
+        if page == Page::Teams {
+            content = content.child(self.render_team_activity_header(cx));
         }
         if page == Page::Dashboard {
             let active = self.state.sessions.iter().filter(|s| s.is_busy()).count();
@@ -1642,6 +1726,9 @@ impl Waku {
         if matches!(page, Page::Inbox | Page::Decisions) {
             content = content.child(self.render_workspace_filters(cx));
         }
+        if matches!(page, Page::Inbox | Page::Dashboard) {
+            content = content.child(self.render_team_collection_pages(cx));
+        }
         let collection = div()
             .id("workspace-records")
             .flex_1()
@@ -1690,6 +1777,8 @@ impl Waku {
             .gap(px(14.0));
         let mut actions = div().flex_none().flex().gap(px(8.0));
         let (title, detail, icon_path) = match row {
+            Row::TeamRun(run) => return self.render_team_run_row(run, cx),
+            Row::Assignment(row) => return self.render_team_assignment_row(row, cx),
             Row::AppPair(configs) => {
                 let mut pair = div().flex().gap(px(28.0)).py(px(12.0));
                 let count = configs.len();
@@ -1817,6 +1906,14 @@ impl Waku {
                             ));
                     }
                 }
+                if let Some(run_id) = notice.run {
+                    actions = actions.child(self.control_button(
+                        format!("notice-run-{index}"),
+                        "Open run",
+                        cx,
+                        move |this, _, cx| this.open_workspace_run(run_id, cx),
+                    ));
+                }
                 if let Some(id) = notice.task {
                     actions = actions.child(self.control_button(
                         format!("notice-open-{index}"),
@@ -1826,7 +1923,7 @@ impl Waku {
                             "Open task"
                         },
                         cx,
-                        move |this, _, cx| this.select_session(id, cx),
+                        move |this, _, cx| this.open_team_activity_task(id, cx),
                     ));
                 }
                 if let Some(record @ ControlRecord::Artifact(_)) = notice.record {
@@ -1911,12 +2008,15 @@ impl Waku {
                 format!("{status} · {id}"),
                 "icons/package.svg",
             ),
-            Row::AgentInTeam(agent, depth) => {
+            Row::AgentInTeam(agent, depth, parent) => {
                 body = body.pl(px(22.0 + depth as f32 * 24.0));
                 (
                     agent.name,
                     format!(
-                        "{} · {} · {}",
+                        "{} · {} · {} · {}",
+                        parent
+                            .map(|name| format!("Reports to {name}"))
+                            .unwrap_or_else(|| "Team lead".into()),
                         agent.expertise,
                         agent.provider.display_name(),
                         agent.execution.environment.label()
@@ -1968,6 +2068,24 @@ impl Waku {
                     }
                     ControlRecord::Action(action) => (action.detail.clone(), "icons/check.svg"),
                 };
+                if let ControlRecord::Team(team) = &record {
+                    let id = team.id;
+                    actions = actions.child(self.control_button(
+                        format!("team-runs-{id}"),
+                        "Runs",
+                        cx,
+                        move |this, _, cx| {
+                            this.control_ui.runs_team = Some(id);
+                            this.control_ui.runs_tab = true;
+                            this.control_ui.selected_run = None;
+                            this.control_ui.team_run = None;
+                            this.control_ui.runs_after = None;
+                            this.control_ui.runs_previous.clear();
+                            this.refresh_team_activity(true, cx);
+                            cx.notify();
+                        },
+                    ));
+                }
                 if matches!(record, ControlRecord::Artifact(_)) {
                     actions = actions.child(self.control_button(
                         format!("document-export-{id}"),

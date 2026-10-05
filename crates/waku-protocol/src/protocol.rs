@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 16;
+pub const PROTOCOL_VERSION: u32 = 17;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -195,6 +195,12 @@ pub enum Command {
         objective: String,
         limits: crate::teams::TeamRunLimits,
         access: crate::teams::AgentAccess,
+    },
+    ListTeamRuns {
+        project_id: Option<Uuid>,
+        team_id: Option<Uuid>,
+        after: Option<Uuid>,
+        limit: usize,
     },
     GetTeamRun {
         run_id: Uuid,
@@ -443,6 +449,9 @@ pub enum ResponsePayload {
     },
     TeamRun {
         snapshot: crate::teams::TeamRunSnapshot,
+    },
+    TeamRuns {
+        page: crate::teams::TeamRunPage,
     },
     TeamAudit {
         events: Vec<crate::teams::TeamAuditEvent>,

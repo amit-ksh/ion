@@ -303,6 +303,47 @@ The schema defines `RichModel.context_length`, `max_completion_tokens` including
 reasoning, and `stream_options.include_usage`; actual account payloads still need
 live acceptance once the key is available.
 
+## Native team activity checkpoint
+
+The native Teams page now has Teams and Runs tabs. The reusable roster follows
+preorder so each manager's direct reports remain together, with an explicit
+Reports to label. Runs are read through a bounded, project/team-filtered daemon
+collection; opening one run fetches its full pinned hierarchy. Each assignment
+shows its real task and parent task links, selected harness, actual host/fallback,
+status, blocker, submitted summary, parent feedback and generated documents.
+The run header exposes Stop team and durable token/call totals, including
+allowances held for missing receipts. Team task transcripts link back to the run.
+
+A single background poll runs only while the relevant workspace page is open.
+Generation checks discard superseded requests, unchanged polls do not notify,
+and rows are cached and virtualized. Run collection reads use one SQLite
+snapshot and do not hydrate transcripts. Opening an uncatalogued child task
+hydrates that task on a worker and guards against a changed user selection.
+Pagination exposes older runs; project filters default to all projects.
+Dashboard and Inbox use real run summaries. Team waiting/review states are no
+longer mislabeled as solo human decisions. Artifacts refresh from the same durable
+control store. Human team decisions still need the exact-action decision adapter
+listed below; parent review and execution blockers are not fabricated approvals.
+
+Verification: 85 team regressions passed, including bounded pagination,
+project/team filtering, deleted-definition history, setup blockers and metered
+usage projections. The 7 protocol wire tests and 23 TypeScript client tests
+passed; native app/daemon compilation, TypeScript type checking and generated
+bindings checks passed. The collection pagination was then refined to immutable
+creation-time ordering and verified separately before committing.
+
+No visual test or app launch was performed, following AGENTS.md. User review:
+
+- [ ] Open Teams → Runs, then follow lead and child task links.
+- [ ] Confirm siblings remain under the correct manager; compare the pinned
+  roster after editing a reusable agent or team definition.
+- [ ] Inspect queued setup blockers, review feedback, correction tasks and documents.
+- [ ] Stop a running team and confirm it reaches Stopped after workers join.
+- [ ] Use project filters and Previous/Next with more than 32 saved runs.
+- [ ] Confirm parent review appears in Runs rather than as a user decision.
+- [ ] Inspect used/reserved tokens and missing-receipt counts.
+- [ ] Review keyboard operation and text legibility in both themes.
+
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
@@ -329,8 +370,9 @@ live acceptance once the key is available.
 - [ ] Exact filesystem/resource/egress grants and Composio action grant editor.
   A prompt, worktree or saved grant is not permission enforcement.
 - [ ] Team readiness matrix and supported model validation for each harness.
-- [ ] Native hierarchy/roster with live child links, blockers and results; cached
-  run projections across Dashboard, Inbox, Decisions and Artifacts.
+- [x] Native hierarchy/roster with live child links, blockers and results; cached
+  run projections across Dashboard, Inbox and Artifacts. Solo-style false decisions
+  are removed; real team human decisions remain a separate pending adapter.
 - [ ] One validated external harness bridge, then additional mixed harnesses.
 - [ ] Serialized writers, isolated coding worktrees and integration/patch review.
 - [ ] Registered Nebius execution host: actual harness launch, explicit transfer,

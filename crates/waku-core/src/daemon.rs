@@ -414,6 +414,14 @@ impl Backend for WakuBackend {
                 self.team_runtime.wake();
                 Ok(ResponsePayload::TeamRun { snapshot })
             }
+            Command::ListTeamRuns {
+                project_id,
+                team_id,
+                after,
+                limit,
+            } => Ok(ResponsePayload::TeamRuns {
+                page: self.teams.list_runs(project_id, team_id, after, limit)?,
+            }),
             Command::GetTeamRun { run_id } => Ok(ResponsePayload::TeamRun {
                 snapshot: self
                     .teams
@@ -2216,6 +2224,7 @@ fn handle_driver_command(
         | Command::LoadWorkspaceControl
         | Command::QueueTeamTask { .. }
         | Command::PrepareTeamRun { .. }
+        | Command::ListTeamRuns { .. }
         | Command::GetTeamRun { .. }
         | Command::GetTeamAudit { .. }
         | Command::StopTeamRun { .. }

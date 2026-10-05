@@ -17,6 +17,7 @@ mod continuation;
 mod dispatch;
 mod documents;
 mod materialize;
+mod projections;
 mod reviews;
 mod storage;
 #[cfg(test)]

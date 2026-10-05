@@ -2888,3 +2888,104 @@ fn team_default_agent_queue_replay_keeps_legacy_budget_and_review_policy() {
     );
     assert_eq!(f.store.runs_for_source(source).unwrap().len(), 1);
 }
+
+#[test]
+fn team_collection_is_bounded_filtered_and_preserves_pinned_history() {
+    let f = Fixture::new();
+    let mut ids = Vec::new();
+    let other_project = Uuid::new_v4();
+    for n in 0..35 {
+        let mut request = f.request();
+        request.project_id = if n % 2 == 0 { f.project } else { other_project };
+        let run = f.store.prepare(request, 100 + n).unwrap();
+        ids.push(run.id);
+    }
+    ids.reverse();
+    assert!(f.store.list_runs(None, None, None, 0).is_err());
+    assert!(f.store.list_runs(None, None, None, 65).is_err());
+    let first = f.store.list_runs(None, None, None, 32).unwrap();
+    assert_eq!(
+        first.runs.iter().map(|r| r.id).collect::<Vec<_>>(),
+        ids[..32]
+    );
+    assert_eq!(first.next_cursor, Some(ids[31]));
+    let next = f
+        .store
+        .list_runs(None, None, first.next_cursor, 32)
+        .unwrap();
+    assert_eq!(
+        next.runs.iter().map(|r| r.id).collect::<Vec<_>>(),
+        ids[32..]
+    );
+    assert!(next.next_cursor.is_none());
+    let filtered = f
+        .store
+        .list_runs(Some(f.project), Some(f.team), None, 64)
+        .unwrap();
+    assert_eq!(filtered.runs.len(), 18);
+    assert!(
+        filtered
+            .runs
+            .iter()
+            .all(|r| r.project_id == f.project && r.assignments == 1 && r.running == 0)
+    );
+    assert!(
+        f.store
+            .list_runs(None, Some(Uuid::new_v4()), None, 64)
+            .unwrap()
+            .runs
+            .is_empty()
+    );
+    f.definitions
+        .remove(f.definitions.load().unwrap().revision, f.team)
+        .unwrap();
+    assert_eq!(
+        f.store
+            .list_runs(None, Some(f.team), None, 64)
+            .unwrap()
+            .runs
+            .len(),
+        35
+    );
+}
+#[test]
+fn team_collection_reports_review_blockers_and_metered_usage() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let reservation = f
+        .store
+        .reserve_model_call(
+            &root.lease,
+            1,
+            ModelCallAllowance {
+                model: root.profile.model.clone().unwrap(),
+                max_input_tokens: 100,
+                max_output_tokens: 20,
+            },
+            102,
+        )
+        .unwrap();
+    f.store
+        .record_model_usage(
+            &reservation,
+            ModelTokenUsage {
+                input_tokens: 40,
+                output_tokens: 5,
+            },
+            103,
+        )
+        .unwrap();
+    let child = f.store.delegate(&root.lease, f.delegation(1), 104).unwrap();
+    f.store
+        .defer_dispatch(run.id, child.id, Some("Harness needs setup".into()), 105)
+        .unwrap();
+    let page = f.store.list_runs(None, None, None, 32).unwrap();
+    let summary = &page.runs[0];
+    assert_eq!(summary.assignments, 2);
+    assert_eq!(summary.running, 1);
+    assert_eq!(summary.needs_attention, 1);
+    assert_eq!(summary.usage.consumed_tokens, 45);
+    assert_eq!(summary.updated_at, 105);
+    assert_eq!(summary.revision, f.store.snapshot(run.id).unwrap().revision);
+}

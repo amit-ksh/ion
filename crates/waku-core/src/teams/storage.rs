@@ -51,6 +51,9 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             input_cap INTEGER NOT NULL, output_cap INTEGER NOT NULL,
             input_tokens INTEGER, output_tokens INTEGER);
         CREATE INDEX IF NOT EXISTS ion_team_active_runs ON ion_team_runs(status,id);
+        CREATE INDEX IF NOT EXISTS ion_team_collection_recent ON ion_team_runs(json_extract(body,'$.createdAt') DESC,id DESC);
+        CREATE INDEX IF NOT EXISTS ion_team_collection_project ON ion_team_runs(project_id,json_extract(body,'$.createdAt') DESC,id DESC);
+        CREATE INDEX IF NOT EXISTS ion_team_collection_team ON ion_team_runs(json_extract(body,'$.team.id'),json_extract(body,'$.createdAt') DESC,id DESC);
         CREATE TABLE IF NOT EXISTS ion_team_audit (
             cursor INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT, event TEXT NOT NULL, detail TEXT NOT NULL, timestamp INTEGER NOT NULL);
