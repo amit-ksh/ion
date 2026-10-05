@@ -882,6 +882,7 @@ fn native_team_app_missing_ack_stops_before_another_model_call_or_effect() {
         .store
         .resume_after_children(f.run.id, f.run.work[0].id, crate::model::unix_time(), 180)
         .unwrap();
+    let lease = resumed.claimed.lease.clone();
     assert!(
         f.worker_apps(
             NativeTeamStart::Resumed(resumed),
@@ -892,6 +893,59 @@ fn native_team_app_missing_ack_stops_before_another_model_call_or_effect() {
     );
     assert_eq!(apps.calls.get(), 1);
     assert!(f.store.has_pending_effect(f.run.id).unwrap());
+
+    let now = crate::model::unix_time();
+    let blocked = f
+        .store
+        .report(
+            &lease,
+            AssignmentOutcome::Blocked("Lost app acknowledgement".into()),
+            now,
+        )
+        .unwrap();
+    let (_, settled) = f
+        .store
+        .confirm_recovery(
+            f.run.id,
+            lease.work_id(),
+            lease.attempt_id(),
+            blocked.revision,
+            TeamRecoveryConfirmation::AppSucceeded {
+                decision_id: d.id,
+                evidence: "User verified provider item 123".into(),
+            },
+            now,
+        )
+        .unwrap();
+    let (_, prepared) = f
+        .store
+        .confirm_recovery(
+            f.run.id,
+            lease.work_id(),
+            lease.attempt_id(),
+            settled.revision,
+            TeamRecoveryConfirmation::PrepareContinuation,
+            now,
+        )
+        .unwrap();
+    f.store
+        .queue_checkpoint_resume(f.run.id, lease.work_id(), prepared.revision, now)
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(f.run.id, lease.work_id(), now, 180)
+        .unwrap();
+    assert_eq!(f.worker_apps(NativeTeamStart::Resumed(resumed),|_,_,messages,_|{
+        assert_eq!(apps.calls.get(),1);
+        let receipt=messages.iter().filter_map(|m|serde_json::from_str::<Value>(m["content"].as_str()?).ok()).find(|v|v["app_action_receipt"]==d.id.to_string()).unwrap();
+        assert_eq!(receipt["confirmed_by"],"user");
+        Ok(call("report_result",json!({"summary":"Recovered approved app outcome","artifact_ids":[receipt["artifact_id"]]})))
+    },&apps).unwrap(),NativeTeamExit::Settled);
+    assert_eq!(apps.calls.get(), 1);
+    assert_eq!(
+        f.store.snapshot(f.run.id).unwrap().status,
+        TeamRunStatus::Completed
+    );
 }
 
 #[test]

@@ -66,7 +66,7 @@ pub(super) fn validate_checkpoint(checkpoint: &str) -> Result<()> {
     Ok(())
 }
 pub(super) fn checkpoint_row(
-    tx: &Transaction<'_>,
+    tx: &Connection,
     work: Uuid,
 ) -> Result<Option<(String, u32, String, String)>> {
     Ok(tx.query_row("SELECT attempt_id,generation,dependencies,checkpoint FROM ion_team_continuations WHERE work_id=?",

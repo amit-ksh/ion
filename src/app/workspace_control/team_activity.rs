@@ -6,6 +6,7 @@ pub(super) struct AssignmentRow {
     id: Uuid,
     task_id: Uuid,
     resume: Option<(Uuid, u64)>,
+    recovery: Option<Uuid>,
     parent_task: Option<Uuid>,
     depth: usize,
     title: String,
@@ -293,6 +294,7 @@ impl Waku {
         self.control_ui.runs_tab = true;
         self.control_ui.selected_run = Some(run_id);
         self.clear_team_integration();
+        self.clear_team_recovery();
         self.control_ui.team_run = None;
         self.control_ui.activity_revision += 1;
         self.refresh_team_activity(true, cx);
@@ -349,7 +351,7 @@ impl Waku {
         .detach();
         cx.notify();
     }
-    fn resume_workspace_assignment(
+    pub(super) fn resume_workspace_assignment(
         &mut self,
         run_id: Uuid,
         assignment_id: Uuid,
@@ -512,6 +514,9 @@ impl Waku {
             let Some(run) = &self.control_ui.team_run else {
                 return vec![Row::Empty("Loading team assignments…")];
             };
+            if self.control_ui.recovery.review.is_some() {
+                return self.team_recovery_rows();
+            }
             if let Some(review) = &self.control_ui.integration {
                 let mut rows: Vec<Row> = review
                     .conflicts
@@ -577,6 +582,7 @@ impl Waku {
                         id,
                         task_id: w.task_id,
                         resume: w.can_resume.then_some((run.id, run.revision)),
+                        recovery: w.can_reconcile.then_some(run.id),
                         parent_task: w.parent_id.and_then(|id| work.get(&id)).map(|w| w.task_id),
                         depth,
                         title: format!("{} · {}", profile.name, w.objective),
@@ -836,6 +842,7 @@ impl Waku {
                     this.control_ui.runs_tab = runs;
                     this.control_ui.selected_run = None;
                     this.clear_team_integration();
+                    this.clear_team_recovery();
                     this.control_ui.team_run = None;
                     this.control_ui.runs_team = None;
                     this.control_ui.runs_after = None;
@@ -993,6 +1000,22 @@ impl Waku {
                     },
                 ));
             }
+            if self.control_ui.recovery.review.is_some() {
+                header = header.child(self.render_team_recovery_header(cx));
+            }
+            if self.control_ui.recovery.review.is_none() {
+                if self.control_ui.recovery.busy {
+                    header = header.child(div().text_size(sp(12.5)).child("Loading recovery…"));
+                }
+                if let Some(error) = &self.control_ui.recovery.error {
+                    header = header.child(
+                        div()
+                            .text_size(sp(13.0))
+                            .text_color(theme.danger)
+                            .child(error.clone()),
+                    );
+                }
+            }
             if self.control_ui.integration.is_some() {
                 header = header.child(self.render_team_integration_header(cx));
             }
@@ -1045,6 +1068,23 @@ impl Waku {
             cx,
             move |this, _, cx| this.open_team_activity_task(task, cx),
         ));
+        if let Some(run) = row.recovery {
+            let work = row.id;
+            actions = actions.child(self.control_button(
+                format!("assignment-recovery-{work}"),
+                "Review recovery",
+                cx,
+                move |this, _, cx| {
+                    this.request_team_recovery(
+                        Rpc::GetTeamRecovery {
+                            run_id: run,
+                            assignment_id: work,
+                        },
+                        cx,
+                    )
+                },
+            ));
+        }
         if let Some((run, revision)) = row.resume {
             let work = row.id;
             actions = actions.child(self.control_button(

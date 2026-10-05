@@ -984,3 +984,68 @@ are current; TypeScript checking, desktop/daemon checking, Rust formatting and
 whitespace gates passed. The source application tests used disposable repositories;
 no live provider, account mutation, cloud deployment, visual test or second watcher
 was run.
+
+
+## Stopped Local host and effect recovery increment (2026-10-06)
+
+Previous source integration checkpoint: `6627c5b`.
+
+- Teams assignments expose Review recovery for an unknown Local host, pending
+  file/app effects or a native checkpoint requiring receipt repair. The owner
+  runtime rejects confirmation while its current worker has not joined. A host
+  left behind by owner restart additionally requires explicit user confirmation
+  that it has stopped; absence from the new daemon's worker map is insufficient.
+- Every confirmation binds the run, work item, exact attempt and reviewed run
+  revision. Exact retries return the same committed result; changed identities,
+  assertions or evidence reject. The recorded human confirmation does not issue
+  a new lease, reset usage, enlarge grants or start another attempt.
+- File recovery checks the pinned isolated Git workspace and actual bytes or
+  directory state. The user can confirm an applied result or restored original.
+  Remaining private staging/deletion bytes must be inspected, preserved and
+  cleared before confirmation. Recovery never rewrites a file or removes a
+  private backup. Restored effects are excluded from change documents and source
+  integration rather than represented as successfully applied edits.
+- App recovery retains the exact approved account, action, version and arguments.
+  Success/failure requires nonempty provider evidence entered by the user. It is
+  labeled `confirmed_by: user` in a generated JSON artifact, preserving the
+  distinction from machine provider acknowledgement. A failure confirmation
+  does not grant permission to retry the original app request. Differing late
+  acknowledgements cannot overwrite the durable recovered outcome.
+- Prepare continuation repairs the private native journal using argument-matched
+  durable file, document, delegation and parent-review receipts. Read-only or
+  uncommitted calls receive explicit interruption feedback; no tool is executed.
+  Settled app outcomes and document references are supplied as bounded data.
+  Pending effects anywhere in the run, a child/decision wait, changed attempt,
+  exhausted native steps or oversized context prevent preparation. The repaired
+  checkpoint and safe marker commit atomically. Continue from checkpoint is a
+  separate user action through the existing native dispatcher.
+- The native recovery panel reuses cached diff parsing and virtualized lines.
+  RPC, Git, filesystem inspection and receipt parsing run on background workers;
+  generation checks reject stale responses. Controls use the existing keyboard
+  focus/button and text-field primitives. The ordinary New task path is retained.
+- Protocol **24** adds recovery review/confirmation commands and a paired recovery
+  review/run snapshot. Rebuild desktop, daemon and clients together.
+
+Local recovery does not establish an actual registered remote host. The remaining
+harness adapters, external solo team bridges, actual Nebius execution, executed
+checks, monetary/cloud caps, additional command/resource enforcement, attachment
+handoffs and follow-up prompts remain in the release checklist.
+
+User acceptance steps are included in
+[the release checklist](20-agent-teams-release-checklist.md). Automated recovery
+fixtures exercise interrupted receipt boundaries and actual native continuation;
+live provider accounts, remote infrastructure and UI acceptance remain separate.
+
+
+Verification: **146 Teams tests**, **11 protocol tests**, **24 TypeScript client
+tests** and **2 native diff/cache tests** passed. Generated bindings are current;
+TypeScript checking, desktop/daemon checking, Rust formatting and whitespace
+gates passed. Recovery tests include an actual native continuation after a lost
+app acknowledgement with the app callback count remaining one.
+
+Recovery metadata lookup now selects blocked assignments before reading native
+journals. A synthetic in-memory SQLite check with 64 running assignments, 60 KB
+journals and 100 iterations measured 1.007 ms/query before filtering and
+0.003 ms/query after filtering; this is query evidence, not live application FPS.
+No live provider, account mutation, cloud deployment, visual test or second
+development watcher was run.

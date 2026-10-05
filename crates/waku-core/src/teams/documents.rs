@@ -43,92 +43,13 @@ impl TeamCoordinator {
         content: &str,
         now: u64,
     ) -> Result<Artifact> {
-        text(name, 160, "Document name")?;
-        ensure!(
-            !name.contains(['/', '\\', ':']) && name != "." && name != "..",
-            "Use a document filename without directories"
-        );
-        ensure!(
-            matches!(format, "html" | "md" | "txt" | "csv" | "json"),
-            "Unsupported generated document format"
-        );
-        text(content, 64 * 1024, "Document content")?;
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let run = load(&tx, lease.run_id)?;
         active(&run, now)?;
         let work = checked_lease(&run, lease, now, false)?;
-        let previous: Option<(String,String,String,Vec<u8>)> = tx.query_row(
-            "SELECT artifact_id,name,format,content FROM ion_team_document_receipts WHERE work_id=? AND request_id=?",
-            params![work.id.to_string(),request_id.to_string()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
-        ).optional()?;
-        if let Some((id, stored_name, stored_format, bytes)) = previous {
-            ensure!(
-                stored_name == name && stored_format == format && bytes == content.as_bytes(),
-                "Document replay arguments changed"
-            );
-            let body: String = tx
-                .query_row(
-                    "SELECT body FROM ion_control_records WHERE id=? AND kind='artifact'",
-                    [id],
-                    |r| r.get(0),
-                )
-                .context("Published document was removed")?;
-            let ControlRecord::Artifact(artifact) = serde_json::from_str(&body)? else {
-                anyhow::bail!("Document identity changed")
-            };
-            ensure!(
-                artifact.task_id == Some(work.task_id)
-                    && artifact.project_id == Some(run.project_id),
-                "Published document provenance changed"
-            );
-            return Ok(artifact);
-        }
-        let count: u32 =
-            tx.query_row("SELECT count(*) FROM ion_control_records", [], |r| r.get(0))?;
-        ensure!(count < 1000, "Workspace document library is full");
-        let id = Uuid::new_v4();
-        let artifact = Artifact {
-            id,
-            name: name.into(),
-            format: format.into(),
-            project_id: Some(run.project_id),
-            task_id: Some(work.task_id),
-            reference: format!("ion-document:{id}"),
-            created_at: now,
-        };
-        tx.execute(
-            "INSERT INTO ion_control_records VALUES(?,?,?)",
-            params![
-                id.to_string(),
-                "artifact",
-                serde_json::to_string(&ControlRecord::Artifact(artifact.clone()))?
-            ],
-        )?;
-        tx.execute(
-            "INSERT INTO ion_team_document_receipts VALUES(?,?,?,?,?,?)",
-            params![
-                work.id.to_string(),
-                request_id.to_string(),
-                id.to_string(),
-                name,
-                format,
-                content.as_bytes()
-            ],
-        )?;
-        tx.execute(
-            "UPDATE ion_control_revision SET revision=revision+1 WHERE id=1",
-            [],
-        )?;
-        bump(&tx, run.id)?;
-        audit(
-            &tx,
-            run.id,
-            Some(work.id),
-            "document",
-            &format!("Published {id}"),
-            now,
-        )?;
+        let artifact =
+            publish_in_transaction(&tx, &run, work, request_id, name, format, content, now)?;
         tx.commit()?;
         Ok(artifact)
     }
@@ -157,4 +78,97 @@ impl TeamCoordinator {
         tx.commit()?;
         self.control.read_document(id)
     }
+}
+
+/// Trusted host recovery and the live adapter share the same atomic provenance.
+pub(super) fn publish_in_transaction(
+    tx: &Transaction<'_>,
+    run: &TeamRunSnapshot,
+    work: &TeamAssignment,
+    request_id: Uuid,
+    name: &str,
+    format: &str,
+    content: &str,
+    now: u64,
+) -> Result<Artifact> {
+    text(name, 160, "Document name")?;
+    ensure!(
+        !name.contains(['/', '\\', ':']) && name != "." && name != "..",
+        "Use a document filename without directories"
+    );
+    ensure!(
+        matches!(format, "html" | "md" | "txt" | "csv" | "json"),
+        "Unsupported generated document format"
+    );
+    text(content, 64 * 1024, "Document content")?;
+    let previous: Option<(String,String,String,Vec<u8>)> = tx.query_row(
+            "SELECT artifact_id,name,format,content FROM ion_team_document_receipts WHERE work_id=? AND request_id=?",
+            params![work.id.to_string(),request_id.to_string()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
+        ).optional()?;
+    if let Some((id, stored_name, stored_format, bytes)) = previous {
+        ensure!(
+            stored_name == name && stored_format == format && bytes == content.as_bytes(),
+            "Document replay arguments changed"
+        );
+        let body: String = tx
+            .query_row(
+                "SELECT body FROM ion_control_records WHERE id=? AND kind='artifact'",
+                [id],
+                |r| r.get(0),
+            )
+            .context("Published document was removed")?;
+        let ControlRecord::Artifact(artifact) = serde_json::from_str(&body)? else {
+            anyhow::bail!("Document identity changed")
+        };
+        ensure!(
+            artifact.task_id == Some(work.task_id) && artifact.project_id == Some(run.project_id),
+            "Published document provenance changed"
+        );
+        return Ok(artifact);
+    }
+    let count: u32 = tx.query_row("SELECT count(*) FROM ion_control_records", [], |r| r.get(0))?;
+    ensure!(count < 1000, "Workspace document library is full");
+    let id = Uuid::new_v4();
+    let artifact = Artifact {
+        id,
+        name: name.into(),
+        format: format.into(),
+        project_id: Some(run.project_id),
+        task_id: Some(work.task_id),
+        reference: format!("ion-document:{id}"),
+        created_at: now,
+    };
+    tx.execute(
+        "INSERT INTO ion_control_records VALUES(?,?,?)",
+        params![
+            id.to_string(),
+            "artifact",
+            serde_json::to_string(&ControlRecord::Artifact(artifact.clone()))?
+        ],
+    )?;
+    tx.execute(
+        "INSERT INTO ion_team_document_receipts VALUES(?,?,?,?,?,?)",
+        params![
+            work.id.to_string(),
+            request_id.to_string(),
+            id.to_string(),
+            name,
+            format,
+            content.as_bytes()
+        ],
+    )?;
+    tx.execute(
+        "UPDATE ion_control_revision SET revision=revision+1 WHERE id=1",
+        [],
+    )?;
+    bump(tx, run.id)?;
+    audit(
+        tx,
+        run.id,
+        Some(work.id),
+        "document",
+        &format!("Published {id}"),
+        now,
+    )?;
+    Ok(artifact)
 }

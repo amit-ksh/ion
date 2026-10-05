@@ -10,4 +10,8 @@ export type TeamAssignment = {
 /**
  * A stopped local worker has a safe private checkpoint available.
  */
-canResume: boolean, id: string, taskId: string, parentId: string | null, agentId: string, objective: string, expectedOutput: string, outputContract: OutputContract, requiresReview: boolean, reworkOf: string | null, review: AssignmentReview | null, dependencies: Array<string>, access: AgentAccess, status: AssignmentStatus, reason: string | null, attempts: Array<AssignmentAttempt>, result: AssignmentResult | null, };
+canResume: boolean,
+/**
+ * Host/receipt recovery is a separate explicit human action.
+ */
+canReconcile: boolean, id: string, taskId: string, parentId: string | null, agentId: string, objective: string, expectedOutput: string, outputContract: OutputContract, requiresReview: boolean, reworkOf: string | null, review: AssignmentReview | null, dependencies: Array<string>, access: AgentAccess, status: AssignmentStatus, reason: string | null, attempts: Array<AssignmentAttempt>, result: AssignmentResult | null, };

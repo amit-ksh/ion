@@ -270,6 +270,9 @@ pub struct TeamAssignment {
     /// A stopped local worker has a safe private checkpoint available.
     #[serde(default)]
     pub can_resume: bool,
+    /// Host/receipt recovery is a separate explicit human action.
+    #[serde(default)]
+    pub can_reconcile: bool,
     pub id: Uuid,
     pub task_id: Uuid,
     pub parent_id: Option<Uuid>,
@@ -402,4 +405,45 @@ pub struct TeamSourceChange {
     pub before: Option<String>,
     pub after: Option<String>,
     pub edit_ids: Vec<Uuid>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRecoveryReview {
+    pub run_id: Uuid,
+    pub assignment_id: Uuid,
+    pub attempt_id: Uuid,
+    pub revision: u64,
+    pub host: String,
+    pub host_stopped: bool,
+    pub can_prepare_continuation: bool,
+    pub workspace_path: Option<std::path::PathBuf>,
+    pub files: Vec<TeamFileRecovery>,
+    pub apps: Vec<TeamDecision>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamFileRecovery {
+    pub id: Uuid,
+    pub path: String,
+    pub operation: String,
+    pub before: Option<String>,
+    pub after: Option<String>,
+    pub private_stages: Vec<String>,
+}
+/// Human assertions are labeled as such; they never become provider receipts.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum TeamRecoveryConfirmation {
+    HostStopped,
+    FileApplied { id: Uuid },
+    FileRestored { id: Uuid },
+    AppSucceeded { decision_id: Uuid, evidence: String },
+    AppFailed { decision_id: Uuid, evidence: String },
+    PrepareContinuation,
 }

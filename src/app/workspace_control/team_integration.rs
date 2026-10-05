@@ -63,10 +63,9 @@ fn preview_note() -> Arc<crate::review_diff::Line> {
         tokens: vec![],
     })
 }
-fn presentation(review: &waku_client::teams::TeamIntegration) -> Vec<Arc<SourceChangeRow>> {
+pub(super) fn presentation(changes: &[TeamSourceChange]) -> Vec<Arc<SourceChangeRow>> {
     let mut remaining = 50_000usize;
-    review
-        .changes
+    changes
         .iter()
         .map(|change| {
             let lines = if change.directory {
@@ -139,7 +138,7 @@ impl Waku {
                         else {
                             anyhow::bail!("Unexpected source review response")
                         };
-                        let rows = presentation(&review);
+                        let rows = presentation(&review.changes);
                         Ok((review, rows))
                     })
                     .await
@@ -511,7 +510,7 @@ mod tests {
             applied_changes: 0,
             created_at: 1,
         };
-        let rows = presentation(&review);
+        let rows = presentation(&review.changes);
         assert!(rows.iter().map(|r| r.lines.len()).sum::<usize>() <= 50_000 + rows.len());
         assert!(rows.iter().any(|r| {
             r.lines

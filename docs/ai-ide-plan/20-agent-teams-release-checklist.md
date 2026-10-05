@@ -34,6 +34,10 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
   conflict checks, explicit approval, durable application receipts and interrupted
   application reconciliation. Created/deleted files and directories are included.
 
+- [x] Local owner restart recovery: explicit previous-host stop confirmation,
+  exact file/directory/delete outcome checks, user-labeled app evidence, durable
+  confirmation replay and repaired native continuation without repeating effects.
+
 These checked items record implementation and automated verification. They do not
 assert live account acceptance, visual validation or production release readiness.
 
@@ -47,9 +51,6 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Executed test/check receipts and enforceable command isolation. Declared check
   labels and model-written test claims are not executed validation.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
-- [ ] Confirmation of hosts left behind by owner restart and outcome reconciliation
-  for pending file/app/structural effects. Safe checkpoint continuation does not
-  authorize replay of an unknown effect.
 - [ ] Additional resource/egress grants and host enforcement for general commands.
 - [ ] Team attachment handoffs and team follow-up prompts.
 
@@ -79,6 +80,16 @@ not proof of a complete Teams execution backend.
   and private backups, repair the source, and explicitly confirm its outcome.
 - [ ] Restore provider access after a temporary request failure and use Continue
   from checkpoint; verify task identity and budget history remain unchanged.
+- [ ] In a disposable Local run, interrupt a file or app acknowledgement and open
+  Review recovery. Stop the previous host before confirming it. Inspect file
+  before/after content and preserve private stage bytes before clearing stages.
+  Confirm applied or restored only when the actual filesystem matches.
+- [ ] Verify an uncertain app outcome in the connected account and enter evidence.
+  Confirm succeeded or failed; inspect its generated receipt labeled as user
+  evidence. Prepare continuation and Continue from checkpoint; verify the same
+  task/attempt and budget history, with no repeated edit or app mutation.
+- [ ] Stop a run during recovery and verify it cannot continue; recorded outcomes
+  may still be reconciled without starting new work.
 - [ ] Stop a source/team task and verify real children stop; close an attachment
   separately and confirm the owner run continues.
 - [ ] Check keyboard operation, light/dark legibility and long run/transcript lists.
@@ -87,7 +98,7 @@ not proof of a complete Teams execution backend.
 
 ## Verification baseline
 
-Current protocol is **23**. Rebuild desktop, daemon and clients together. The
+Current protocol is **24**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

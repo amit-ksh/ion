@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 23;
+pub const PROTOCOL_VERSION: u32 = 24;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -220,6 +220,17 @@ pub enum Command {
         run_id: Uuid,
         after: u64,
         limit: usize,
+    },
+    GetTeamRecovery {
+        run_id: Uuid,
+        assignment_id: Uuid,
+    },
+    ConfirmTeamRecovery {
+        run_id: Uuid,
+        assignment_id: Uuid,
+        attempt_id: Uuid,
+        expected_revision: u64,
+        confirmation: crate::teams::TeamRecoveryConfirmation,
     },
     PrepareTeamIntegration {
         run_id: Uuid,
@@ -475,6 +486,10 @@ pub enum ResponsePayload {
     TeamTaskQueued {
         snapshot: crate::teams::TeamRunSnapshot,
         session: AgentSession,
+    },
+    TeamRecovery {
+        review: crate::teams::TeamRecoveryReview,
+        snapshot: crate::teams::TeamRunSnapshot,
     },
     TeamIntegration {
         review: crate::teams::TeamIntegration,
@@ -779,6 +794,55 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn team_recovery_confirmation_pins_attempt_revision_and_exact_evidence() {
+        use crate::teams::TeamRecoveryConfirmation;
+        let run = Uuid::new_v4();
+        let work = Uuid::new_v4();
+        let attempt = Uuid::new_v4();
+        let id = Uuid::new_v4();
+        for confirmation in [
+            TeamRecoveryConfirmation::HostStopped,
+            TeamRecoveryConfirmation::FileApplied { id },
+            TeamRecoveryConfirmation::FileRestored { id },
+            TeamRecoveryConfirmation::AppSucceeded {
+                decision_id: id,
+                evidence: "Provider item verified".into(),
+            },
+            TeamRecoveryConfirmation::AppFailed {
+                decision_id: id,
+                evidence: "Provider rejection verified".into(),
+            },
+            TeamRecoveryConfirmation::PrepareContinuation,
+        ] {
+            let value = serde_json::to_value(Command::ConfirmTeamRecovery {
+                run_id: run,
+                assignment_id: work,
+                attempt_id: attempt,
+                expected_revision: 7,
+                confirmation: confirmation.clone(),
+            })
+            .unwrap();
+            assert_eq!(value["type"], "confirmTeamRecovery");
+            assert_eq!(value["attemptId"], attempt.to_string());
+            assert_eq!(value["expectedRevision"], 7);
+            let Command::ConfirmTeamRecovery {
+                confirmation: roundtrip,
+                ..
+            } = serde_json::from_value(value).unwrap()
+            else {
+                panic!("Wrong command")
+            };
+            assert_eq!(confirmation, roundtrip);
+        }
+        assert!(
+            serde_json::from_value::<TeamRecoveryConfirmation>(
+                serde_json::json!({"kind":"fileApplied","id":id,"extraApproval":true})
+            )
+            .is_err()
+        );
     }
 
     #[test]

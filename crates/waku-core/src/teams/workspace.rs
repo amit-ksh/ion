@@ -14,6 +14,7 @@ enum ReservedWorkspaceEdit {
     Receipt(String),
     Pending { id: Uuid, path: PathBuf },
 }
+pub(super) mod effect_recovery;
 mod files;
 mod integration;
 pub(super) fn reconcile_integrations(tx: &Transaction<'_>, now: u64) -> Result<()> {
@@ -566,7 +567,10 @@ impl TeamCoordinator {
             let mut ids = vec![];
             for (id, signature, state) in rows {
                 let value: serde_json::Value = serde_json::from_str(&signature)?;
-                if value["path"] == relative && value["operation"] != "createDirectory" {
+                if state != "restored"
+                    && value["path"] == relative
+                    && value["operation"] != "createDirectory"
+                {
                     ensure!(
                         state == "applied",
                         "Changed file has an uncertain edit; reconcile it before publication"

@@ -149,7 +149,7 @@ fn verify_result(record: &WorkspaceRecord, plan: &TeamIntegration, source: bool)
     Ok(())
 }
 fn manifest(db: &Connection, run: Uuid, record: &WorkspaceRecord) -> Result<Vec<TeamSourceChange>> {
-    let rows:Vec<(String,String,String)>=db.prepare("SELECT id,signature,state FROM ion_team_workspace_edits WHERE run_id=? ORDER BY rowid LIMIT 257")?.query_map([run.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
+    let rows:Vec<(String,String,String)>=db.prepare("SELECT id,signature,state FROM ion_team_workspace_edits WHERE run_id=? AND state!='restored' ORDER BY rowid LIMIT 257")?.query_map([run.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
     ensure!(rows.len() <= 256, "Integration edit bound exceeded");
     let mut changes: BTreeMap<String, TeamSourceChange> = BTreeMap::new();
     for (id, signature, state) in rows {

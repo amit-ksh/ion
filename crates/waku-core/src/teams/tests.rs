@@ -4167,3 +4167,6 @@ fn team_checkpoint_resume_request_races_queue_one_continuation_and_obey_limit() 
     );
     assert_eq!(f.store.snapshot(run.id).unwrap().work[0].attempts.len(), 1);
 }
+
+#[path = "recovery/tests.rs"]
+mod effect_recovery;

@@ -80,6 +80,10 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_integration_steps (
             integration_id TEXT NOT NULL REFERENCES ion_team_integrations(id),step INTEGER NOT NULL,
             state TEXT NOT NULL,receipt TEXT,PRIMARY KEY(integration_id,step));
+        CREATE TABLE IF NOT EXISTS ion_team_recovery_confirmations (
+            run_id TEXT NOT NULL REFERENCES ion_team_runs(id),work_id TEXT NOT NULL REFERENCES ion_team_work(id),
+            attempt_id TEXT NOT NULL,requested_revision INTEGER NOT NULL,body TEXT NOT NULL,
+            PRIMARY KEY(work_id,requested_revision));
         CREATE TABLE IF NOT EXISTS ion_team_model_calls (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,

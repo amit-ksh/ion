@@ -1316,3 +1316,278 @@ fn team_source_integration_rejects_checkout_filters_before_git_status() {
             .contains("custom clean")
     );
 }
+
+#[test]
+fn team_file_recovery_verifies_applied_restored_and_structural_outcomes_without_replay() {
+    use serde_json::{Value, json};
+    for operation in ["writeFile", "createDirectory", "deleteFile"] {
+        for applied in [true, false] {
+            let f = Fixture::new();
+            let workspace = f.workspace();
+            let root = f.claim(f.run.work[0].id);
+            let now = crate::model::unix_time();
+            let request = Uuid::new_v4();
+            let relative = if operation == "createDirectory" {
+                "created"
+            } else {
+                "main.rs"
+            };
+            let old = "fn value() -> i32 { 1 }\n";
+            let new = "fn value() -> i32 { 2 }\n";
+            let (signature, args, name) = match operation {
+                "writeFile" => (
+                    json!({"path":relative,"old":old,"new":new}),
+                    json!({"path":relative,"old_content":old,"new_content":new}),
+                    "write_file",
+                ),
+                "deleteFile" => (
+                    json!({"path":relative,"operation":operation,"old":old,"new":null}),
+                    json!({"path":relative,"old_content":old}),
+                    "delete_file",
+                ),
+                _ => (
+                    json!({"path":relative,"operation":operation}),
+                    json!({"path":relative}),
+                    "create_directory",
+                ),
+            };
+            let ReservedWorkspaceEdit::Pending { id, path } = f
+                .store
+                .reserve_workspace_edit(
+                    &root.lease,
+                    request,
+                    relative,
+                    &signature.to_string(),
+                    |_| Ok(()),
+                    now,
+                )
+                .unwrap()
+            else {
+                panic!("Expected reservation")
+            };
+            if applied {
+                match operation {
+                    "writeFile" => fs::write(&path, new).unwrap(),
+                    "deleteFile" => fs::remove_file(&path).unwrap(),
+                    _ => fs::create_dir(&path).unwrap(),
+                }
+            }
+            let checkpoint=json!({"version":1,"steps":1,"messages":[{"role":"user","content":"Change value"},{"role":"assistant","content":null,"tool_calls":[{"id":"file-effect","type":"function","function":{"name":name,"arguments":args.to_string()}}]}],"pending":[{"id":"file-effect","name":name,"arguments":args,"request_id":request,"activity_id":"file-effect"}]}).to_string();
+            f.store
+                .save_runtime_checkpoint(&root.lease, &checkpoint, now)
+                .unwrap();
+            let blocked = f
+                .store
+                .report(
+                    &root.lease,
+                    AssignmentOutcome::Blocked("Effect acknowledgement lost".into()),
+                    now,
+                )
+                .unwrap();
+            let (review, _) = f
+                .store
+                .recovery_review(f.run.id, root.assignment.id)
+                .unwrap();
+            assert_eq!(review.files.len(), 1);
+            assert_eq!(review.files[0].id, id);
+            let confirmation = if applied {
+                TeamRecoveryConfirmation::FileApplied { id }
+            } else {
+                TeamRecoveryConfirmation::FileRestored { id }
+            };
+            // The other outcome must fail against actual bytes/structure.
+            let wrong = if applied {
+                TeamRecoveryConfirmation::FileRestored { id }
+            } else {
+                TeamRecoveryConfirmation::FileApplied { id }
+            };
+            assert!(
+                f.store
+                    .confirm_recovery(
+                        f.run.id,
+                        root.assignment.id,
+                        root.lease.attempt_id(),
+                        blocked.revision,
+                        wrong,
+                        now
+                    )
+                    .is_err()
+            );
+            let (_, settled) = f
+                .store
+                .confirm_recovery(
+                    f.run.id,
+                    root.assignment.id,
+                    root.lease.attempt_id(),
+                    blocked.revision,
+                    confirmation.clone(),
+                    now,
+                )
+                .unwrap();
+            let repeated = f
+                .store
+                .confirm_recovery(
+                    f.run.id,
+                    root.assignment.id,
+                    root.lease.attempt_id(),
+                    blocked.revision,
+                    confirmation,
+                    now,
+                )
+                .unwrap();
+            assert_eq!(repeated.1.revision, settled.revision);
+            let (_, ready) = f
+                .store
+                .confirm_recovery(
+                    f.run.id,
+                    root.assignment.id,
+                    root.lease.attempt_id(),
+                    settled.revision,
+                    TeamRecoveryConfirmation::PrepareContinuation,
+                    now,
+                )
+                .unwrap();
+            assert!(ready.work[0].can_resume);
+            let db = f.store.connect().unwrap();
+            let (state,checkpoint):(String,String)=db.query_row("SELECT e.state,c.checkpoint FROM ion_team_workspace_edits e JOIN ion_team_continuations c ON c.work_id=e.work_id WHERE e.id=?",[id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+            assert_eq!(state, if applied { "applied" } else { "restored" });
+            let journal: Value = serde_json::from_str(&checkpoint).unwrap();
+            assert_eq!(journal["pending"], json!([]));
+            let reply: Value = serde_json::from_str(
+                journal["messages"].as_array().unwrap().last().unwrap()["content"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(reply["outcome"], state);
+            assert_eq!(reply["replayed"], false);
+            assert_eq!(fs::read_to_string(f.source.join("main.rs")).unwrap(), old);
+            if operation == "writeFile" {
+                assert_eq!(
+                    fs::read_to_string(workspace.join(relative)).unwrap(),
+                    if applied { new } else { old }
+                );
+            }
+            drop(db);
+            f.store
+                .queue_checkpoint_resume(f.run.id, root.assignment.id, ready.revision, now)
+                .unwrap();
+            let resumed = f
+                .store
+                .resume_after_children(f.run.id, root.assignment.id, now, 180)
+                .unwrap();
+            let (events, _) = crate::driver::test_event_channel();
+            let mut step = 0;
+            crate::driver::run_scripted_team_assignment(&f.store,crate::driver::NativeTeamStart::Resumed(resumed),&workspace,&events,&AtomicBool::new(false),|_,_,messages,_|{
+                step+=1;
+                let (name,args)=if step==1 {
+                    let receipt:Value=messages.iter().filter(|m|m["role"]=="tool").filter_map(|m|serde_json::from_str(m["content"].as_str()?).ok()).find(|v:&Value|v.get("outcome").is_some()).expect("Recovered file receipt reached the model");
+                    assert_eq!(receipt["outcome"],if applied{"applied"}else{"restored"});assert_eq!(receipt["replayed"],false);
+                    ("save_document",json!({"name":"Recovery.md","format":"md","content":"Recovered outcome reviewed; no edit repeated"}))
+                }else{
+                    let receipt:Value=serde_json::from_str(messages.iter().rev().find(|m|m["role"]=="tool").unwrap()["content"].as_str().unwrap()).unwrap();
+                    ("report_result",json!({"summary":"Recovered file outcome reviewed","artifact_ids":[receipt["artifact_id"]]}))
+                };
+                let chunk=json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":format!("recovery-{step}"),"function":{"name":name,"arguments":args.to_string()}}]}}]});
+                Ok(format!("data: {chunk}\n\ndata: [DONE]\n\n"))
+            }).unwrap();
+            assert_eq!(
+                f.store.snapshot(f.run.id).unwrap().work[0].attempts.len(),
+                1
+            );
+            if applied {
+                assert_eq!(source_review(&f).changes.len(), 1);
+            } else {
+                let done = f.store.snapshot(f.run.id).unwrap();
+                assert!(
+                    f.store
+                        .prepare_source_integration(f.run.id, done.revision, &f.source, now)
+                        .unwrap_err()
+                        .to_string()
+                        .contains("No receipted changes remain")
+                );
+            }
+        }
+    }
+}
+#[test]
+fn team_file_recovery_retains_private_backups_and_rejects_unauthorized_changed_bytes() {
+    use serde_json::json;
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let request = Uuid::new_v4();
+    let old = "fn value() -> i32 { 1 }\n";
+    let new = "fn value() -> i32 { 2 }\n";
+    let signature = json!({"path":"main.rs","old":old,"new":new}).to_string();
+    let ReservedWorkspaceEdit::Pending { id, path } = f
+        .store
+        .reserve_workspace_edit(&root.lease, request, "main.rs", &signature, |_| Ok(()), now)
+        .unwrap()
+    else {
+        panic!("Reservation missing")
+    };
+    let stage = workspace.join(format!(".ion-edit-{id}.pending"));
+    fs::write(&stage, "Unrecognized user bytes").unwrap();
+    fs::write(&path, new).unwrap();
+    let blocked = f
+        .store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Blocked("Lost acknowledgement".into()),
+            now,
+        )
+        .unwrap();
+    let c = TeamRecoveryConfirmation::FileApplied { id };
+    assert!(
+        f.store
+            .confirm_recovery(
+                f.run.id,
+                root.assignment.id,
+                root.lease.attempt_id(),
+                blocked.revision,
+                c.clone(),
+                now
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("Private recovery stage remains")
+    );
+    assert_eq!(
+        fs::read_to_string(&stage).unwrap(),
+        "Unrecognized user bytes"
+    );
+    // User preserves the exact private stage in the disposable fixture, then clears it.
+    fs::rename(&stage, f.dir.join("preserved-backup.txt")).unwrap();
+    fs::write(&path, "Newer user edit").unwrap();
+    assert!(
+        f.store
+            .confirm_recovery(
+                f.run.id,
+                root.assignment.id,
+                root.lease.attempt_id(),
+                blocked.revision,
+                c.clone(),
+                now
+            )
+            .is_err()
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), "Newer user edit");
+    assert!(f.store.workspace_has_pending_effect(f.run.id).unwrap());
+    fs::write(&path, new).unwrap();
+    f.store
+        .confirm_recovery(
+            f.run.id,
+            root.assignment.id,
+            root.lease.attempt_id(),
+            blocked.revision,
+            c,
+            now,
+        )
+        .unwrap();
+    assert_eq!(
+        fs::read_to_string(f.dir.join("preserved-backup.txt")).unwrap(),
+        "Unrecognized user bytes"
+    );
+}

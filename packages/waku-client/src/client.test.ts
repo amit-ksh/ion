@@ -7,7 +7,7 @@ import {
   daemonUrl,
   type WebSocketLike,
 } from "./client";
-import { PROTOCOL_VERSION } from "./generated";
+import { PROTOCOL_VERSION, type ResponsePayload } from "./generated";
 
 class FakeSocket implements WebSocketLike {
   readyState = 0;
@@ -83,6 +83,46 @@ async function connect(client: WakuClient, sockets: FakeSocket[]): Promise<FakeS
 }
 
 describe("WakuClient", () => {
+
+  test("binds recovery to its attempt and preserves user evidence and the paired snapshot", async () => {
+    const { client, sockets } = fixture();
+    const socket = await connect(client, sockets);
+    const runId = "00000000-0000-4000-8000-000000000011";
+    const assignmentId = "00000000-0000-4000-8000-000000000012";
+    const attemptId = "00000000-0000-4000-8000-000000000013";
+    const agentId = "00000000-0000-4000-8000-000000000014";
+    const taskId = "00000000-0000-4000-8000-000000000015";
+    const command = {
+      type: "confirmTeamRecovery" as const, runId, assignmentId, attemptId, expectedRevision: 7,
+      confirmation: { kind: "appFailed" as const, decisionId: "00000000-0000-4000-8000-000000000016", evidence: "Provider rejection verified" },
+    };
+    const pending = client.request(command);
+    const sent = JSON.parse(socket.sent.at(-1)!);
+    expect(sent.command).toEqual(command);
+    const access = { workspaceRead: true, workspaceWrite: false, shell: false, network: false, appActions: [] };
+    const payload = {
+      type: "teamRecovery", review: { runId, assignmentId, attemptId,
+        revision: 8, host: "local", hostStopped: true, canPrepareContinuation: true, workspacePath: null, files: [], apps: [] },
+      snapshot: {
+        id: runId, revision: 8, rootTaskId: taskId, projectId: "00000000-0000-4000-8000-000000000017",
+        definitionRevision: 1, status: "active", workspace: null, createdAt: 100, deadline: 3700,
+        team: { id: "00000000-0000-4000-8000-000000000018", name: "Engineering", objective: "Reviewed outcome", members: [{ agentId, parentId: null }] },
+        profiles: [{ id: agentId, name: "Lead", expertise: "Engineering", instructions: "Review evidence", provider: "nebius", model: "fixture-model",
+          expectedOutput: "Reviewed document", execution: { environment: "local", sandboxTarget: null, localFallback: true }, access, maxParallelTasks: 1 }],
+        limits: { maxWorkItems: 64, maxParallelTasks: 4, maxDepth: 8, maxAttempts: 2, maxModelCalls: 64, maxTokens: 2000000, requireChildReview: true, maxReworkRounds: 2, timeoutSeconds: 3600 },
+        usage: { modelCalls: 1, consumedTokens: 0, reservedTokens: 500, unknownCalls: 1, unmeteredCalls: 0, allowanceViolations: 0 }, access,
+        work: [{ id: assignmentId, taskId, parentId: null, agentId, objective: "Review provider outcome", expectedOutput: "Reviewed evidence", canResume: false, canReconcile: true,
+          outputContract: { minimumDocuments: 1, requiredFormats: [], requiredChecks: [] }, requiresReview: false, reworkOf: null, review: null, dependencies: [], access,
+          status: "blocked", reason: "Acknowledgement lost", result: null,
+          attempts: [{ id: attemptId, environment: "local", host: "local", fallbackReason: null, startedAt: 100, leaseExpiresAt: 280, generation: 2, status: "blocked" }] }],
+        decisions: [],
+      },
+    } satisfies ResponsePayload;
+    socket.receive({ type: "response", requestId: sent.requestId, outcome: { status: "ok", payload } });
+    await expect(pending).resolves.toEqual(payload);
+    expect(socket.sent).toHaveLength(2);
+  });
+
   test("reports connection state changes, including remote closure", async () => {
     const { client, sockets } = fixture();
     const states: string[] = [];

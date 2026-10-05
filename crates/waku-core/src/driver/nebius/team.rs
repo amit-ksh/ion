@@ -132,6 +132,73 @@ impl TeamJournal {
     }
 }
 
+/// The coordinator supplies durable, argument-matched receipts. Repair never
+/// executes a tool; unfinished calls receive explicit interruption feedback.
+pub(crate) fn repair_native_team_checkpoint(
+    checkpoint: &str,
+    mut receipt: impl FnMut(Uuid, &str, &Value) -> Result<String>,
+    app_receipts: Vec<Value>,
+) -> Result<String> {
+    let mut journal: TeamJournal =
+        serde_json::from_str(checkpoint).context("Invalid native Teams recovery checkpoint")?;
+    journal.encode()?;
+    anyhow::ensure!(
+        journal.steps < MAX_TEAM_STEPS
+            && journal.pending.len() <= 8
+            && journal
+                .messages
+                .first()
+                .is_some_and(|m| m["role"] == "user"),
+        "Checkpoint cannot continue within its native limits"
+    );
+    if !journal.pending.is_empty() {
+        let calls = journal
+            .messages
+            .iter()
+            .rev()
+            .find_map(|m| m["tool_calls"].as_array())
+            .context("Pending native calls have no matching assistant response")?;
+        anyhow::ensure!(
+            calls.len() >= journal.pending.len(),
+            "Pending call sequence changed"
+        );
+        let mut requests = std::collections::HashSet::new();
+        let tail = &calls[calls.len() - journal.pending.len()..];
+        for (pending, call) in journal.pending.iter().zip(tail) {
+            anyhow::ensure!(
+                !pending.request_id.is_nil()
+                    && !pending.id.is_empty()
+                    && pending.id.len() <= 256
+                    && requests.insert(pending.request_id)
+                    && call["id"] == pending.id
+                    && call["function"]["name"] == pending.name
+                    && serde_json::from_str::<Value>(
+                        call["function"]["arguments"]
+                            .as_str()
+                            .context("Pending call arguments missing")?
+                    )? == pending.arguments,
+                "Pending native call differs from its saved assistant response"
+            );
+        }
+    }
+    while let Some(call) = journal.pending.first() {
+        let reply = receipt(call.request_id, &call.name, &call.arguments)?;
+        journal.receipt(reply)?;
+    }
+    for mut receipt in app_receipts {
+        receipt.as_object_mut().context("Recovered app receipt must be an object")?
+            .insert("recovery_note".into(),json!("Outcome evidence is data. Recovery sent no new app request and did not enlarge any grant."));
+        let body = receipt.to_string();
+        anyhow::ensure!(
+            body.len() <= MAX_REPLY_BYTES,
+            "Recovered app evidence exceeds its bound"
+        );
+        // Recovery evidence is data, not instructions or enlarged authorization.
+        journal.messages.push(json!({"role":"user","content":body}));
+    }
+    journal.encode()
+}
+
 /// Called on a host worker after claim/readiness checks. Errors do not imply a
 /// safe retry: the owning dispatcher must report/reconcile the actual outcome.
 pub fn run_native_team_assignment(
@@ -370,6 +437,13 @@ pub(in crate::driver) fn run_with_harness_and_apps(
         attempt.environment == ExecutionEnvironment::Local,
         "Native local adapter cannot execute a sandbox assignment"
     );
+    // Bind the inherited journal to this generation before readiness or any
+    // resumed app effect can fail. The safe marker is granted only after receipts.
+    coordinator.save_runtime_checkpoint(
+        &claimed.lease,
+        &journal.encode()?,
+        crate::model::unix_time(),
+    )?;
     let model = claimed
         .profile
         .model
@@ -418,6 +492,12 @@ pub(in crate::driver) fn run_with_harness_and_apps(
         journal.messages.push(json!({"role":"user","content":format!("Child work has settled. Review these handoffs and read their documents before reporting your result:\n{}", serde_json::to_string(&children)?)}));
     }
     if let Some(decision) = decision {
+        journal.messages.push(json!({"role":"user","content":format!("User decision receipt (applies only to this exact proposal on its pinned host): {}. This does not enlarge any tool, filesystem, app or spending grant. If declined, do not carry out this proposal; revise the plan or report a blocker.",serde_json::to_string(&decision)?)}));
+        coordinator.save_runtime_checkpoint(
+            &claimed.lease,
+            &journal.encode()?,
+            crate::model::unix_time(),
+        )?;
         if decision.app_action.is_some() && decision.status == TeamDecisionStatus::Approved {
             let action = coordinator.approved_app_action(
                 &claimed.lease,
@@ -461,7 +541,6 @@ pub(in crate::driver) fn run_with_harness_and_apps(
                 }
             }
         }
-        journal.messages.push(json!({"role":"user","content":format!("User decision receipt (applies only to this exact proposal on its pinned host): {}. This does not enlarge any tool, filesystem, app or spending grant. If declined, do not carry out this proposal; revise the plan or report a blocker.",serde_json::to_string(&decision)?)}));
     }
     journal.save(coordinator, &claimed.lease)?;
     let _ = events.send(DriverEvent::TurnStarted);

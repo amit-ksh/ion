@@ -494,6 +494,7 @@ impl TeamCoordinator {
             .context("Lead profile missing")?;
         let root = TeamAssignment {
             can_resume: false,
+            can_reconcile: false,
             id: Uuid::new_v4(),
             task_id: request.root_task_id,
             parent_id: None,
@@ -754,6 +755,7 @@ impl TeamCoordinator {
         );
         let work = TeamAssignment {
             can_resume: false,
+            can_reconcile: false,
             id: Uuid::new_v4(),
             task_id: Uuid::new_v4(),
             parent_id: Some(parent.id),

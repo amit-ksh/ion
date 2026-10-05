@@ -248,3 +248,67 @@ impl TeamCoordinator {
         Ok(self.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending')", [run.to_string()], |r|r.get(0))?)
     }
 }
+
+/// Called only by stopped-host human recovery, without another provider request.
+pub(super) fn confirm_effect(
+    tx: &Transaction<'_>,
+    run: &TeamRunSnapshot,
+    work: &TeamAssignment,
+    attempt: Uuid,
+    decision_id: Uuid,
+    successful: bool,
+    evidence: &str,
+    now: u64,
+) -> Result<()> {
+    text(evidence, 4096, "Provider confirmation evidence")?;
+    let decision = super::decisions::get(tx, decision_id)?;
+    ensure!(
+        decision.run_id == run.id
+            && decision.assignment_id == work.id
+            && decision.attempt_id == attempt
+            && decision.status == TeamDecisionStatus::Approved,
+        "App decision belongs to another attempt or lacks approval"
+    );
+    let action = decision
+        .app_action
+        .as_ref()
+        .context("Decision is not an app action")?;
+    validate_action(work, action)?;
+    let (signature,state):(String,String)=tx.query_row("SELECT signature,state FROM ion_team_app_effects WHERE decision_id=? AND run_id=? AND work_id=? AND attempt_id=?",params![decision_id.to_string(),run.id.to_string(),work.id.to_string(),attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?)))?;
+    ensure!(
+        state == "pending",
+        "App effect is no longer awaiting recovery"
+    );
+    let signature: Value = serde_json::from_str(&signature)?;
+    ensure!(
+        signature["action"] == serde_json::to_value(action)?
+            && signature["host"] == decision.host
+            && signature["attempt"] == attempt.to_string()
+            && signature["definition"] == run.definition_revision,
+        "App effect no longer matches its pinned approval"
+    );
+    let receipt=json!({"successful":successful,"confirmed_by":"user","evidence":evidence,"decision_id":decision_id,"not_started":false}).to_string();
+    ensure!(tx.execute("UPDATE ion_team_app_effects SET state='settled',receipt=? WHERE decision_id=? AND state='pending'",params![receipt,decision_id.to_string()])?==1,"App effect changed during recovery");
+    super::documents::publish_in_transaction(
+        tx,
+        run,
+        work,
+        decision_id,
+        &format!("App-action-{}.json", decision_id.simple()),
+        "json",
+        &receipt,
+        now,
+    )?;
+    audit(
+        tx,
+        run.id,
+        Some(work.id),
+        "app_effect_reconciled",
+        &format!(
+            "{decision_id}: user confirmed {}",
+            if successful { "success" } else { "failure" }
+        ),
+        now,
+    )?;
+    Ok(())
+}

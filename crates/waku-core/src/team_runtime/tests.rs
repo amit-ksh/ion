@@ -891,3 +891,61 @@ fn team_runtime_checkpoint_resume_waits_for_join_then_completes_existing_task() 
         Some(AssignmentStatus::Completed)
     );
 }
+
+#[test]
+fn team_runtime_recovery_confirmation_rejects_an_unjoined_local_job() {
+    let f = Fixture::new(64);
+    let now = unix_time();
+    f.runtime
+        .coordinator
+        .materialize_run(f.run.id, &f.runtime.store, &mut f.runtime.state.lock(), now)
+        .unwrap();
+    let root = f
+        .runtime
+        .coordinator
+        .claim(f.run.id, f.run.work[0].id, DispatchHost::Local, now, 180)
+        .unwrap();
+    f.runtime.coordinator.save_runtime_checkpoint(&root.lease,&json!({"version":1,"steps":0,"messages":[{"role":"user","content":"Pinned"}],"pending":[]}).to_string(),now).unwrap();
+    f.runtime.coordinator.reconcile_owner_restart(now).unwrap();
+    let unknown = f.runtime.coordinator.snapshot(f.run.id).unwrap();
+    let (release, wait) = std::sync::mpsc::channel();
+    let worker = thread::spawn(move || {
+        let _ = wait.recv();
+    });
+    f.runtime.jobs.lock().insert(
+        root.assignment.id,
+        Job {
+            run: f.run.id,
+            cancelled: Arc::new(AtomicBool::new(false)),
+            thread: worker,
+        },
+    );
+    let result = f.runtime.confirm_recovery(
+        f.run.id,
+        root.assignment.id,
+        root.lease.attempt_id(),
+        unknown.revision,
+        waku_protocol::teams::TeamRecoveryConfirmation::HostStopped,
+    );
+    release.send(()).unwrap();
+    f.runtime
+        .jobs
+        .lock()
+        .remove(&root.assignment.id)
+        .unwrap()
+        .thread
+        .join()
+        .unwrap();
+    assert!(result.unwrap_err().to_string().contains("still finishing"));
+    let (_, blocked) = f
+        .runtime
+        .confirm_recovery(
+            f.run.id,
+            root.assignment.id,
+            root.lease.attempt_id(),
+            unknown.revision,
+            waku_protocol::teams::TeamRecoveryConfirmation::HostStopped,
+        )
+        .unwrap();
+    assert_eq!(blocked.work[0].status, AssignmentStatus::Blocked);
+}

@@ -282,6 +282,29 @@ impl TeamRuntime {
         self.wake();
         Ok(snapshot)
     }
+    pub(crate) fn confirm_recovery(
+        &self,
+        run: Uuid,
+        work: Uuid,
+        attempt: Uuid,
+        revision: u64,
+        confirmation: waku_protocol::teams::TeamRecoveryConfirmation,
+    ) -> Result<(waku_protocol::teams::TeamRecoveryReview, TeamRunSnapshot)> {
+        ensure!(
+            !self.jobs.lock().contains_key(&work),
+            "The Local worker is still finishing; refresh and try again"
+        );
+        let result = self.coordinator.confirm_recovery(
+            run,
+            work,
+            attempt,
+            revision,
+            confirmation,
+            unix_time(),
+        )?;
+        self.wake();
+        Ok(result)
+    }
     pub(crate) fn cancel_run(&self, run: Uuid) {
         self.cancel_jobs(run);
         let started = self.publisher.lock().is_some();

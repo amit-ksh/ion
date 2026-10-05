@@ -10,6 +10,7 @@ mod team_activity;
 mod team_apps;
 mod team_integration;
 mod team_limits;
+mod team_recovery;
 use waku_client::{Command as Rpc, ResponsePayload};
 
 fn app_name(slug: &str) -> String {
@@ -154,6 +155,8 @@ pub(super) struct ControlUi {
     pending_team_decisions: u32,
     team_runs: Rc<Vec<TeamRunSummary>>,
     team_run: Option<Rc<TeamRunSnapshot>>,
+    recovery: team_recovery::RecoveryUi,
+    recovery_evidence: Entity<TextInput>,
     integration: Option<std::sync::Arc<waku_client::teams::TeamIntegration>>,
     integration_busy: bool,
     integration_generation: u64,
@@ -182,6 +185,8 @@ enum Row {
     AgentInTeam(AgentProfile, usize, Option<String>),
     TeamRun(Rc<TeamRunSummary>),
     Assignment(Rc<team_activity::AssignmentRow>),
+    RecoveryFile(usize, std::sync::Arc<team_recovery::FileRow>),
+    RecoveryApp(std::sync::Arc<team_recovery::AppRow>),
     SourceChange(usize, std::sync::Arc<team_integration::SourceChangeRow>),
     SourceDiffLine(usize, std::sync::Arc<crate::review_diff::Line>),
     SourceConflict(String),
@@ -315,6 +320,10 @@ impl ControlUi {
             pending_team_decisions: 0,
             team_runs: Rc::new(Vec::new()),
             team_run: None,
+            recovery: Default::default(),
+            recovery_evidence: cx.new(|cx| {
+                TextInput::new(window, cx).placeholder("Provider record or outcome evidence")
+            }),
             integration: None,
             integration_busy: false,
             integration_generation: 0,
@@ -843,6 +852,7 @@ impl Waku {
             self.control_ui.activity_busy = false;
             self.control_ui.selected_run = None;
             self.clear_team_integration();
+            self.clear_team_recovery();
             self.control_ui.team_run = None;
             self.control_ui.runs_after = None;
             self.control_ui.runs_previous.clear();
@@ -1872,6 +1882,8 @@ impl Waku {
         let mut actions = div().flex_none().flex().gap(px(8.0));
         let (title, detail, icon_path) = match row {
             Row::TeamDecision(decision) => return self.render_team_decision_row(decision, cx),
+            Row::RecoveryFile(index, row) => return self.render_team_recovery_file(index, row, cx),
+            Row::RecoveryApp(row) => return self.render_team_recovery_app(row, cx),
             Row::TeamRun(run) => return self.render_team_run_row(run, cx),
             Row::Assignment(row) => return self.render_team_assignment_row(row, cx),
             Row::SourceChange(index, row) => return self.render_team_source_change(index, row, cx),
@@ -2184,6 +2196,7 @@ impl Waku {
                         move |this, _, cx| {
                             this.control_ui.runs_team = Some(id);
                             this.control_ui.runs_tab = true;
+                            this.clear_team_recovery();
                             this.control_ui.selected_run = None;
                             this.control_ui.team_run = None;
                             this.control_ui.runs_after = None;

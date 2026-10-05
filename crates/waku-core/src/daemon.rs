@@ -528,6 +528,29 @@ impl Backend for WakuBackend {
                     )?,
                 })
             }
+            Command::GetTeamRecovery {
+                run_id,
+                assignment_id,
+            } => {
+                let (review, snapshot) = self.teams.recovery_review(run_id, assignment_id)?;
+                Ok(ResponsePayload::TeamRecovery { review, snapshot })
+            }
+            Command::ConfirmTeamRecovery {
+                run_id,
+                assignment_id,
+                attempt_id,
+                expected_revision,
+                confirmation,
+            } => {
+                let (review, snapshot) = self.team_runtime.confirm_recovery(
+                    run_id,
+                    assignment_id,
+                    attempt_id,
+                    expected_revision,
+                    confirmation,
+                )?;
+                Ok(ResponsePayload::TeamRecovery { review, snapshot })
+            }
             Command::ResumeTeamAssignment {
                 run_id,
                 assignment_id,
@@ -2358,6 +2381,8 @@ fn handle_driver_command(
         | Command::GetTeamRun { .. }
         | Command::GetTeamAudit { .. }
         | Command::StopTeamRun { .. }
+        | Command::GetTeamRecovery { .. }
+        | Command::ConfirmTeamRecovery { .. }
         | Command::ResumeTeamAssignment { .. }
         | Command::PrepareTeamIntegration { .. }
         | Command::ApplyTeamIntegration { .. }
