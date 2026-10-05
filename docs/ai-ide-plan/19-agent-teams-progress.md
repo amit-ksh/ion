@@ -4,6 +4,11 @@ Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
+For the current implementation scope, remaining development and live setup, use the
+[release checklist](20-agent-teams-release-checklist.md). Earlier sections below
+record historical increments and their verification, not a claim that every
+planned Teams capability is complete.
+
 ## Foundation implementation
 
 - Agent definitions retain their own harness/model and add an explicit Local or
@@ -868,3 +873,54 @@ checkpoint-continuation tests**, including the added runtime join → continue �
 hierarchical completion test. **9 protocol tests**, current generated bindings, **23 TypeScript client tests**,
 TypeScript checking, native desktop/daemon checking, formatting and whitespace
 gates also passed. No live provider or visual acceptance ran.
+
+
+## Structural coding changes increment (2026-10-05)
+
+Safe continuation checkpoint: `d9dfba6`.
+
+- Granted native Nebius and Claude agents can create one directory at a time
+  in the isolated run workspace. Parents must exist; each creation has its own
+  exclusive filesystem operation and durable receipt. Existing paths reject.
+- `delete_file` requires the exact current UTF-8 content (maximum 16 KiB), read
+  and write grants and a ready isolated workspace. It removes only that one file
+  and preserves the exact removed bytes in the durable edit receipt for recovery.
+  Directories, recursion, read-only files, private paths and links
+  remain rejected. The original project checkout is unchanged.
+- File writes, directories and deletions now share the same private reservation
+  and acknowledgement module. Each stable request ID binds exact arguments;
+  known receipts replay without another mutation, while pending outcomes block
+  further effects, model calls and completion. An acknowledgement must match its
+  run, work and attempt rather than silently succeeding on a missing record.
+- Generated change documents support an explicit null final value for deletion
+  and verify that the actual path is absent. Delete/recreate chains retain the
+  original before value, final content and all file receipt IDs. Empty directories
+  are not Git file changes and do not masquerade as a published file patch.
+- A deletion first moves the actual file to a private stage and verifies its
+  content. Matching bytes are already preserved in the committed receipt; the
+  stage is removed so it does not contaminate Git review. Unexpected content
+  stays at the private stage for reconciliation and is excluded from agent reads.
+  An interrupted structural change remains pending and is never performed twice.
+
+User review:
+
+- [ ] Ask a permitted coding specialist to create a new source directory and file.
+- [ ] Remove an obsolete small text file; inspect its exact generated change document.
+- [ ] Confirm a deleted file has null final content and the source checkout is intact.
+- [ ] Confirm exact removed bytes appear in the generated change document and
+  recovery bookkeeping does not appear as an added file in the Git diff.
+- [ ] Verify stale content, missing parents, directory deletion and denied grants
+  produce feedback without changing an unrelated file.
+
+No shell execution, automatic test claim, source integration or live provider
+acceptance is implied by these structural tools. Remaining adapters, actual
+sandbox execution, executed checks, cost caps and reconciliation/integration
+continue to be recorded as development work.
+
+
+Verification: **130 Teams tests passed**, including structural edits, exact
+replay, scope/private-path denial, preserved deletion bytes, clean Git review,
+unknown structural effects and the native create → write → delete → document →
+result chain. Desktop/daemon checking, Rust formatting and whitespace gates
+passed. Protocol/client checks from `d9dfba6` remain current; this checkpoint
+makes no wire-contract change. No live provider or visual acceptance was run.

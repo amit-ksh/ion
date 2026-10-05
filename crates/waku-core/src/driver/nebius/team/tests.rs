@@ -1012,3 +1012,29 @@ fn native_team_checkpoint_resume_after_transport_failure_keeps_context_and_reser
             .is_err()
     );
 }
+
+#[test]
+fn native_team_reads_and_lists_exclude_private_edit_backups() {
+    let f = Fixture::new(true);
+    let workspace = fs::canonicalize(&f.workspace).unwrap();
+    for name in [".ion-edit-test.deleted", ".ION-EDIT-TEST.pending"] {
+        fs::write(f.workspace.join(name), "Private recovery content").unwrap();
+        assert!(scoped_path(&workspace, name).is_err());
+    }
+    let mut inspected = 0;
+    let mut files = vec![];
+    list_files(&workspace, &workspace, 0, &mut inspected, &mut files).unwrap();
+    assert!(files.contains(&"README.md".into()));
+    assert!(
+        !files
+            .iter()
+            .any(|n| n.to_ascii_lowercase().starts_with(".ion-edit-"))
+    );
+    let mut solo_files = vec![];
+    visit_files(&workspace, &workspace, &mut solo_files).unwrap();
+    assert!(
+        !solo_files
+            .iter()
+            .any(|n| n.to_ascii_lowercase().starts_with(".ion-edit-"))
+    );
+}

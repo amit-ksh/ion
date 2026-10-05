@@ -598,3 +598,279 @@ fn team_workspace_pending_edit_survives_restart_and_fences_effects_and_completio
     );
     assert!(!workspace.join("other.txt").exists());
 }
+
+#[test]
+fn team_workspace_structural_edits_preserve_exact_receipts_backups_and_change_documents() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let request = Uuid::new_v4();
+    let receipt = f
+        .store
+        .create_workspace_directory(&root.lease, request, "src", now)
+        .unwrap();
+    assert!(workspace.join("src").is_dir());
+    assert!(!f.source.join("src").exists());
+    assert_eq!(
+        f.store
+            .create_workspace_directory(&root.lease, request, "src", now)
+            .unwrap(),
+        receipt
+    );
+    assert!(
+        f.store
+            .create_workspace_directory(&root.lease, request, "other", now)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .create_workspace_directory(&root.lease, Uuid::new_v4(), "src", now)
+            .is_err()
+    );
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "src/lib.rs",
+            None,
+            "pub fn answer() -> i32 { 42 }\n",
+            now,
+        )
+        .unwrap();
+    let old = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    let deletion = Uuid::new_v4();
+    let deleted = f
+        .store
+        .delete_workspace_file(&root.lease, deletion, "main.rs", &old, now)
+        .unwrap();
+    assert!(!workspace.join("main.rs").exists());
+    assert_eq!(fs::read_to_string(f.source.join("main.rs")).unwrap(), old);
+    assert_eq!(
+        f.store
+            .delete_workspace_file(&root.lease, deletion, "main.rs", &old, now)
+            .unwrap(),
+        deleted
+    );
+    let value: serde_json::Value = serde_json::from_str(&deleted).unwrap();
+    assert_eq!(value["backup"], "durable_edit_receipt");
+    let edit_signature: String = f
+        .store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT signature FROM ion_team_workspace_edits WHERE id=?",
+            [value["edit_id"].as_str().unwrap()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let edit_signature: serde_json::Value = serde_json::from_str(&edit_signature).unwrap();
+    assert_eq!(edit_signature["old"], old);
+    assert!(
+        !git(&workspace, &["status", "--porcelain"])
+            .unwrap()
+            .contains(".ion-edit-")
+    );
+    let doc = f
+        .store
+        .publish_workspace_change(&root.lease, Uuid::new_v4(), "main.rs", now)
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(
+        &f.store
+            .read_assignment_document(&root.lease, doc.id, now)
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(body["before"], old);
+    assert!(body["after"].is_null());
+    assert_eq!(body["edit_ids"].as_array().unwrap().len(), 1);
+    assert!(
+        f.store
+            .publish_workspace_change(&root.lease, Uuid::new_v4(), "src", now)
+            .is_err()
+    );
+    f.store
+        .edit_workspace_file(
+            &root.lease,
+            Uuid::new_v4(),
+            "main.rs",
+            None,
+            "// Recreated deliberately\n",
+            now,
+        )
+        .unwrap();
+    let doc = f
+        .store
+        .publish_workspace_change(&root.lease, Uuid::new_v4(), "main.rs", now)
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(
+        &f.store
+            .read_assignment_document(&root.lease, doc.id, now)
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(body["before"], old);
+    assert_eq!(body["after"], "// Recreated deliberately\n");
+    assert_eq!(body["edit_ids"].as_array().unwrap().len(), 2);
+    assert!(!f.store.workspace_has_pending_effect(f.run.id).unwrap());
+}
+#[test]
+fn team_workspace_structural_edits_reject_scope_private_paths_conflicts_and_recursive_deletion() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    for path in [
+        "../outside",
+        ".git",
+        ".aws",
+        ".ion-edit-test",
+        ".env/config",
+        "NUL",
+        "folder/missing",
+    ] {
+        assert!(
+            f.store
+                .create_workspace_directory(&root.lease, Uuid::new_v4(), path, now)
+                .is_err(),
+            "{path}"
+        );
+    }
+    assert!(
+        f.store
+            .create_workspace_directory(&root.lease, Uuid::nil(), "src", now)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .delete_workspace_file(&root.lease, Uuid::new_v4(), "main.rs", "Wrong content", now)
+            .is_err()
+    );
+    f.store
+        .create_workspace_directory(&root.lease, Uuid::new_v4(), "src", now)
+        .unwrap();
+    assert!(
+        f.store
+            .delete_workspace_file(&root.lease, Uuid::new_v4(), "src", "", now)
+            .is_err()
+    );
+    let child = f
+        .store
+        .delegate(
+            &root.lease,
+            Delegation {
+                request_id: Uuid::new_v4(),
+                agent_id: f.agents[1],
+                objective: "Review".into(),
+                expected_output: "Document".into(),
+                dependencies: vec![],
+                access: AgentAccess::default(),
+            },
+            now,
+        )
+        .unwrap();
+    f.store
+        .suspend_for_children(&root.lease, &[child.id], "{}", now)
+        .unwrap();
+    let reader = f.claim(child.id);
+    assert!(
+        f.store
+            .create_workspace_directory(&reader.lease, Uuid::new_v4(), "other", now)
+            .is_err()
+    );
+    let old = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    assert!(
+        f.store
+            .delete_workspace_file(&reader.lease, Uuid::new_v4(), "main.rs", &old, now)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .create_workspace_directory(&root.lease, Uuid::new_v4(), "stale", now)
+            .is_err()
+    );
+    assert_eq!(fs::read_to_string(workspace.join("main.rs")).unwrap(), old);
+    assert!(!f.store.workspace_has_pending_effect(f.run.id).unwrap());
+}
+#[test]
+fn team_workspace_pending_structural_effect_is_never_replayed_after_restart() {
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let now = crate::model::unix_time();
+    let request = Uuid::new_v4();
+    let id = Uuid::new_v4();
+    let signature = serde_json::json!({"path":"src","operation":"createDirectory"}).to_string();
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "INSERT INTO ion_team_workspace_edits VALUES(?,?,?,?,?,?,'pending',NULL)",
+            params![
+                id.to_string(),
+                f.run.id.to_string(),
+                root.assignment.id.to_string(),
+                root.lease.attempt_id().to_string(),
+                request.to_string(),
+                signature
+            ],
+        )
+        .unwrap();
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    assert!(
+        reopened
+            .create_workspace_directory(&root.lease, request, "src", now)
+            .is_err()
+    );
+    assert!(
+        reopened
+            .delete_workspace_file(
+                &root.lease,
+                Uuid::new_v4(),
+                "main.rs",
+                &fs::read_to_string(workspace.join("main.rs")).unwrap(),
+                now
+            )
+            .is_err()
+    );
+    assert!(!workspace.join("src").exists());
+    reopened.reconcile_owner_restart(now).unwrap();
+    assert!(reopened.workspace_has_pending_effect(f.run.id).unwrap());
+    assert!(workspace.join("main.rs").exists());
+}
+#[test]
+fn team_workspace_native_adapter_creates_directory_deletes_file_and_submits_reviewable_changes() {
+    use crate::driver::{NativeTeamExit, NativeTeamStart};
+    use serde_json::json;
+    let f = Fixture::new();
+    let workspace = f.workspace();
+    let root = f.claim(f.run.work[0].id);
+    let old = fs::read_to_string(workspace.join("main.rs")).unwrap();
+    let (events, _) = crate::driver::test_event_channel();
+    let mut step = 0;
+    let mut artifact = None;
+    let exit=crate::driver::run_scripted_team_assignment(&f.store,NativeTeamStart::Fresh(root),&workspace,&events,&AtomicBool::new(false),|_,_,messages,tools| {
+        let names:Vec<_>=tools.as_array().unwrap().iter().filter_map(|t|t["function"]["name"].as_str()).collect();
+        assert!(names.contains(&"create_directory") && names.contains(&"delete_file"));
+        step+=1;
+        let (name,args)=match step {
+            1=>("create_directory",json!({"path":"src"})),
+            2=>("write_file",json!({"path":"src/lib.rs","old_content":null,"new_content":"pub fn value() -> i32 { 2 }\n"})),
+            3=>("delete_file",json!({"path":"main.rs","old_content":old})),
+            4=>("publish_change",json!({"path":"main.rs"})),
+            _=> {let reply:serde_json::Value=serde_json::from_str(messages.iter().rev().find(|m|m["role"]=="tool").unwrap()["content"].as_str().unwrap()).unwrap(); artifact=Some(reply["artifact_id"].clone()); ("report_result",json!({"summary":"Structural changes submitted; no executed tests claimed","artifact_ids":[reply["artifact_id"]]}))}
+        };
+        let chunk=json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":format!("structural-{step}"),"function":{"name":name,"arguments":args.to_string()}}]}}]});
+        Ok(format!("data: {chunk}\n\ndata: [DONE]\n\n"))
+    }).unwrap();
+    assert_eq!(exit, NativeTeamExit::Settled);
+    let completed = f.store.snapshot(f.run.id).unwrap();
+    assert_eq!(completed.status, TeamRunStatus::Completed);
+    assert_eq!(
+        completed.work[0].result.as_ref().unwrap().artifact_ids[0].to_string(),
+        artifact.unwrap().as_str().unwrap()
+    );
+    assert!(workspace.join("src/lib.rs").exists());
+    assert!(!workspace.join("main.rs").exists());
+    assert_eq!(fs::read_to_string(f.source.join("main.rs")).unwrap(), old);
+}

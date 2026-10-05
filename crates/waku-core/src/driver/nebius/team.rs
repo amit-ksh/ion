@@ -638,7 +638,9 @@ fn tools(access: &AgentAccess) -> Value {
         tools_list.push(json!({"type":"function","function":{"name":"read_file","description":"Read up to 200 lines/8 KiB from one UTF-8 project file smaller than 256 KiB. Private files and links are excluded.","parameters":{"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer","minimum":1},"max_lines":{"type":"integer","minimum":1,"maximum":200}},"required":["path"],"additionalProperties":false}}}));
     }
     if access.workspace_write {
-        tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"write_file","description":"Compare and replace one UTF-8 file in the isolated shared team workspace. Requires exact old_content; null creates a missing file. Parent directory must exist. At most 16 KiB per content. No deletion or source checkout changes. Receipt is durable; interrupted edits are not repeated.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":["string","null"]},"new_content":{"type":"string"}},"required":["path","old_content","new_content"],"additionalProperties":false}}}));
+        tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"create_directory","description":"Create one missing directory in the isolated team workspace. Its parent must exist. No recursive creation; each directory has a durable receipt.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}}));
+        tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"delete_file","description":"Remove one UTF-8 file up to 16 KiB from the isolated team workspace, requiring its exact old_content. The exact removed bytes remain in the durable edit receipt; unexpected content is preserved for reconciliation. No directory or recursive deletion, and no source checkout change. Use publish_change for review evidence.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":"string"}},"required":["path","old_content"],"additionalProperties":false}}}));
+        tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"write_file","description":"Compare and replace one UTF-8 file in the isolated shared team workspace. Requires exact old_content; null creates a missing file. Parent directory must exist. At most 16 KiB per content. Source checkout remains unchanged. Receipt is durable; interrupted edits are not repeated.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":["string","null"]},"new_content":{"type":"string"}},"required":["path","old_content","new_content"],"additionalProperties":false}}}));
     }
     if access.workspace_read {
         tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"publish_change","description":"Publish a generated JSON change document for one edited run workspace path, with actual base commit, exact initial/final content and durable edit receipts. Requires the current file to match the final receipt. Return artifact ID for result/review; it does not merge into the source checkout.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}}));
@@ -717,6 +719,36 @@ fn execute(
                 coordinator.validate_app_action(&claimed.lease, &action, now)?;
                 Ok(ToolOutcome::AppAction(grant, arguments))
             }
+        }
+        "create_directory" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                path: String,
+            }
+            let a: Args = serde_json::from_value(args)?;
+            Ok(ToolOutcome::Reply(coordinator.create_workspace_directory(
+                &claimed.lease,
+                call.request_id,
+                &a.path,
+                now,
+            )?))
+        }
+        "delete_file" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                path: String,
+                old_content: String,
+            }
+            let a: Args = serde_json::from_value(args)?;
+            Ok(ToolOutcome::Reply(coordinator.delete_workspace_file(
+                &claimed.lease,
+                call.request_id,
+                &a.path,
+                &a.old_content,
+                now,
+            )?))
         }
         "write_file" => {
             #[derive(Deserialize)]

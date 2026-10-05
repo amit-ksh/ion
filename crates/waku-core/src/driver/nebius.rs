@@ -886,6 +886,7 @@ fn checked_path(root: &Path, relative: &str) -> Result<PathBuf> {
                 || name == ".aws"
                 || name == ".env"
                 || name.starts_with(".env.")
+                || name.starts_with(".ion-edit-")
                 || name == ".npmrc"
                 || name == ".pypirc"
                 || name == "credentials.json"
@@ -925,6 +926,7 @@ fn visit_files(root: &Path, directory: &Path, names: &mut Vec<String>) -> Result
             )
             || name == ".env"
             || name.starts_with(".env.")
+            || name.starts_with(".ion-edit-")
             || name == ".npmrc"
             || name == ".pypirc"
             || name == "credentials.json"

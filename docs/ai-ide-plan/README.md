@@ -126,3 +126,6 @@ target; see [the deployment checklist](../../services/speech/README.md).
 - [Agent teams implementation progress and review checklist](19-agent-teams-progress.md):
   durable coordination, native dispatch, parent review/rework and token budgets;
   remaining adapters and live acceptance.
+
+- [Agent Teams release checklist](20-agent-teams-release-checklist.md): implemented
+  coverage, remaining development and your live setup/review tasks in one place.

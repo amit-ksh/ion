@@ -10,6 +10,12 @@ use std::{
     time::Duration,
 };
 
+enum ReservedWorkspaceEdit {
+    Receipt(String),
+    Pending { id: Uuid, path: PathBuf },
+}
+mod files;
+
 #[derive(Serialize, Deserialize)]
 struct WorkspaceRecord {
     workspace: TeamWorkspace,
@@ -381,46 +387,16 @@ impl TeamCoordinator {
         );
         let signature =
             serde_json::to_string(&serde_json::json!({"path":relative,"old":old,"new":new}))?;
-        let (id, path) = {
-            let mut db = self.connect()?;
-            let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let run = load(&tx, lease.run_id)?;
-            active(&run, now)?;
-            let work = checked_lease(&run, lease, now, false)?;
-            ensure!(
-                work.access.workspace_write && work.access.workspace_read,
-                "Workspace write access denied"
-            );
-            let workspace = run
-                .workspace
-                .as_ref()
-                .context("Isolated team workspace is not ready")?;
-            let path = safe_edit_path(&workspace.path, relative)?;
-            if let Some((prior,state,receipt))=tx.query_row("SELECT signature,state,receipt FROM ion_team_workspace_edits WHERE work_id=? AND request_id=?",params![work.id.to_string(),request.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?))).optional()? {
-                ensure!(prior==signature,"File edit request reused with changed arguments");
-                ensure!(state=="applied","File edit outcome needs reconciliation; it was not repeated");
-                return receipt.context("File edit receipt missing");
-            }
-            require_settled_effects(&tx, run.id)?;
-            let count: u32 = tx.query_row(
-                "SELECT count(*) FROM ion_team_workspace_edits WHERE run_id=?",
-                [run.id.to_string()],
-                |r| r.get(0),
-            )?;
-            ensure!(count < 256, "Team file edit limit reached");
-            compare_file(&path, old)?;
-            let id = Uuid::new_v4();
-            tx.execute("INSERT INTO ion_team_workspace_edits(id,run_id,work_id,attempt_id,request_id,signature,state) VALUES(?,?,?,?,?,?,'pending')",params![id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),request.to_string(),signature])?;
-            audit(
-                &tx,
-                run.id,
-                Some(work.id),
-                "file_edit_started",
-                relative,
-                now,
-            )?;
-            tx.commit()?;
-            (id, path)
+        let (id, path) = match self.reserve_workspace_edit(
+            lease,
+            request,
+            relative,
+            &signature,
+            |path| compare_file(path, old),
+            now,
+        )? {
+            ReservedWorkspaceEdit::Receipt(receipt) => return Ok(receipt),
+            ReservedWorkspaceEdit::Pending { id, path } => (id, path),
         };
         // Errors after reservation retain a pending effect and block later
         // writers. Never turn uncertain outcomes into permission to replay.
@@ -462,11 +438,84 @@ impl TeamCoordinator {
             ));
         }
         let receipt=serde_json::json!({"edit_id":id,"path":relative,"bytes":new.len(),"status":"applied","workspace":"isolated_team_run"}).to_string();
-        // A stopped lease can account for its already-started edit, but this
-        // receipt grants no new operation and cannot change the edited payload.
+        // A stopped lease can account for this already-started edit only.
+        self.finish_workspace_edit(lease, id, relative, receipt, now)
+    }
+    fn reserve_workspace_edit(
+        &self,
+        lease: &AssignmentLease,
+        request: Uuid,
+        relative: &str,
+        signature: &str,
+        preflight: impl FnOnce(&Path) -> Result<()>,
+        now: u64,
+    ) -> Result<ReservedWorkspaceEdit> {
+        ensure!(
+            !request.is_nil()
+                && !relative.is_empty()
+                && relative.len() <= 512
+                && signature.len() <= 64 * 1024,
+            "Invalid workspace edit request"
+        );
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        tx.execute("UPDATE ion_team_workspace_edits SET state='applied',receipt=? WHERE id=? AND attempt_id=? AND state='pending'",params![receipt,id.to_string(),lease.attempt_id.to_string()])?;
+        let run = load(&tx, lease.run_id)?;
+        active(&run, now)?;
+        let work = checked_lease(&run, lease, now, false)?;
+        ensure!(
+            work.access.workspace_write && work.access.workspace_read,
+            "Workspace write access denied"
+        );
+        let workspace = run
+            .workspace
+            .as_ref()
+            .context("Isolated team workspace is not ready")?;
+        let path = safe_edit_path(&workspace.path, relative)?;
+        if let Some((prior,state,receipt))=tx.query_row("SELECT signature,state,receipt FROM ion_team_workspace_edits WHERE work_id=? AND request_id=?",params![work.id.to_string(),request.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?))).optional()? {
+                ensure!(prior==signature,"File edit request reused with changed arguments");
+                ensure!(state=="applied","File edit outcome needs reconciliation; it was not repeated");
+                return Ok(ReservedWorkspaceEdit::Receipt(receipt.context("File edit receipt missing")?));
+            }
+        require_settled_effects(&tx, run.id)?;
+        let count: u32 = tx.query_row(
+            "SELECT count(*) FROM ion_team_workspace_edits WHERE run_id=?",
+            [run.id.to_string()],
+            |r| r.get(0),
+        )?;
+        ensure!(count < 256, "Team file edit limit reached");
+        preflight(&path)?;
+        let id = Uuid::new_v4();
+        tx.execute("INSERT INTO ion_team_workspace_edits(id,run_id,work_id,attempt_id,request_id,signature,state) VALUES(?,?,?,?,?,?,'pending')",params![id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),request.to_string(),signature])?;
+        audit(
+            &tx,
+            run.id,
+            Some(work.id),
+            "file_edit_started",
+            relative,
+            now,
+        )?;
+        tx.commit()?;
+        Ok(ReservedWorkspaceEdit::Pending { id, path })
+    }
+    fn finish_workspace_edit(
+        &self,
+        lease: &AssignmentLease,
+        id: Uuid,
+        relative: &str,
+        receipt: String,
+        now: u64,
+    ) -> Result<String> {
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let changed=tx.execute("UPDATE ion_team_workspace_edits SET state='applied',receipt=? WHERE id=? AND run_id=? AND work_id=? AND attempt_id=? AND state='pending'",params![receipt,id.to_string(),lease.run_id.to_string(),lease.work_id.to_string(),lease.attempt_id.to_string()])?;
+        if changed == 0 {
+            let prior:Option<String>=tx.query_row("SELECT receipt FROM ion_team_workspace_edits WHERE id=? AND run_id=? AND work_id=? AND attempt_id=? AND state='applied'",params![id.to_string(),lease.run_id.to_string(),lease.work_id.to_string(),lease.attempt_id.to_string()],|r|r.get(0)).optional()?.flatten();
+            ensure!(
+                prior.as_deref() == Some(receipt.as_str()),
+                "Workspace receipt changed or is missing"
+            );
+            return Ok(receipt);
+        }
         bump(&tx, lease.run_id)?;
         audit(
             &tx,
@@ -505,7 +554,7 @@ impl TeamCoordinator {
             let mut ids = vec![];
             for (id, signature, state) in rows {
                 let value: serde_json::Value = serde_json::from_str(&signature)?;
-                if value["path"] == relative {
+                if value["path"] == relative && value["operation"] != "createDirectory" {
                     ensure!(
                         state == "applied",
                         "Changed file has an uncertain edit; reconcile it before publication"
@@ -518,7 +567,12 @@ impl TeamCoordinator {
                 }
             }
             let after = after.context("No team edits exist for this path")?;
-            compare_file(&path, Some(after.as_str().context("Invalid edit receipt")?))?;
+            let final_content = if after.is_null() {
+                None
+            } else {
+                Some(after.as_str().context("Invalid edit receipt")?)
+            };
+            compare_file(&path, final_content)?;
             let content = serde_json::to_string_pretty(
                 &serde_json::json!({"path":relative,"base_commit":workspace.base_commit,"branch":workspace.branch,"before":before,"after":after,"edit_ids":ids,"source_checkout_changed":false}),
             )?;
