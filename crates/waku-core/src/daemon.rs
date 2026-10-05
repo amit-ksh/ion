@@ -333,6 +333,31 @@ impl Backend for WakuBackend {
                     invocation.team_id == team_id,
                     "The team mention changed; choose the team again"
                 );
+                let access = if let Some(binding) = &binding {
+                    self.teams.snapshot(binding.run_id)?.access
+                } else {
+                    let team = address_teams
+                        .iter()
+                        .find(|t| t.id == team_id)
+                        .context("Team definition missing")?;
+                    let lead = team
+                        .members
+                        .iter()
+                        .find(|m| m.parent_id.is_none())
+                        .context("Team lead missing")?;
+                    definitions
+                        .records
+                        .iter()
+                        .find_map(|r| match r {
+                            waku_protocol::control::ControlRecord::Agent(a)
+                                if a.id == lead.agent_id =>
+                            {
+                                Some(a.access.clone())
+                            }
+                            _ => None,
+                        })
+                        .context("Team lead profile missing")?
+                };
                 let snapshot = self.teams.queue_default_task(
                     crate::teams::PrepareRun {
                         id: run_id,
@@ -342,7 +367,7 @@ impl Backend for WakuBackend {
                         expected_definition_revision,
                         objective: invocation.objective,
                         limits: Default::default(),
-                        access: Default::default(),
+                        access,
                         source_prompt: Some(source_prompt),
                         origin: None,
                     },

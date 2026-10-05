@@ -450,7 +450,14 @@ impl TeamRuntime {
                     task.workspace.path().unwrap_or(&project.path).to_owned()
                 };
                 ensure!(workspace.is_dir(), "Team project folder is unavailable");
-                Ok((workspace, self.executor.ready(profile)?))
+                let host = self.executor.ready(profile)?;
+                let workspace = match &host {
+                    DispatchHost::Local | DispatchHost::LocalFallback { .. } => self
+                        .coordinator
+                        .prepare_local_workspace(run.id, &workspace, unix_time())?,
+                    DispatchHost::NebiusSandbox { .. } => workspace,
+                };
+                Ok((workspace, host))
             })();
             let (workspace, host) = match ready {
                 Ok(value) => value,
@@ -583,6 +590,7 @@ impl TeamRuntime {
             NativeTeamStart::Resumed(c) => c.claimed.assignment.task_id,
         };
         let stream = self.stream(lease.run_id(), lease.work_id(), task, lease.attempt_id());
+        let pinned_workspace = self.coordinator.snapshot(lease.run_id())?.workspace;
         let projection = (|| -> Result<_> {
             let mut state = self.state.lock();
             let session = state
@@ -594,6 +602,12 @@ impl TeamRuntime {
                 .is_some_and(|cursor| cursor.runtime_id != stream.runtime)
             {
                 session.runtime_event_cursor = None;
+            }
+            if let Some(pinned) = pinned_workspace {
+                session.workspace = SessionWorkspace::Worktree {
+                    path: pinned.path,
+                    branch: pinned.branch,
+                };
             }
             let projection = projection::Projection::new(session);
             session.status = SessionStatus::Connecting;

@@ -859,6 +859,24 @@ impl Waku {
                     }),
                 );
             }
+            if let Some(workspace) = &run.workspace {
+                let path = workspace.path.clone();
+                actions = actions.child(self.control_button(
+                    "team-workspace-open",
+                    "Open workspace",
+                    cx,
+                    move |_, _, cx| crate::platform::reveal_in_file_manager(&path, cx),
+                ));
+                header = header.child(
+                    div()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_secondary)
+                        .child(format!(
+                            "{} · base {} · isolated team workspace",
+                            workspace.branch, workspace.base_commit
+                        )),
+                );
+            }
             let cap = run
                 .limits
                 .max_tokens

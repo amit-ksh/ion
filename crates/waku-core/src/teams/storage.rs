@@ -53,6 +53,14 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_decision_waits (
             work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),
             decision_id TEXT NOT NULL UNIQUE REFERENCES ion_team_decisions(id));
+        CREATE TABLE IF NOT EXISTS ion_team_workspaces (
+            run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id), state TEXT NOT NULL, body TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_workspace_edits (
+            id TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
+            work_id TEXT NOT NULL REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,
+            request_id TEXT NOT NULL,signature TEXT NOT NULL,state TEXT NOT NULL,receipt TEXT,
+            UNIQUE(work_id,request_id));
+        CREATE INDEX IF NOT EXISTS ion_team_edit_pending ON ion_team_workspace_edits(run_id,state);
         CREATE TABLE IF NOT EXISTS ion_team_model_calls (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), attempt_id TEXT NOT NULL,
@@ -85,6 +93,7 @@ pub(super) fn load(db: &Connection, id: Uuid) -> Result<TeamRunSnapshot> {
     run.revision = revision;
     run.status = serde_json::from_value(serde_json::Value::String(status))?;
     run.usage = super::budget::usage(db, id)?;
+    run.workspace = super::workspace::projection(db, id)?;
     run.decisions = super::decisions::for_run(db, id)?;
     let mut query =
         db.prepare("SELECT body FROM ion_team_work WHERE run_id=? ORDER BY rowid LIMIT 257")?;

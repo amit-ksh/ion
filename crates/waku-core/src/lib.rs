@@ -57,6 +57,7 @@ pub mod settings;
 pub mod skills;
 mod slash_command_catalog;
 pub mod speech;
+mod team_process;
 mod team_runtime;
 pub mod teams;
 pub mod terminal;

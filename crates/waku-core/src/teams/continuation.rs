@@ -31,7 +31,9 @@ pub(super) fn check_capacity(
     tx: &Transaction<'_>,
     run: &TeamRunSnapshot,
     profile: &AgentProfile,
+    access: &AgentAccess,
 ) -> Result<()> {
+    super::workspace::check_writer_capacity(tx, run.id, access)?;
     let (shared, capacity): (u32, Option<u16>) = tx.query_row(
         "SELECT count(*),min(capacity) FROM ion_team_attempts WHERE agent_id=? AND live=1",
         [profile.id.to_string()],
@@ -188,6 +190,7 @@ impl TeamCoordinator {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let run = load(&tx, lease.run_id)?;
         active(&run, now)?;
+        super::workspace::require_settled_effects(&tx, run.id)?;
         let mut work = run
             .work
             .iter()
@@ -329,7 +332,7 @@ impl TeamCoordinator {
             .find(|p| p.id == work.agent_id)
             .context("Pinned profile missing")?
             .clone();
-        check_capacity(&tx, &run, &profile)?;
+        check_capacity(&tx, &run, &profile, &work.access)?;
         let attempt = work.attempts.last_mut().context("Attempt missing")?;
         ensure!(
             attempt.id.to_string() == attempt_id

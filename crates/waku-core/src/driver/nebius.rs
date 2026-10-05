@@ -849,7 +849,37 @@ fn checked_path(root: &Path, relative: &str) -> Result<PathBuf> {
     for part in relative.components() {
         if let Component::Normal(name) = part {
             let name = name.to_string_lossy().to_ascii_lowercase();
-            if name == ".git"
+            if name.contains(':')
+                || name.ends_with(['.', ' '])
+                || name.chars().any(|c| c.is_control())
+                || matches!(
+                    name.split('.').next(),
+                    Some(
+                        "con"
+                            | "prn"
+                            | "aux"
+                            | "nul"
+                            | "com1"
+                            | "com2"
+                            | "com3"
+                            | "com4"
+                            | "com5"
+                            | "com6"
+                            | "com7"
+                            | "com8"
+                            | "com9"
+                            | "lpt1"
+                            | "lpt2"
+                            | "lpt3"
+                            | "lpt4"
+                            | "lpt5"
+                            | "lpt6"
+                            | "lpt7"
+                            | "lpt8"
+                            | "lpt9"
+                    )
+                )
+                || name == ".git"
                 || name == ".ssh"
                 || name == ".aws"
                 || name == ".env"

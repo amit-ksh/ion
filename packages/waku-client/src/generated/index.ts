@@ -110,6 +110,7 @@ export type { TeamRunSummary } from "./TeamRunSummary";
 export type { TeamTaskBinding } from "./TeamTaskBinding";
 export type { TeamTaskOrigin } from "./TeamTaskOrigin";
 export type { TeamTokenUsage } from "./TeamTokenUsage";
+export type { TeamWorkspace } from "./TeamWorkspace";
 export type { ThreadGoal } from "./ThreadGoal";
 export type { ThreadGoalStatus } from "./ThreadGoalStatus";
 export type { TokenTotals } from "./TokenTotals";

@@ -137,6 +137,9 @@ impl AssignmentStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamRunSnapshot {
+    /// A durable run workspace, distinct from the user's checkout.
+    #[serde(default)]
+    pub workspace: Option<TeamWorkspace>,
     pub id: Uuid,
     pub root_task_id: Uuid,
     pub project_id: Uuid,
@@ -159,6 +162,15 @@ pub struct TeamRunSnapshot {
     pub source_prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<TeamTaskOrigin>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamWorkspace {
+    pub path: std::path::PathBuf,
+    pub source_path: std::path::PathBuf,
+    pub branch: String,
+    pub base_commit: String,
 }
 
 /// Bounded collection projection. Full assignments are loaded only for an opened run.

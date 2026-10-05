@@ -23,6 +23,7 @@ mod reviews;
 mod storage;
 #[cfg(test)]
 mod tests;
+mod workspace;
 pub use budget::{ModelCallAllowance, ModelCallReservation, ModelTokenUsage};
 pub use continuation::{AssignmentContinuation, AssignmentHandoff};
 pub use reviews::ReviewRequest;
@@ -489,6 +490,7 @@ impl TeamCoordinator {
             profiles,
             limits: request.limits,
             usage: TeamTokenUsage::default(),
+            workspace: None,
             access: request.access,
             created_at: now,
             deadline,
@@ -896,7 +898,7 @@ impl TeamCoordinator {
             .find(|p| p.id == work.agent_id)
             .context("Pinned profile missing")?
             .clone();
-        continuation::check_capacity(&tx, &run, &profile)?;
+        continuation::check_capacity(&tx, &run, &profile, &work.access)?;
         let (environment, host_name, fallback_reason) = match host {
             DispatchHost::Local => {
                 ensure!(
@@ -1117,6 +1119,7 @@ impl TeamCoordinator {
         let retry_safe = matches!(&outcome, AssignmentOutcome::FailedBeforeEffects(_));
         let (status, reason, result) = match outcome {
             AssignmentOutcome::Completed(result) => {
+                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=? AND state='pending')",[run.id.to_string()],|r|r.get::<_,bool>(0))?,"A file effect needs reconciliation before completion");
                 validate_result(&tx, &run, &work, &result)?;
                 reviews::validate_output(&tx, &run, &work, &result)?;
                 ensure!(

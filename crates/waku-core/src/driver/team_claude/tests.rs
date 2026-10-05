@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Instant;
 fn tools() -> Value {
     json!([{"function":{"name":"save_document"}},{"function":{"name":"report_result"}},{"function":{"name":"request_decision"}}])
 }

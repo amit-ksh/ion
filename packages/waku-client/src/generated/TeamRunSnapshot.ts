@@ -8,8 +8,13 @@ import type { TeamRunLimits } from "./TeamRunLimits";
 import type { TeamRunStatus } from "./TeamRunStatus";
 import type { TeamTaskOrigin } from "./TeamTaskOrigin";
 import type { TeamTokenUsage } from "./TeamTokenUsage";
+import type { TeamWorkspace } from "./TeamWorkspace";
 
-export type TeamRunSnapshot = { id: string, rootTaskId: string, projectId: string, definitionRevision: number, revision: number, status: TeamRunStatus, team: Team, profiles: Array<AgentProfile>, limits: TeamRunLimits, usage: TeamTokenUsage, access: AgentAccess, createdAt: number, deadline: number, work: Array<TeamAssignment>, decisions: Array<TeamDecision>,
+export type TeamRunSnapshot = {
+/**
+ * A durable run workspace, distinct from the user's checkout.
+ */
+workspace: TeamWorkspace | null, id: string, rootTaskId: string, projectId: string, definitionRevision: number, revision: number, status: TeamRunStatus, team: Team, profiles: Array<AgentProfile>, limits: TeamRunLimits, usage: TeamTokenUsage, access: AgentAccess, createdAt: number, deadline: number, work: Array<TeamAssignment>, decisions: Array<TeamDecision>,
 /**
  * Original user text for a queued root, retained separately from its objective.
  */

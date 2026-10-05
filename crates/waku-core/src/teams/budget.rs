@@ -43,6 +43,7 @@ impl TeamCoordinator {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let run = load(&tx, lease.run_id)?;
         active(&run, now)?;
+        super::workspace::require_settled_effects(&tx, run.id)?;
         let work = checked_lease(&run, lease, now, false)?;
         let model = run
             .profiles

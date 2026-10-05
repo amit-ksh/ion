@@ -595,6 +595,60 @@ Result-review checkpoint: `03640c3`. The token-budget checkpoint follows the
 verification above. No live provider, sandbox, mobile build or visual acceptance
 is claimed.
 
+## Isolated coding workspace increment (2026-10-05)
+
+Claude execution checkpoint: `9bcec51`.
+
+- Direct user team invocation now uses the saved lead's exact configured access;
+  repeated invocation retains its original run grants. Normal-agent invocation
+  remains conservatively read-only until its source authorization bridge is added.
+- Coding runs reserve a deterministic Git branch and shared workspace before
+  dispatch. The source must have a clean committed baseline; a dirty source,
+  missing Git project, submodule or custom checkout filter shows a setup blocker.
+  No stash/reset or implicit working-tree snapshot is performed. Once ready,
+  the branch/base/workspace remain pinned across restart and source edits.
+- Every team task uses that same persisted worktree for its workspace and review
+  panes. The run shows its branch/base and an Open workspace action.
+- Local writers are serialized transactionally per run. Yielding frees the
+  writer slot; a running, stopping, uncertain writer or unresolved file effect
+  prevents a competing writer from starting. Separate runs have separate branches.
+- Native Nebius and the Claude bridge expose granted bounded `write_file` and
+  `publish_change` tools. Exact previous content is required for replacement;
+  null creates a missing file without replacing a concurrent creation. Paths
+  reject traversal, links, private files, alternate streams and device names.
+  Parent directories must exist and content is limited to 16 KiB per file.
+- File effects are reserved before writing and completed with durable receipts.
+  Exact replay returns the receipt; changed requests reject. Interrupted effects
+  retain a pending receipt, block later writers/completion and are never repeated.
+- `publish_change` creates an AI document with base commit, branch, exact original
+  and final content and edit receipt IDs. It confirms that the actual current
+  file still matches the receipt. Parent acceptance retains that evidence.
+- The source checkout remains unchanged. Integration/merge approval, general
+  shell/check execution, directory creation/deletion and uncertain-file recovery
+  are still implementation work; completion of a coding assignment means its
+  isolated change is submitted and reviewed, not merged or tested automatically.
+- Trusted subprocess containment is shared by harness and fixed Git operations:
+  bounded output/time, drained pipes and descendant cancellation. Git checkout
+  hooks/global filters/fsmonitor are disabled; local checkout filters block setup.
+- Protocol **20** adds the optional persisted workspace projection. Rebuild the
+  desktop, daemon and clients together.
+
+Verification: **108 team tests passed**, including six workspace regressions
+and the real adapter delegation/edit/document/review chain. **8 protocol tests**,
+**23 TypeScript client tests**, TypeScript checking, native desktop/daemon checking,
+Rust formatting and diff whitespace checks passed. No live provider or visual
+acceptance was run. This checkpoint is committed after those checks.
+
+User review:
+
+- [ ] Enable workspace write on the team lead and coding specialist.
+- [ ] Start `@teamname` against a clean committed Git project.
+- [ ] Confirm a dirty project shows a setup blocker without changing its files.
+- [ ] Observe a specialist edit and generated change document; open its workspace.
+- [ ] Confirm the lead reads/reviews the document and the run reaches Completed.
+- [ ] Confirm the original project checkout is unchanged until reviewed integration.
+- [ ] Restart and confirm the same branch, base commit and changed files remain.
+
 ## User review of invocation and native dispatch
 
 - [ ] Send a plain New task prompt; confirm normal solo behavior.
