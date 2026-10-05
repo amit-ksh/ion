@@ -670,7 +670,17 @@ impl Waku {
         };
         let mut actions = div().flex().flex_wrap().gap(px(8.0));
         if decision.status == TeamDecisionStatus::Pending {
-            for (approve, label) in [(true, "Approve proposal"), (false, "Decline")] {
+            for (approve, label) in [
+                (
+                    true,
+                    if decision.app_action.is_some() {
+                        "Approve action"
+                    } else {
+                        "Approve proposal"
+                    },
+                ),
+                (false, "Decline"),
+            ] {
                 let decision = (*decision).clone();
                 actions = actions.child(self.control_button(
                     format!("decision-answer-{id}-{approve}"),

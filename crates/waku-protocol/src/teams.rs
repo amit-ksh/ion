@@ -45,6 +45,9 @@ impl Default for AgentExecution {
 pub struct AppActionGrant {
     pub account_id: String,
     pub action: String,
+    /// Exact tool revision. Legacy grants must be reselected before execution.
+    #[serde(default)]
+    pub version: String,
 }
 
 /// This is authorization data. Adapters must enforce it before becoming team-ready.
@@ -218,9 +221,19 @@ pub struct TeamDecision {
     pub host: String,
     pub title: String,
     pub proposal: String,
+    /// Host-generated exact app action; approval never grants other actions.
+    #[serde(default)]
+    pub app_action: Option<TeamAppAction>,
     pub status: TeamDecisionStatus,
     pub revision: u64,
     pub created_at: u64,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamAppAction {
+    pub grant: AppActionGrant,
+    /// Canonical JSON object, shown in full before approval.
+    pub arguments_json: String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

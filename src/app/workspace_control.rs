@@ -7,6 +7,7 @@ use waku_client::teams::{
     TeamRunStatus, TeamRunSummary,
 };
 mod team_activity;
+mod team_apps;
 mod team_limits;
 use waku_client::{Command as Rpc, ResponsePayload};
 
@@ -139,6 +140,12 @@ pub(super) struct ControlUi {
     apps_generation: u64,
     pub(super) app_search: Entity<TextInput>,
     apps_connected_only: bool,
+    app_action_account: Option<String>,
+    app_action_search: Entity<TextInput>,
+    app_action_tools: Vec<crate::credentials::composio::ComposioTool>,
+    app_action_next: Option<String>,
+    app_action_busy: bool,
+    app_action_generation: u64,
     team_decisions: Rc<Vec<waku_client::teams::TeamDecision>>,
     decisions_after: Option<Uuid>,
     decisions_cursor: Option<Uuid>,
@@ -284,6 +291,13 @@ impl ControlUi {
             apps_generation: 0,
             app_search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search apps")),
             apps_connected_only: false,
+            app_action_account: None,
+            app_action_search: cx
+                .new(|cx| TextInput::new(window, cx).placeholder("Search actions")),
+            app_action_tools: Vec::new(),
+            app_action_next: None,
+            app_action_busy: false,
+            app_action_generation: 0,
             team_decisions: Rc::new(Vec::new()),
             decisions_after: None,
             decisions_cursor: None,
@@ -828,6 +842,14 @@ impl Waku {
             self.control_ui.filter_status = NoticeStatus::All;
         }
         self.control_ui.editor_generation += 1;
+        self.control_ui.app_action_generation += 1;
+        self.control_ui.app_action_account = None;
+        self.control_ui.app_action_tools.clear();
+        self.control_ui.app_action_next = None;
+        self.control_ui.app_action_busy = false;
+        self.control_ui
+            .app_action_search
+            .update(cx, |input, cx| input.set_content("", cx));
         self.control_ui.page = Some(page);
         self.control_ui.form = None;
         self.control_ui.error = None;
@@ -2391,6 +2413,9 @@ impl Waku {
                     },
                 ));
             }
+        }
+        if kind == FormKind::Agent {
+            form = form.child(self.render_agent_app_grants(cx));
         }
         if matches!(kind, FormKind::Workflow | FormKind::Routine) {
             let weak = cx.entity().downgrade();

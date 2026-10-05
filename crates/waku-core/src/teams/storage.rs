@@ -53,6 +53,12 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_decision_waits (
             work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),
             decision_id TEXT NOT NULL UNIQUE REFERENCES ion_team_decisions(id));
+        CREATE TABLE IF NOT EXISTS ion_team_app_effects (
+            decision_id TEXT PRIMARY KEY REFERENCES ion_team_decisions(id),
+            run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
+            work_id TEXT NOT NULL REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,
+            signature TEXT NOT NULL,state TEXT NOT NULL,receipt TEXT);
+        CREATE INDEX IF NOT EXISTS ion_team_app_pending ON ion_team_app_effects(run_id,state);
         CREATE TABLE IF NOT EXISTS ion_team_workspaces (
             run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id), state TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_workspace_edits (

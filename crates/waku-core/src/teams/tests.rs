@@ -693,10 +693,12 @@ fn exact_app_grants_are_intersected_and_never_broadened() {
     let a = AppActionGrant {
         account_id: "account-a".into(),
         action: "GITHUB_GET_ISSUE".into(),
+        version: String::new(),
     };
     let b = AppActionGrant {
         account_id: "account-b".into(),
         action: "GITHUB_GET_ISSUE".into(),
+        version: String::new(),
     };
     let first = AgentAccess {
         network: true,
@@ -715,7 +717,8 @@ fn exact_app_grants_are_intersected_and_never_broadened() {
         validate_access(&AgentAccess {
             app_actions: vec![AppActionGrant {
                 account_id: "*".into(),
-                action: "*".into()
+                action: "*".into(),
+                version: String::new()
             }],
             ..Default::default()
         })
@@ -3393,6 +3396,256 @@ fn team_decision_collection_is_bounded_filtered_and_immutable_cursor_paged() {
     assert!(
         f.store
             .list_decisions(None, false, Some(Uuid::new_v4()), 1)
+            .is_err()
+    );
+}
+
+fn app_fixture() -> (Fixture, AppActionGrant, TeamRunSnapshot, ClaimedAssignment) {
+    let f = Fixture::new();
+    let grant = AppActionGrant {
+        account_id: "ca_github_1".into(),
+        action: "GITHUB_CREATE_ISSUE".into(),
+        version: "20250905_00".into(),
+    };
+    let catalog = f.definitions.load().unwrap();
+    let mut profile = catalog
+        .records
+        .iter()
+        .find_map(|r| match r {
+            ControlRecord::Agent(a) if a.id == f.agents[0] => Some(a.clone()),
+            _ => None,
+        })
+        .unwrap();
+    profile.access.app_actions = vec![grant.clone()];
+    f.definitions
+        .save(catalog.revision, ControlRecord::Agent(profile))
+        .unwrap();
+    let mut request = f.request();
+    request.access.app_actions = vec![grant.clone()];
+    let run = f.store.prepare(request, 100).unwrap();
+    let claimed = f.claim(run.id, run.work[0].id);
+    (f, grant, run, claimed)
+}
+#[test]
+fn team_app_approval_pins_arguments_version_host_and_preserves_exact_receipts() {
+    use serde_json::json;
+    let (f, grant, run, root) = app_fixture();
+    let args = json!({"repo":"ion","title":"Review this exact issue"});
+    let request = Uuid::new_v4();
+    let decision = f
+        .store
+        .suspend_for_app_action(&root.lease, request, grant.clone(), args.clone(), "{}", 102)
+        .unwrap();
+    assert!(
+        decision.proposal.contains("ca_github_1")
+            && decision.proposal.contains("20250905_00")
+            && decision.proposal.contains("Review this exact issue")
+    );
+    assert!(
+        f.store
+            .begin_app_action(&root.lease, decision.id, 103)
+            .is_err()
+    );
+    assert_eq!(
+        f.store
+            .suspend_for_app_action(&root.lease, request, grant.clone(), args.clone(), "{}", 103)
+            .unwrap()
+            .id,
+        decision.id
+    );
+    assert!(
+        f.store
+            .suspend_for_app_action(
+                &root.lease,
+                request,
+                grant.clone(),
+                json!({"title":"changed"}),
+                "{}",
+                103
+            )
+            .is_err()
+    );
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    reopened
+        .resolve_decision(decision.id, 1, true, 103)
+        .unwrap();
+    let resumed = reopened
+        .resume_after_children(run.id, root.assignment.id, 104, 100)
+        .unwrap();
+    let action = reopened
+        .approved_app_action(&resumed.claimed.lease, decision.id, 104)
+        .unwrap();
+    assert_eq!(action.grant, grant);
+    assert_eq!(action.arguments_json, args.to_string());
+    let ticket = match reopened
+        .begin_app_action(&resumed.claimed.lease, decision.id, 104)
+        .unwrap()
+    {
+        AppActionStart::Execute(t) => t,
+        _ => panic!("Not executed"),
+    };
+    assert!(reopened.has_pending_effect(run.id).unwrap());
+    assert!(
+        reopened
+            .begin_app_action(&resumed.claimed.lease, decision.id, 105)
+            .is_err()
+    );
+    let receipt = json!({"successful":true,"data":{"id":123}}).to_string();
+    assert!(reopened.finish_app_action(&ticket, "{}", 105).is_err());
+    reopened.finish_app_action(&ticket, &receipt, 105).unwrap();
+    assert!(!reopened.has_pending_effect(run.id).unwrap());
+    reopened.finish_app_action(&ticket, &receipt, 105).unwrap();
+    assert!(
+        reopened
+            .finish_app_action(&ticket, &json!({"successful":false}).to_string(), 106)
+            .is_err()
+    );
+    assert!(
+        matches!(reopened.begin_app_action(&resumed.claimed.lease,decision.id,106).unwrap(), AppActionStart::Receipt(r) if r == receipt)
+    );
+    f.complete(&resumed.claimed.lease);
+}
+#[test]
+fn team_app_grants_reject_expansion_and_decline_never_executes() {
+    use serde_json::json;
+    let (f, grant, run, root) = app_fixture();
+    for denied in [
+        AppActionGrant {
+            account_id: "ca_other".into(),
+            ..grant.clone()
+        },
+        AppActionGrant {
+            action: "GITHUB_DELETE_REPOSITORY".into(),
+            ..grant.clone()
+        },
+        AppActionGrant {
+            version: "20250906_00".into(),
+            ..grant.clone()
+        },
+    ] {
+        assert!(
+            f.store
+                .suspend_for_app_action(&root.lease, Uuid::new_v4(), denied, json!({}), "{}", 102)
+                .is_err()
+        );
+    }
+    assert!(
+        f.store
+            .suspend_for_app_action(
+                &root.lease,
+                Uuid::new_v4(),
+                grant.clone(),
+                json!([]),
+                "{}",
+                102
+            )
+            .is_err()
+    );
+    assert!(
+        f.store
+            .suspend_for_app_action(
+                &root.lease,
+                Uuid::new_v4(),
+                grant.clone(),
+                json!({"body":"x".repeat(4097)}),
+                "{}",
+                102
+            )
+            .is_err()
+    );
+    let d = f
+        .store
+        .suspend_for_app_action(&root.lease, Uuid::new_v4(), grant, json!({}), "{}", 102)
+        .unwrap();
+    f.store.resolve_decision(d.id, 1, false, 103).unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 104, 100)
+        .unwrap();
+    assert!(
+        f.store
+            .approved_app_action(&resumed.claimed.lease, d.id, 104)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .begin_app_action(&resumed.claimed.lease, d.id, 104)
+            .is_err()
+    );
+    assert!(!f.store.has_pending_effect(run.id).unwrap());
+}
+#[test]
+fn team_app_unknown_effect_survives_restart_and_blocks_spending_yield_and_completion() {
+    use serde_json::json;
+    let (f, grant, run, root) = app_fixture();
+    let d = f
+        .store
+        .suspend_for_app_action(&root.lease, Uuid::new_v4(), grant, json!({}), "{}", 102)
+        .unwrap();
+    f.store.resolve_decision(d.id, 1, true, 103).unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(run.id, root.assignment.id, 104, 100)
+        .unwrap();
+    let ticket = match f
+        .store
+        .begin_app_action(&resumed.claimed.lease, d.id, 104)
+        .unwrap()
+    {
+        AppActionStart::Execute(t) => t,
+        _ => panic!(),
+    };
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    assert!(reopened.has_pending_effect(run.id).unwrap());
+    assert!(
+        reopened
+            .begin_app_action(&resumed.claimed.lease, d.id, 105)
+            .is_err()
+    );
+    assert!(
+        reopened
+            .reserve_model_call(
+                &resumed.claimed.lease,
+                1,
+                ModelCallAllowance {
+                    model: "model-0".into(),
+                    max_input_tokens: 100,
+                    max_output_tokens: 100
+                },
+                105
+            )
+            .is_err()
+    );
+    assert!(
+        reopened
+            .suspend_for_decision(
+                &resumed.claimed.lease,
+                Uuid::new_v4(),
+                "Retry",
+                "Retry the action",
+                "{}",
+                105
+            )
+            .is_err()
+    );
+    assert!(
+        reopened
+            .report(
+                &resumed.claimed.lease,
+                AssignmentOutcome::Completed(result()),
+                105
+            )
+            .is_err()
+    );
+    reopened
+        .stop(run.id, reopened.snapshot(run.id).unwrap().revision, 105)
+        .unwrap();
+    let receipt = json!({"successful":true,"data":{}}).to_string();
+    reopened.finish_app_action(&ticket, &receipt, 106).unwrap();
+    assert!(!reopened.has_pending_effect(run.id).unwrap());
+    assert!(
+        reopened
+            .begin_app_action(&resumed.claimed.lease, d.id, 106)
             .is_err()
     );
 }

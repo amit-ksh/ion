@@ -3,4 +3,8 @@
 /**
  * An exact connector account/action pair, never a credential.
  */
-export type AppActionGrant = { accountId: string, action: string, };
+export type AppActionGrant = { accountId: string, action: string,
+/**
+ * Exact tool revision. Legacy grants must be reselected before execution.
+ */
+version: string, };

@@ -490,7 +490,8 @@ User review:
 - [x] Per-call pinned-model token allowances and durable provider usage receipts.
 - [ ] Per-call cost reservations and currency enforcement; token limits do not
   enforce dollar budgets or remote host charges.
-- [ ] Exact filesystem/resource/egress grants and Composio action grant editor.
+- [x] Composio exact connected-account/action/version grant editor and approved execution.
+- [ ] Additional filesystem/resource/egress policy and general command containment.
   A prompt, worktree or saved grant is not permission enforcement.
 - [ ] Team readiness matrix and supported model validation for each harness.
 - [x] Native hierarchy/roster with live child links, blockers and results; cached
@@ -498,11 +499,13 @@ User review:
   are removed; human planning decisions now have persisted pause/resume receipts.
 - [x] First bounded external harness bridge and mixed-harness coordinator regression.
 - [ ] Additional mixed-harness adapters and live authenticated acceptance.
-- [ ] Serialized writers, isolated coding worktrees and integration/patch review.
+- [x] Serialized writers, isolated coding worktrees and generated patch documents.
+- [ ] User-approved integration into the original checkout and uncertain-effect recovery.
 - [ ] Registered Nebius execution host: actual harness launch, explicit transfer,
   host readiness, remote status/cancel/checkpoint and tested local fallback.
 - [x] Persisted human planning decisions bound to exact proposal/revision/host.
-- [ ] Effect-specific approvals for privileged filesystem/app/cloud actions.
+- [x] Exact app-action approval with durable no-replay execution receipts.
+- [ ] Effect-specific filesystem integration/cloud approvals.
 - [ ] Routine scheduling and workflow execution over the same coordinator.
 
 The Team “New task” action now prepares an explicit team address in the normal
@@ -706,7 +709,80 @@ User review:
 - Add a Nebius Token Factory key privately in Settings for the native provider.
 - Configure a Nebius sandbox target, host credentials and bounded cloud budget
   before testing actual remote execution. No target has been supplied yet.
-- Configure Composio privately and grant exact account/actions when that adapter
-  is implemented. Merely connecting an app does not grant execution access.
+- Configure Composio privately and grant exact account/actions in the Agent editor. Merely connecting an app does not grant execution access.
 
 These resources are not required for the coordinator's local regression tests.
+
+
+## Approved connected-app execution increment (2026-10-05)
+
+Previous coding workspace checkpoint: `65cbccf`.
+
+- The Agent editor can load connected Composio accounts, search/page published
+  actions, grant exact account/action/version combinations and remove grants.
+  A newer version requires an explicit reselection. Existing runs keep their
+  original grant. Old unversioned grants remain visible but cannot execute.
+- Both native Nebius and the bounded Claude bridge expose granted action
+  metadata and `request_app_action`. All app invocations currently require a
+  user decision, including reads; no inferred read-only category is trusted.
+- Decisions shows the complete host-generated account, action, published version
+  and canonical arguments. Approval is bound to the pinned assignment, attempt,
+  team definition and actual execution host. The model cannot substitute another
+  account, version, payload or host after approval. A decline sends no mutation.
+- After approval, the worker checks the exact connected account is active and
+  the requested version still belongs to its toolkit. The private Composio key
+  stays at the credential boundary. Calls use explicit `connected_account_id`,
+  `version` and structured `arguments`; proxy execution, instant-account fallback,
+  natural-language execution and authentication overrides are unavailable.
+- Execution is reserved before the one POST and acknowledged with a durable
+  receipt. Exact replay returns that receipt. A timeout/malformed acknowledgement
+  retains its pending effect and blocks claims, later model spending, file edits,
+  yields and successful completion. It never silently sends the action again.
+  Recovery controls for such uncertain effects are still a separate checkpoint.
+- App results become AI-generated JSON documents with task/project provenance.
+  Models receive a bounded excerpt and document ID; private session/auth envelope
+  fields are excluded, common authentication keys are redacted, and oversized
+  provider data is explicitly marked truncated. Provider failures do not pretend
+  the intended work succeeded. Stop can record a late acknowledgement of an
+  already-started effect without authorizing another action.
+- The editor's RPC/network work runs in background tasks. Action searches are
+  bounded to 20 rows, with pagination and generation guards. Existing keyboard
+  menu/button primitives are reused; no new rendering I/O or watcher was added.
+- Protocol **21** adds versioned grants and optional exact app-action decisions.
+  Rebuild desktop, daemon and clients together.
+
+Composio implementation references: [tool listing](https://docs.composio.dev/reference/api-reference/tools/getTools),
+[pinned tool metadata](https://docs.composio.dev/reference/api-reference/tools/getToolsByToolSlug),
+[exact execution request](https://docs.composio.dev/reference/api-reference/tools/postToolsExecuteByToolSlug)
+and [connected-account status](https://docs.composio.dev/reference/api-reference/connected-accounts/getConnectedAccountsByNanoid).
+
+User review after private Composio setup:
+
+- [ ] Open the Agent editor and load connected apps; choose an active account.
+- [ ] Search actions and grant only the exact actions the agent needs; save.
+- [ ] Grant the same exact account/action/version to its lead so delegation can
+  intersect those permissions. Merely connecting an app never grants execution.
+- [ ] Ask the team to use an action. Confirm it appears in Decisions and Inbox
+  with the complete account, version and arguments before execution.
+- [ ] Decline one request and confirm no app action is sent.
+- [ ] Approve one request and verify the actual provider outcome and generated
+  result document, then the lead's review and final result.
+- [ ] Disable a connected account before approving; confirm setup blocks the
+  action without switching accounts or sending a mutation.
+- [ ] Confirm a missing acknowledgement shows uncertainty and never retries
+  automatically. Inspect the provider log before reconciling the outcome.
+- [ ] Edit the saved grant/version after a run starts; confirm its pinned grant
+  remains unchanged and a new run uses the updated grant.
+
+No live app account was modified. Private keys, cloud targets and authenticated
+provider acceptance remain user setup. Additional harness adapters, remote Teams
+execution, executed checks, cost budgets and integration/recovery remain work;
+this increment does not mark end-to-end Teams implementation complete.
+
+Verification for this increment: **115 team tests passed**, including exact
+app approval/replay, grant expansion rejection, declined/preflight-failed calls,
+unknown acknowledgements and native approval → execution → document → completion.
+**4 Composio credential tests**, **23 TypeScript client tests** and TypeScript
+checking passed. Desktop/daemon checking passed. Protocol bindings were regenerated;
+**8 protocol tests**, Rust formatting and whitespace gates passed.
+No provider billing, live app action, visual test or app launch was performed.

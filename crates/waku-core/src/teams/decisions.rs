@@ -7,7 +7,7 @@ fn decode(body: String, status: String, revision: u64) -> Result<TeamDecision> {
     decision.revision = revision;
     Ok(decision)
 }
-fn get(db: &Connection, id: Uuid) -> Result<TeamDecision> {
+pub(super) fn get(db: &Connection, id: Uuid) -> Result<TeamDecision> {
     let (body, status, revision) = db
         .query_row(
             "SELECT body,status,revision FROM ion_team_decisions WHERE id=?",
@@ -55,6 +55,19 @@ impl TeamCoordinator {
         checkpoint: &str,
         now: u64,
     ) -> Result<TeamDecision> {
+        self.suspend_for_decision_action(lease, request, title, proposal, None, checkpoint, now)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn suspend_for_decision_action(
+        &self,
+        lease: &AssignmentLease,
+        request: Uuid,
+        title: &str,
+        proposal: &str,
+        app_action: Option<TeamAppAction>,
+        checkpoint: &str,
+        now: u64,
+    ) -> Result<TeamDecision> {
         ensure!(!request.is_nil(), "Decision request identity required");
         text(title, 160, "Decision title")?;
         text(proposal, 8192, "Decision proposal")?;
@@ -71,7 +84,7 @@ impl TeamCoordinator {
             .context("Assignment missing")?
             .clone();
         let signature = serde_json::to_string(
-            &serde_json::json!({"title":title,"proposal":proposal,"checkpoint":checkpoint,"attempt":lease.attempt_id,"generation":lease.generation}),
+            &serde_json::json!({"title":title,"proposal":proposal,"checkpoint":checkpoint,"attempt":lease.attempt_id,"generation":lease.generation,"app_action":app_action}),
         )?;
         let existing: Option<(String, String)> = tx
             .query_row(
@@ -93,7 +106,10 @@ impl TeamCoordinator {
             );
             return get(&tx, Uuid::parse_str(&id)?);
         }
-        checked_lease(&run, lease, now, false)?;
+        let authorized = checked_lease(&run, lease, now, false)?;
+        if let Some(action) = &app_action {
+            super::apps::validate_action(authorized, action)?;
+        }
         ensure!(
             run.decisions.len() < 256,
             "Team decision history limit reached"
@@ -112,6 +128,7 @@ impl TeamCoordinator {
             host: attempt.host.clone(),
             title: title.into(),
             proposal: proposal.into(),
+            app_action,
             status: TeamDecisionStatus::Pending,
             revision: 1,
             created_at: now,

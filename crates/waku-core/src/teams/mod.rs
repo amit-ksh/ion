@@ -12,6 +12,7 @@ use std::{collections::HashSet, path::PathBuf};
 use uuid::Uuid;
 use waku_protocol::{control::*, teams::*};
 
+mod apps;
 mod budget;
 mod continuation;
 mod decisions;
@@ -24,6 +25,7 @@ mod storage;
 #[cfg(test)]
 mod tests;
 mod workspace;
+pub use apps::{AppActionStart, ApprovedAppAction};
 pub use budget::{ModelCallAllowance, ModelCallReservation, ModelTokenUsage};
 pub use continuation::{AssignmentContinuation, AssignmentHandoff};
 pub use reviews::ReviewRequest;
@@ -201,6 +203,10 @@ fn validate_access(access: &AgentAccess) -> Result<()> {
     for grant in &access.app_actions {
         text(&grant.account_id, 256, "App account")?;
         text(&grant.action, 256, "App action")?;
+        ensure!(
+            grant.version.len() <= 128 && grant.version != "latest" && grant.version != "*",
+            "App action must pin an exact version"
+        );
         ensure!(
             grant.account_id != "*" && grant.action != "*",
             "App grants must name an exact account and action"
@@ -1119,7 +1125,7 @@ impl TeamCoordinator {
         let retry_safe = matches!(&outcome, AssignmentOutcome::FailedBeforeEffects(_));
         let (status, reason, result) = match outcome {
             AssignmentOutcome::Completed(result) => {
-                ensure!(!tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=? AND state='pending')",[run.id.to_string()],|r|r.get::<_,bool>(0))?,"A file effect needs reconciliation before completion");
+                workspace::require_settled_effects(&tx, run.id)?;
                 validate_result(&tx, &run, &work, &result)?;
                 reviews::validate_output(&tx, &run, &work, &result)?;
                 ensure!(

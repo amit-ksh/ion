@@ -18,6 +18,15 @@ impl Fixture {
         Self::with_budget(read, Some(2_000_000))
     }
     fn with_budget(read: bool, max_tokens: Option<u64>) -> Self {
+        Self::with_access(
+            AgentAccess {
+                workspace_read: read,
+                ..Default::default()
+            },
+            max_tokens,
+        )
+    }
+    fn with_access(access: AgentAccess, max_tokens: Option<u64>) -> Self {
         let directory =
             std::env::temp_dir().join(format!("ion-native-team-tests-{}", Uuid::new_v4()));
         let workspace = directory.join("project");
@@ -31,10 +40,6 @@ impl Fixture {
         let control = ControlStore::new(directory.join("control.db"));
         let store = TeamCoordinator::new(control.path());
         let agents = std::array::from_fn(|_| Uuid::new_v4());
-        let access = AgentAccess {
-            workspace_read: read,
-            ..Default::default()
-        };
         for (i, id) in agents.iter().enumerate() {
             control
                 .save(
@@ -135,19 +140,28 @@ impl Fixture {
     fn worker(
         &self,
         start: NativeTeamStart,
+        completion: impl FnMut(&str, &str, &[Value], Value) -> Result<(String, Vec<ToolCall>)>,
+    ) -> Result<NativeTeamExit> {
+        self.worker_apps(start, completion, &ComposioApps)
+    }
+    fn worker_apps(
+        &self,
+        start: NativeTeamStart,
         mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<(String, Vec<ToolCall>)>,
+        apps: &dyn TeamApps,
     ) -> Result<NativeTeamExit> {
         let work_id = match &start {
             NativeTeamStart::Fresh(c) => c.lease.work_id(),
             NativeTeamStart::Resumed(c) => c.claimed.lease.work_id(),
         };
         let (events, receiver) = crate::driver::test_event_channel();
-        let outcome = run_with_completion(
+        let outcome = run_with_harness_and_apps(
             &self.store,
             start,
             &self.workspace,
             &events,
             &AtomicBool::new(false),
+            ProviderKind::Nebius,
             |model| {
                 Ok(ModelCallAllowance {
                     model: model.to_owned(),
@@ -163,6 +177,7 @@ impl Fixture {
                     usage: None,
                 })
             },
+            apps,
         );
         let emitted: Vec<_> = receiver.try_iter().collect();
         if matches!(&outcome, Ok(NativeTeamExit::Yielded)) {
@@ -625,7 +640,7 @@ fn native_team_decision_parks_and_delivers_only_the_pinned_human_receipt() {
                 NativeTeamStart::Resumed(continuation),
                 |model, system, messages, _| {
                     assert_eq!(model, "model-0");
-                    assert!(system.contains("No shell"));
+                    assert!(system.contains("No general shell"));
                     let receipt = messages.last().unwrap()["content"].as_str().unwrap();
                     assert!(receipt.contains(&d.id.to_string()));
                     assert!(receipt.contains(&d.proposal));
@@ -654,7 +669,17 @@ fn native_team_decision_rejects_identity_overrides_and_nonfinal_yield() {
     .remove(0);
     let mut journal = TeamJournal::new("Test");
     journal.stage(String::new(), vec![invalid]).unwrap();
-    assert!(execute(&f.store, &root, &f.workspace, &journal.pending[0], true).is_err());
+    assert!(
+        execute(
+            &f.store,
+            &root,
+            &f.workspace,
+            &journal.pending[0],
+            true,
+            &ComposioApps
+        )
+        .is_err()
+    );
     let valid = call(
         "request_decision",
         json!({"title":"Scope","proposal":"Plan"}),
@@ -663,7 +688,17 @@ fn native_team_decision_rejects_identity_overrides_and_nonfinal_yield() {
     .remove(0);
     let mut journal = TeamJournal::new("Test");
     journal.stage(String::new(), vec![valid]).unwrap();
-    assert!(execute(&f.store, &root, &f.workspace, &journal.pending[0], false).is_err());
+    assert!(
+        execute(
+            &f.store,
+            &root,
+            &f.workspace,
+            &journal.pending[0],
+            false,
+            &ComposioApps
+        )
+        .is_err()
+    );
     assert!(f.store.snapshot(f.run.id).unwrap().decisions.is_empty());
 }
 
@@ -692,4 +727,230 @@ fn team_harness_seam_cannot_substitute_the_pinned_provider() {
     );
     assert!(!called);
     assert_eq!(f.store.snapshot(f.run.id).unwrap().usage.model_calls, 0);
+}
+
+struct FakeApps {
+    calls: std::rc::Rc<std::cell::Cell<usize>>,
+    unavailable: bool,
+    missing_ack: bool,
+}
+impl TeamApps for FakeApps {
+    fn describe(&self, action: &TeamAppAction) -> Result<Value> {
+        Ok(
+            json!({"action":action.grant.action,"version":action.grant.version,"input_parameters":{"type":"object"}}),
+        )
+    }
+    fn prepare(&self, action: &TeamAppAction) -> Result<crate::driver::team_apps::PreparedApp> {
+        anyhow::ensure!(!self.unavailable, "Not connected");
+        assert_eq!(action.grant.account_id, "ca_github_1");
+        assert_eq!(action.grant.action, "GITHUB_CREATE_ISSUE");
+        assert_eq!(action.grant.version, "20250905_00");
+        assert_eq!(
+            action.arguments_json,
+            json!({"title":"Exact issue"}).to_string()
+        );
+        let calls = self.calls.clone();
+        let missing = self.missing_ack;
+        Ok(Box::new(move || {
+            calls.set(calls.get() + 1);
+            anyhow::ensure!(!missing, "No acknowledgement");
+            Ok(json!({"successful":true,"data":{"issue":123}}).to_string())
+        }))
+    }
+}
+fn app_agent_fixture() -> Fixture {
+    Fixture::with_access(
+        AgentAccess {
+            workspace_read: false,
+            app_actions: vec![AppActionGrant {
+                account_id: "ca_github_1".into(),
+                action: "GITHUB_CREATE_ISSUE".into(),
+                version: "20250905_00".into(),
+            }],
+            ..Default::default()
+        },
+        Some(2_000_000),
+    )
+}
+fn request_app(f: &Fixture, apps: &FakeApps) -> TeamDecision {
+    let claimed = f.claim(f.run.work[0].id);
+    assert_eq!(f.worker_apps(NativeTeamStart::Fresh(claimed),|_,_,_,tools| {
+        assert!(tools.as_array().unwrap().iter().any(|t|t["function"]["name"]=="request_app_action"));
+        Ok(call("request_app_action",json!({"account_id":"ca_github_1","action":"GITHUB_CREATE_ISSUE","arguments":{"title":"Exact issue"}})))
+    },apps).unwrap(),NativeTeamExit::Yielded);
+    assert_eq!(apps.calls.get(), 0);
+    f.store.snapshot(f.run.id).unwrap().decisions[0].clone()
+}
+#[test]
+fn native_team_app_approval_executes_exact_payload_before_next_inference_and_publishes_receipt() {
+    let f = app_agent_fixture();
+    let apps = FakeApps {
+        calls: Default::default(),
+        unavailable: false,
+        missing_ack: false,
+    };
+    let decision = request_app(&f, &apps);
+    f.store
+        .resolve_decision(
+            decision.id,
+            decision.revision,
+            true,
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(f.run.id, f.run.work[0].id, crate::model::unix_time(), 180)
+        .unwrap();
+    assert_eq!(f.worker_apps(NativeTeamStart::Resumed(resumed),|_,_,messages,_| {
+        assert_eq!(apps.calls.get(),1);
+        let receipt:Value=messages.iter().filter_map(|m|m["content"].as_str()).filter_map(|v|serde_json::from_str::<Value>(v).ok()).find(|v|v["app_action_receipt"]==decision.id.to_string()).unwrap();
+        assert_eq!(receipt["successful"],true);
+        Ok(call("report_result",json!({"summary":"Created approved issue","artifact_ids":[receipt["artifact_id"]]})))
+    },&apps).unwrap(),NativeTeamExit::Settled);
+    assert_eq!(apps.calls.get(), 1);
+    let artifact = f
+        .artifacts()
+        .into_iter()
+        .find(|a| a.name.starts_with("App-action-"))
+        .unwrap();
+    assert_eq!(artifact.task_id, Some(f.run.root_task_id));
+    assert_eq!(
+        f.store.snapshot(f.run.id).unwrap().status,
+        TeamRunStatus::Completed
+    );
+}
+#[test]
+fn native_team_app_decline_and_preflight_failure_send_no_mutation_request() {
+    for approve in [false, true] {
+        let f = app_agent_fixture();
+        let apps = FakeApps {
+            calls: Default::default(),
+            unavailable: approve,
+            missing_ack: false,
+        };
+        let d = request_app(&f, &apps);
+        f.store
+            .resolve_decision(d.id, 1, approve, crate::model::unix_time())
+            .unwrap();
+        let resumed = f
+            .store
+            .resume_after_children(f.run.id, f.run.work[0].id, crate::model::unix_time(), 180)
+            .unwrap();
+        assert_eq!(
+            f.worker_apps(
+                NativeTeamStart::Resumed(resumed),
+                |_, _, messages, _| {
+                    assert_eq!(apps.calls.get(), 0);
+                    assert!(
+                        messages
+                            .to_vec()
+                            .iter()
+                            .filter_map(|m| m["content"].as_str())
+                            .any(|s| s.contains(if approve {
+                                "was not started"
+                            } else {
+                                "declined"
+                            }))
+                    );
+                    Ok(call(
+                        "report_blocker",
+                        json!({"reason":"No app action executed"}),
+                    ))
+                },
+                &apps
+            )
+            .unwrap(),
+            NativeTeamExit::Settled
+        );
+        assert!(!f.store.has_pending_effect(f.run.id).unwrap());
+    }
+}
+#[test]
+fn native_team_app_missing_ack_stops_before_another_model_call_or_effect() {
+    let f = app_agent_fixture();
+    let apps = FakeApps {
+        calls: Default::default(),
+        unavailable: false,
+        missing_ack: true,
+    };
+    let d = request_app(&f, &apps);
+    f.store
+        .resolve_decision(d.id, 1, true, crate::model::unix_time())
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(f.run.id, f.run.work[0].id, crate::model::unix_time(), 180)
+        .unwrap();
+    assert!(
+        f.worker_apps(
+            NativeTeamStart::Resumed(resumed),
+            |_, _, _, _| panic!("No inference after uncertain app outcome"),
+            &apps
+        )
+        .is_err()
+    );
+    assert_eq!(apps.calls.get(), 1);
+    assert!(f.store.has_pending_effect(f.run.id).unwrap());
+}
+
+#[test]
+fn native_team_app_schema_is_grant_scoped_and_cannot_execute_or_override_identity() {
+    let f = app_agent_fixture();
+    let apps = FakeApps {
+        calls: Default::default(),
+        unavailable: false,
+        missing_ack: false,
+    };
+    let claimed = f.claim(f.run.work[0].id);
+    let mut journal = TeamJournal::new("App metadata");
+    for args in [
+        json!({"account_id":"ca_other","action":"GITHUB_CREATE_ISSUE"}),
+        json!({"account_id":"ca_github_1","action":"GITHUB_DELETE_REPOSITORY"}),
+        json!({"account_id":"ca_github_1","action":"GITHUB_CREATE_ISSUE","version":"latest"}),
+    ] {
+        let (text, calls) = call("describe_app_action", args);
+        journal.stage(text, calls).unwrap();
+        assert!(
+            execute(
+                &f.store,
+                &claimed,
+                &f.workspace,
+                &journal.pending[0],
+                true,
+                &apps
+            )
+            .is_err()
+        );
+        journal.pending.clear();
+    }
+    let (text, calls) = call(
+        "describe_app_action",
+        json!({"account_id":"ca_github_1","action":"GITHUB_CREATE_ISSUE"}),
+    );
+    journal.stage(text, calls).unwrap();
+    let body = match execute(
+        &f.store,
+        &claimed,
+        &f.workspace,
+        &journal.pending[0],
+        true,
+        &apps,
+    )
+    .unwrap()
+    {
+        ToolOutcome::Reply(body) => body,
+        _ => panic!(),
+    };
+    let body: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(body["version"], "20250905_00");
+    assert_eq!(apps.calls.get(), 0);
+    let mut legacy = claimed.assignment.access.clone();
+    legacy.app_actions[0].version.clear();
+    assert!(!tools(&legacy).to_string().contains("request_app_action"));
+    assert!(
+        !tools(&AgentAccess::default())
+            .to_string()
+            .contains("describe_app_action")
+    );
 }

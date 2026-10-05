@@ -33,6 +33,7 @@ pub(super) fn check_capacity(
     profile: &AgentProfile,
     access: &AgentAccess,
 ) -> Result<()> {
+    super::workspace::require_settled_effects(tx, run.id)?;
     super::workspace::check_writer_capacity(tx, run.id, access)?;
     let (shared, capacity): (u32, Option<u16>) = tx.query_row(
         "SELECT count(*),min(capacity) FROM ion_team_attempts WHERE agent_id=? AND live=1",

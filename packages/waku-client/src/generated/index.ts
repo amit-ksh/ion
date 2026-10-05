@@ -96,6 +96,7 @@ export type { SlashCommand } from "./SlashCommand";
 export type { StoredAttachment } from "./StoredAttachment";
 export type { StoredTranscriptBlockContent } from "./StoredTranscriptBlockContent";
 export type { Team } from "./Team";
+export type { TeamAppAction } from "./TeamAppAction";
 export type { TeamAssignment } from "./TeamAssignment";
 export type { TeamAuditEvent } from "./TeamAuditEvent";
 export type { TeamDecision } from "./TeamDecision";

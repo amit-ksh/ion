@@ -14,6 +14,7 @@ mod opencode2;
 mod opencode2_computer_use;
 mod pi;
 mod support;
+pub(crate) mod team_apps;
 pub(crate) mod team_claude;
 mod title_refresh;
 

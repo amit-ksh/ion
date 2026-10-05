@@ -29,13 +29,13 @@ pub(super) fn projection(db: &Connection, run: Uuid) -> Result<Option<TeamWorksp
 }
 pub(super) fn require_settled_effects(db: &Connection, run: Uuid) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=? AND state='pending')",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending')",
         [run.to_string()],
         |r| r.get(0),
     )?;
     ensure!(
         !pending,
-        "A file effect needs reconciliation before further work"
+        "A started effect needs reconciliation before further work"
     );
     Ok(())
 }
@@ -401,8 +401,7 @@ impl TeamCoordinator {
                 ensure!(state=="applied","File edit outcome needs reconciliation; it was not repeated");
                 return receipt.context("File edit receipt missing");
             }
-            let pending:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=? AND state='pending')",[run.id.to_string()],|r|r.get(0))?;
-            ensure!(!pending, "Prior file edit needs reconciliation");
+            require_settled_effects(&tx, run.id)?;
             let count: u32 = tx.query_row(
                 "SELECT count(*) FROM ion_team_workspace_edits WHERE run_id=?",
                 [run.id.to_string()],
