@@ -3649,3 +3649,160 @@ fn team_app_unknown_effect_survives_restart_and_blocks_spending_yield_and_comple
             .is_err()
     );
 }
+
+#[test]
+fn team_source_authorization_allows_only_supplied_grants_and_reads_accepted_result_documents() {
+    let f = Fixture::new();
+    let source = Uuid::new_v4();
+    let authorization = AgentAccess {
+        workspace_write: true,
+        ..Default::default()
+    };
+    let run = f
+        .store
+        .queue_from_agent_with_access(
+            source,
+            f.project,
+            "source-call".into(),
+            f.team,
+            f.definitions.load().unwrap().revision,
+            "Produce code evidence".into(),
+            authorization.clone(),
+            100,
+        )
+        .unwrap();
+    assert_eq!(run.access, authorization);
+    assert_eq!(run.work[0].access, authorization);
+    f.materialize();
+    let root = f.claim(run.id, run.work[0].id);
+    let doc = f
+        .store
+        .publish_document(
+            &root.lease,
+            Uuid::new_v4(),
+            "Reviewed.md",
+            "md",
+            "Actual evidence",
+            102,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .read_source_document(source, f.project, run.id, doc.id)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .source_run(Uuid::new_v4(), f.project, run.id)
+            .is_err()
+    );
+    assert!(f.store.source_run(source, Uuid::new_v4(), run.id).is_err());
+    f.store
+        .report(
+            &root.lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Reviewed implementation".into(),
+                artifact_ids: vec![doc.id],
+                checks: vec![],
+            }),
+            103,
+        )
+        .unwrap();
+    assert_eq!(
+        f.store
+            .read_source_document(source, f.project, run.id, doc.id)
+            .unwrap(),
+        b"Actual evidence"
+    );
+    assert!(
+        f.store
+            .read_source_document(Uuid::new_v4(), f.project, run.id, doc.id)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .read_source_document(source, Uuid::new_v4(), run.id, doc.id)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .read_source_document(source, f.project, run.id, Uuid::new_v4())
+            .is_err()
+    );
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "DELETE FROM ion_control_records WHERE id=?",
+            [doc.id.to_string()],
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .read_source_document(source, f.project, run.id, doc.id)
+            .is_err()
+    );
+}
+#[test]
+fn team_source_stop_only_revokes_its_own_runs_and_leaves_other_sources_active() {
+    let f = Fixture::new();
+    let source = Uuid::new_v4();
+    let other = Uuid::new_v4();
+    let first = f
+        .store
+        .queue_from_agent(
+            source,
+            f.project,
+            "first".into(),
+            f.team,
+            f.definitions.load().unwrap().revision,
+            "Research".into(),
+            100,
+        )
+        .unwrap();
+    let second = f
+        .store
+        .queue_from_agent(
+            source,
+            f.project,
+            "second".into(),
+            f.team,
+            f.definitions.load().unwrap().revision,
+            "Review".into(),
+            100,
+        )
+        .unwrap();
+    let unrelated = f
+        .store
+        .queue_from_agent(
+            other,
+            f.project,
+            "other".into(),
+            f.team,
+            f.definitions.load().unwrap().revision,
+            "Unrelated".into(),
+            100,
+        )
+        .unwrap();
+    f.materialize();
+    let root = f.claim(first.id, first.work[0].id);
+    let stopped = f.store.stop_source_runs(source, 102).unwrap();
+    assert!(stopped.contains(&first.id) && stopped.contains(&second.id));
+    assert_eq!(
+        f.store.snapshot(first.id).unwrap().status,
+        TeamRunStatus::Stopping
+    );
+    assert_eq!(
+        f.store.snapshot(second.id).unwrap().status,
+        TeamRunStatus::Canceled
+    );
+    assert_eq!(
+        f.store.snapshot(unrelated.id).unwrap().status,
+        TeamRunStatus::Active
+    );
+    assert!(f.store.renew(&root.lease, 102, 100).is_err());
+    assert_eq!(
+        f.store.stop_source_runs(source, 103).unwrap(),
+        vec![first.id]
+    );
+}

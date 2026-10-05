@@ -305,6 +305,7 @@ impl TeamCoordinator {
         self.queue_task(request, now)
     }
 
+    #[cfg(test)]
     pub(crate) fn queue_from_agent(
         &self,
         task_id: Uuid,
@@ -313,6 +314,30 @@ impl TeamCoordinator {
         team_id: Uuid,
         expected_definition_revision: u64,
         objective: String,
+        now: u64,
+    ) -> Result<TeamRunSnapshot> {
+        self.queue_from_agent_with_access(
+            task_id,
+            project_id,
+            request_id,
+            team_id,
+            expected_definition_revision,
+            objective,
+            AgentAccess::default(),
+            now,
+        )
+    }
+    /// Authorization is supplied by the trusted source session, never model arguments.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn queue_from_agent_with_access(
+        &self,
+        task_id: Uuid,
+        project_id: Uuid,
+        request_id: String,
+        team_id: Uuid,
+        expected_definition_revision: u64,
+        objective: String,
+        access: AgentAccess,
         now: u64,
     ) -> Result<TeamRunSnapshot> {
         let objective = objective.trim().to_owned();
@@ -326,7 +351,7 @@ impl TeamCoordinator {
                 source_prompt: Some(format!("@team:{team_id} {objective}")),
                 objective,
                 limits: Default::default(),
-                access: Default::default(),
+                access,
                 origin: Some(TeamTaskOrigin {
                     task_id,
                     request_id,

@@ -786,3 +786,40 @@ unknown acknowledgements and native approval → execution → document → comp
 checking passed. Desktop/daemon checking passed. Protocol bindings were regenerated;
 **8 protocol tests**, Rust formatting and whitespace gates passed.
 No provider billing, live app action, visual test or app launch was performed.
+
+
+## Normal-task team execution increment (2026-10-05)
+
+Previous connected-app checkpoint: `ad74d63`.
+
+- A normal native Nebius task can invoke a saved team with its configured grants.
+  Full access / auto-accept-edits permits saved file/app grants when the lead has
+  no shell or general network grant. Other modes request permission for the exact
+  saved lead, harness/model, environment, access and run limits. Read-only teams
+  can start without that prompt. Arguments cannot supply identities or permissions.
+- An identical tool-call replay returns its original run and authorization without
+  prompting again. Definition changes, project overrides and changed objectives
+  reject the replay; each source still has a maximum of four invocations.
+- `await_team` waits for up to 30 seconds on the provider worker and returns actual
+  state. Setup blockers, uncertainty and elapsed waits never imply completion.
+  `read_team_document` exposes only accepted documents from a completed run owned
+  by this source task and project, with an explicit bounded/truncated excerpt.
+- Explicit source-task Stop revokes its own team runs and cancels their workers.
+  Unrelated runs continue. Close attachment remains separate from Stop. The queue
+  path also closes cancellation during the invocation transaction.
+- App actions still require their own exact Decisions approval; invocation approval
+  cannot enlarge the saved team grant. External solo harness invocation bridges
+  and the remaining execution/recovery/integration capabilities are still work.
+
+User review:
+
+- [ ] Ask a normal Nebius task to delegate to a saved read-only team.
+- [ ] In Ask mode, start a team with file write access; verify the exact scope prompt.
+- [ ] Decline and confirm no run starts; allow and inspect the isolated workspace.
+- [ ] Let the source wait for the run and read the accepted generated document.
+- [ ] Stop the source task while its team runs; confirm only its runs are stopped.
+- [ ] Close an attachment and confirm this does not stop the owner run.
+
+Verification: **118 team tests**, **23 TypeScript client tests**, TypeScript
+checking, desktop/daemon checking, Rust formatting and diff whitespace gates
+passed. No live provider, visual acceptance or app launch is claimed.

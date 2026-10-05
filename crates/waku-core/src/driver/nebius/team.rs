@@ -1021,7 +1021,7 @@ fn first_line() -> u32 {
 fn line_limit() -> u16 {
     200
 }
-fn bounded_excerpt(value: &str, max: usize) -> &str {
+pub(super) fn bounded_excerpt(value: &str, max: usize) -> &str {
     let mut cost = 0;
     let mut end = 0;
     for (offset, character) in value.char_indices() {

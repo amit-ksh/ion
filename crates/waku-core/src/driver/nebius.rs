@@ -385,7 +385,7 @@ fn completion(
     };
     let system = if workspace.is_some() {
         format!(
-            "{system} Publish generated reports and documents with save_document. Use list_teams and invoke_team when a saved team would help the current task. Team invocations inherit this project and conservative read-only access; obey the bounded limits. The current Teams bridge only queues work: use get_team_runs for status, never claim queued work has executed or completed.  If you identify a follow-up task, use propose_task so the user can accept it in Inbox. Use request_decision when the user must choose before further progress; wait for the result. Token Factory sandbox commands need explicit approval and never receive local files automatically."
+            "{system} Publish generated reports and documents with save_document. Use list_teams and invoke_team when a saved team would help the current task. Team invocations inherit this project and the saved team lead’s configured access and execution limits. Supervised source tasks require approval for privileged team access; ready agents then delegate and execute independently through the daemon. Use get_team_runs or await_team to inspect progress without claiming queue acknowledgements are completion. Once the run completes, inspect its actual evidence with read_team_document before using the result. Never claim queued work has completed.  If you identify a follow-up task, use propose_task so the user can accept it in Inbox. Use request_decision when the user must choose before further progress; wait for the result. Token Factory sandbox commands need explicit approval and never receive local files automatically."
         )
     } else {
         system.to_owned()
@@ -638,6 +638,8 @@ fn execute_tool(
             | "list_teams"
             | "invoke_team"
             | "get_team_runs"
+            | "await_team"
+            | "read_team_document"
     ) {
         return workspace::execute(
             workspace.context("Workspace tools are unavailable")?,

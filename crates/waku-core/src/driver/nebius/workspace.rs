@@ -1,11 +1,13 @@
 use super::*;
 use waku_protocol::control::*;
+use waku_protocol::model::RuntimeMode;
 
 pub(crate) struct WorkspaceContext {
     pub task_id: Uuid,
     pub project_id: Uuid,
     pub control_path: PathBuf,
     pub settings_path: PathBuf,
+    pub mode: RuntimeMode,
 }
 impl WorkspaceContext {
     fn settings(&self) -> Result<crate::DaemonSettings> {
@@ -68,7 +70,50 @@ pub(super) fn execute(
         "invoke_team" => {
             journal.pending_effect = Some(call.id.clone());
             persist(journal_path, journal)?;
-            let result = invoke_team(context, &call.id, args);
+            let result = invoke_team_authorized(context, &call.id, args, |profile, limits| {
+                if matches!(
+                    context.mode,
+                    RuntimeMode::FullAccess | RuntimeMode::AutoAcceptEdits
+                ) && !profile.access.shell
+                    && !profile.access.network
+                {
+                    return Ok(profile.access.clone());
+                }
+                if profile.access == waku_protocol::teams::AgentAccess::default() {
+                    return Ok(profile.access.clone());
+                }
+                let _ = events.send(DriverEvent::Permission {
+                    request_id:call.id.clone(), title:format!("Use team agent {}?", profile.name),
+                    detail:format!("Harness: {}\nModel: {}\nExecution environment: {}\nConfigured access: {}\nRun limits: {}\nEdits use an isolated branch. App actions require their own exact approval.",profile.provider.display_name(),profile.model.as_deref().unwrap_or("default"),profile.execution.environment.label(),serde_json::to_string(&profile.access)?,serde_json::to_string(limits)?),
+                    options:vec![PermissionOption{id:"allow".into(),label:"Start team".into(),allow:true},PermissionOption{id:"reject".into(),label:"Decline".into(),allow:false}],
+                });
+                loop {
+                    anyhow::ensure!(
+                        !cancelled.load(Ordering::Relaxed),
+                        "Stopped before team invocation"
+                    );
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(Command::Respond(id, option)) if id == call.id => {
+                            anyhow::ensure!(
+                                option == "allow",
+                                "Team invocation declined; no run was created"
+                            );
+                            return Ok(profile.access.clone());
+                        }
+                        Ok(Command::Stop)
+                        | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                            bail!("Stopped before team invocation")
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            if cancelled.load(Ordering::Relaxed) {
+                // Close the race where cancellation arrives while the queue transaction commits.
+                crate::teams::TeamCoordinator::new(context.control_path.clone())
+                    .stop_source_runs(context.task_id, crate::model::unix_time())?;
+                bail!("Source task stopped; its team invocations were canceled");
+            }
             if result.is_err() {
                 journal.pending_effect = None;
                 persist(journal_path, journal)?;
@@ -83,6 +128,71 @@ pub(super) fn execute(
             let runs = crate::teams::TeamCoordinator::new(context.control_path.clone())
                 .runs_for_source(context.task_id)?;
             serde_json::to_string(&runs.iter().map(team_summary).collect::<Vec<_>>())?
+        }
+        "await_team" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                run_id: Uuid,
+                #[serde(default = "team_wait_seconds")]
+                max_wait_seconds: u64,
+            }
+            let a: Args = serde_json::from_value(args.clone())?;
+            anyhow::ensure!(
+                (1..=30).contains(&a.max_wait_seconds),
+                "Wait duration must be 1–30 seconds"
+            );
+            let coordinator = crate::teams::TeamCoordinator::new(context.control_path.clone());
+            let deadline = std::time::Instant::now() + Duration::from_secs(a.max_wait_seconds);
+            loop {
+                anyhow::ensure!(
+                    !cancelled.load(Ordering::Relaxed),
+                    "Source task stopped while waiting for its team"
+                );
+                let run = coordinator.source_run(context.task_id, context.project_id, a.run_id)?;
+                if run.status != waku_protocol::teams::TeamRunStatus::Active
+                    || run
+                        .work
+                        .iter()
+                        .filter(|w| w.status != waku_protocol::teams::AssignmentStatus::Completed)
+                        .all(|w| {
+                            matches!(
+                                w.status,
+                                waku_protocol::teams::AssignmentStatus::Blocked
+                                    | waku_protocol::teams::AssignmentStatus::Failed
+                                    | waku_protocol::teams::AssignmentStatus::Uncertain
+                            ) || w.status == waku_protocol::teams::AssignmentStatus::Queued
+                                && w.reason.is_some()
+                        })
+                    || std::time::Instant::now() >= deadline
+                {
+                    break team_summary(&run).to_string();
+                }
+                // One collection poll per second on the provider worker, with prompt cancellation.
+                for _ in 0..5 {
+                    anyhow::ensure!(!cancelled.load(Ordering::Relaxed), "Source task stopped");
+                    thread::sleep(Duration::from_millis(200));
+                }
+            }
+        }
+        "read_team_document" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                run_id: Uuid,
+                artifact_id: Uuid,
+            }
+            let a: Args = serde_json::from_value(args.clone())?;
+            let coordinator = crate::teams::TeamCoordinator::new(context.control_path.clone());
+            let content = String::from_utf8(coordinator.read_source_document(
+                context.task_id,
+                context.project_id,
+                a.run_id,
+                a.artifact_id,
+            )?)
+            .context("Team document is not UTF-8")?;
+            let excerpt = team::bounded_excerpt(&content, 8192);
+            json!({"run_id":a.run_id,"artifact_id":a.artifact_id,"content":excerpt,"truncated":excerpt.len()!=content.len()}).to_string()
         }
         "request_decision" => {
             let title = required_str(args, "title")?;
@@ -221,10 +331,16 @@ pub(super) fn execute(
 }
 fn team_tools() -> Value {
     json!([
-        {"type":"function","function":{"name":"list_teams","description":"Find saved agent teams and the definition revision. Team queues are available; execution adapters are under development.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"additionalProperties":false}}},
-        {"type":"function","function":{"name":"invoke_team","description":"Queue a saved team to help this task, in the same project with read-only access. Maximum four invocations per source task. Does not launch a harness yet; inspect get_team_runs and never claim completion from a queue acknowledgment.","parameters":{"type":"object","properties":{"team_id":{"type":"string"},"definition_revision":{"type":"integer"},"objective":{"type":"string"}},"required":["team_id","definition_revision","objective"],"additionalProperties":false}}},
-        {"type":"function","function":{"name":"get_team_runs","description":"Inspect the durable team runs invoked from this task. Queued means waiting for an execution adapter, not completed work.","parameters":{"type":"object","properties":{},"additionalProperties":false}}}
+        {"type":"function","function":{"name":"list_teams","description":"Find saved agent teams and the definition revision. Ready saved harnesses execute through the daemon; unavailable setup appears in run status.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"additionalProperties":false}}},
+        {"type":"function","function":{"name":"invoke_team","description":"Invoke a saved team in this task’s project using its lead’s configured access and pinned limits. Supervised tasks ask before granting privileged team access. Maximum four invocations per source task. Inspect get_team_runs; a queue acknowledgement is not completed work.","parameters":{"type":"object","properties":{"team_id":{"type":"string"},"definition_revision":{"type":"integer"},"objective":{"type":"string"}},"required":["team_id","definition_revision","objective"],"additionalProperties":false}}},
+        {"type":"function","function":{"name":"get_team_runs","description":"Inspect the durable team runs invoked from this task. Inspect assignment state, setup blockers and completed document evidence; queued work is not completed.","parameters":{"type":"object","properties":{},"additionalProperties":false}}},
+        {"type":"function","function":{"name":"await_team","description":"Wait up to 30 seconds for a team invoked by this task, without another model request. Returns real status, blockers and final document IDs; not a completion assertion.","parameters":{"type":"object","properties":{"run_id":{"type":"string"},"max_wait_seconds":{"type":"integer","minimum":1,"maximum":30}},"required":["run_id"],"additionalProperties":false}}},
+        {"type":"function","function":{"name":"read_team_document","description":"Read a bounded document from a completed team invoked by this source task/project. Inspect the actual evidence before using its result; superseded and unrelated documents are inaccessible.","parameters":{"type":"object","properties":{"run_id":{"type":"string"},"artifact_id":{"type":"string"}},"required":["run_id","artifact_id"],"additionalProperties":false}}}
+
     ])
+}
+fn team_wait_seconds() -> u64 {
+    30
 }
 fn team_catalog(store: &crate::control::ControlStore, args: &Value) -> Result<String> {
     #[derive(Deserialize)]
@@ -256,7 +372,19 @@ fn team_catalog(store: &crate::control::ControlStore, args: &Value) -> Result<St
             .to_string(),
     )
 }
+#[cfg(test)]
 fn invoke_team(context: &WorkspaceContext, request_id: &str, args: &Value) -> Result<String> {
+    invoke_team_authorized(context, request_id, args, |_, _| Ok(Default::default()))
+}
+fn invoke_team_authorized(
+    context: &WorkspaceContext,
+    request_id: &str,
+    args: &Value,
+    authorize: impl FnOnce(
+        &AgentProfile,
+        &waku_protocol::teams::TeamRunLimits,
+    ) -> Result<waku_protocol::teams::AgentAccess>,
+) -> Result<String> {
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Invocation {
@@ -265,13 +393,65 @@ fn invoke_team(context: &WorkspaceContext, request_id: &str, args: &Value) -> Re
         objective: String,
     }
     let request: Invocation = serde_json::from_value(args.clone())?;
-    let run = crate::teams::TeamCoordinator::new(context.control_path.clone()).queue_from_agent(
+    let coordinator = crate::teams::TeamCoordinator::new(context.control_path.clone());
+    // Exact already-created invocations keep their original permission receipt.
+    if let Some(run) = coordinator
+        .runs_for_source(context.task_id)?
+        .into_iter()
+        .find(|r| {
+            r.origin
+                .as_ref()
+                .is_some_and(|o| o.request_id == request_id)
+        })
+    {
+        anyhow::ensure!(
+            run.team.id == request.team_id
+                && run.definition_revision == request.definition_revision
+                && run.work[0].objective == request.objective.trim()
+                && run.project_id == context.project_id,
+            "Invocation replay changed its team, revision, project or objective"
+        );
+        return Ok(team_summary(&run).to_string());
+    }
+    let snapshot = crate::control::ControlStore::new(context.control_path.clone()).load()?;
+    anyhow::ensure!(
+        snapshot.revision == request.definition_revision,
+        "Team definition changed; list teams again"
+    );
+    let team = snapshot
+        .records
+        .iter()
+        .find_map(|r| match r {
+            ControlRecord::Team(t) if t.id == request.team_id => Some(t),
+            _ => None,
+        })
+        .context("Team is unavailable")?;
+    let lead = team
+        .members
+        .iter()
+        .find(|m| m.parent_id.is_none())
+        .context("Team lead missing")?;
+    let profile = snapshot
+        .records
+        .iter()
+        .find_map(|r| match r {
+            ControlRecord::Agent(p) if p.id == lead.agent_id => Some(p),
+            _ => None,
+        })
+        .context("Team lead profile missing")?;
+    let access = authorize(profile, &team.limits.clone().unwrap_or_default())?;
+    anyhow::ensure!(
+        crate::teams::intersect_access(&access, &profile.access) == access,
+        "Source authorization exceeds the saved team lead access"
+    );
+    let run = coordinator.queue_from_agent_with_access(
         context.task_id,
         context.project_id,
         request_id.into(),
         request.team_id,
         request.definition_revision,
         request.objective,
+        access,
         crate::model::unix_time(),
     )?;
     Ok(team_summary(&run).to_string())
@@ -379,6 +559,7 @@ mod tests {
             project_id: Uuid::new_v4(),
             control_path: PathBuf::new(),
             settings_path: PathBuf::new(),
+            mode: RuntimeMode::Ask,
         };
         let args = json!({"team_id":Uuid::new_v4(),"definition_revision":0,"objective":"Research","project_id":Uuid::new_v4()});
         assert!(
@@ -393,7 +574,16 @@ mod tests {
             .iter()
             .map(|v| v["function"]["name"].as_str().unwrap().to_owned())
             .collect();
-        assert_eq!(names, ["list_teams", "invoke_team", "get_team_runs"]);
+        assert_eq!(
+            names,
+            [
+                "list_teams",
+                "invoke_team",
+                "get_team_runs",
+                "await_team",
+                "read_team_document"
+            ]
+        );
     }
 
     #[test]
@@ -404,6 +594,7 @@ mod tests {
             project_id: Uuid::new_v4(),
             control_path: path.with_extension("db"),
             settings_path: path.clone(),
+            mode: RuntimeMode::Ask,
         };
         fs::write(&path, b"{}").unwrap();
         assert!(context.sandbox_session().is_err());
@@ -412,5 +603,162 @@ mod tests {
         fs::write(&path, b"{\"nebius_sandbox_enabled\":false}").unwrap();
         assert!(context.sandbox_session().is_err());
         fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn normal_team_invocation_uses_source_permissions_and_preserves_approved_scope_on_replay() {
+        use waku_protocol::teams::{AgentAccess, AgentExecution, TeamRunLimits};
+        let dir = std::env::temp_dir().join(format!("ion-source-team-tests-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let store = crate::control::ControlStore::new(dir.join("control.db"));
+        let agent = Uuid::new_v4();
+        let team = Uuid::new_v4();
+        store
+            .save(
+                0,
+                ControlRecord::Agent(AgentProfile {
+                    id: agent,
+                    name: "Lead".into(),
+                    expertise: "Coding".into(),
+                    instructions: "Delegate".into(),
+                    provider: waku_protocol::model::ProviderKind::Nebius,
+                    model: Some("pinned-model".into()),
+                    expected_output: "Reviewed change".into(),
+                    execution: AgentExecution::default(),
+                    access: AgentAccess {
+                        workspace_write: true,
+                        ..Default::default()
+                    },
+                    max_parallel_tasks: 1,
+                }),
+            )
+            .unwrap();
+        store
+            .save(
+                store.load().unwrap().revision,
+                ControlRecord::Team(Team {
+                    id: team,
+                    name: "Engineering".into(),
+                    objective: "Produce code".into(),
+                    limits: Some(TeamRunLimits {
+                        max_tokens: Some(500000),
+                        ..Default::default()
+                    }),
+                    members: vec![TeamMember {
+                        agent_id: agent,
+                        parent_id: None,
+                    }],
+                }),
+            )
+            .unwrap();
+        let task = Uuid::new_v4();
+        let project = Uuid::new_v4();
+        let mut context = WorkspaceContext {
+            task_id: task,
+            project_id: project,
+            control_path: store.path(),
+            settings_path: dir.join("settings.json"),
+            mode: RuntimeMode::FullAccess,
+        };
+        let args = json!({"team_id":team,"definition_revision":store.load().unwrap().revision,"objective":"Implement a reviewed change"});
+        let (sender, receiver) = unbounded();
+        let (events, event_receiver) = crate::driver::test_event_channel();
+        let mut journal = Journal::default();
+        let path = dir.join("journal.json");
+        let mut call = ToolCall {
+            id: "invoke-one".into(),
+            name: "invoke_team".into(),
+            activity_id: "source-activity".into(),
+            ..Default::default()
+        };
+        let body = execute(
+            &context,
+            &receiver,
+            &AtomicBool::new(false),
+            &events,
+            &path,
+            &mut journal,
+            &call,
+            &args,
+        )
+        .unwrap();
+        assert!(
+            !event_receiver
+                .try_iter()
+                .any(|e| matches!(e, DriverEvent::Permission { .. }))
+        );
+        let id = Uuid::parse_str(
+            serde_json::from_str::<Value>(&body).unwrap()["run_id"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        let coordinator = crate::teams::TeamCoordinator::new(store.path());
+        let run = coordinator.snapshot(id).unwrap();
+        assert!(run.work[0].access.workspace_write);
+        assert_eq!(run.limits.max_tokens, Some(500000));
+        context.mode = RuntimeMode::Ask;
+        assert_eq!(
+            execute(
+                &context,
+                &receiver,
+                &AtomicBool::new(false),
+                &events,
+                &path,
+                &mut journal,
+                &call,
+                &args
+            )
+            .unwrap(),
+            body
+        );
+        assert!(
+            !event_receiver
+                .try_iter()
+                .any(|e| matches!(e, DriverEvent::Permission { .. }))
+        );
+        call.id = "invoke-denied".into();
+        sender
+            .send(Command::Respond(call.id.clone(), "reject".into()))
+            .unwrap();
+        assert!(
+            execute(
+                &context,
+                &receiver,
+                &AtomicBool::new(false),
+                &events,
+                &path,
+                &mut journal,
+                &call,
+                &args
+            )
+            .is_err()
+        );
+        assert_eq!(coordinator.runs_for_source(task).unwrap().len(), 1);
+        call.id = "invoke-approved".into();
+        sender
+            .send(Command::Respond(call.id.clone(), "allow".into()))
+            .unwrap();
+        execute(
+            &context,
+            &receiver,
+            &AtomicBool::new(false),
+            &events,
+            &path,
+            &mut journal,
+            &call,
+            &args,
+        )
+        .unwrap();
+        assert_eq!(coordinator.runs_for_source(task).unwrap().len(), 2);
+        assert!(event_receiver.try_iter().any(|e|matches!(e,DriverEvent::Permission{detail,..} if detail.contains("workspaceWrite") && detail.contains("500000"))));
+        assert!(
+            dir.starts_with(std::env::temp_dir())
+                && dir
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("ion-source-team-tests-")
+        );
+        let _ = fs::remove_dir_all(dir);
     }
 }

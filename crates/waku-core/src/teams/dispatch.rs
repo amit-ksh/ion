@@ -1,6 +1,53 @@
 //! Indexed dispatcher reads and trusted setup/model-call operations.
 use super::*;
 impl TeamCoordinator {
+    /// Explicit source-task Stop also revokes its bounded team invocations.
+    pub(crate) fn stop_source_runs(&self, source: Uuid, now: u64) -> Result<Vec<Uuid>> {
+        let runs = self.runs_for_source(source)?;
+        let mut stopped = Vec::new();
+        for original in runs {
+            let mut run = original;
+            for retry in 0..3 {
+                if run.status != TeamRunStatus::Active {
+                    break;
+                }
+                match self.stop(run.id, run.revision, now) {
+                    Ok(next) => {
+                        stopped.push(next.id);
+                        break;
+                    }
+                    Err(error) => {
+                        if retry == 2 {
+                            return Err(error);
+                        }
+                        run = self.snapshot(run.id)?;
+                    }
+                }
+            }
+            if run.status == TeamRunStatus::Stopping && !stopped.contains(&run.id) {
+                stopped.push(run.id);
+            }
+        }
+        Ok(stopped)
+    }
+    pub(crate) fn source_run(
+        &self,
+        source: Uuid,
+        project: Uuid,
+        run: Uuid,
+    ) -> Result<TeamRunSnapshot> {
+        let snapshot = self.snapshot(run)?;
+        ensure!(
+            snapshot.project_id == project
+                && snapshot
+                    .origin
+                    .as_ref()
+                    .is_some_and(|o| o.task_id == source),
+            "Team run does not belong to this source task and project"
+        );
+        Ok(snapshot)
+    }
+
     /// One background collection pass over indexed identity/status rows. Team
     /// names are read once per distinct run; task transcripts stay unhydrated.
     pub fn task_projections(

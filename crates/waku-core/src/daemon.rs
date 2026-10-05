@@ -1193,6 +1193,7 @@ impl Backend for WakuBackend {
                     project_id,
                     control_path: self.control.path(),
                     settings_path: self.settings.path(),
+                    mode: options.mode,
                 });
                 let handle =
                     driver::start_local_with_workspace(provider, options, event_sender, workspace)?;
@@ -1267,6 +1268,16 @@ impl Backend for WakuBackend {
                     }
                     driver.clone()
                 };
+                if matches!(&command, Command::Cancel) {
+                    driver.cancel();
+                    for run in self
+                        .teams
+                        .stop_source_runs(session_id, crate::model::unix_time())?
+                    {
+                        self.team_runtime.cancel_run(run);
+                    }
+                    return Ok(ResponsePayload::Ack);
+                }
                 if let Command::Prompt {
                     prompt,
                     turn_id,
