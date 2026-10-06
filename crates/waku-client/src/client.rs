@@ -23,6 +23,22 @@ const READ_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_BUFFERED_EVENTS_PER_RUNTIME: usize = 4096;
 
+/// A completed daemon response rejecting a request, distinct from transport loss.
+#[derive(Debug)]
+pub struct DaemonRejection {
+    pub message: String,
+}
+impl std::fmt::Display for DaemonRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+impl std::error::Error for DaemonRejection {}
+enum RequestFailure {
+    Rejected(RpcError),
+    Disconnected,
+}
+
 enum Outgoing {
     Message(ClientMessage),
     Shutdown,
@@ -30,7 +46,7 @@ enum Outgoing {
 
 struct ClientInner {
     outgoing: Sender<Outgoing>,
-    pending: Mutex<HashMap<Uuid, Sender<Result<ResponsePayload, RpcError>>>>,
+    pending: Mutex<HashMap<Uuid, Sender<Result<ResponsePayload, RequestFailure>>>>,
     sessions: Mutex<HashMap<(Uuid, Uuid), Sender<SequencedEvent>>>,
     pending_events: Mutex<HashMap<(Uuid, Uuid), VecDeque<SequencedEvent>>>,
     task_state_subscribers: Mutex<Vec<Sender<u64>>>,
@@ -189,7 +205,10 @@ impl DaemonClient {
         }
         match response_rx.recv_timeout(REQUEST_TIMEOUT) {
             Ok(Ok(payload)) => Ok(payload),
-            Ok(Err(error)) => Err(anyhow!(error.message)),
+            Ok(Err(RequestFailure::Rejected(error))) => Err(anyhow::Error::new(DaemonRejection {
+                message: error.message,
+            })),
+            Ok(Err(RequestFailure::Disconnected)) => Err(anyhow!("Waku daemon disconnected")),
             Err(error) => {
                 self.inner.pending.lock().remove(&request_id);
                 Err(anyhow!("timed out waiting for Waku daemon: {error}"))
@@ -286,7 +305,9 @@ fn run_client(
                         if let Some(pending) = inner.pending.lock().remove(&request_id) {
                             let result = match outcome {
                                 ResponseOutcome::Ok { payload } => Ok(payload),
-                                ResponseOutcome::Error { error } => Err(error),
+                                ResponseOutcome::Error { error } => {
+                                    Err(RequestFailure::Rejected(error))
+                                }
                             };
                             let _ = pending.send(result);
                         }
@@ -348,9 +369,7 @@ fn run_client(
     inner.disconnected.store(true, Ordering::Release);
     let pending = std::mem::take(&mut *inner.pending.lock());
     for (_, response) in pending {
-        let _ = response.send(Err(RpcError {
-            message: "Waku daemon disconnected".into(),
-        }));
+        let _ = response.send(Err(RequestFailure::Disconnected));
     }
     // Closing the desktop transport is not evidence that a daemon-owned
     // provider exited. Drop the subscription senders so runtime adapters can
@@ -420,6 +439,61 @@ fn read_server_message(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn completed_daemon_rejection_is_distinct_from_an_unknown_disconnect() {
+        for reject in [true, false] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap().to_string();
+            let server = std::thread::spawn(move || {
+                let (stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut socket = tungstenite::accept(stream).unwrap();
+                let hello = socket.read().unwrap();
+                assert!(hello.is_text());
+                write_json(
+                    &mut socket,
+                    &ServerMessage::Hello {
+                        protocol_version: PROTOCOL_VERSION,
+                        daemon_version: "fixture".into(),
+                    },
+                )
+                .unwrap();
+                let message = socket.read().unwrap();
+                let ClientMessage::Request(request) =
+                    serde_json::from_str(message.to_text().unwrap()).unwrap()
+                else {
+                    panic!("request expected");
+                };
+                if reject {
+                    write_json(
+                        &mut socket,
+                        &ServerMessage::Response {
+                            request_id: request.request_id,
+                            outcome: ResponseOutcome::Error {
+                                error: RpcError {
+                                    message: "Definitions changed".into(),
+                                },
+                            },
+                        },
+                    )
+                    .unwrap();
+                }
+                let _ = socket.close(None);
+            });
+            let client = DaemonClient::connect(&address, "fixture".into()).unwrap();
+            let error = client
+                .request(Uuid::nil(), Uuid::nil(), Command::GetSettings)
+                .unwrap_err();
+            assert_eq!(error.downcast_ref::<DaemonRejection>().is_some(), reject);
+            if reject {
+                assert_eq!(error.to_string(), "Definitions changed");
+            }
+            server.join().unwrap();
+        }
+    }
 
     #[test]
     fn daemon_endpoint_accepts_addresses_and_secure_urls() {

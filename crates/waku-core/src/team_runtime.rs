@@ -189,6 +189,7 @@ pub(crate) struct TeamRuntime {
     wake: Sender<()>,
     wakes: Receiver<()>,
     scheduler: Mutex<Option<JoinHandle<()>>>,
+    automation_tick: Mutex<Option<Instant>>,
 }
 impl TeamRuntime {
     pub(crate) fn new(
@@ -235,6 +236,7 @@ impl TeamRuntime {
             wake,
             wakes,
             scheduler: Mutex::new(None),
+            automation_tick: Mutex::new(None),
         })
     }
     pub(crate) fn start(self: &Arc<Self>, publisher: RuntimePublisher) -> Result<()> {
@@ -418,6 +420,25 @@ impl TeamRuntime {
             if self.removed.lock().contains(&task) {
                 self.streams.lock().remove(&task);
                 self.publisher().finish(task, stream.runtime);
+            }
+        }
+        let automation_due = {
+            let mut last = self.automation_tick.lock();
+            if last.is_none_or(|at| at.elapsed() >= Duration::from_secs(1)) {
+                *last = Some(Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+        if automation_due {
+            let projects = self.state.lock().projects.iter().map(|p| p.id).collect();
+            if !self
+                .coordinator
+                .tick_automations(&projects, unix_time())?
+                .is_empty()
+            {
+                self.publisher().tasks_changed();
             }
         }
         let runs = self.coordinator.dispatch_runs(*after, 32)?;

@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 26;
+pub const PROTOCOL_VERSION: u32 = 27;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -267,6 +267,36 @@ pub enum Command {
     RemoveWorkspaceRecord {
         expected_revision: u64,
         id: Uuid,
+    },
+    StartAutomation {
+        id: Uuid,
+        definition_id: Uuid,
+        expected_definition_revision: u64,
+    },
+    ListAutomationRuns {
+        pending_only: bool,
+        project_id: Option<Uuid>,
+        definition_id: Option<Uuid>,
+        after: Option<Uuid>,
+        limit: u16,
+    },
+    GetAutomationRun {
+        id: Uuid,
+    },
+    ResolveAutomationGate {
+        id: Uuid,
+        expected_revision: u64,
+        stage: u16,
+        approved: bool,
+    },
+    StopAutomation {
+        id: Uuid,
+        expected_revision: u64,
+    },
+    SetRoutinePaused {
+        id: Uuid,
+        expected_revision: u64,
+        paused: bool,
     },
     GenerateWorkflow {
         project_id: Uuid,
@@ -521,6 +551,15 @@ pub enum ResponsePayload {
     WorkspaceControl {
         snapshot: crate::control::ControlSnapshot,
     },
+    AutomationRun {
+        run: crate::control::AutomationRun,
+    },
+    AutomationMissing {
+        id: Uuid,
+    },
+    AutomationRuns {
+        page: crate::control::AutomationPage,
+    },
     WorkflowDraft {
         workflow: crate::control::Workflow,
     },
@@ -676,6 +715,44 @@ mod tests {
         assert_eq!(data, vec![0, 1, 2, 255]);
     }
 
+    #[test]
+    fn automation_commands_keep_definition_identity_and_exact_stage_gate() {
+        let id = Uuid::new_v4();
+        let json = serde_json::to_value(Command::StartAutomation {
+            id,
+            definition_id: Uuid::new_v4(),
+            expected_definition_revision: 7,
+        })
+        .unwrap();
+        assert_eq!(json["type"], "startAutomation");
+        assert_eq!(json["expectedDefinitionRevision"], 7);
+        assert!(matches!(
+            serde_json::from_value::<Command>(json).unwrap(),
+            Command::StartAutomation { .. }
+        ));
+        let json = serde_json::to_value(Command::ResolveAutomationGate {
+            id,
+            expected_revision: 9,
+            stage: 2,
+            approved: false,
+        })
+        .unwrap();
+        assert_eq!(json["stage"], 2);
+        assert_eq!(json["approved"], false);
+        assert!(matches!(
+            serde_json::from_value::<Command>(json).unwrap(),
+            Command::ResolveAutomationGate {
+                stage: 2,
+                approved: false,
+                ..
+            }
+        ));
+        let legacy: crate::control::WorkflowStage = serde_json::from_str(
+            r#"{"title":"Review","instructions":"Review changes","requiresDecision":true}"#,
+        )
+        .unwrap();
+        assert!(legacy.team_id.is_none());
+    }
     #[test]
     fn team_commands_have_typed_execution_settings_and_stable_wire_fields() {
         let run_id = Uuid::new_v4();

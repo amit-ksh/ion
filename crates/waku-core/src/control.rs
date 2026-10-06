@@ -307,7 +307,9 @@ impl ControlStore {
         snapshot.records.retain(|entry| entry.id() != record.id());
         snapshot.records.push(record.clone());
         validate(&snapshot)?;
+        crate::teams::validate_automation_definition(&record, &snapshot)?;
         tx.execute("INSERT INTO ion_control_records VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![record.id().to_string(),record.kind(),serde_json::to_string(&record)?])?;
+        crate::teams::sync_automation_definition(&tx, &record)?;
         tx.execute(
             "UPDATE ion_control_revision SET revision=revision+1 WHERE id=1",
             [],
@@ -326,6 +328,7 @@ impl ControlStore {
         );
         snapshot.records.retain(|record| record.id() != id);
         validate(&snapshot)?;
+        crate::teams::remove_automation_definition(&tx, id)?;
         tx.execute(
             "DELETE FROM ion_control_records WHERE id=?",
             [id.to_string()],
@@ -356,6 +359,7 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
         })
         .collect();
     for record in &snapshot.records {
+        crate::teams::validate_automation_definition(record, snapshot)?;
         ensure!(
             !record.name().trim().is_empty() && record.name().len() <= 160,
             "Enter a name of at most 160 characters"
@@ -471,6 +475,7 @@ pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
         project_id,
         prompt,
         stages: draft.stages,
+        limits: None,
     };
     validate(&ControlSnapshot {
         revision: 0,
@@ -578,6 +583,9 @@ mod tests {
                     paused: true,
                     next_run: 0,
                     provider: ProviderKind::Claude,
+                    team_id: None,
+                    workflow_id: None,
+                    last_error: None,
                 }),
             )
             .unwrap();

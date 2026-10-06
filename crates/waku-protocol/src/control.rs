@@ -97,6 +97,8 @@ pub struct Workflow {
     pub project_id: Uuid,
     pub prompt: String,
     pub stages: Vec<WorkflowStage>,
+    #[serde(default)]
+    pub limits: Option<crate::teams::TeamRunLimits>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +106,9 @@ pub struct WorkflowStage {
     pub title: String,
     pub instructions: String,
     pub requires_decision: bool,
+    /// Explicit team per stage. Legacy drafts remain editable but cannot run until assigned.
+    #[serde(default)]
+    pub team_id: Option<Uuid>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -116,6 +121,12 @@ pub struct Routine {
     pub paused: bool,
     pub next_run: u64,
     pub provider: ProviderKind,
+    #[serde(default)]
+    pub team_id: Option<Uuid>,
+    #[serde(default)]
+    pub workflow_id: Option<Uuid>,
+    #[serde(default)]
+    pub last_error: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -154,4 +165,54 @@ pub enum WorkspaceActionStatus {
     Pending,
     Accepted,
     Declined,
+}
+
+/// Metadata-only automation projection; pinned profile bodies remain private.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum AutomationStatus {
+    Running,
+    WaitingDecision,
+    Blocked,
+    Completed,
+    Canceled,
+    Skipped,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationStage {
+    pub title: String,
+    pub instructions: String,
+    pub team_id: Uuid,
+    pub team_run_id: Uuid,
+    pub task_id: Uuid,
+    pub requires_decision: bool,
+    pub approved: bool,
+    pub started: bool,
+    pub completed: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRun {
+    pub id: Uuid,
+    pub name: String,
+    pub project_id: Uuid,
+    pub workflow_id: Option<Uuid>,
+    pub routine_id: Option<Uuid>,
+    pub definition_revision: u64,
+    pub revision: u64,
+    pub created_at: u64,
+    pub scheduled_at: Option<u64>,
+    pub deadline: u64,
+    pub status: AutomationStatus,
+    pub reason: Option<String>,
+    pub current_stage: u16,
+    pub stages: Vec<AutomationStage>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationPage {
+    pub runs: Vec<AutomationRun>,
+    pub next_cursor: Option<Uuid>,
+    pub pending_count: u32,
 }

@@ -640,6 +640,116 @@ impl Backend for WakuBackend {
             } => Ok(ResponsePayload::WorkspaceControl {
                 snapshot: self.control.remove(expected_revision, id)?,
             }),
+            Command::StartAutomation {
+                id,
+                definition_id,
+                expected_definition_revision,
+            } => {
+                let existing = self.teams.automation_run(id).ok();
+                if existing.is_none() {
+                    let definitions = self.control.load()?;
+                    let project_id = definitions
+                        .records
+                        .iter()
+                        .find_map(|r| match r {
+                            waku_protocol::control::ControlRecord::Workflow(w)
+                                if w.id == definition_id =>
+                            {
+                                Some(w.project_id)
+                            }
+                            waku_protocol::control::ControlRecord::Routine(r)
+                                if r.id == definition_id =>
+                            {
+                                Some(r.project_id)
+                            }
+                            _ => None,
+                        })
+                        .context("Choose a workflow or routine")?;
+                    anyhow::ensure!(
+                        self.task_state
+                            .lock()
+                            .projects
+                            .iter()
+                            .any(|p| p.id == project_id),
+                        "Choose an existing project"
+                    );
+                }
+                let run = self.teams.start_automation(
+                    id,
+                    definition_id,
+                    expected_definition_revision,
+                    crate::model::unix_time(),
+                )?;
+                self.team_runtime.wake();
+                Ok(ResponsePayload::AutomationRun { run })
+            }
+            Command::GetAutomationRun { id } => match self.teams.automation_run(id) {
+                Ok(run) => Ok(ResponsePayload::AutomationRun { run }),
+                Err(error)
+                    if matches!(
+                        error.downcast_ref::<rusqlite::Error>(),
+                        Some(rusqlite::Error::QueryReturnedNoRows)
+                    ) =>
+                {
+                    Ok(ResponsePayload::AutomationMissing { id })
+                }
+                Err(error) => Err(error),
+            },
+            Command::ListAutomationRuns {
+                pending_only,
+                project_id,
+                definition_id,
+                after,
+                limit,
+            } => Ok(ResponsePayload::AutomationRuns {
+                page: self.teams.automation_runs(
+                    pending_only,
+                    project_id,
+                    definition_id,
+                    after,
+                    limit,
+                )?,
+            }),
+            Command::ResolveAutomationGate {
+                id,
+                expected_revision,
+                stage,
+                approved,
+            } => {
+                let run = self.teams.resolve_automation_gate(
+                    id,
+                    expected_revision,
+                    stage,
+                    approved,
+                    crate::model::unix_time(),
+                )?;
+                self.team_runtime.wake();
+                Ok(ResponsePayload::AutomationRun { run })
+            }
+            Command::StopAutomation {
+                id,
+                expected_revision,
+            } => {
+                let run =
+                    self.teams
+                        .stop_automation(id, expected_revision, crate::model::unix_time())?;
+                self.team_runtime.wake();
+                Ok(ResponsePayload::AutomationRun { run })
+            }
+            Command::SetRoutinePaused {
+                id,
+                expected_revision,
+                paused,
+            } => {
+                let snapshot = self.teams.set_routine_paused(
+                    id,
+                    expected_revision,
+                    paused,
+                    crate::model::unix_time(),
+                )?;
+                self.team_runtime.wake();
+                Ok(ResponsePayload::WorkspaceControl { snapshot })
+            }
             Command::GenerateWorkflow { project_id, prompt } => {
                 Ok(ResponsePayload::WorkflowDraft {
                     workflow: crate::control::generate_workflow(project_id, prompt)?,
@@ -2431,6 +2541,12 @@ fn handle_driver_command(
         | Command::ReconcileTeamIntegration { .. }
         | Command::SaveWorkspaceRecord { .. }
         | Command::RemoveWorkspaceRecord { .. }
+        | Command::StartAutomation { .. }
+        | Command::GetAutomationRun { .. }
+        | Command::ListAutomationRuns { .. }
+        | Command::ResolveAutomationGate { .. }
+        | Command::StopAutomation { .. }
+        | Command::SetRoutinePaused { .. }
         | Command::GenerateWorkflow { .. }
         | Command::ImportWorkspaceArtifact { .. }
         | Command::ReadWorkspaceArtifact { .. }

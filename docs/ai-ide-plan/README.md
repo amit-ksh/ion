@@ -129,3 +129,6 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Agent Teams release checklist](20-agent-teams-release-checklist.md): implemented
   coverage, remaining development and your live setup/review tasks in one place.
+
+- [Workflow/routine execution and review](21-workflows-routines.md): durable
+  sequential stages, assigned teams, human gates and restart-safe interval schedules.

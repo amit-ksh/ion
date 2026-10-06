@@ -7,7 +7,7 @@ import {
   daemonUrl,
   type WebSocketLike,
 } from "./client";
-import { PROTOCOL_VERSION, type ResponsePayload } from "./generated";
+import { PROTOCOL_VERSION, type ResponsePayload, type ClientMessage } from "./generated";
 
 class FakeSocket implements WebSocketLike {
   readyState = 0;
@@ -509,3 +509,16 @@ test("Queues a team follow-up with stable message identity and the task route", 
   socket.receive({ type: 'response', requestId: request.requestId, outcome: { status: 'ok', payload: { type: 'ack' } } })
   await expect(pending).resolves.toEqual({ type: 'ack' })
 })
+
+
+test('automation requests preserve start identity, pinned revision and gate scope', async () => {
+  const { client, sockets } = fixture(); const socket = await connect(client, sockets);
+  const command = { type: 'startAutomation' as const, id: 'automation', definitionId: 'workflow', expectedDefinitionRevision: 42 };
+  const first = client.request(command); const request = JSON.parse(socket.sent.at(-1)!) as Extract<ClientMessage, { type: 'request' }>;
+  expect(request.command).toEqual(command);
+  socket.receive({ type: 'response', requestId: request.requestId, outcome: { status: 'ok', payload: { type: 'ack' } } }); await first;
+  const next = client.request({ type: 'resolveAutomationGate', id: 'automation', expectedRevision: 5, stage: 2, approved: false });
+  const gate = JSON.parse(socket.sent.at(-1)!) as Extract<ClientMessage, { type: 'request' }>;
+  expect(gate.command).toEqual({ type: 'resolveAutomationGate', id: 'automation', expectedRevision: 5, stage: 2, approved: false });
+  socket.receive({ type: 'response', requestId: gate.requestId, outcome: { status: 'ok', payload: { type: 'ack' } } }); await next;
+});

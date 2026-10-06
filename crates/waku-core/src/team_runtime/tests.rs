@@ -1021,3 +1021,102 @@ fn team_followup_waiting_on_children_is_published_once_and_retains_the_root_turn
         waiting.work[0].attempts[0].id
     );
 }
+
+#[test]
+fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
+    let f = Fixture::new(64);
+    f.until(|r| r.status == TeamRunStatus::Completed);
+    let control = ControlStore::new(f.dir.join("control.db"));
+    let w = Workflow {
+        id: Uuid::new_v4(),
+        name: "Release reports".into(),
+        project_id: f.run.project_id,
+        prompt: "Create reviewed report documents".into(),
+        limits: Some(TeamRunLimits {
+            max_tokens: Some(10_000_000),
+            ..Default::default()
+        }),
+        stages: vec![
+            WorkflowStage {
+                title: "Prepare".into(),
+                instructions: "Create reviewed preparation evidence".into(),
+                requires_decision: false,
+                team_id: Some(f.run.team.id),
+            },
+            WorkflowStage {
+                title: "Release review".into(),
+                instructions: "Review the prior report inputs and create a final document".into(),
+                requires_decision: true,
+                team_id: Some(f.run.team.id),
+            },
+        ],
+    };
+    let wid = w.id;
+    let rev = control
+        .save(control.load().unwrap().revision, ControlRecord::Workflow(w))
+        .unwrap()
+        .revision;
+    let a = f
+        .runtime
+        .coordinator
+        .start_automation(Uuid::new_v4(), wid, rev, unix_time())
+        .unwrap();
+    // This drives one full three-level team per stage. Retain the existing
+    // per-team wait allowance instead of sharing one 30-second allowance.
+    let deadline = Instant::now() + Duration::from_secs(30 * a.stages.len() as u64 + 5);
+    let mut after = None;
+    let mut approved = false;
+    loop {
+        f.runtime.tick(&mut after).unwrap();
+        let a = f.runtime.coordinator.automation_run(a.id).unwrap();
+        if a.status == AutomationStatus::WaitingDecision && !approved {
+            assert!(
+                f.runtime
+                    .coordinator
+                    .snapshot(a.stages[1].team_run_id)
+                    .is_err()
+            );
+            f.runtime
+                .coordinator
+                .resolve_automation_gate(a.id, a.revision, 1, true, unix_time())
+                .unwrap();
+            approved = true;
+        }
+        if a.status == AutomationStatus::Completed && f.runtime.jobs.lock().is_empty() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Workflow stalled: {:?} {:?}, stage {}: {:?}",
+            a.status,
+            a.reason,
+            a.current_stage,
+            a.stages
+                .iter()
+                .map(|s| (s.started, s.completed))
+                .collect::<Vec<_>>()
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    let a = f.runtime.coordinator.automation_run(a.id).unwrap();
+    assert!(approved);
+    assert!(a.stages.iter().all(|s| s.completed));
+    let next = f
+        .runtime
+        .coordinator
+        .snapshot(a.stages[1].team_run_id)
+        .unwrap();
+    assert!(!next.inputs.is_empty());
+    let mut state = f.runtime.store.load().unwrap();
+    for stage in &a.stages {
+        let task = state
+            .sessions
+            .iter_mut()
+            .find(|s| s.id == stage.task_id)
+            .unwrap();
+        f.runtime.store.hydrate(task).unwrap();
+        assert_eq!(task.turns.len(), 1);
+        assert_eq!(task.turns[0].status, TurnStatus::Completed);
+        assert!(task.team_assignment.is_some());
+    }
+}

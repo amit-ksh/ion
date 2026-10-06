@@ -4178,3 +4178,6 @@ mod input_handoffs;
 
 #[path = "followup_tests.rs"]
 mod followup_tests;
+
+#[path = "automation_tests.rs"]
+mod automation_tests;

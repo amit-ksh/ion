@@ -13,6 +13,7 @@ use uuid::Uuid;
 use waku_protocol::{control::*, teams::*};
 
 mod apps;
+mod automation;
 mod budget;
 mod continuation;
 mod decisions;
@@ -29,6 +30,11 @@ mod storage;
 mod tests;
 mod workspace;
 pub use apps::{AppActionStart, ApprovedAppAction};
+pub(crate) use automation::{
+    remove_definition as remove_automation_definition,
+    sync_definition as sync_automation_definition,
+    validate_definition as validate_automation_definition,
+};
 pub use budget::{ModelCallAllowance, ModelCallReservation, ModelTokenUsage};
 pub use continuation::{AssignmentContinuation, AssignmentHandoff};
 pub(crate) use inputs::PreparedInput;
@@ -242,6 +248,7 @@ impl TeamCoordinator {
     fn connect(&self) -> Result<Connection> {
         let db = self.control.connect()?;
         schema(&db)?;
+        automation::schema(&db)?;
         Ok(db)
     }
 
@@ -392,6 +399,19 @@ impl TeamCoordinator {
         now: u64,
         root_materialized: bool,
     ) -> Result<TeamRunSnapshot> {
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let run = Self::prepare_in_transaction(&tx, request, now, root_materialized, None)?;
+        tx.commit()?;
+        Ok(run)
+    }
+    fn prepare_in_transaction(
+        tx: &Transaction<'_>,
+        request: PrepareRun,
+        now: u64,
+        root_materialized: bool,
+        pinned: Option<ControlSnapshot>,
+    ) -> Result<TeamRunSnapshot> {
         ensure!(
             !request.id.is_nil() && !request.root_task_id.is_nil() && !request.project_id.is_nil(),
             "Run and task identities are required"
@@ -399,10 +419,16 @@ impl TeamCoordinator {
         text(&request.objective, 32_000, "Task objective")?;
         validate_access(&request.access)?;
         validate_limits(&request.limits)?;
-        inputs::validate(&request.input_data, &request.source_attachments)?;
+        if pinned.is_some() {
+            ensure!(
+                request.source_attachments.is_empty(),
+                "Automation handoffs use document receipts, not upload presentations"
+            );
+            inputs::validate_files(&request.input_data)?;
+        } else {
+            inputs::validate(&request.input_data, &request.source_attachments)?;
+        }
         let body = serde_json::to_string(&request)?;
-        let mut db = self.connect()?;
-        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let origin_signature = if let Some(origin) = &request.origin {
             ensure!(!origin.task_id.is_nil(), "Source task identity required");
             text(&origin.request_id, 256, "Invocation ID")?;
@@ -440,7 +466,7 @@ impl TeamCoordinator {
             );
             return load(&tx, Uuid::parse_str(&id)?);
         }
-        let definitions = crate::control::ControlStore::read(&tx)?;
+        let definitions = pinned.unwrap_or(crate::control::ControlStore::read(tx)?);
         ensure!(
             definitions.revision == request.expected_definition_revision,
             "Team definitions changed; refresh before starting"
@@ -572,8 +598,7 @@ impl TeamCoordinator {
             "Team/profile definitions pinned; waiting for dispatcher",
             now,
         )?;
-        tx.commit()?;
-        self.snapshot(run.id)
+        load(tx, run.id)
     }
     /// One connection and an indexed lookup per incoming projection; never scan transcripts.
     pub fn team_task_ids(&self, ids: impl IntoIterator<Item = Uuid>) -> Result<HashSet<Uuid>> {

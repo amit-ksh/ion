@@ -142,6 +142,8 @@ function AppNavigator() {
        * route from navigation, returning restored and open tasks to home. */}
       <Stack.Screen name="speech" options={{ title: "Cloud speech" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
+        <Stack.Screen name="automations" options={{ ...drawerHeader, title: "Workflows & routines" }} />
+        <Stack.Screen name="automation/[id]" options={{ ...floatingHeader, title: "Run" }} />
         <Stack.Screen
           name="daemons"
           options={{ headerLargeTitle: true, title: "Daemons" }}

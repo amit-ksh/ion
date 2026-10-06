@@ -6,6 +6,7 @@ use waku_client::teams::{
     AgentAccess, AgentExecution, AssignmentStatus, ExecutionEnvironment, TeamRunSnapshot,
     TeamRunStatus, TeamRunSummary,
 };
+mod automation_ui;
 mod team_activity;
 mod team_apps;
 mod team_integration;
@@ -124,8 +125,20 @@ pub(super) struct ControlUi {
     members: Vec<TeamMember>,
     limit_inputs: Vec<(team_limits::LimitField, Entity<TextInput>)>,
     child_review: bool,
-    stages: Vec<(Entity<TextInput>, Entity<TextInput>, bool)>,
+    stages: Vec<(Entity<TextInput>, Entity<TextInput>, bool, Option<Uuid>)>,
     pending_stages: Option<Vec<WorkflowStage>>,
+    routine_team: Option<Uuid>,
+    routine_workflow: Option<Uuid>,
+    automation_runs: Rc<Vec<AutomationRun>>,
+    automation_detail: Option<Rc<AutomationRun>>,
+    automation_selected: Option<Uuid>,
+    automation_definition: Option<Uuid>,
+    automation_history: bool,
+    automation_after: Option<Uuid>,
+    automation_cursor: Option<Uuid>,
+    automation_previous: Vec<Option<Uuid>>,
+    automation_pending: u32,
+    automation_requests: HashMap<Uuid, (Uuid, u64)>,
     focus: FocusHandle,
     rows_key: u64,
     list: ListState,
@@ -196,6 +209,8 @@ enum Row {
     Empty(&'static str),
     Notice(Notice),
     AppPair(Vec<crate::credentials::ComposioAuthConfig>),
+    Automation(Rc<AutomationRun>),
+    AutomationStage(Rc<AutomationRun>, usize),
 }
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 enum NoticeKind {
@@ -291,6 +306,18 @@ impl ControlUi {
             child_review: true,
             stages: Vec::new(),
             pending_stages: None,
+            routine_team: None,
+            routine_workflow: None,
+            automation_runs: Rc::new(Vec::new()),
+            automation_detail: None,
+            automation_selected: None,
+            automation_definition: None,
+            automation_history: false,
+            automation_after: None,
+            automation_cursor: None,
+            automation_previous: Vec::new(),
+            automation_pending: 0,
+            automation_requests: HashMap::new(),
             focus: cx.focus_handle(),
             rows_key: 0,
             list: ListState::new(0, ListAlignment::Top, px(72.0)),
@@ -750,6 +777,8 @@ impl Waku {
                                             this.control_ui.runs_previous.clear();
                                             this.control_ui.decisions_after = None;
                                             this.control_ui.decisions_previous.clear();
+                                            this.control_ui.automation_after = None;
+                                            this.control_ui.automation_previous.clear();
                                             this.refresh_team_activity(true, cx);
                                         }
                                         Filter::Task(id) => this.control_ui.filter_task = id,
@@ -758,6 +787,8 @@ impl Waku {
                                             this.control_ui.filter_status = status;
                                             this.control_ui.decisions_after = None;
                                             this.control_ui.decisions_previous.clear();
+                                            this.control_ui.automation_after = None;
+                                            this.control_ui.automation_previous.clear();
                                             this.refresh_team_activity(true, cx);
                                         }
                                     }
@@ -851,6 +882,12 @@ impl Waku {
         if self.control_ui.page != Some(page) {
             self.control_ui.activity_generation += 1;
             self.control_ui.activity_busy = false;
+            self.control_ui.automation_selected = None;
+            self.control_ui.automation_detail = None;
+            self.control_ui.automation_history = false;
+            self.control_ui.automation_definition = None;
+            self.control_ui.automation_after = None;
+            self.control_ui.automation_previous.clear();
             self.control_ui.selected_run = None;
             self.clear_team_integration();
             self.clear_team_recovery();
@@ -908,6 +945,11 @@ impl Waku {
         let generation = self.control_ui.generation;
         let editor_generation = self.control_ui.editor_generation;
         let saving = matches!(&command, Rpc::SaveWorkspaceRecord { .. });
+        let starting = if let Rpc::StartAutomation { id, .. } = &command {
+            Some(*id)
+        } else {
+            None
+        };
         let requested_edit = self.control_ui.edit_id;
         let requested_name = self.control_ui.name.read(cx).content().to_owned();
         let requested_prompt = if let Rpc::GenerateWorkflow { prompt, .. } = &command {
@@ -922,7 +964,18 @@ impl Waku {
             let response = cx
                 .background_executor()
                 .spawn(async move {
-                    smol::unblock(move || client.request(Uuid::nil(), Uuid::nil(), command)).await
+                    smol::unblock(move || {
+                        let response=client.request(Uuid::nil(),Uuid::nil(),command);
+                        let rejected=response.as_ref().err().is_some_and(|e|e.downcast_ref::<waku_client::DaemonRejection>().is_some());
+                        if response.is_err() && let Some(id)=starting {
+                            match client.request(Uuid::nil(),Uuid::nil(),Rpc::GetAutomationRun{id}) {
+                                Ok(ResponsePayload::AutomationRun{run})=>return (Ok(ResponsePayload::AutomationRun{run}),false),
+                                Ok(ResponsePayload::AutomationMissing{id:missing}) if missing==id=>return (response,rejected),
+                                _=>{},
+                            }
+                        }
+                        (response,false)
+                    }).await
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
@@ -930,6 +983,8 @@ impl Waku {
                     return;
                 }
                 this.control_ui.busy = false;
+                let (response,confirmed_missing)=response;
+                if confirmed_missing {if let Some(id)=starting{this.control_ui.automation_requests.retain(|_,(request,_)|*request!=id);}}
                 match response {
                     Ok(ResponsePayload::WorkspaceControl { snapshot }) => {
                         this.install_control_snapshot(snapshot);
@@ -939,6 +994,14 @@ impl Waku {
                                 this.prepare_control_task(proposal.project_id, ProviderKind::Nebius, format!("{}\n\n{}", proposal.title, proposal.detail), cx);
                             }
                         }
+                    }
+                    Ok(ResponsePayload::AutomationRun {run}) => {
+                        this.control_ui.automation_requests.retain(|_,(id,_)|*id!=run.id);
+                        this.control_ui.automation_selected=Some(run.id);
+                        this.control_ui.automation_detail=Some(Rc::new(run));
+                        this.control_ui.automation_history=true;
+                        this.control_ui.activity_revision+=1;
+                        this.refresh_team_activity(true,cx);
                     }
                     Ok(ResponsePayload::WorkflowDraft {mut workflow}) => {
                         if this.control_ui.editor_generation==editor_generation && this.control_ui.page==Some(Page::Workflows) && requested_prompt.as_deref().is_none_or(|prompt|this.control_ui.instructions.read(cx).content()==prompt) {
@@ -964,6 +1027,8 @@ impl Waku {
         self.control_ui.form = Some(kind);
         self.control_ui.edit_id = None;
         self.control_ui.error = None;
+        self.control_ui.routine_team = None;
+        self.control_ui.routine_workflow = None;
         self.control_ui.members.clear();
         self.set_team_limit_inputs(waku_client::teams::TeamRunLimits::default(), cx);
         self.control_ui.stages.clear();
@@ -1001,7 +1066,7 @@ impl Waku {
         instructions_input.update(cx, |input, cx| input.set_content(instructions, cx));
         self.control_ui
             .stages
-            .push((title_input, instructions_input, gate));
+            .push((title_input, instructions_input, gate, None));
         cx.notify();
     }
     fn edit_control_record(&mut self, record: ControlRecord, cx: &mut Context<Self>) {
@@ -1053,6 +1118,8 @@ impl Waku {
                 self.control_ui.members = v.members;
             }
             ControlRecord::Routine(v) => {
+                self.control_ui.routine_team = v.team_id;
+                self.control_ui.routine_workflow = v.workflow_id;
                 self.control_ui.project = Some(v.project_id);
                 self.control_ui.provider = v.provider;
                 self.control_ui.interval.update(cx, |input, cx| {
@@ -1060,6 +1127,7 @@ impl Waku {
                 });
             }
             ControlRecord::Workflow(v) => {
+                self.set_team_limit_inputs(v.limits.clone().unwrap_or_default(), cx);
                 self.control_ui.project = Some(v.project_id);
                 // Window entities must be constructed in update_window, never a worker.
                 self.control_ui.pending_stages = Some(v.stages);
@@ -1157,14 +1225,23 @@ impl Waku {
                     name,
                     project_id,
                     prompt: instructions,
+                    limits: Some(match self.read_team_limit_inputs(cx) {
+                        Ok(limits) => limits,
+                        Err(error) => {
+                            self.control_ui.error = Some(error);
+                            cx.notify();
+                            return;
+                        }
+                    }),
                     stages: self
                         .control_ui
                         .stages
                         .iter()
-                        .map(|(title, instructions, gate)| WorkflowStage {
+                        .map(|(title, instructions, gate, team)| WorkflowStage {
                             title: title.read(cx).content().to_owned(),
                             instructions: instructions.read(cx).content().to_owned(),
                             requires_decision: *gate,
+                            team_id: *team,
                         })
                         .collect(),
                 })
@@ -1191,6 +1268,9 @@ impl Waku {
                     paused: true,
                     next_run: 0,
                     provider: self.control_ui.provider,
+                    team_id: self.control_ui.routine_team,
+                    workflow_id: self.control_ui.routine_workflow,
+                    last_error: None,
                 })
             }
         };
@@ -1400,6 +1480,31 @@ impl Waku {
             Page::Workflows => Some((FormKind::Workflow, "New workflow")),
             _ => None,
         };
+        if matches!(page, Page::Workflows | Page::Routines) {
+            actions = actions.child(self.control_button(
+                "automation-definitions",
+                "Definitions",
+                cx,
+                |this, _, cx| {
+                    this.control_ui.automation_history = false;
+                    this.control_ui.automation_selected = None;
+                    this.control_ui.activity_revision += 1;
+                    cx.notify();
+                },
+            ));
+            actions =
+                actions.child(
+                    self.control_button("automation-runs", "Runs", cx, |this, _, cx| {
+                        this.control_ui.automation_history = true;
+                        this.control_ui.automation_selected = None;
+                        this.control_ui.automation_definition = None;
+                        this.control_ui.automation_after = None;
+                        this.control_ui.automation_previous.clear();
+                        this.refresh_team_activity(true, cx);
+                        cx.notify();
+                    }),
+                );
+        }
         if let Some((kind, label)) = form {
             actions = actions.child(self.control_button(
                 "workspace-create",
@@ -1575,6 +1680,51 @@ impl Waku {
                 }
             }
         }
+        if matches!(page, Page::Workflows | Page::Routines) && self.control_ui.automation_history {
+            return self.automation_rows();
+        }
+        if matches!(page, Page::Dashboard | Page::Inbox | Page::Decisions) {
+            rows.extend(
+                self.control_ui
+                    .automation_runs
+                    .iter()
+                    .filter(|r| {
+                        self.control_ui
+                            .filter_project
+                            .is_none_or(|p| r.project_id == p)
+                            && self
+                                .control_ui
+                                .filter_task
+                                .is_none_or(|t| r.stages.iter().any(|s| s.task_id == t))
+                            && (page != Page::Decisions
+                                || r.status == AutomationStatus::WaitingDecision)
+                            && (page != Page::Inbox
+                                || ((self.control_ui.filter_kind == NoticeKind::All
+                                    || self.control_ui.filter_kind == NoticeKind::Decision
+                                        && r.status == AutomationStatus::WaitingDecision
+                                    || self.control_ui.filter_kind == NoticeKind::Issue
+                                        && r.status == AutomationStatus::Blocked
+                                    || self.control_ui.filter_kind == NoticeKind::Completed
+                                        && r.status == AutomationStatus::Completed)
+                                    && match self.control_ui.filter_status {
+                                        NoticeStatus::All => true,
+                                        NoticeStatus::Pending => matches!(
+                                            r.status,
+                                            AutomationStatus::WaitingDecision
+                                                | AutomationStatus::Blocked
+                                        ),
+                                        NoticeStatus::Resolved => matches!(
+                                            r.status,
+                                            AutomationStatus::Completed
+                                                | AutomationStatus::Canceled
+                                                | AutomationStatus::Skipped
+                                        ),
+                                    }))
+                    })
+                    .cloned()
+                    .map(|r| Row::Automation(Rc::new(r))),
+            );
+        }
         if rows.is_empty() {
             rows.push(Row::Empty(match page {
                 Page::Dashboard | Page::Tasks => "Your tasks will appear here.",
@@ -1632,6 +1782,7 @@ impl Waku {
         }
         if let Some(stages) = self.control_ui.pending_stages.take() {
             for stage in stages {
+                let team_id = stage.team_id;
                 self.add_control_stage(
                     stage.title,
                     stage.instructions,
@@ -1639,6 +1790,9 @@ impl Waku {
                     window,
                     cx,
                 );
+                if let Some(stage) = self.control_ui.stages.last_mut() {
+                    stage.3 = team_id;
+                }
             }
         }
         use std::hash::{Hash, Hasher};
@@ -1648,6 +1802,10 @@ impl Waku {
         self.control_ui.activity_revision.hash(&mut key);
         self.control_ui.runs_tab.hash(&mut key);
         self.control_ui.selected_run.hash(&mut key);
+        self.control_ui.automation_history.hash(&mut key);
+        self.control_ui.automation_selected.hash(&mut key);
+        self.control_ui.automation_definition.hash(&mut key);
+        self.control_ui.automation_after.hash(&mut key);
         self.control_ui.filter_project.hash(&mut key);
         self.control_ui.filter_task.hash(&mut key);
         self.control_ui.filter_kind.hash(&mut key);
@@ -1725,6 +1883,9 @@ impl Waku {
         if page == Page::Teams {
             content = content.child(self.render_team_activity_header(cx));
         }
+        if matches!(page, Page::Workflows | Page::Routines) && self.control_ui.automation_history {
+            content = content.child(self.render_automation_header(cx));
+        }
         if page == Page::Dashboard {
             let active = self.state.sessions.iter().filter(|s| s.is_busy()).count();
             let decisions = self
@@ -1733,7 +1894,8 @@ impl Waku {
                 .iter()
                 .filter(|s| s.status == SessionStatus::Waiting && s.team_assignment.is_none())
                 .count()
-                + self.control_ui.pending_team_decisions as usize;
+                + self.control_ui.pending_team_decisions as usize
+                + self.control_ui.automation_pending as usize;
             let agents = self
                 .control_ui
                 .snapshot
@@ -1830,6 +1992,22 @@ impl Waku {
         if matches!(page, Page::Inbox | Page::Decisions) {
             content = content.child(self.render_workspace_filters(cx));
             content = content.child(self.render_team_decision_pages(cx));
+            if self.control_ui.automation_cursor.is_some()
+                || !self.control_ui.automation_previous.is_empty()
+            {
+                content = content.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .child(
+                            div()
+                                .text_size(sp(12.5))
+                                .text_color(theme.text_secondary)
+                                .child("Workflow runs"),
+                        )
+                        .child(self.render_automation_header(cx)),
+                );
+            }
         }
         if matches!(page, Page::Inbox | Page::Dashboard) {
             content = content.child(self.render_team_collection_pages(cx));
@@ -1882,6 +2060,10 @@ impl Waku {
             .gap(px(14.0));
         let mut actions = div().flex_none().flex().gap(px(8.0));
         let (title, detail, icon_path) = match row {
+            Row::Automation(run) => return self.render_automation_row(run, None, cx),
+            Row::AutomationStage(run, index) => {
+                return self.render_automation_row(run, Some(index), cx);
+            }
             Row::TeamDecision(decision) => return self.render_team_decision_row(decision, cx),
             Row::RecoveryFile(index, row) => return self.render_team_recovery_file(index, row, cx),
             Row::RecoveryApp(row) => return self.render_team_recovery_app(row, cx),
@@ -2201,13 +2383,25 @@ impl Waku {
                     ),
                     ControlRecord::Routine(routine) => (
                         format!(
-                            "{} · every {} minutes",
+                            "{} · every {} minutes{}",
                             if routine.paused {
                                 "Paused"
                             } else {
                                 "Scheduled"
                             },
-                            routine.interval_minutes
+                            routine.interval_minutes,
+                            routine
+                                .last_error
+                                .as_ref()
+                                .map(|e| format!(" · {e}"))
+                                .unwrap_or_else(|| if routine.next_run > 0 {
+                                    format!(
+                                        " · next {}",
+                                        automation_ui::next_fire(routine.next_run)
+                                    )
+                                } else {
+                                    String::new()
+                                })
                         ),
                         "icons/rotate-cw.svg",
                     ),
@@ -2235,6 +2429,53 @@ impl Waku {
                         },
                     ));
                 }
+                if matches!(
+                    record,
+                    ControlRecord::Workflow(_) | ControlRecord::Routine(_)
+                ) {
+                    actions = actions.child(self.control_button(
+                        format!("automation-start-{id}"),
+                        if self.control_ui.automation_requests.contains_key(&id) {
+                            "Retry run"
+                        } else {
+                            "Run now"
+                        },
+                        cx,
+                        move |this, _, cx| this.start_control_automation(id, cx),
+                    ));
+                    actions = actions.child(self.control_button(
+                        format!("automation-history-{id}"),
+                        "Runs",
+                        cx,
+                        move |this, _, cx| {
+                            this.control_ui.automation_history = true;
+                            this.control_ui.automation_selected = None;
+                            this.control_ui.automation_definition = Some(id);
+                            this.control_ui.automation_after = None;
+                            this.control_ui.automation_previous.clear();
+                            this.refresh_team_activity(true, cx);
+                            cx.notify();
+                        },
+                    ));
+                    if let ControlRecord::Routine(r) = &record {
+                        let paused = r.paused;
+                        actions = actions.child(self.control_button(
+                            format!("routine-schedule-{id}"),
+                            if paused { "Enable schedule" } else { "Pause" },
+                            cx,
+                            move |this, _, cx| {
+                                this.control_request(
+                                    Rpc::SetRoutinePaused {
+                                        id,
+                                        expected_revision: this.control_ui.snapshot.revision,
+                                        paused: !paused,
+                                    },
+                                    cx,
+                                )
+                            },
+                        ));
+                    }
+                }
                 if matches!(record, ControlRecord::Artifact(_)) {
                     actions = actions.child(self.control_button(
                         format!("document-export-{id}"),
@@ -2243,19 +2484,23 @@ impl Waku {
                         move |this, _, cx| this.export_control_artifact(run.clone(), cx),
                     ));
                 } else {
-                    actions = actions
-                        .child(self.control_button(
+                    if !matches!(
+                        record,
+                        ControlRecord::Workflow(_) | ControlRecord::Routine(_)
+                    ) {
+                        actions = actions.child(self.control_button(
                             format!("record-run-{id}"),
                             "New task",
                             cx,
                             move |this, _, cx| this.prepare_record_task(run.clone(), cx),
-                        ))
-                        .child(self.control_button(
-                            format!("record-edit-{id}"),
-                            "Edit",
-                            cx,
-                            move |this, _, cx| this.edit_control_record(edit.clone(), cx),
                         ));
+                    }
+                    actions = actions.child(self.control_button(
+                        format!("record-edit-{id}"),
+                        "Edit",
+                        cx,
+                        move |this, _, cx| this.edit_control_record(edit.clone(), cx),
+                    ));
                 }
                 (name, detail, icon_path)
             }
@@ -2349,7 +2594,7 @@ impl Waku {
                     .bg(theme.inset)
                     .child(self.control_ui.instructions.clone()),
             );
-        if matches!(kind, FormKind::Agent | FormKind::Routine) {
+        if kind == FormKind::Agent {
             let weak = cx.entity().downgrade();
             let provider = self.control_ui.provider;
             let menu = self.menu_handle("control-provider-menu", cx);
@@ -2530,6 +2775,7 @@ impl Waku {
             ));
         }
         if kind == FormKind::Routine {
+            form = form.child(self.render_routine_target(cx));
             form = form
                 .child(control_field(
                     "Every (minutes)",
@@ -2540,7 +2786,7 @@ impl Waku {
                     div()
                         .text_size(sp(12.5))
                         .text_color(theme.text_secondary)
-                        .child("New routines are paused until you activate their schedule."),
+                        .child("Saved routines are paused until you enable their schedule. Missed intervals coalesce; overlapping runs are skipped."),
                 );
         }
         if kind == FormKind::Team {
@@ -2662,13 +2908,16 @@ impl Waku {
                     }
                 },
             ));
-            for (i, (title, instructions, gate)) in self.control_ui.stages.iter().enumerate() {
+            form = form.child(self.render_team_limit_inputs(cx));
+            for (i, (title, instructions, gate, _team)) in self.control_ui.stages.iter().enumerate()
+            {
                 let gate = *gate;
                 form = form.child(
                     div()
                         .flex()
                         .flex_col()
                         .gap(px(8.0))
+                        .child(self.render_stage_team(i, cx))
                         .child(control_field(
                             "Stage",
                             title.clone(),

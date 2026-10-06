@@ -1,6 +1,6 @@
 # Native ion workspace: implementation and review
 
-Updated 2026-10-04. This is the status of the **native app**, separate from the
+Updated 2026-10-06. This is the status of the **native app**, separate from the
 earlier HTML prototypes. The wider architecture in chapter 16 is still a
 partially implemented proposal.
 
@@ -12,9 +12,9 @@ partially implemented proposal.
 | Dashboard | Actual project, active task, agent profile, and waiting task counts; opens real tasks. Embedded ion and Dashboard icons are registered. |
 | Decisions | Pending permissions, questions, computer approvals, proposed work, and issues across all projects. Review opens the task's actual interaction. Nebius can request a blocking decision. |
 | Inbox | All projects/tasks by default, with project, task, type, and status filters. Shows live approval/question/issue/completion updates, generated documents, and durable proposed tasks with Accept/Decline. Accept prepares an editable task draft. Unread/acknowledgement history is not implemented yet. |
-| Teams | Create/edit multiple teams, reusable agent profiles, expertise, instructions, harness/model selection, and reporting parents. Exactly one lead; cycle/missing-parent validation in the daemon. New task prepares the team's instructions for review. |
-| Workflows | Project-specific, editable stages generated from a prompt using the Nebius key, or authored manually. Stage decision flags persist. New task prepares the ordered instructions. |
-| Routines | Persist/edit recurring definitions and prepare a task manually. Definitions stay paused; automatic schedule execution is not implemented yet. |
+| Teams | Reusable hierarchical teams with pinned profiles, explicit harness/model/environment, actual child task dispatch, intersected grants, parent review, generated documents, Stop and recovery. See chapters 19–20 for verified coverage and remaining execution adapters. |
+| Workflows | Prompt-generated or manually edited stages with assigned teams. Durable sequential runs, exact user gates, pinned revisions, report handoffs and aggregate limits. See chapter 21. |
+| Routines | Save paused team/workflow routines; explicitly enable elapsed-interval schedules. Durable coalesced firings, overlap skips, Pause and Run now. See chapter 21. |
 | Artifacts | Agents add documents: settled successful edit activities collect HTML, PDF, Markdown, text, Word, and CSV from the project/worktree; Nebius can also publish HTML, Markdown, text, CSV, and JSON directly. Export stored bytes. No user upload control. Limit 16 MB per document. |
 | Apps | Searchable Composio catalog, All apps/Connected tabs, Connect through hosted sign-in, and app settings. Uses the Composio project key from the OS vault. Custom authentication opens Composio configuration. Account connections do not automatically grant agent execution rights. |
 | Token Factory sandbox | Settings toggle, off by default. Enables the Nebius `tokenfactory_exec` tool through an authenticated ConTree CLI session. Every command requires approval; the live switch is checked again before execution. Local files are not uploaded automatically. |
@@ -34,16 +34,16 @@ still displays its actual folder name; that is not an application title.
 
 These are **implementation tasks**, not merely user testing:
 
-- [ ] Pin profile/team versions and enforce app/resource grants at execution.
-- [ ] Connect the saved hierarchy to actual child run dispatch, outputs,
-  concurrency limits, and local/owner-cloud routing. The existing Nebius
-  researcher/reviewer delegate tools work independently; supplying a team
-  prompt does not implement arbitrary cross-harness delegation.
-- [ ] Add durable workflow runs, dependencies, retries, app bindings, and
-  execution-enforced stage gates. Nebius's explicit decision tool blocks for
-  approval; saved workflow gate flags still rely on the agent invoking it.
-- [ ] Add daemon-owned routine scheduler, durable firing IDs, overlap policy,
-  restart/misfire behavior, and normal task/run creation.
+- [x] Pin profile/team versions and enforce native file/app grants. Additional
+  command/resource enforcement remains in the Teams release checklist.
+- [x] Saved hierarchy dispatches actual native Nebius/ bounded Claude child tasks,
+  outputs, review and concurrency. More harnesses and remote execution remain.
+- [x] Durable sequential workflow runs and enforced stage gates over Teams.
+- [ ] Conditional graphs, retries, required document-format gates and additional
+  app bindings remain; connected app effects retain exact Teams approvals.
+- [x] Owner scheduler, durable interval firing IDs, coalesced misses, overlap skips
+  and real task/run creation.
+- [ ] Calendar schedules, explicit policy choices and phone automation controls.
 - [ ] Add persistent unread/acknowledgement history and a daemon-owned portfolio
   projection. Current live notices cover the selected daemon's tasks; proposals
   and documents persist, while past approval/question events are not an archive.
@@ -78,7 +78,7 @@ Provider authentication belongs to each harness's CLI. Install/login to the
 harnesses you want to run, then refresh Harnesses. Seeing an entry is not proof
 its CLI is installed or authenticated. Nebius uses your key in Models & Speech.
 
-Protocol version is now 10. Desktop, daemon, web, and phone should be built
+Protocol version is now 27. Desktop, daemon, web, and phone should be built
 from this revision together; old clients need updating.
 
 ## Review without a Nebius key
@@ -94,11 +94,12 @@ from this revision together; old clients need updating.
 - [ ] Create three agents with different instructions, then two teams.
   Choose a lead and reporting parents. Save; restart; confirm persistence.
 - [ ] Try a hierarchy cycle and a parent outside the team; saving must fail.
-- [ ] Prepare a team task in an existing project. Confirm the chosen harness
-  and instructions are editable before sending it.
+- [ ] Invoke a configured team in New task. Confirm the pinned harness/model,
+  grants and child tasks; live execution checks need that provider's credentials.
 - [ ] Create a workflow manually. Edit/add/remove stages and decision flags;
   save and reopen. Confirm it stays tied to the chosen project.
-- [ ] Create/edit a routine. Confirm it is paused and no unattended run starts.
+- [ ] Create/edit a routine. Confirm it is paused until Enable schedule, then
+  review firing/overlap behavior using chapter 21.
 - [ ] Open Inbox and Decisions: default filters are All projects and All tasks.
   Change project, task, type, and Inbox status filters, then reopen the page.
 - [ ] Inspect actual waiting tasks under Decisions; Review must open the exact
@@ -200,3 +201,13 @@ and [hosted sign-in](https://next.docs.composio.dev/reference/api-reference/conn
 
 Antigravity contract: [official headless CLI documentation](https://www.antigravity.google/docs/cli/headless/).
 Speech contract: [NVIDIA NeMo-Speech.cpp HTTP API](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/api.md).
+
+### Phone workflow/routine review (2026-10-06)
+
+The matching phone build now opens saved workflows/routines and paged runs from
+task history. It can Run now, enable/pause schedules, inspect stage instructions,
+open actual tasks, approve/decline exact gates and Stop. Submitted IDs persist
+before transport, and cached/offline/background owner state cannot enable those
+controls. Creating/editing definitions remains on desktop. Full mobile TypeScript
+checking and submission recovery tests passed; device and visual review are still
+pending in [the workflow checklist](21-workflows-routines.md).

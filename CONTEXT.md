@@ -38,3 +38,19 @@ The maximum combined provider token usage and outstanding request allowances for
 
 **Token reservation**:
 An allowance held before a provider request until completed usage is known. A request with unknown provider usage retains its full allowance.
+
+
+**Workflow**:
+A saved, user-editable sequence of stages for one project, with an assigned team and optional human gate for each stage.
+
+**Automation run**:
+One execution of a saved workflow or routine that retains its original stages, agent choices, permissions and overall limits.
+
+**Stage gate**:
+A user's recorded approval or refusal to start one specific stage of one automation run.
+
+**Routine firing**:
+One scheduled occurrence of a routine, including a recorded skip when a previous occurrence is still active.
+
+**Coalesced firing**:
+The latest scheduled occurrence after missed intervals, replacing the missed backlog with one occurrence.

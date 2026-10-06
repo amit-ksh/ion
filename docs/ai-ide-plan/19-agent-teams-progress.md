@@ -1,6 +1,6 @@
 # Agent teams: implementation progress and review checklist
 
-Updated 2026-10-05. Development branch: `codex/ion-agent-teams`, based on
+Updated 2026-10-06. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
@@ -1143,3 +1143,71 @@ bounds, actual native completion and preserved mobile history.
 No live provider billing, app account mutation, cloud deployment, device/visual
 acceptance or second development watcher was run. These checks establish this
 increment; full Teams release development remains listed separately.
+
+
+## Durable workflow/routine execution increment (2026-10-06)
+
+Previous checkpoint: `5941901`.
+
+Current protocol: **27**. Earlier version numbers below belong to their historical
+checkpoints. Use the release checklist for current remaining development.
+
+- Workflow stages have explicit saved teams and optional enforced human gates.
+  The daemon pins the workflow and selected team/profile definitions. Actual
+  Teams task IDs and the outbox are committed with stage start, so restart cannot
+  create a second stage. Only real completion advances the sequence.
+- Accepted prior report bytes become immutable bounded inputs under the next
+  lead's read grant. A workflow shares overall model-call, token, assignment and
+  deadline caps; unknown usage retains reservations. Coding stage workspaces
+  remain individually isolated and reviewable.
+- Saved routines stay paused; Enable schedule arms an elapsed UTC interval.
+  Firing, next schedule and automation creation commit together. Missed intervals
+  coalesce to the latest slot, and previous active/blocked runs cause recorded
+  overlap skips. Pause affects future firings, while Stop fences future stages and
+  durably propagates cancellation to the active team.
+- Native forms select teams per stage and teams/workflows per routine. Run now,
+  paged history, real stage task links and exact gate decisions reuse existing
+  focused controls and virtualized lists. Dashboard/Inbox/Decisions share cached
+  projections and global gate counts. Polling remains background and generation
+  fenced; the owner uses its existing scheduler with bounded fair batches.
+- Start retries retain the same ID across unknown transport outcomes. The native
+  client distinguishes a completed daemon rejection from disconnect. An existing
+  run is recovered; only a completed rejection plus confirmed absence clears the
+  submission for correction. A timeout alone never allows another execution ID.
+- Protocol **27** requires matching desktop, daemon and clients. Legacy unassigned
+  drafts stay editable, and must receive explicit stage teams before running.
+
+[Behavior, setup and review checklist](21-workflows-routines.md). Calendar schedules,
+conditional graphs, stage retries, document gates, code integration, phone definition editing
+and notification policies remain subsequent increments. Additional harnesses,
+registered cloud execution and full monetary accounting remain release development.
+
+Phone controls in this increment use the same owner commands. Task history now
+links to Workflows & routines, with project filtering, saved instructions,
+Run now, interval enable/pause, paged history and exact run/stage controls. The
+phone stores a submission ID/revision before sending; unknown outcomes and
+storage failures retain it across app restart. A completed rejection plus exact
+absence permits correction. Concurrent taps share one request. Focus/foreground
+and connection fences disable cached controls and prevent late navigation.
+Definition creation/editing remains on desktop; no second phone scheduler exists.
+
+The first broad Teams run passed 175 tests and timed out its two-stage runtime
+fixture under heavy parallel filesystem contention. The same compiled test
+passed alone in 24.59 seconds. The fixture now retains the existing 30-second
+allowance per full team stage, with stage diagnostics and bounded test parallelism.
+This changes the test wait, not the runtime scheduler. A separate late-owner
+regression protects already-completed final stages without permitting late dispatch.
+
+Verification: the broad Teams regression suite passed **176 tests** with four test
+threads. After the separate late-owner correction, the final targeted automation
+suite passed **13 tests**, including actual two-stage runtime execution and the new
+late-completion fence. **5 control-store tests**, **20 native client tests**, **13
+protocol wire tests** and **52 TypeScript client/mobile tests** passed. Generated
+protocol bindings are current. Full mobile and shared-client TypeScript checking,
+desktop/daemon checking, Rust formatting and whitespace checks passed. Mobile
+verification reused installed dependencies through a temporary checked junction;
+no dependencies were installed.
+
+No live provider billing, app mutation, cloud deployment, phone/device acceptance,
+visual test, second watcher or integration into `ion-prod` was performed. The review
+checklist retains those acceptance items and the full release development gaps.

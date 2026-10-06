@@ -279,7 +279,15 @@ function TaskDrawerContent({
             onSelect={() => showSession(item.session.id)}
           />
         )}
-        ListHeaderComponent={<ConnectionBanner />}
+        ListHeaderComponent={<>
+          <ConnectionBanner />
+          <Pressable accessibilityRole="button" accessibilityLabel="Workflows and routines"
+            onPress={() => { onClose(); router.push('/automations'); }}
+            style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>
+            <AppSymbol name={{ ios: 'arrow.triangle.branch', android: 'account_tree', web: 'account_tree' }} size={18} tintColor={theme.textSecondary} />
+            <Text style={{ fontSize: 15, color: theme.text }}>Workflows & routines</Text>
+          </Pressable>
+        </>}
         ListEmptyComponent={(
           <TaskListEmpty
             error={taskState.error}

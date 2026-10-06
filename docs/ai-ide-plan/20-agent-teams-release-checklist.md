@@ -48,6 +48,12 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 These checked items record implementation and automated verification. They do not
 assert live account acceptance, visual validation or production release readiness.
 
+- [x] Durable sequential workflow stages, per-stage teams, exact human gates,
+  aggregate limits, immutable prior report handoffs and interval routine firing.
+- [x] Phone workflow/routine history and instructions, saved-definition Run now,
+  schedule enable/pause, exact stage gates and Stop, with persisted submission
+  identity and fresh-owner/focus fences. Desktop retains definition editing.
+
 ## Development still required for the full planned release
 
 - [ ] Codex, OpenCode and other selected Teams harness adapters with proven permission,
@@ -60,10 +66,16 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
 - [ ] Additional resource/egress grants and host enforcement for general commands.
 - [ ] Image/PDF input interpretation through a verified selected harness.
+- [ ] Persistent Inbox unread/acknowledge/archive state and user notification policy.
+- [ ] Additional artifact hashes/provenance/preview formats and global usage ledger.
+- [ ] Registered-owner portfolio/gateway projection and remote workflow controls.
+- [ ] Cloud speech live partial streaming and deployment/device acceptance.
 
-Routines and dynamically generated workflow scheduling over this coordinator
-remain subsequent workspace-control sprints; their presence in navigation is
-not proof of a complete Teams execution backend.
+Elapsed-interval routines and sequential workflow execution now reuse the Teams
+coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
+Calendar schedules, conditional stage graphs, retries, document-format gates and
+code integration across stages remain development work. Full release completion
+also requires the unchecked execution and accounting items above.
 
 ## Your live review when resources are available
 
@@ -122,7 +134,7 @@ not proof of a complete Teams execution backend.
 
 ## Verification baseline
 
-Current protocol is **26**. Rebuild desktop, daemon and clients together. The
+Current protocol is **27**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

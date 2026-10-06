@@ -63,6 +63,18 @@ pub(super) fn validate(files: &[PreparedInput], attachments: &[MessageAttachment
         files.is_empty() == attachments.is_empty(),
         "Input files and their user presentation must be supplied together"
     );
+    validate_files(files)?;
+    for attachment in attachments {
+        safe_name(&attachment.name)?;
+        ensure!(
+            !attachment.is_image,
+            "Teams input reading supports UTF-8 text files; images require a separate harness integration"
+        );
+    }
+    Ok(())
+}
+pub(super) fn validate_files(files: &[PreparedInput]) -> Result<()> {
+    ensure!(files.len() <= MAX_FILES, "Too many handoff files");
     let mut keys = HashSet::new();
     let mut total = 0;
     for file in files {
@@ -80,15 +92,9 @@ pub(super) fn validate(files: &[PreparedInput], attachments: &[MessageAttachment
         total <= MAX_TOTAL_BYTES && serde_json::to_vec(files)?.len() <= 8 * 1024 * 1024,
         "Team input snapshot exceeds 2 MiB; attach a smaller selection"
     );
-    for attachment in attachments {
-        safe_name(&attachment.name)?;
-        ensure!(
-            !attachment.is_image,
-            "Teams input reading supports UTF-8 text files; images require a separate harness integration"
-        );
-    }
     Ok(())
 }
+
 fn walk(
     root: &Path,
     path: &Path,

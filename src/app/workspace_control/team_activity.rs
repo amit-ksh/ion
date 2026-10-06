@@ -80,7 +80,15 @@ fn run_status(status: TeamRunStatus) -> &'static str {
 fn relevant(page: Option<Page>) -> bool {
     matches!(
         page,
-        Some(Page::Teams | Page::Dashboard | Page::Inbox | Page::Decisions | Page::Artifacts)
+        Some(
+            Page::Teams
+                | Page::Dashboard
+                | Page::Inbox
+                | Page::Decisions
+                | Page::Artifacts
+                | Page::Workflows
+                | Page::Routines
+        )
     )
 }
 impl Waku {
@@ -144,6 +152,14 @@ impl Waku {
         self.control_ui.activity_generation += 1;
         let generation = self.control_ui.activity_generation;
         let selected = self.control_ui.selected_run;
+        let automation_selected = self.control_ui.automation_selected;
+        let automation_definition =
+            if matches!(self.control_ui.page, Some(Page::Workflows | Page::Routines)) {
+                self.control_ui.automation_definition
+            } else {
+                None
+            };
+        let automation_after = self.control_ui.automation_after;
         let team = if self.control_ui.page == Some(Page::Teams) {
             self.control_ui.runs_team
         } else {
@@ -212,7 +228,42 @@ impl Waku {
                         else {
                             anyhow::bail!("Unexpected decision collection response");
                         };
-                        Ok((page, detail, snapshot, decisions))
+                        let ResponsePayload::AutomationRuns { page: automations } = client
+                            .request(
+                                Uuid::nil(),
+                                Uuid::nil(),
+                                Rpc::ListAutomationRuns {
+                                    pending_only,
+                                    project_id: project,
+                                    definition_id: automation_definition,
+                                    after: automation_after,
+                                    limit: 64,
+                                },
+                            )?
+                        else {
+                            anyhow::bail!("Unexpected automation collection response");
+                        };
+                        let automation_detail = if let Some(id) = automation_selected {
+                            let ResponsePayload::AutomationRun { run } = client.request(
+                                Uuid::nil(),
+                                Uuid::nil(),
+                                Rpc::GetAutomationRun { id },
+                            )?
+                            else {
+                                anyhow::bail!("Unexpected automation detail response");
+                            };
+                            Some(run)
+                        } else {
+                            None
+                        };
+                        Ok((
+                            page,
+                            detail,
+                            snapshot,
+                            decisions,
+                            automations,
+                            automation_detail,
+                        ))
                     })
                     .await
                 })
@@ -223,9 +274,34 @@ impl Waku {
                 }
                 this.control_ui.activity_busy = false;
                 match response {
-                    Ok((page, detail, control, decisions)) => {
+                    Ok((page, detail, control, decisions, automations, automation_detail)) => {
                         // No notifications for an unchanged poll; streaming keeps its own cadence.
-                        let changed = !this.control_ui.activity_loaded
+                        let automation_changed = automations.next_cursor
+                            != this.control_ui.automation_cursor
+                            || automations.pending_count != this.control_ui.automation_pending
+                            || automations
+                                .runs
+                                .iter()
+                                .map(|r| (r.id, r.revision))
+                                .collect::<Vec<_>>()
+                                != this
+                                    .control_ui
+                                    .automation_runs
+                                    .iter()
+                                    .map(|r| (r.id, r.revision))
+                                    .collect::<Vec<_>>()
+                            || automation_detail.as_ref().map(|r| (r.id, r.revision))
+                                != this
+                                    .control_ui
+                                    .automation_detail
+                                    .as_ref()
+                                    .map(|r| (r.id, r.revision));
+                        this.control_ui.automation_cursor = automations.next_cursor;
+                        this.control_ui.automation_pending = automations.pending_count;
+                        this.control_ui.automation_runs = Rc::new(automations.runs);
+                        this.control_ui.automation_detail = automation_detail.map(Rc::new);
+                        let changed = automation_changed
+                            || !this.control_ui.activity_loaded
                             || page.next_cursor != this.control_ui.runs_cursor
                             || page
                                 .runs
