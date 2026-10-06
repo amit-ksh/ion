@@ -5,6 +5,12 @@ use waku_client::{Command as Rpc, ResponsePayload, teams::mentions};
 impl Waku {
     /// Button availability uses the cached name set, never a catalog scan on a frame.
     pub(super) fn composer_has_team_address(&self, cx: &App) -> bool {
+        if self
+            .selected_session()
+            .is_some_and(|s| s.team_assignment.is_some())
+        {
+            return true;
+        }
         let text = self.composer.read(cx).content(cx).trim_start();
         let Some(address) = text.strip_prefix('@') else {
             return false;
@@ -43,11 +49,7 @@ impl Waku {
             .selected_session()
             .is_some_and(|s| s.team_assignment.is_some())
         {
-            restore_error(
-                self,
-                "Start a New task to give this team another assignment.",
-                cx,
-            );
+            self.handle_team_followup_submission(prompt, cx);
             return true;
         }
         if !prompt.trim_start().starts_with('@') {
@@ -224,6 +226,73 @@ impl Waku {
         .detach();
         cx.notify();
         true
+    }
+
+    fn handle_team_followup_submission(&mut self, prompt: &str, cx: &mut Context<Self>) {
+        self.composer
+            .update(cx, |input, cx| input.set_content(prompt, cx));
+        if prompt.trim().is_empty() || prompt.len() > 4096 {
+            self.show_toast("Write a team follow-up of at most 4 KiB.");
+            cx.notify();
+            return;
+        }
+        if !self.composer_attachments.is_empty() {
+            self.show_toast("Team follow-ups support text. Use New task to add more files.");
+            cx.notify();
+            return;
+        }
+        let Some(session) = self.selected_session() else {
+            return;
+        };
+        let Some(binding) = session.team_assignment.clone() else {
+            return;
+        };
+        let task = session.id;
+        if self.submission_preparations.contains(&task) {
+            self.show_toast("A team message is already being queued.");
+            cx.notify();
+            return;
+        }
+        let message = match self.team_followup_requests.get(&task) {
+            Some(message) if message.content == prompt => message.clone(),
+            _ => {
+                let message = QueuedMessage::new(prompt);
+                self.team_followup_requests.insert(task, message.clone());
+                message
+            }
+        };
+        let draft_key = self.selected_composer_draft_key();
+        self.submission_preparations.insert(task);
+        let client = self.daemon.client();
+        cx.spawn(async move|this,cx| {
+            let request_message=message.clone();
+            let response=cx.background_executor().spawn(async move {
+                smol::unblock(move|| client.request(task,Uuid::nil(),Rpc::QueueTeamFollowUp {run_id:binding.run_id,message:request_message})).await
+            }).await;
+            let _=this.update(cx,|this,cx| {
+                this.submission_preparations.remove(&task);
+                match response {
+                    Ok(ResponsePayload::TeamFollowUpQueued {snapshot}) if snapshot.root_task_id==task => {
+                        if let Some(followup)=snapshot.follow_ups.iter().find(|f|f.message.id==message.id) {
+                            let same_input=this.state.selected_session==Some(task) && this.composer.read(cx).content(cx)==message.content && this.composer_attachments.is_empty();
+                            if let Some(key)=draft_key && (same_input || (this.state.selected_session!=Some(task) && this.composer_drafts.get(key).is_some_and(|d|d.text==message.content && d.attachments.is_empty()))) {
+                                this.remove_composer_draft(key,cx);
+                            }
+                            if same_input { this.composer.update(cx,|input,cx|input.clear(cx)); }
+                            this.team_followup_requests.remove(&task);
+                            if let Some(session)=this.state.session_mut(task) {session.adopt_team_follow_up(&followup.message);}
+                            if this.state.selected_session==Some(task) {this.reset_transcript_rows(this.transcript_row_count());}
+                            let blocked=snapshot.work.iter().any(|w|w.task_id==task && w.can_resume);
+                            this.show_toast(if blocked {"Follow-up queued. Continue from checkpoint to deliver it."} else {"Follow-up queued for the team lead."});
+                        } else { this.show_toast("Follow-up acknowledgement missing. Refresh the team run before retrying."); }
+                    }
+                    Ok(_)=>this.show_toast("Unexpected follow-up response. Refresh the team run before retrying."),
+                    Err(error)=>this.show_toast(format!("Could not queue follow-up: {error}")),
+                }
+                cx.notify();
+            });
+        }).detach();
+        cx.notify();
     }
 
     pub(super) fn render_team_task_status(&self, cx: &mut Context<Self>) -> Option<AnyElement> {

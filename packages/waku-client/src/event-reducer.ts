@@ -3,6 +3,7 @@ import type {
   ActivityKind,
   AgentSession,
   ProviderResumeCursor,
+  QueuedMessage,
   ReportedCommand,
   SequencedEvent,
   ThreadGoal,
@@ -103,6 +104,17 @@ export function reduceRuntimeEvent(
         typeof value.messageId === 'string' ? value.messageId : clock.randomUUID(),
         clock,
       )
+      break
+    }
+    case 'teamFollowUpQueued': {
+      const message = asRecord(asRecord(payload)?.message)
+      if (!session.team_assignment || !message || typeof message.id !== 'string'
+        || typeof message.content !== 'string' || typeof message.created_at !== 'number'
+        || message.id === '00000000-0000-0000-0000-000000000000'
+        || session.messages.some((m) => m.id === message.id)) break
+      appendTeamFollowUp(session, {
+        id: message.id, content: message.content, created_at: message.created_at,
+      }, clock)
       break
     }
     case 'turnStarted': {
@@ -326,6 +338,31 @@ function asUserInputQuestion(value: unknown): PendingUserInput['questions'][numb
       : [],
     multiSelect: question.multiSelect === true,
   }
+}
+
+/** Adopt a daemon-acknowledged human message without changing the runtime cursor,
+ * opening a turn or overwriting output that arrived while the RPC was pending. */
+export function adoptTeamFollowUp(
+  current: AgentSession,
+  message: QueuedMessage,
+  clock: ReducerClock = defaultClock,
+): AgentSession {
+  const session = clone(current)
+  appendTeamFollowUp(session, message, clock)
+  return session
+}
+
+function appendTeamFollowUp(
+  session: AgentSession,
+  message: Pick<QueuedMessage, 'id' | 'content' | 'created_at'>,
+  clock: ReducerClock,
+) {
+  if (!session.team_assignment || session.messages.some((m) => m.id === message.id)) return
+  session.messages.push({
+    id: message.id, turn_id: activeTurn(session)?.id ?? null,
+    role: 'user', content: message.content, created_at: message.created_at, streaming: false,
+  })
+  session.updated_at = clock.nowSeconds()
 }
 
 /** A running turn that already has a user message is the submitter's own

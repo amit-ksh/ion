@@ -235,3 +235,22 @@ function runningSession(): AgentSession {
     ],
   }
 }
+
+
+describe('teamFollowUpQueued', () => {
+  const message = { id: 'followup', content: 'Also include the API evidence', created_at: 180 }
+  test('adds the exact human message to the existing turn and deduplicates reconnect replay', () => {
+    const session = runningSession()
+    session.team_assignment = { runId: 'run', assignmentId: 'work', teamName: 'Engineering' }
+    session.status = 'background'
+    const queued = apply(session, 'teamFollowUpQueued', { message })
+    expect(queued.messages.at(-1)).toMatchObject({ ...message, role: 'user', turn_id: 'turn' })
+    expect(queued.turns).toEqual(session.turns)
+    expect(queued.status).toBe('background')
+    expect(apply(queued, 'teamFollowUpQueued', { message }).messages).toEqual(queued.messages)
+  })
+  test('does not introduce a Teams follow-up into a solo transcript', () => {
+    const session = runningSession()
+    expect(apply(session, 'teamFollowUpQueued', { message }).messages).toEqual(session.messages)
+  })
+})

@@ -3740,6 +3740,7 @@ impl Waku {
                         | DriverEvent::AutoTitleUpdated(_)
                         | DriverEvent::Permission { .. }
                         | DriverEvent::PromptSubmitted { .. }
+                        | DriverEvent::TeamFollowUpQueued { .. }
                         | DriverEvent::SteerAccepted { .. }
                         | DriverEvent::SteerRejected { .. }
                         | DriverEvent::TurnFinished { .. }

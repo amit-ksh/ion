@@ -4175,3 +4175,6 @@ mod effect_recovery;
 
 #[path = "inputs/tests.rs"]
 mod input_handoffs;
+
+#[path = "followup_tests.rs"]
+mod followup_tests;

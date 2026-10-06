@@ -1089,3 +1089,57 @@ cover native delegation/resumption using the pinned input copy, exact queue
 replay after upload modification, task presentation, denied/revoked read grants,
 combined size/count bounds and unsupported input rejection. No live provider,
 account mutation, cloud deployment, visual test or second watcher was run.
+
+
+## Active lead follow-ups increment (2026-10-06)
+
+Text input handoff checkpoint: `249a967`.
+
+- The normal composer can send bounded text to an existing lead task. This queues
+  up to eight messages of 4 KiB each under the run's original objective, pinned
+  profiles, access, deadline and aggregate budget. Additional attachments and new
+  work after completion use New task. Only the root task can use this RPC.
+- Exact message IDs bind retries to their original text/presentation. The durable
+  queue and task transcript outbox survive a lost acknowledgement or restart;
+  replay preserves the same message and existing turn. Mobile/desktop projections
+  handle the typed event and deduplicate by its ID.
+- Delivery and the private native journal commit together under the current lease
+  at a model boundary after all tool receipts. A result racing a queued message
+  cannot complete before delivery. The next inference spends from the existing
+  budget, and the lead may delegate within its existing hierarchy and access.
+- Queued and child-waiting leads can receive a message. A recoverable blocked lead
+  keeps the message queued until the user chooses Continue from checkpoint.
+  Uncertain hosts, unresolved decisions, pending effects, unavailable adapters,
+  exhausted call/step limits and oversized context reject new messages. A message
+  does not approve a decision, resume a worker or grant permissions. Stop/deadline
+  cancels undelivered messages.
+- Native run rows display queued, delivered and canceled messages using cached
+  projections and the existing virtualized list. Queue RPC and durable I/O run on
+  background workers. Draft edits made during acknowledgement are preserved.
+- The phone uses the same durable follow-up command for team-owned tasks,
+  including tasks whose selected harness is Claude. It retains the exact message
+  ID after transport failure, adopts acknowledgement against the latest streamed
+  history and deduplicates the later event. It does not start a solo runtime or
+  open a second turn. Phone Stop loads the current run revision and can stop a
+  queued team without an attached runtime. Pinned model options remain hidden.
+- Desktop and phone retain draft edits made while a send acknowledgement is in
+  flight. Failed or unsupported submissions leave text and attachments available.
+- Protocol **26** adds the follow-up command, durable metadata and typed runtime
+  event. Rebuild desktop, daemon and clients together.
+
+The release checklist still tracks the additional harnesses, external solo bridges,
+remote execution host, executed checks, monetary caps and PDF/image interpretation.
+
+
+Verification: **164 Teams tests**, **14 distinct protocol/wire/projection tests**
+and **38 TypeScript client/mobile runtime tests** passed. Generated bindings are
+current. Shared-client and full mobile TypeScript checking, desktop/daemon checking,
+Rust formatting and whitespace gates passed. Mobile verification reused installed
+workspace dependencies with a temporary mapping to this worktree's shared client;
+no dependencies were installed. Tests exercise late follow-up delivery, exact
+replay, restart/outbox recovery, decision/stop/deadline fences, pre-start context
+bounds, actual native completion and preserved mobile history.
+
+No live provider billing, app account mutation, cloud deployment, device/visual
+acceptance or second development watcher was run. These checks establish this
+increment; full Teams release development remains listed separately.

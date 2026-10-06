@@ -41,6 +41,10 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [x] Immutable UTF-8 file/folder input handoffs from the normal task composer,
   pinned to the run and available through intersected read grants.
 
+- [x] Bounded text follow-ups from an existing active lead task on desktop/phone,
+  durable transcript materialization, delivery at model boundaries and unchanged
+  run authorization. Phone Stop also handles a queued team without a live runtime.
+
 These checked items record implementation and automated verification. They do not
 assert live account acceptance, visual validation or production release readiness.
 
@@ -56,7 +60,6 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
 - [ ] Additional resource/egress grants and host enforcement for general commands.
 - [ ] Image/PDF input interpretation through a verified selected harness.
-- [ ] Team follow-up prompts.
 
 Routines and dynamically generated workflow scheduling over this coordinator
 remain subsequent workspace-control sprints; their presence in navigation is
@@ -69,6 +72,18 @@ not proof of a complete Teams execution backend.
   permitted specialist can read those exact inputs and produce a separate artifact.
 - [ ] Try an image/PDF, private path or oversized selection and confirm the error
   leaves the prompt and attachments available for correction.
+- [ ] Send a text follow-up on desktop and phone in the existing lead task while
+  it is running or waiting on children. Verify one human message, the same task/turn/attempt and a delivered
+  status in the run. Confirm the final result addresses the additional request.
+- [ ] On the phone, interrupt a follow-up acknowledgement and retry. Verify a
+  single message, unchanged history and no solo provider startup. Stop a queued
+  team before its worker starts and verify its undelivered messages are canceled.
+- [ ] Edit a draft while sending a follow-up and verify the newer draft is retained.
+- [ ] Queue a follow-up after a temporary Local failure. Verify it remains queued
+  until Continue from checkpoint, with the same grants and budget history.
+- [ ] Stop before delivery and verify the follow-up is canceled. A follow-up cannot
+  approve a pending decision; resolve that decision first. Use New task after
+  completion or to supply additional files. Maximum: eight messages, 4 KiB each.
 - [ ] Save the Nebius Token Factory key privately in Settings and Test it.
 - [ ] Install/authenticate the exact selected Claude models/harness on Local.
 - [ ] Configure Composio privately, connect an active account and grant exact actions
@@ -107,7 +122,7 @@ not proof of a complete Teams execution backend.
 
 ## Verification baseline
 
-Current protocol is **25**. Rebuild desktop, daemon and clients together. The
+Current protocol is **26**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

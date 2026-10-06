@@ -337,6 +337,7 @@ impl Waku {
             .map(std::path::Path::to_path_buf);
         let was_selected = self.state.selected_session == Some(session_id);
         self.submission_preparations.remove(&session_id);
+        self.team_followup_requests.remove(&session_id);
         self.goal_runtime_starts.remove(&session_id);
         self.pending_goal_operations.remove(&session_id);
         self.goal_observed_at.remove(&session_id);

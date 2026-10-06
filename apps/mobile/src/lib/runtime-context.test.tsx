@@ -25,7 +25,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function fixture(options: { attached?: boolean } = {}) {
+function fixture(options: { attached?: boolean; loseFollowupAck?: boolean } = {}) {
   let nextId = 0;
   const clock = {
     nowSeconds: () => 100,
@@ -59,12 +59,21 @@ function fixture(options: { attached?: boolean } = {}) {
   };
   const hydration = deferred<AgentSession | null>();
   const commands: Command[] = [];
+  let followupRequests = 0;
   let listener: ((event: SequencedEvent) => void) | undefined;
   const client = {
     connected: true,
     request: async (command: Command): Promise<ResponsePayload> => {
       commands.push(command);
       switch (command.type) {
+        case 'getTeamRun':
+          return { type: 'teamRun', snapshot: { id: 'run', revision: 7, rootTaskId: history.id } } as ResponsePayload;
+        case 'queueTeamFollowUp':
+          if (options.loseFollowupAck && followupRequests++ === 0) throw new Error('Lost acknowledgement');
+          return { type: 'teamFollowUpQueued', snapshot: {
+            rootTaskId: history.id,
+            followUps: [{ message: { ...command.message, created_at: 102 }, status: 'queued' }],
+          } } as ResponsePayload;
         case 'hydrateSession':
           return { type: 'session', session: await hydration.promise };
         case 'attachSession':
@@ -232,4 +241,46 @@ describe('mobile runtime history', () => {
     ]);
     expect(f.current().turns).toEqual(f.history.turns);
   });
+});
+
+
+describe('mobile Teams follow-ups', () => {
+  test('uses the durable lead queue without solo startup or a new turn, then deduplicates live echo', async () => {
+    const f = fixture();
+    f.history.team_assignment = { runId: 'run', assignmentId: 'work', teamName: 'Engineering' };
+    f.queryClient.setQueryData(f.key, f.history);
+    await f.runtime.attachSession(f.history);
+    await f.runtime.steerPrompt(f.history, 'Include API evidence');
+    const command = f.commands.find((c) => c.type === 'queueTeamFollowUp');
+    expect(command).toMatchObject({ type: 'queueTeamFollowUp', runId: 'run', message: { content: 'Include API evidence' } });
+    const current = f.current();
+    expect(current.turns).toEqual(f.history.turns);
+    expect(current.messages.slice(0, -1)).toEqual(f.history.messages);
+    expect(current.messages.at(-1)).toMatchObject({ content: 'Include API evidence', created_at: 102, turn_id: f.history.turns.at(-1)!.id });
+    expect(f.commands.some((c) => ['start', 'prompt', 'steer', 'saveTaskState', 'probeProvider'].includes(c.type))).toBe(false);
+    if (command?.type !== 'queueTeamFollowUp') throw new Error('Follow-up command missing');
+    f.emit('teamFollowUpQueued', { message: { ...command.message, created_at: 102 } });
+    expect(f.current().messages).toEqual(current.messages);
+  });
+  test('retains the same message id after a lost ack and leaves history untouched on rejection', async () => {
+    const f = fixture({ attached: false, loseFollowupAck: true });
+    f.history.team_assignment = { runId: 'run', assignmentId: 'work', teamName: 'Engineering' };
+    f.queryClient.setQueryData(f.key, f.history);
+    await expect(f.runtime.sendPrompt(f.history, 'Include API evidence')).rejects.toThrow('Lost acknowledgement');
+    expect(f.current()).toEqual(f.history);
+    const next = await f.runtime.sendPrompt(f.history, 'Include API evidence');
+    const commands = f.commands.filter((c) => c.type === 'queueTeamFollowUp');
+    expect(commands).toHaveLength(2); expect(commands[0]).toEqual(commands[1]);
+    expect(next.messages).toHaveLength(f.history.messages.length + 1);
+    expect(next.turns).toEqual(f.history.turns);
+  });
+})
+
+
+test('mobile can stop a queued team with no attached solo runtime', async () => {
+  const f = fixture({ attached: false });
+  f.history.team_assignment = { runId: 'run', assignmentId: 'work', teamName: 'Engineering' };
+  f.queryClient.setQueryData(f.key, f.history);
+  await f.runtime.cancel(f.history.id);
+  expect(f.commands).toEqual([{ type: 'getTeamRun', runId: 'run' }, { type: 'stopTeamRun', runId: 'run', expectedRevision: 7 }]);
 });

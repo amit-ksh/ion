@@ -292,6 +292,13 @@ impl Waku {
                     self.composer_sources_stale = true;
                 }
             }
+            DriverEvent::TeamFollowUpQueued { message } => {
+                if let Some(session) = self.state.session_mut(session_id)
+                    && session.adopt_team_follow_up(&message)
+                {
+                    self.state.mark_session_dirty(session_id);
+                }
+            }
             DriverEvent::PromptSubmitted {
                 message,
                 turn_id,

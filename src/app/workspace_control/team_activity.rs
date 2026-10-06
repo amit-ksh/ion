@@ -554,6 +554,12 @@ impl Waku {
                 .map(|d| Row::TeamDecision(Rc::new(d.clone())))
                 .collect();
             rows.extend(
+                run.follow_ups
+                    .iter()
+                    .rev()
+                    .map(|f| Row::TeamFollowUp(Rc::new(f.clone()))),
+            );
+            rows.extend(
                 hierarchy(
                     &run.work
                         .iter()

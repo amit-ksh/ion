@@ -1393,6 +1393,22 @@ impl AgentSession {
         id
     }
 
+    pub fn adopt_team_follow_up(&mut self, message: &QueuedMessage) -> bool {
+        if self.team_assignment.is_none()
+            || message.id.is_nil()
+            || self.messages.iter().any(|m| m.id == message.id)
+        {
+            return false;
+        }
+        let mut entry = Message::new(MessageRole::User, &message.content);
+        entry.id = message.id;
+        entry.created_at = message.created_at;
+        entry.turn_id = self.active_turn_id();
+        self.messages.push(entry);
+        self.updated_at = unix_time();
+        true
+    }
+
     /// Begin a turn the provider runs on its own — Codex goal continuation
     /// pursues an active goal whenever its thread is idle. There is no user
     /// message; the turn exists so the streamed output has a transcript home.
@@ -1941,6 +1957,10 @@ pub enum DriverEvent {
         questions: Vec<UserInputQuestion>,
     },
     ComputerUseUpdated(crate::computer_use::ComputerUseState),
+    /// Human text durably queued for the existing Teams lead. No new turn opens.
+    TeamFollowUpQueued {
+        message: QueuedMessage,
+    },
     /// The provider accepted a steering message into the running turn.
     SteerAccepted {
         message: String,
@@ -3555,6 +3575,25 @@ pub fn compact_path(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn team_followup_adoption_keeps_exact_message_ids_without_opening_a_turn() {
+        let mut session = AgentSession::new(Uuid::new_v4(), ProviderKind::Nebius);
+        let message = QueuedMessage::new("API evidence");
+        assert!(!session.adopt_team_follow_up(&message));
+        session.team_assignment = Some(crate::teams::TeamTaskBinding {
+            run_id: Uuid::new_v4(),
+            assignment_id: Uuid::new_v4(),
+            team_name: "Engineering".into(),
+        });
+        let turn = session.begin_provider_turn();
+        assert!(session.adopt_team_follow_up(&message));
+        assert!(!session.adopt_team_follow_up(&message));
+        assert_eq!(session.turns.len(), 1);
+        assert_eq!(session.messages[0].id, message.id);
+        assert_eq!(session.messages[0].turn_id, Some(turn));
+        assert_eq!(session.messages[0].created_at, message.created_at);
+    }
+
     use super::*;
 
     #[test]

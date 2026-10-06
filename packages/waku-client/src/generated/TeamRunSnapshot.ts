@@ -4,6 +4,7 @@ import type { AgentProfile } from "./AgentProfile";
 import type { Team } from "./Team";
 import type { TeamAssignment } from "./TeamAssignment";
 import type { TeamDecision } from "./TeamDecision";
+import type { TeamFollowUp } from "./TeamFollowUp";
 import type { TeamInputFile } from "./TeamInputFile";
 import type { TeamRunLimits } from "./TeamRunLimits";
 import type { TeamRunStatus } from "./TeamRunStatus";
@@ -23,4 +24,4 @@ sourcePrompt?: string | null,
 /**
  * Immutable user input metadata, distinct from AI-generated artifacts.
  */
-inputs: Array<TeamInputFile>, origin?: TeamTaskOrigin | null, };
+inputs: Array<TeamInputFile>, followUps: Array<TeamFollowUp>, origin?: TeamTaskOrigin | null, };

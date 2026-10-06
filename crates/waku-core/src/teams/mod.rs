@@ -18,6 +18,7 @@ mod continuation;
 mod decisions;
 mod dispatch;
 mod documents;
+mod followups;
 mod inputs;
 mod materialize;
 mod projections;
@@ -547,6 +548,7 @@ impl TeamCoordinator {
                 .iter()
                 .map(PreparedInput::metadata)
                 .collect(),
+            follow_ups: vec![],
             source_prompt: request.source_prompt,
             origin: request.origin.clone(),
         };
@@ -1137,6 +1139,7 @@ impl TeamCoordinator {
         }
         if run.deadline <= now {
             decisions::cancel_pending(&tx, run_id)?;
+            changed |= followups::cancel_pending(&tx, run_id)?;
         }
         if changed {
             bump(&tx, run_id)?;
@@ -1184,6 +1187,7 @@ impl TeamCoordinator {
         let retry_safe = matches!(&outcome, AssignmentOutcome::FailedBeforeEffects(_));
         let (status, reason, result) = match outcome {
             AssignmentOutcome::Completed(result) => {
+                followups::require_delivered(&tx, run.id, work.id)?;
                 workspace::require_settled_effects(&tx, run.id)?;
                 validate_result(&tx, &run, &work, &result)?;
                 reviews::validate_output(&tx, &run, &work, &result)?;
@@ -1290,6 +1294,7 @@ impl TeamCoordinator {
                 (AssignmentStatus::Failed, Some(reason), None)
             }
             AssignmentOutcome::Completed(result) => {
+                followups::require_delivered(&tx, run.id, work.id)?;
                 workspace::require_settled_effects(&tx, run.id)?;
                 validate_result(&tx, &run, &work, &result)?;
                 reviews::validate_output(&tx, &run, &work, &result)?;
@@ -1427,6 +1432,7 @@ impl TeamCoordinator {
             save_work(&tx, &work, false)?;
         }
         decisions::cancel_pending(&tx, run_id)?;
+        followups::cancel_pending(&tx, run_id)?;
         set_run_status(&tx, run_id, TeamRunStatus::Stopping)?;
         bump(&tx, run_id)?;
         audit(

@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 25;
+pub const PROTOCOL_VERSION: u32 = 26;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -188,6 +188,10 @@ pub enum Command {
         source_prompt: String,
         #[serde(default)]
         attachments: Vec<crate::model::MessageAttachment>,
+    },
+    QueueTeamFollowUp {
+        run_id: Uuid,
+        message: crate::model::QueuedMessage,
     },
     /// Prepare coordination for an already-persisted idle root task.
     PrepareTeamRun {
@@ -488,6 +492,9 @@ pub enum ResponsePayload {
     TeamTaskQueued {
         snapshot: crate::teams::TeamRunSnapshot,
         session: AgentSession,
+    },
+    TeamFollowUpQueued {
+        snapshot: crate::teams::TeamRunSnapshot,
     },
     TeamRecovery {
         review: crate::teams::TeamRecoveryReview,
@@ -846,6 +853,29 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn team_followup_command_preserves_run_and_human_message_identity() {
+        let message = crate::model::QueuedMessage::new("Include the API evidence");
+        let run_id = Uuid::new_v4();
+        let wire = serde_json::to_value(Command::QueueTeamFollowUp {
+            run_id,
+            message: message.clone(),
+        })
+        .unwrap();
+        assert_eq!(wire["type"], "queueTeamFollowUp");
+        assert_eq!(wire["runId"], run_id.to_string());
+        let Command::QueueTeamFollowUp {
+            run_id: decoded,
+            message: decoded_message,
+        } = serde_json::from_value(wire).unwrap()
+        else {
+            panic!("command")
+        };
+        assert_eq!(decoded, run_id);
+        assert_eq!(decoded_message.id, message.id);
+        assert_eq!(decoded_message.content, message.content);
     }
 
     #[test]

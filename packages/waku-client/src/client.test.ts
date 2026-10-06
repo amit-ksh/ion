@@ -122,7 +122,7 @@ describe("WakuClient", () => {
         revision: 8, host: "local", hostStopped: true, canPrepareContinuation: true, workspacePath: null, files: [], apps: [] },
       snapshot: {
         id: runId, revision: 8, rootTaskId: taskId, projectId: "00000000-0000-4000-8000-000000000017",
-        definitionRevision: 1, status: "active", workspace: null, inputs: [], createdAt: 100, deadline: 3700,
+        definitionRevision: 1, status: "active", workspace: null, inputs: [], followUps: [], createdAt: 100, deadline: 3700,
         team: { id: "00000000-0000-4000-8000-000000000018", name: "Engineering", objective: "Reviewed outcome", members: [{ agentId, parentId: null }] },
         profiles: [{ id: agentId, name: "Lead", expertise: "Engineering", instructions: "Review evidence", provider: "nebius", model: "fixture-model",
           expectedOutput: "Reviewed document", execution: { environment: "local", sandboxTarget: null, localFallback: true }, access, maxParallelTasks: 1 }],
@@ -497,3 +497,15 @@ describe("WakuClient connection failures", () => {
     expect(client.lastMessageAt).toBe(43);
   });
 });
+
+
+test("Queues a team follow-up with stable message identity and the task route", async () => {
+  const { client, sockets } = fixture(); const socket = await connect(client, sockets)
+  const message = { id: 'followup', content: 'Include API evidence', display_content: null, attachments: [], created_at: 180 }
+  const pending = client.request({ type: 'queueTeamFollowUp', runId: 'run', message }, 'lead-task')
+  const request = JSON.parse(socket.sent.at(-1)!)
+  expect(request.sessionId).toBe('lead-task')
+  expect(request.command).toEqual({ type: 'queueTeamFollowUp', runId: 'run', message })
+  socket.receive({ type: 'response', requestId: request.requestId, outcome: { status: 'ok', payload: { type: 'ack' } } })
+  await expect(pending).resolves.toEqual({ type: 'ack' })
+})

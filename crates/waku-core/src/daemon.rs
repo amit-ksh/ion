@@ -409,6 +409,36 @@ impl Backend for WakuBackend {
                 self.team_runtime.wake();
                 Ok(ResponsePayload::TeamTaskQueued { snapshot, session })
             }
+            Command::QueueTeamFollowUp { run_id, message } => {
+                let gate = self.task_start_gate(session_id);
+                let _guard = gate.lock();
+                anyhow::ensure!(
+                    !self.removed_session_ids.lock().contains(&session_id),
+                    "This task was removed"
+                );
+                let message_id = message.id;
+                let snapshot = self.teams.queue_followup(
+                    run_id,
+                    session_id,
+                    message,
+                    crate::model::unix_time(),
+                )?;
+                self.teams.materialize_followups(
+                    run_id,
+                    &self.task_store,
+                    &mut self.task_state.lock(),
+                )?;
+                if let Some(followup) = snapshot
+                    .follow_ups
+                    .iter()
+                    .find(|f| f.message.id == message_id)
+                {
+                    self.team_runtime
+                        .publish_followup(session_id, followup.message.clone())?;
+                }
+                self.team_runtime.wake();
+                Ok(ResponsePayload::TeamFollowUpQueued { snapshot })
+            }
             Command::PrepareTeamRun {
                 run_id,
                 expected_definition_revision,
@@ -2385,6 +2415,7 @@ fn handle_driver_command(
         | Command::LoadTaskState
         | Command::LoadWorkspaceControl
         | Command::QueueTeamTask { .. }
+        | Command::QueueTeamFollowUp { .. }
         | Command::PrepareTeamRun { .. }
         | Command::ListTeamRuns { .. }
         | Command::ListTeamDecisions { .. }
@@ -2522,6 +2553,9 @@ pub(crate) fn event_to_wire(event: DriverEvent) -> anyhow::Result<WireDriverEven
                 image_url: state.image_url,
             })?,
         ),
+        DriverEvent::TeamFollowUpQueued { message } => {
+            ("teamFollowUpQueued", json!({"message":message}))
+        }
         DriverEvent::PromptSubmitted {
             message,
             turn_id,
@@ -2607,6 +2641,9 @@ pub fn event_from_wire(event: WireDriverEvent) -> anyhow::Result<DriverEvent> {
                 image_url: state.image_url,
             })
         }
+        "teamFollowUpQueued" => DriverEvent::TeamFollowUpQueued {
+            message: serde_json::from_value(payload["message"].clone())?,
+        },
         "promptSubmitted" => {
             let submitted: SubmittedPromptWire = serde_json::from_value(payload)?;
             DriverEvent::PromptSubmitted {
@@ -2822,6 +2859,31 @@ mod tests {
         let mut missing_message = session;
         missing_message.messages.clear();
         assert!(validate_message_rewind(&missing_message, 1).is_err());
+    }
+
+    #[test]
+    fn team_followup_both_wire_codecs_agree_on_message_identity() {
+        let message = crate::model::QueuedMessage::new("API evidence");
+        let wire = event_to_wire(DriverEvent::TeamFollowUpQueued {
+            message: message.clone(),
+        })
+        .unwrap();
+        let shared = waku_protocol::event_to_wire(DriverEvent::TeamFollowUpQueued {
+            message: message.clone(),
+        })
+        .unwrap();
+        assert_eq!(wire.kind, shared.kind);
+        assert_eq!(wire.payload, shared.payload);
+        for event in [
+            event_from_wire(shared).unwrap(),
+            waku_protocol::event_from_wire(wire).unwrap(),
+        ] {
+            let DriverEvent::TeamFollowUpQueued { message: decoded } = event else {
+                panic!("event")
+            };
+            assert_eq!(decoded.id, message.id);
+            assert_eq!(decoded.content, message.content);
+        }
     }
 
     #[test]

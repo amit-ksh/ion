@@ -185,6 +185,7 @@ enum Row {
     AgentInTeam(AgentProfile, usize, Option<String>),
     TeamRun(Rc<TeamRunSummary>),
     Assignment(Rc<team_activity::AssignmentRow>),
+    TeamFollowUp(Rc<waku_client::teams::TeamFollowUp>),
     RecoveryFile(usize, std::sync::Arc<team_recovery::FileRow>),
     RecoveryApp(std::sync::Arc<team_recovery::AppRow>),
     SourceChange(usize, std::sync::Arc<team_integration::SourceChangeRow>),
@@ -2066,6 +2067,34 @@ impl Waku {
                     format!("{project} · {task} · {status} · {}", notice.detail),
                     path,
                 )
+            }
+            Row::TeamFollowUp(followup) => {
+                let status = match followup.status {
+                    waku_client::teams::TeamFollowUpStatus::Queued => "Queued for lead",
+                    waku_client::teams::TeamFollowUpStatus::Delivered => "Delivered to lead",
+                    waku_client::teams::TeamFollowUpStatus::Canceled => "Canceled",
+                };
+                return div()
+                    .w_full()
+                    .px(px(16.0))
+                    .py(px(12.0))
+                    .border_b_1()
+                    .border_color(theme.border)
+                    .child(
+                        div()
+                            .text_size(sp(12.0))
+                            .text_color(theme.text_secondary)
+                            .child(format!("Follow-up · {status}")),
+                    )
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_size(sp(13.0))
+                            .text_color(theme.text)
+                            .whitespace_normal()
+                            .child(followup.message.content.clone()),
+                    )
+                    .into_any_element();
             }
             Row::Empty(message) => {
                 return div()

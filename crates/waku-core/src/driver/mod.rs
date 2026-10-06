@@ -19,10 +19,12 @@ pub(crate) mod team_claude;
 mod title_refresh;
 
 pub(crate) use acp::catalog_agent;
-pub(crate) use nebius::team::repair_native_team_checkpoint;
 #[cfg(test)]
 pub(crate) use nebius::team::run_scripted_team_assignment;
 pub use nebius::team::{NativeTeamExit, NativeTeamStart, run_native_team_assignment};
+pub(crate) use nebius::team::{
+    append_native_team_followups, repair_native_team_checkpoint, validate_native_team_followups,
+};
 
 use std::path::PathBuf;
 use std::sync::Arc;

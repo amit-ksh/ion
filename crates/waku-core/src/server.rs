@@ -1100,6 +1100,7 @@ fn task_catalog_action(command: &Command) -> TaskCatalogAction {
         },
         Command::RemoveSession
         | Command::QueueTeamTask { .. }
+        | Command::QueueTeamFollowUp { .. }
         | Command::PrepareTeamRun { .. }
         | Command::StopTeamRun { .. }
         | Command::ResolveTeamDecision { .. }
@@ -1288,6 +1289,22 @@ mod tests {
         };
         assert_eq!(snapshot.id, again.id);
         assert_eq!(snapshot.work[0].id, again.work[0].id);
+        let followup = crate::model::QueuedMessage::new("Include the API evidence");
+        let command = Command::QueueTeamFollowUp {
+            run_id: snapshot.id,
+            message: followup.clone(),
+        };
+        let ResponsePayload::TeamFollowUpQueued { snapshot: queued } =
+            call(command.clone()).unwrap()
+        else {
+            panic!("follow-up ack")
+        };
+        let ResponsePayload::TeamFollowUpQueued { snapshot: replayed } = call(command).unwrap()
+        else {
+            panic!("follow-up replay")
+        };
+        assert_eq!(queued.revision, replayed.revision);
+        assert_eq!(queued.follow_ups.len(), 1);
         let mut stale = session.clone();
         stale.team_assignment = None;
         stale.provider = ProviderKind::Codex;
@@ -1306,6 +1323,9 @@ mod tests {
         };
         assert_eq!(saved.team_assignment, session.team_assignment);
         assert_eq!(saved.messages[0].content, "@Research inspect files");
+        assert_eq!(saved.messages[1].id, followup.id);
+        assert_eq!(saved.messages[1].content, followup.content);
+        assert_eq!(saved.messages.len(), 2);
         let error = call(Command::Start {
             options: waku_protocol::WireDriverStartOptions {
                 provider: "must-not-be-decoded".into(),

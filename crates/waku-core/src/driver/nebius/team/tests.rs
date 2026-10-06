@@ -3,7 +3,7 @@ use crate::{
     control::ControlStore,
     teams::{DispatchHost, PrepareRun},
 };
-use waku_protocol::control::*;
+use waku_protocol::{control::*, model::QueuedMessage};
 
 struct Fixture {
     directory: PathBuf,
@@ -1182,4 +1182,70 @@ fn native_team_inputs_reach_real_child_tasks_and_survive_a_resumed_parent() {
         TeamRunStatus::Completed
     );
     assert_eq!(f.artifacts().len(), 1);
+}
+
+#[test]
+fn native_team_followup_racing_completion_reaches_next_model_request_before_result() {
+    let f = Fixture::new(false);
+    let root = f.claim(f.run.work[0].id);
+    let attempt = root.lease.attempt_id();
+    let message = QueuedMessage::new("Also include the API evidence");
+    let mut step = 0;
+    let mut artifact = Uuid::nil();
+    let exit=f.worker(NativeTeamStart::Fresh(root),|model,_,messages,_| {
+        assert_eq!(model,"model-0"); step+=1;
+        Ok(match step {
+            1 => call("save_document",json!({"name":"review.md","format":"md","content":"Initial review"})),
+            2 => {
+                artifact=Uuid::parse_str(last_reply(messages)["artifact_id"].as_str().unwrap()).unwrap();
+                // The user sends new instructions while this old completion request is in flight.
+                f.store.queue_followup(f.run.id,f.run.root_task_id,message.clone(),crate::model::unix_time()).unwrap();
+                call("report_result",json!({"summary":"Old result","artifact_ids":[artifact]}))
+            },
+            3 => {
+                let received:Vec<Value>=messages.iter().filter(|m|m["role"]=="user")
+                    .filter_map(|m|serde_json::from_str(m["content"].as_str()?).ok()).collect();
+                assert!(received.iter().any(|m|m["user_follow_up"]==json!(message.id) && m["message"]==message.content));
+                let error=last_reply(messages).to_string(); assert!(error.contains("queued user follow-up"));
+                call("save_document",json!({"name":"api-evidence.md","format":"md","content":"API evidence included"}))
+            },
+            4 => {
+                let evidence=last_reply(messages)["artifact_id"].clone();
+                call("report_result",json!({"summary":"User follow-up addressed","artifact_ids":[artifact,evidence]}))
+            },
+            _ => panic!("Unexpected follow-up inference")
+        })
+    }).unwrap();
+    assert_eq!(exit, NativeTeamExit::Settled);
+    assert_eq!(step, 4);
+    let done = f.store.snapshot(f.run.id).unwrap();
+    assert_eq!(done.status, TeamRunStatus::Completed);
+    assert_eq!(done.follow_ups[0].status, TeamFollowUpStatus::Delivered);
+    assert_eq!(done.follow_ups[0].attempt_id, Some(attempt));
+    assert_eq!(done.usage.model_calls, 4);
+    assert_eq!(done.work[0].attempts.len(), 1);
+}
+
+#[test]
+fn native_team_followup_queued_before_start_is_present_once_in_first_request() {
+    let f = Fixture::new(false);
+    let message = QueuedMessage::new("Use the supplied format");
+    f.store
+        .queue_followup(
+            f.run.id,
+            f.run.root_task_id,
+            message.clone(),
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    let root = f.claim(f.run.work[0].id);
+    let mut step = 0;
+    f.worker(NativeTeamStart::Fresh(root),|_,_,messages,_| {
+        let count=messages.iter().filter(|m|m["role"]=="user").filter_map(|m|serde_json::from_str::<Value>(m["content"].as_str()?).ok()).filter(|m|m["user_follow_up"]==json!(message.id)).count();
+        assert_eq!(count,1); step+=1;
+        Ok(if step==1 {call("save_document",json!({"name":"format.md","format":"md","content":"Requested format"}))}
+        else {call("report_result",json!({"summary":"Format included","artifact_ids":[last_reply(messages)["artifact_id"]]}))})
+    }).unwrap();
+    assert_eq!(step, 2);
+    assert_eq!(f.store.snapshot(f.run.id).unwrap().follow_ups.len(), 1);
 }

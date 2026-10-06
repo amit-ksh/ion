@@ -166,8 +166,29 @@ pub struct TeamRunSnapshot {
     /// Immutable user input metadata, distinct from AI-generated artifacts.
     #[serde(default)]
     pub inputs: Vec<TeamInputFile>,
+    #[serde(default)]
+    pub follow_ups: Vec<TeamFollowUp>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<TeamTaskOrigin>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TeamFollowUpStatus {
+    Queued,
+    Delivered,
+    Canceled,
+}
+
+/// Human follow-up for the lead of this existing run. It never resets limits.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamFollowUp {
+    pub run_id: Uuid,
+    pub assignment_id: Uuid,
+    pub message: crate::model::QueuedMessage,
+    pub status: TeamFollowUpStatus,
+    pub attempt_id: Option<Uuid>,
 }
 
 /// No host path or content is exposed in a run projection.

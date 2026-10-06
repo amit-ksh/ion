@@ -90,6 +90,9 @@ pub fn event_to_wire(event: DriverEvent) -> anyhow::Result<WireDriverEvent> {
                 image_url: state.image_url,
             })?,
         ),
+        DriverEvent::TeamFollowUpQueued { message } => {
+            ("teamFollowUpQueued", json!({"message":message}))
+        }
         DriverEvent::PromptSubmitted {
             message,
             turn_id,
@@ -175,6 +178,9 @@ pub fn event_from_wire(event: WireDriverEvent) -> anyhow::Result<DriverEvent> {
                 image_url: state.image_url,
             })
         }
+        "teamFollowUpQueued" => DriverEvent::TeamFollowUpQueued {
+            message: serde_json::from_value(payload["message"].clone())?,
+        },
         "promptSubmitted" => {
             let submitted: SubmittedPromptWire = serde_json::from_value(payload)?;
             DriverEvent::PromptSubmitted {
@@ -289,6 +295,22 @@ struct TurnFinishedWire {
 mod tests {
     use super::*;
     use crate::model::{ThreadGoal, ThreadGoalStatus, UserInputOption, UserInputQuestion};
+
+    #[test]
+    fn team_followup_preserves_exact_message_without_prompt_submission() {
+        let message = crate::model::QueuedMessage::new("API evidence");
+        let wire = event_to_wire(DriverEvent::TeamFollowUpQueued {
+            message: message.clone(),
+        })
+        .unwrap();
+        assert_eq!(wire.kind, "teamFollowUpQueued");
+        let DriverEvent::TeamFollowUpQueued { message: decoded } = event_from_wire(wire).unwrap()
+        else {
+            panic!("event")
+        };
+        assert_eq!(decoded.id, message.id);
+        assert_eq!(decoded.created_at, message.created_at);
+    }
 
     #[test]
     fn goal_updates_round_trip_through_the_daemon_wire() {

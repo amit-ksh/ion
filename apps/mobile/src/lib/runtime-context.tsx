@@ -6,10 +6,11 @@ import type {
   PendingPermission,
   PendingUserInput,
   ProviderKind,
+  QueuedMessage,
   SequencedEvent,
   UserInputAnswer,
 } from '@waku/client';
-import { reduceRuntimeEvent } from '@waku/client/event-reducer';
+import { adoptTeamFollowUp, reduceRuntimeEvent } from '@waku/client/event-reducer';
 import { writeProviderProbeCache } from '@waku/client/provider-probe-cache';
 import * as Crypto from 'expo-crypto';
 import {
@@ -158,6 +159,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
    * snapshot it saved. */
   const cacheGenerations = useRef(new Map<string, number>());
   const pendingSteers = useRef(new Map<string, PendingSubmission[]>());
+  const teamFollowupRequests = useRef(new Map<string, QueuedMessage>());
   const drainingQueues = useRef(new Set<string>());
   const sendPromptRef = useRef<
     ((
@@ -543,6 +545,35 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     // still in flight; building the turn on that would persist a transcript
     // with only the new messages. Always start from the full session.
     let current = await loadFullSession(inputSession.id);
+    if (current.team_assignment) {
+      if (!prompt || new TextEncoder().encode(prompt).length > 4096 || attachments.length > 0
+        || providerPrompt !== prompt) {
+        throw new Error('Team follow-ups support plain text up to 4 KiB. Use New task for additional files or commands.');
+      }
+      const previous = teamFollowupRequests.current.get(current.id);
+      const message: QueuedMessage = previous?.content === prompt ? previous : {
+        id: Crypto.randomUUID(), content: prompt, display_content: null,
+        attachments: [], created_at: clock.nowSeconds(),
+      };
+      teamFollowupRequests.current.set(current.id, message);
+      const response = await client.request({
+        type: 'queueTeamFollowUp', runId: current.team_assignment.runId, message,
+      }, current.id);
+      if (response.type !== 'teamFollowUpQueued' || response.snapshot.rootTaskId !== current.id) {
+        throw new Error('Unexpected team follow-up response. Refresh the run before retrying.');
+      }
+      const accepted = response.snapshot.followUps.find((item) => item.message.id === message.id);
+      if (!accepted) throw new Error('Team follow-up acknowledgement missing. Refresh the run before retrying.');
+      const latest = queryClient.getQueryData<AgentSession>(daemonKeys.session(profileId, current.id))
+        ?? entries.current.get(current.id)?.session ?? current;
+      current = adoptTeamFollowUp(latest, accepted.message, clock);
+      cacheSession(current);
+      if (teamFollowupRequests.current.get(current.id)?.id === message.id) {
+        teamFollowupRequests.current.delete(current.id);
+      }
+      setErrors((values) => removeKey(values, current.id));
+      return current;
+    }
     if (sessionBusy(current)) {
       const queued = queueSubmission(current, prompt, clock, attachments, providerPrompt);
       cacheSession(queued);
@@ -668,6 +699,10 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       : providerPromptOverride.trim();
     if (!client || daemon.phase !== 'connected') throw new Error('Waku daemon is disconnected');
     const runtime = entries.current.get(session.id);
+    if (session.team_assignment || runtime?.session.team_assignment) {
+      await sendPrompt(session, prompt, attachments, providerPrompt);
+      return;
+    }
     if (
       !runtime || !runtime.supportsSteer ||
       session.status === 'connecting' || session.status === 'idle' || session.status === 'failed'
@@ -763,10 +798,18 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const cancel = useCallback(async (sessionId: string) => {
     const client = daemon.client;
     if (!client) throw new Error('Waku daemon is disconnected');
+    const current = await loadFullSession(sessionId);
+    if (current.team_assignment) {
+      const response = await client.request({ type: 'getTeamRun', runId: current.team_assignment.runId }, sessionId);
+      if (response.type !== 'teamRun') throw new Error('Team run could not be loaded. Refresh before stopping.');
+      await client.request({ type: 'stopTeamRun', runId: current.team_assignment.runId,
+        expectedRevision: response.snapshot.revision }, sessionId);
+      return;
+    }
     const runtime = entries.current.get(sessionId);
     if (!runtime) throw new Error('This task has no live agent runtime');
     await client.request({ type: 'cancel' }, sessionId, runtime.runtimeId);
-  }, [daemon.client]);
+  }, [daemon.client, loadFullSession]);
 
   const markWorking = useCallback((sessionId: string) => {
     const profileId = daemon.activeProfile?.id;
@@ -860,6 +903,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   }, [cacheSession, loadFullSession, persistOrdered]);
 
   const deleteSession = useCallback(async (sessionId: string) => {
+    teamFollowupRequests.current.delete(sessionId);
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
     if (!client || !profileId || daemon.phase !== 'connected') {

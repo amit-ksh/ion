@@ -196,12 +196,14 @@ export function MobileComposer({
   const [localError, setLocalError] = useState<string | null>(null);
   const [traitsSheetOpen, setTraitsSheetOpen] = useState(false);
   const modelProbe = useProviderModels(session.provider);
-  const providerAvailable = session.provider === 'nebius';
+  const providerAvailable = session.provider === 'nebius' || Boolean(session.team_assignment);
   const models = modelProbe.data?.models ?? [];
   const activeModel = session.model
     ? models.find((item) => item.id === session.model)
     : models.find((item) => item.is_default) ?? models[0];
   const busy = sessionBusy(session);
+  const canStop = busy || Boolean(session.team_assignment && session.team_assignment_status
+    && !['completed', 'canceled', 'superseded'].includes(session.team_assignment_status));
   const liveRuntime = runtime.runtimes[session.id];
   const canSteer = busy && Boolean(liveRuntime?.supportsSteer) && session.status !== 'connecting';
   const permission = runtime.permissions[session.id];
@@ -262,6 +264,8 @@ export function MobileComposer({
   });
   const activeSessionId = useRef(session.id);
   activeSessionId.current = session.id;
+  const latestDraft = useRef({ text: draft, attachments });
+  latestDraft.current = { text: draft, attachments };
   const mounted = useRef(true);
   useEffect(() => () => {
     mounted.current = false;
@@ -368,6 +372,8 @@ export function MobileComposer({
       || submitting
       || pendingAttachmentImports.current > 0
     ) return;
+    const submittedSessionId = session.id;
+    const submittedDraft = latestDraft.current;
     setSubmitting(true);
     setLocalError(null);
     try {
@@ -377,9 +383,12 @@ export function MobileComposer({
       onSubmitted?.();
       if (canSteer) await runtime.steerPrompt(session, prompt, submittedAttachments, providerPrompt);
       else await runtime.sendPrompt(session, prompt, submittedAttachments, providerPrompt);
-      draftSync.removeSubmittedDraft();
-      setDraft('');
-      setAttachments([]);
+      if (activeSessionId.current === submittedSessionId && latestDraft.current.text === submittedDraft.text
+        && latestDraft.current.attachments === submittedDraft.attachments) {
+        draftSync.removeSubmittedDraft();
+        setDraft('');
+        setAttachments([]);
+      }
       await Haptics.selectionAsync();
     } catch (cause) {
       setLocalError(cause instanceof Error ? cause.message : String(cause));
@@ -542,14 +551,14 @@ export function MobileComposer({
                 setDraft((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
               }}
             />
-            {providerAvailable && activeModel && modelHasConfigurableTraits(activeModel) && (
+            {providerAvailable && !session.team_assignment && activeModel && modelHasConfigurableTraits(activeModel) && (
               <ComposerIconButton
                 icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
                 label="Model options"
                 onPress={() => setTraitsSheetOpen(true)}
               />
             )}
-            {busy && (
+            {canStop && (
               <Pressable
                 accessibilityLabel="Stop agent"
                 accessibilityRole="button"
@@ -595,7 +604,7 @@ export function MobileComposer({
         }}
       />
 
-      {activeModel && (
+      {activeModel && !session.team_assignment && (
         <ModelTraitsSheet
           model={activeModel}
           onApply={applyOptions}

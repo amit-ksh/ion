@@ -319,6 +319,27 @@ impl TeamRuntime {
         }
         self.wake();
     }
+    pub(crate) fn publish_followup(
+        &self,
+        task: Uuid,
+        message: crate::model::QueuedMessage,
+    ) -> Result<()> {
+        if let Some(stream) = self.streams.lock().get(&task).cloned() {
+            let mut state = self.state.lock();
+            let session = state.session_mut(task).context("Team task missing")?;
+            let event = DriverEvent::TeamFollowUpQueued { message };
+            let mut projection = projection::Projection::existing(session);
+            projection.apply(session, &event);
+            session.runtime_event_cursor =
+                Some(stream.sink.record(crate::daemon::event_to_wire(event)?)?);
+            state.mark_session_dirty(task);
+            self.store.save(&mut state)?;
+        }
+        if let Some(publisher) = self.publisher.lock().as_ref() {
+            publisher.tasks_changed();
+        }
+        Ok(())
+    }
     fn cancel_jobs(&self, run: Uuid) {
         for job in self.jobs.lock().values().filter(|j| j.run == run) {
             job.cancelled.store(true, Ordering::Release);
@@ -423,8 +444,16 @@ impl TeamRuntime {
         if run.status == TeamRunStatus::Active {
             let count = {
                 let mut state = self.state.lock();
-                self.coordinator
-                    .materialize_run(run.id, &self.store, &mut state, unix_time())?
+                let tasks = self.coordinator.materialize_run(
+                    run.id,
+                    &self.store,
+                    &mut state,
+                    unix_time(),
+                )?;
+                tasks
+                    + self
+                        .coordinator
+                        .materialize_followups(run.id, &self.store, &mut state)?
             };
             if count > 0 {
                 self.publisher().tasks_changed();

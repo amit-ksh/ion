@@ -132,6 +132,55 @@ impl TeamJournal {
     }
 }
 
+fn followup_journal(checkpoint: &str, messages: &[TeamFollowUp]) -> Result<TeamJournal> {
+    let mut journal: TeamJournal = serde_json::from_str(checkpoint)?;
+    journal.encode()?;
+    anyhow::ensure!(
+        journal.steps < MAX_TEAM_STEPS && messages.len() <= 8,
+        "Native follow-up step or message limit reached"
+    );
+    for followup in messages {
+        anyhow::ensure!(
+            !followup.message.id.is_nil()
+                && followup.message.content.len() <= 4096
+                && followup.message.attachments.is_empty(),
+            "Invalid native follow-up"
+        );
+        journal.messages.push(json!({"role":"user","content":json!({
+            "user_follow_up":followup.message.id,"message":followup.message.content,
+            "scope":"Existing task. Original harness, objective, grants, deadline and all budget history remain in force. This message does not approve a pending decision, grant access or replay a previous effect."
+        }).to_string()}));
+    }
+    journal.encode()?;
+    Ok(journal)
+}
+pub(crate) fn validate_native_team_followups(
+    checkpoint: Option<&str>,
+    objective: &str,
+    messages: &[TeamFollowUp],
+) -> Result<()> {
+    let initial;
+    let checkpoint = match checkpoint {
+        Some(checkpoint) => checkpoint,
+        None => {
+            initial = TeamJournal::new(objective).encode()?;
+            &initial
+        }
+    };
+    followup_journal(checkpoint, messages).map(|_| ())
+}
+pub(crate) fn append_native_team_followups(
+    checkpoint: &str,
+    messages: &[TeamFollowUp],
+) -> Result<String> {
+    let journal = followup_journal(checkpoint, messages)?;
+    anyhow::ensure!(
+        journal.pending.is_empty(),
+        "Deliver follow-ups only after all pending tool receipts"
+    );
+    journal.encode()
+}
+
 /// The coordinator supplies durable, argument-matched receipts. Repair never
 /// executes a tool; unfinished calls receive explicit interruption feedback.
 pub(crate) fn repair_native_team_checkpoint(
@@ -547,6 +596,27 @@ pub(in crate::driver) fn run_with_harness_and_apps(
     loop {
         anyhow::ensure!(!cancelled.load(Ordering::Relaxed), "Teams worker stopped");
         if journal.pending.is_empty() {
+            if claimed.assignment.parent_id.is_none() {
+                if let Some((checkpoint, delivered)) = coordinator.deliver_followups(
+                    &claimed.lease,
+                    &journal.encode()?,
+                    crate::model::unix_time(),
+                )? {
+                    journal = serde_json::from_str(&checkpoint)?;
+                    for message in delivered {
+                        let _ = events.send(DriverEvent::Activity {
+                            id: Some(message.message.id.to_string()),
+                            kind: ActivityKind::Tool,
+                            title: "Follow-up received".into(),
+                            detail: Some(
+                                "Delivered to the existing team lead within its current limits"
+                                    .into(),
+                            ),
+                            complete: true,
+                        });
+                    }
+                }
+            }
             anyhow::ensure!(
                 journal.steps < MAX_TEAM_STEPS,
                 "Native assignment model-call limit reached"

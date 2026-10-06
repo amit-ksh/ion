@@ -38,6 +38,11 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), request_id TEXT NOT NULL,
             artifact_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, format TEXT NOT NULL,
             content BLOB NOT NULL, PRIMARY KEY(work_id,request_id));
+        CREATE TABLE IF NOT EXISTS ion_team_followups (
+            run_id TEXT NOT NULL REFERENCES ion_team_runs(id),work_id TEXT NOT NULL REFERENCES ion_team_work(id),
+            id TEXT NOT NULL,signature TEXT NOT NULL,status TEXT NOT NULL,body TEXT NOT NULL,
+            materialized INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(run_id,id));
+        CREATE INDEX IF NOT EXISTS ion_team_followup_pending ON ion_team_followups(run_id,status);
         CREATE TABLE IF NOT EXISTS ion_team_input_files (
             run_id TEXT NOT NULL REFERENCES ion_team_runs(id),key TEXT NOT NULL,name TEXT NOT NULL,
             content TEXT NOT NULL,PRIMARY KEY(run_id,key));
@@ -123,6 +128,7 @@ pub(super) fn load(db: &Connection, id: Uuid) -> Result<TeamRunSnapshot> {
     run.usage = super::budget::usage(db, id)?;
     run.workspace = super::workspace::projection(db, id)?;
     run.decisions = super::decisions::for_run(db, id)?;
+    run.follow_ups = super::followups::for_run(db, id)?;
     let mut query =
         db.prepare("SELECT body FROM ion_team_work WHERE run_id=? ORDER BY rowid LIMIT 257")?;
     run.work = query

@@ -11,11 +11,10 @@ impl Projection {
     pub(super) fn new(session: &mut AgentSession) -> Self {
         if session.active_turn_id().is_none() {
             let turn = session.begin_provider_turn();
-            if let Some(message) = session
+            for message in session
                 .messages
                 .iter_mut()
-                .rev()
-                .find(|m| m.role == MessageRole::User && m.turn_id.is_none())
+                .filter(|m| m.role == MessageRole::User && m.turn_id.is_none())
             {
                 message.turn_id = Some(turn);
             }
@@ -80,6 +79,9 @@ impl Projection {
     }
     pub(super) fn apply(&mut self, session: &mut AgentSession, event: &DriverEvent) {
         match event {
+            DriverEvent::TeamFollowUpQueued { message } => {
+                session.adopt_team_follow_up(message);
+            }
             DriverEvent::TurnStarted => {
                 session.mark_active_turn_provider_started();
                 session.status = SessionStatus::Working;

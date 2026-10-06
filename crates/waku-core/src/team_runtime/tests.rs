@@ -951,3 +951,73 @@ fn team_runtime_recovery_confirmation_rejects_an_unjoined_local_job() {
         .unwrap();
     assert_eq!(blocked.work[0].status, AssignmentStatus::Blocked);
 }
+
+#[test]
+fn team_followup_waiting_on_children_is_published_once_and_retains_the_root_turn() {
+    let f = Fixture::new(64);
+    f.script.leaf_ready.store(false, Ordering::Release);
+    let waiting = f.until(|r| {
+        r.work.len() == 3
+            && r.work
+                .iter()
+                .filter(|w| w.status == AssignmentStatus::Waiting)
+                .count()
+                == 2
+    });
+    let message = crate::model::QueuedMessage::new("Include API evidence in the report");
+    let queued = f
+        .runtime
+        .coordinator
+        .queue_followup(
+            waiting.id,
+            waiting.root_task_id,
+            message.clone(),
+            unix_time(),
+        )
+        .unwrap();
+    let accepted = queued.follow_ups[0].message.clone();
+    f.runtime
+        .coordinator
+        .materialize_followups(waiting.id, &f.runtime.store, &mut f.runtime.state.lock())
+        .unwrap();
+    f.runtime
+        .publish_followup(waiting.root_task_id, accepted.clone())
+        .unwrap();
+    f.runtime
+        .publish_followup(waiting.root_task_id, accepted)
+        .unwrap();
+    assert_eq!(
+        f.runtime.coordinator.snapshot(waiting.id).unwrap().work[0].status,
+        AssignmentStatus::Waiting
+    );
+    assert_eq!(
+        f.script
+            .starts
+            .lock()
+            .iter()
+            .filter(|(work, _)| *work == waiting.work[0].id)
+            .count(),
+        1
+    );
+    f.script.leaf_ready.store(true, Ordering::Release);
+    let completed = f.until(|r| r.status == TeamRunStatus::Completed);
+    assert_eq!(
+        completed.follow_ups[0].status,
+        waku_protocol::teams::TeamFollowUpStatus::Delivered
+    );
+    let mut state = f.runtime.store.load().unwrap();
+    let task = state.session_mut(waiting.root_task_id).unwrap();
+    f.runtime.store.hydrate(task).unwrap();
+    assert_eq!(task.turns.len(), 1);
+    assert_eq!(
+        task.messages.iter().filter(|m| m.id == message.id).count(),
+        1
+    );
+    let followup = task.messages.iter().find(|m| m.id == message.id).unwrap();
+    assert_eq!(followup.turn_id, Some(task.turns[0].id));
+    assert_eq!(followup.content, message.content);
+    assert_eq!(
+        completed.work[0].attempts[0].id,
+        waiting.work[0].attempts[0].id
+    );
+}
