@@ -15,12 +15,13 @@ acceptance is implied by this checkpoint.
 | Pi | Tool-free CLI plus one-use transport | Yes | Selected direct OpenAI, Anthropic or Nebius API login |
 | Oh My Pi | Tool-free CLI plus one-use transport | Yes | Selected direct native SQLite API login; bundled exact model catalog |
 | DeepSeek Harness | Private native headless composition plus one-use Chat transport | Yes | Native host DEEPSEEK_API_KEY; verified 0.1.5-rc.1 runtime |
-| Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok, Kimi | Teams adapter still required | Not enabled | Selection remains pinned |
+| Kimi Code | Private tool-free native CLI plus bounded one-use Chat transport | Yes | Selected native direct coding API login; verified 2.1.1 runtime |
+| Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok | Teams adapter still required | Not enabled | Selection remains pinned |
 
-The other seven harnesses remain in the normal app catalog. Their existing solo
+The other six harnesses remain in the normal app catalog. Their existing solo
 runtimes do not establish the permission, single-request and accounting contract
 needed by this Teams executor. They are not silently replaced with another CLI
-or a Nebius model. OpenCode/Pi OAuth, plugins and custom model endpoints also need
+or a Nebius model. OpenCode/Pi/Oh My Pi/Kimi OAuth, plugins and custom model endpoints also need
 separate verified transports before they can be enabled here.
 
 ### Contracts still needed for the other catalog harnesses
@@ -32,7 +33,7 @@ is not evidence that a Teams adapter can enforce these constraints.
 | --- | --- | --- |
 | Antigravity | Native NDJSON session | Verified tool/resource disable controls, one-request boundary and exact model usage/caps |
 | Amp | Native streaming JSON and CLI-managed modes | Restricted permission rules and a verified exact model/request/accounting boundary; the current solo launch requires Full access |
-| Cursor, Fx, Grok, Kimi | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
+| Cursor, Fx, Grok | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
 | OpenCode 2 | Shared resident HTTP/event service | Isolated bounded completion sessions with enforceable effects and request/cap accounting |
 
 Those adapters remain development work. Enabling a provider without these checks
@@ -107,7 +108,34 @@ without native effect producers, workspace resources, credentials services,
 compaction or retries. It verifies `--version` and the full `--dump-config` before
 launch, and reserves the explicitly pinned native defaults of 1,000,000 input and
 256,000 output tokens. Other releases/model IDs need a contract check first.
+Kimi Code uses the verified native **2.1.1** runtime and exact
+`kimi-code/k3`, `kimi-code/kimi-for-coding` or
+`kimi-code/kimi-for-coding-highspeed`. Its selected native `config.toml` under
+`KIMI_CODE_HOME` (default `~/.kimi-code`) must contain a direct `kimi` coding
+account, the official coding endpoint and published context limits. Literal
+`api_key` or a selected `api_key_env` is supported; OAuth, custom headers/routes,
+renamed aliases and model overrides still need verified transports. Ion does not
+change this file. Private configuration contains only the selected model and a
+key environment name; only the contained child receives the actual key. The
+native agent has no tools or subagents. Skills, hooks, MCP/plugins, updates,
+telemetry, cron, title generation, retries, watchers and background continuation
+are excluded. JSON input remains literal through native prompt templating and
+both raw and escaped input are bounded. Full native contexts are reserved:
+1,048,576 for K3 or 262,144 for the other two models, plus 32,768 output tokens.
+The gate rejects missing, enlarged or ambiguous output caps before forwarding.
 Raw credentials/events are not stored in team transcripts or process failure messages.
+
+### Kimi acceptance later
+
+- [ ] Install the selected Kimi Code 2.1.1 runtime or set its executable in
+  harness settings. The archived Python kimi-cli runtime is not this contract.
+- [ ] Configure that host's native direct coding account privately and select one
+  exact supported model. Ordinary OAuth login still requires development work.
+- [ ] Run one Local team task and inspect provider identity, usage and generated
+  documents. Verify a model/context/endpoint change blocks readiness and that
+  source native configuration, app connections and credentials stay unchanged.
+- [ ] For sandbox execution, register the same supported model and full limits in
+  the immutable Linux host manifest, then verify native Linux execution later.
 
 ## Prepare a registered sandbox host later
 
@@ -279,3 +307,8 @@ Your live review:
 - [ConTree OpenAPI contract](https://eu-north.nebius.computer/static/api.yaml),
   [instance spawn](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance),
   [operation cancellation](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/operations/cancel-an-operation).
+
+Kimi contract references: [published 2.1.1 release](https://github.com/MoonshotAI/kimi-code/releases/tag/%40moonshot-ai%2Fkimi-code%402.1.1),
+[native configuration](https://github.com/MoonshotAI/kimi-code/blob/f67e639/docs/en/configuration/config-files.md),
+[agent tool controls](https://github.com/MoonshotAI/kimi-code/blob/f67e639/docs/en/customization/agents.md),
+[request/runtime switches](https://github.com/MoonshotAI/kimi-code/blob/f67e639/docs/en/configuration/env-vars.md).

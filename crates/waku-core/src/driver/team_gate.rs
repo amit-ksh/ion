@@ -51,7 +51,25 @@ impl Gate {
     pub fn deepseek(model: &str) -> Result<Self> {
         Self::start(model, "https://api.deepseek.com/chat/completions")
     }
+    pub fn kimi(model: &str, output: u64) -> Result<Self> {
+        ensure!(
+            (1..=32768).contains(&output),
+            "Kimi completion limit is invalid"
+        );
+        Self::start_with_output_limit(
+            model,
+            "https://api.kimi.com/coding/v1/chat/completions",
+            Some(output),
+        )
+    }
     pub(super) fn start(model: &str, upstream: &str) -> Result<Self> {
+        Self::start_with_output_limit(model, upstream, None)
+    }
+    pub(super) fn start_with_output_limit(
+        model: &str,
+        upstream: &str,
+        output_limit: Option<u64>,
+    ) -> Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         listener.set_nonblocking(true)?;
         let prefix = format!("/ion/{}", uuid::Uuid::new_v4());
@@ -73,7 +91,7 @@ impl Gate {
                         connection.set_nonblocking(false)?;
                         connection.set_read_timeout(Some(Duration::from_secs(8)))?;
                         connection.set_write_timeout(Some(Duration::from_secs(8)))?;
-                        let result=forward(&mut connection,&model,&upstream,&prefix);
+                        let result=forward(&mut connection,&model,&upstream,&prefix,output_limit);
                         if result.is_err() { let _=connection.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"); }
                         return result;
                     },
@@ -110,6 +128,7 @@ fn forward(
     model: &str,
     upstream: &str,
     prefix: &str,
+    output_limit: Option<u64>,
 ) -> Result<Receipt> {
     let (headers, mut body) = request(connection)?;
     let first = headers
@@ -139,6 +158,16 @@ fn forward(
         body["model"].as_str() == Some(model),
         "Harness changed the pinned model"
     );
+    if let Some(limit) = output_limit {
+        ensure!(
+            route.ends_with("/chat/completions")
+                && body["max_completion_tokens"]
+                    .as_u64()
+                    .is_some_and(|cap| cap > 0 && cap <= limit)
+                && body.get("max_tokens").is_none(),
+            "Harness completion cap changed; no provider request was sent"
+        );
+    }
     let messages = route.ends_with("/messages");
     let chat = route.ends_with("/chat/completions");
     body["tools"] = json!([]);
@@ -186,17 +215,30 @@ fn forward(
         let Some((name, value)) = line.split_once(':') else {
             continue;
         };
-        if matches!(
-            name.to_ascii_lowercase().as_str(),
-            "authorization"
-                | "x-api-key"
-                | "anthropic-version"
-                | "anthropic-beta"
-                | "chatgpt-account-id"
-                | "openai-organization"
-                | "openai-project"
-                | "openai-beta"
-        ) {
+        let native_kimi_header = upstream == "https://api.kimi.com/coding/v1/chat/completions"
+            && matches!(
+                name.to_ascii_lowercase().as_str(),
+                "user-agent"
+                    | "x-msh-platform"
+                    | "x-msh-version"
+                    | "x-msh-device-name"
+                    | "x-msh-device-model"
+                    | "x-msh-os-version"
+                    | "x-msh-device-id"
+            );
+        if native_kimi_header
+            || matches!(
+                name.to_ascii_lowercase().as_str(),
+                "authorization"
+                    | "x-api-key"
+                    | "anthropic-version"
+                    | "anthropic-beta"
+                    | "chatgpt-account-id"
+                    | "openai-organization"
+                    | "openai-project"
+                    | "openai-beta"
+            )
+        {
             if name.eq_ignore_ascii_case("authorization") || name.eq_ignore_ascii_case("x-api-key")
             {
                 ensure!(
@@ -544,6 +586,43 @@ mod tests {
 mod transport_tests {
     use super::*;
     use crate::driver::team_test_http::{Server, responses};
+    #[test]
+    fn team_gate_kimi_rejects_missing_changed_or_ambiguous_output_caps_before_billing() {
+        for cap in [json!(null), json!(0), json!(32769), json!("32768")] {
+            let gate = Gate::start_with_output_limit(
+                "k3",
+                "http://127.0.0.1:1/chat/completions",
+                Some(32768),
+            )
+            .unwrap();
+            let response = reqwest::blocking::Client::new()
+                .post(format!("{}/chat/completions", gate.url))
+                .bearer_auth("fixture-only")
+                .json(&json!({"model":"k3","max_completion_tokens":cap}))
+                .send()
+                .unwrap();
+            assert_eq!(response.status(), 502);
+            let error = gate.receipt().err().unwrap().to_string();
+            assert!(error.contains("completion cap changed"), "{error}");
+        }
+        let gate =
+            Gate::start_with_output_limit("k3", "http://127.0.0.1:1/chat/completions", Some(32768))
+                .unwrap();
+        let response = reqwest::blocking::Client::new()
+            .post(format!("{}/chat/completions", gate.url))
+            .bearer_auth("fixture-only")
+            .json(&json!({"model":"k3","max_completion_tokens":32768,"max_tokens":99999}))
+            .send()
+            .unwrap();
+        assert_eq!(response.status(), 502);
+        assert!(
+            gate.receipt()
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("completion cap changed")
+        );
+    }
     #[test]
     fn team_gate_waits_for_data_after_accepting_a_nonblocking_listener_socket() {
         let server = Server::new(vec![(

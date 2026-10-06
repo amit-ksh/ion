@@ -85,6 +85,17 @@ impl Executor for NativeExecutor {
             // No spawn/model request has been sent. Fallback verifies the
             // same selected local harness/model before an attempt is claimed.
         }
+        if profile.provider == ProviderKind::Kimi {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Kimi model for this agent")?;
+            let binary = self.binary(ProviderKind::Kimi)?;
+            self.cached_ready(format!("local:kimi:{}:{model}", binary.display()), || {
+                driver::team_kimi::ready(&binary, model)
+            })?;
+            return local_host(profile);
+        }
         if profile.provider == ProviderKind::DeepSeek {
             let model = profile
                 .model
@@ -172,7 +183,7 @@ impl Executor for NativeExecutor {
         }
         ensure!(
             profile.provider == ProviderKind::Nebius,
-            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi, Oh My Pi and DeepSeek. The selected harness is retained",
+            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi, Oh My Pi, DeepSeek and Kimi. The selected harness is retained",
             profile.provider.display_name()
         );
         let model = profile
@@ -246,7 +257,16 @@ impl Executor for NativeExecutor {
             NativeTeamStart::Fresh(c) => c.profile.provider,
             NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
         };
-        if provider == ProviderKind::DeepSeek {
+        if provider == ProviderKind::Kimi {
+            driver::team_kimi::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::Kimi)?,
+            )
+        } else if provider == ProviderKind::DeepSeek {
             driver::team_deepseek::run(
                 coordinator,
                 start,

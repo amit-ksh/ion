@@ -1381,3 +1381,41 @@ Remaining implementation: the seven other native Teams adapters, full remote
 filesystem/commands and executed checks, resource/egress and monetary controls,
 and GPU/ML jobs. Registered Linux image acceptance and real credentials/deployment
 remain later user setup and review items in the release checklist.
+
+
+## 2026-10-06 — bounded native Kimi Code adapter
+
+- Added the verified native Kimi Code 2.1.1 adapter through Local readiness and
+  dispatch, registered sandbox completion and both recovery checks. Exact coding
+  model identities, official route and published native context limits are
+  required. Renaming an alias cannot replace its selected underlying model.
+- Read only the selected native direct account; support one literal key or its
+  native key environment reference. OAuth, alternate headers/routes and model
+  overrides remain unsupported. Source account configuration is never modified;
+  malformed configuration errors cannot expose credential values.
+- Create private tool-free/subagent-free native agent and configuration files,
+  with no key in either. Disable auxiliary/background work, retries, updates,
+  telemetry, cron, watchers, skills, hooks, MCP and plugins. Anchor project
+  discovery to the private scratch workspace, including under an ancestor repo.
+- Keep task JSON literal through native prompt templating. Bound raw and escaped
+  input, native process output, wall clock and process tree. The one-use Chat
+  gate enforces the exact model and positive completion cap before any upstream
+  request, rejects alternate caps and retains complete metered usage.
+- Verified the official Windows release archive SHA256:
+  `325a42e7954854d4f737199b331bf3c05622e4a5e71bb74dd31a87df0400b92e`.
+  The runtime and exact release source are cached only in the ignored fixture
+  directory. No global install, native login or user account mutation occurred.
+
+Verification: **three Kimi tests passed**, including the actual native executable
+against a fake key and loopback provider, with one request, no native tools, exact
+model/output cap and an invalid ancestor configuration trap. **Five shared gate
+tests passed**. The final Teams regression suite passed **154 tests**, with six
+optional native fixtures ignored; the Kimi fixture was explicitly run separately.
+These counts overlap. Desktop, daemon and headless worker binary checking passed;
+formatting and whitespace gates passed. No live provider billing, cloud operation,
+Linux image acceptance or visual app test was performed.
+
+Eight selected harnesses now have bounded Teams completion adapters. Remaining:
+Antigravity, Amp, Cursor, Fx, OpenCode 2 and Grok, unverified OAuth/custom transports,
+external solo-harness team bridges and full remote files/commands/GPU execution.
+Later native/cloud acceptance steps are in the adapter guide and release checklist.

@@ -20,6 +20,7 @@ pub(crate) mod team_codex;
 mod team_completion;
 pub(crate) mod team_deepseek;
 mod team_gate;
+pub(crate) mod team_kimi;
 pub(crate) mod team_omp;
 pub(crate) mod team_opencode;
 pub(crate) mod team_pi;

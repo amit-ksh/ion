@@ -18,7 +18,7 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [x] Durable task creation, pinned definitions, nested delegation, bounded private
   handoffs, transactional capacity and lease fencing across restart.
 - [x] Actual local Teams execution for native Nebius, restricted Claude, Codex,
-  OpenCode, Pi, Oh My Pi and DeepSeek. Exact model/account/transport restrictions and fixture evidence
+  OpenCode, Pi, Oh My Pi, DeepSeek and Kimi Code. Exact model/account/transport restrictions and fixture evidence
   are recorded in [adapter and remote execution setup](22-harness-adapters-remote-execution.md).
 - [x] Parent acceptance/rework, linked correction tasks, output contracts, generated
   documents and child/dependency scope checks.
@@ -58,7 +58,7 @@ assert live account acceptance, visual validation or production release readines
 ## Development still required for the full planned release
 
 - [ ] Additional Teams adapters for Antigravity, Amp, Cursor, Fx, OpenCode 2,
-  Grok and Kimi; OpenCode/Pi/Oh My Pi OAuth/custom provider transports. Their
+  and Grok; OpenCode/Pi/Oh My Pi/Kimi OAuth/custom provider transports. Their
   existing solo drivers do not prove the bounded Teams execution contract.
 - [ ] Normal-task team invocation bridges for external solo harnesses.
 - [x] Registered immutable ConTree worker: actual selected-harness completion,
