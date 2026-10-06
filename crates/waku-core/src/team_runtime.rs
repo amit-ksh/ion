@@ -85,6 +85,18 @@ impl Executor for NativeExecutor {
             // No spawn/model request has been sent. Fallback verifies the
             // same selected local harness/model before an attempt is claimed.
         }
+        if profile.provider == ProviderKind::DeepSeek {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned DeepSeek model for this agent")?;
+            let binary = self.binary(ProviderKind::DeepSeek)?;
+            self.cached_ready(
+                format!("local:deepseek:{}:{model}", binary.display()),
+                || driver::team_deepseek::ready(&binary, model),
+            )?;
+            return local_host(profile);
+        }
         if profile.provider == ProviderKind::OhMyPi {
             let model = profile
                 .model
@@ -160,7 +172,7 @@ impl Executor for NativeExecutor {
         }
         ensure!(
             profile.provider == ProviderKind::Nebius,
-            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi and Oh My Pi. The selected harness is retained",
+            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi, Oh My Pi and DeepSeek. The selected harness is retained",
             profile.provider.display_name()
         );
         let model = profile
@@ -234,7 +246,16 @@ impl Executor for NativeExecutor {
             NativeTeamStart::Fresh(c) => c.profile.provider,
             NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
         };
-        if provider == ProviderKind::OhMyPi {
+        if provider == ProviderKind::DeepSeek {
+            driver::team_deepseek::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::DeepSeek)?,
+            )
+        } else if provider == ProviderKind::OhMyPi {
             driver::team_omp::run(
                 coordinator,
                 start,

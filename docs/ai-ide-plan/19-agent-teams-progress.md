@@ -1316,3 +1316,32 @@ implementation work. The remote worker currently returns actions for owner-side
 execution. No live model billing, cloud submission/deployment, account mutation,
 Linux image acceptance, visual test, second watcher or integration into `ion-prod`
 was performed. See the adapter setup and release checklist for the remaining work.
+
+
+## 2026-10-06 — bounded native DeepSeek Harness adapter
+
+- Added a distinct native DeepSeek headless Teams adapter for published runtime
+  0.1.5-rc.1, direct host API authentication and exact official V4 text model IDs.
+  Readiness, Local dispatch, registered worker dispatch and recovery recognize it.
+- Private empty-bundle composition contains no native effect producers. Version
+  and complete configuration are checked before inference; the one-use gate pins
+  the exact official Chat endpoint and model, strips tools, forbids retries and
+  accounts complete provider usage. Native defaults are pinned explicitly.
+- Verified the official Windows wheel SHA256 before extracting its executable
+  into the ignored fixture cache. The actual binary completes against a fake key
+  and loopback provider, with one request and no native tools. An initial test
+  caught the published release's Chat route differing from newer Messages source;
+  the adapter now matches the actual supported release.
+
+Verification: the complete Teams suite passed **150 of 151 tests**; the installed
+Pi fixture timed out during help startup. It failed once more in isolation, then
+read-only native Node/shim help probes and the exact isolated Pi fixture passed.
+The initial startup cause was not established; no timeout or permission bound
+was relaxed. The three DeepSeek tests, including its actual native fixture, passed.
+Desktop, daemon and headless worker binary checking passed. These checks use
+fixture credentials and localhost, with no live provider or cloud execution.
+
+Seven selected harnesses now have bounded Teams completion adapters. Remaining:
+Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok and Kimi, plus unverified OAuth/custom
+transports. Full remote files/commands/GPU jobs and deployment acceptance remain
+implementation work. The current sandbox worker executes completion only.

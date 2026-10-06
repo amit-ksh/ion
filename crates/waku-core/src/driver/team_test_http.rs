@@ -142,3 +142,18 @@ pub(super) fn responses(model: &str, text: &str) -> Vec<u8> {
         .collect::<String>()
         .into_bytes()
 }
+
+pub(super) fn chat(model: &str, text: &str) -> Vec<u8> {
+    use serde_json::json;
+    let events = [
+        json!({"id":"chat_fixture","object":"chat.completion.chunk","model":model,"choices":[{"index":0,"delta":{"role":"assistant","content":text},"finish_reason":null}]}),
+        json!({"id":"chat_fixture","object":"chat.completion.chunk","model":model,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}),
+        json!({"id":"chat_fixture","object":"chat.completion.chunk","model":model,"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":5,"total_tokens":105}}),
+    ];
+    let mut out = events
+        .iter()
+        .map(|v| format!("data: {v}\n\n"))
+        .collect::<String>();
+    out.push_str("data: [DONE]\n\n");
+    out.into_bytes()
+}

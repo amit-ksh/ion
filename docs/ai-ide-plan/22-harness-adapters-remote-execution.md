@@ -14,9 +14,10 @@ acceptance is implied by this checkpoint.
 | OpenCode | Pure CLI plus one-use transport | Yes | Selected direct OpenAI, Anthropic or Nebius API login |
 | Pi | Tool-free CLI plus one-use transport | Yes | Selected direct OpenAI, Anthropic or Nebius API login |
 | Oh My Pi | Tool-free CLI plus one-use transport | Yes | Selected direct native SQLite API login; bundled exact model catalog |
-| Antigravity, Amp, Cursor, DeepSeek, Fx, OpenCode 2, Grok, Kimi | Teams adapter still required | Not enabled | Selection remains pinned |
+| DeepSeek Harness | Private native headless composition plus one-use Chat transport | Yes | Native host DEEPSEEK_API_KEY; verified 0.1.5-rc.1 runtime |
+| Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok, Kimi | Teams adapter still required | Not enabled | Selection remains pinned |
 
-The other eight harnesses remain in the normal app catalog. Their existing solo
+The other seven harnesses remain in the normal app catalog. Their existing solo
 runtimes do not establish the permission, single-request and accounting contract
 needed by this Teams executor. They are not silently replaced with another CLI
 or a Nebius model. OpenCode/Pi OAuth, plugins and custom model endpoints also need
@@ -32,7 +33,7 @@ is not evidence that a Teams adapter can enforce these constraints.
 | Antigravity | Native NDJSON session | Verified tool/resource disable controls, one-request boundary and exact model usage/caps |
 | Amp | Native streaming JSON and CLI-managed modes | Restricted permission rules and a verified exact model/request/accounting boundary; the current solo launch requires Full access |
 | Cursor, Fx, Grok, Kimi | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
-| DeepSeek Harness, OpenCode 2 | Shared resident HTTP/event services | Isolated bounded completion sessions with enforceable effects and request/cap accounting |
+| OpenCode 2 | Shared resident HTTP/event service | Isolated bounded completion sessions with enforceable effects and request/cap accounting |
 
 Those adapters remain development work. Enabling a provider without these checks
 would expand an agent's saved access or spend beyond its reserved calls. Unsupported
@@ -96,6 +97,16 @@ request cannot consume the inference capability: only the exact model route is
 changed to that gate. Readiness rejects native brokers, profile/overlay selection,
 custom model files, ambiguous accounts and OAuth; those routes need their own
 verified transport. `PI_CONFIG_DIR` must be relative to the native home.
+DeepSeek uses the verified published runtime **0.1.5-rc.1** and exact
+`deepseek-official/deepseek-v4-flash` or `deepseek-official/deepseek-v4-pro`.
+Configure `DEEPSEEK_API_KEY` privately on the actual execution host. Web-managed
+authentication and custom endpoints remain unsupported. Its native release uses
+Chat Completions; newer source contracts are not assumed compatible. Ion creates
+a private profile with an empty bundle list and a verified 15-plugin composition,
+without native effect producers, workspace resources, credentials services,
+compaction or retries. It verifies `--version` and the full `--dump-config` before
+launch, and reserves the explicitly pinned native defaults of 1,000,000 input and
+256,000 output tokens. Other releases/model IDs need a contract check first.
 Raw credentials/events are not stored in team transcripts or process failure messages.
 
 ## Prepare a registered sandbox host later
@@ -199,12 +210,12 @@ cargo test -p waku-core driver::team_ --lib --locked -- --ignored --nocapture --
 ```
 
 The optional `ION_TEST_PI_BINARY`, `ION_TEST_OPENCODE_BINARY` and
-`ION_TEST_OMP_BINARY` variables select
+`ION_TEST_OMP_BINARY` and `ION_TEST_DEEPSEEK_BINARY` variables select
 an installed executable for these fixture checks. They do not change app settings.
 
 Your live review:
 
-- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi/Oh My Pi team with your exact available
+- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi/Oh My Pi/DeepSeek team with your exact available
   models and grants; complete a delegated document and an isolated code edit.
 - [ ] Confirm task/run labels show each selected harness, model and actual host.
 - [ ] Set a token cap below one required reservation; verify no provider call starts.
@@ -236,6 +247,9 @@ Your live review:
 - [Oh My Pi v18.6.1 source and release](https://github.com/can1357/oh-my-pi/releases/tag/v18.6.1):
   native CLI flags, RPC catalog, model registry, SQLite credential storage and
   native directory resolution. Its contract differs from Pi.
+- [DeepSeek Harness 0.1.5-rc.1 source](https://github.com/deepseek-ai/DeepSeek-Harness/tree/dsh-v0.1.5-rc.1),
+  [published native runtime](https://pypi.org/project/deepseek-harness-runtime-bin/):
+  release adapter, headless runner, private profile composition and default model limits.
 - [ConTree OpenAPI contract](https://eu-north.nebius.computer/static/api.yaml),
   [instance spawn](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance),
   [operation cancellation](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/operations/cancel-an-operation).

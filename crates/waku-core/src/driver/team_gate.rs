@@ -48,6 +48,9 @@ impl Gate {
         );
         Self::start(model, upstream)
     }
+    pub fn deepseek(model: &str) -> Result<Self> {
+        Self::start(model, "https://api.deepseek.com/chat/completions")
+    }
     pub(super) fn start(model: &str, upstream: &str) -> Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         listener.set_nonblocking(true)?;
@@ -153,6 +156,9 @@ fn forward(
     }
     let upstream = if upstream.ends_with("/responses") {
         ensure!(!messages && !chat, "Codex route changed");
+        upstream.to_owned()
+    } else if upstream.ends_with("/chat/completions") {
+        ensure!(chat && !messages, "Chat route changed");
         upstream.to_owned()
     } else {
         ensure!(

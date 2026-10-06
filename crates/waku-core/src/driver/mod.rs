@@ -18,6 +18,7 @@ pub(crate) mod team_apps;
 pub(crate) mod team_claude;
 pub(crate) mod team_codex;
 mod team_completion;
+pub(crate) mod team_deepseek;
 mod team_gate;
 pub(crate) mod team_omp;
 pub(crate) mod team_opencode;

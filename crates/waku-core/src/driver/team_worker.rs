@@ -82,6 +82,15 @@ pub fn execute(input: &[u8]) -> Result<Value> {
                 &cancelled,
             )?
         }
+        ProviderKind::DeepSeek => driver::team_deepseek::worker_completion(
+            model,
+            &request.system,
+            &request.messages,
+            &request.tools,
+            &cancelled,
+            cap.input_cap,
+            cap.output_cap,
+        )?,
         ProviderKind::OhMyPi => driver::team_omp::worker_completion(
             model,
             &request.system,
