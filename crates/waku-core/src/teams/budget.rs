@@ -26,6 +26,47 @@ pub struct ModelCallReservation {
     max_output_tokens: u64,
 }
 impl TeamCoordinator {
+    /// A confirmed remote worker can deliver usage after Stop/restart without
+    /// granting execution. Model/harness identity stays pinned to its call.
+    pub(crate) fn record_remote_model_usage(
+        &self,
+        id: Uuid,
+        provider: waku_protocol::model::ProviderKind,
+        model: &str,
+        usage: ModelTokenUsage,
+        now: u64,
+    ) -> Result<()> {
+        let db = self.connect()?;
+        let (run,work,pinned,input,output):(String,String,String,u64,u64)=db.query_row(
+            "SELECT c.run_id,c.work_id,c.model,b.input_cap,b.output_cap FROM ion_team_model_calls c JOIN ion_team_call_budgets b ON b.call_id=c.id JOIN ion_team_remote_calls r ON r.call_id=c.id WHERE c.id=? AND r.state='SUCCESS' AND r.receipt IS NOT NULL",
+            [id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
+        ensure!(pinned == model, "Remote usage model changed");
+        let snapshot = load(&db, Uuid::parse_str(&run)?)?;
+        let assignment = snapshot
+            .work
+            .iter()
+            .find(|w| w.id.to_string() == work)
+            .context("Remote assignment missing")?;
+        ensure!(
+            snapshot
+                .profiles
+                .iter()
+                .any(|p| p.id == assignment.agent_id && p.provider == provider),
+            "Remote usage harness changed"
+        );
+        self.record_model_usage(
+            &ModelCallReservation {
+                id,
+                run_id: Uuid::parse_str(&run)?,
+                work_id: Uuid::parse_str(&work)?,
+                max_input_tokens: input,
+                max_output_tokens: output,
+            },
+            usage,
+            now,
+        )
+    }
+
     pub fn reserve_model_call(
         &self,
         lease: &AssignmentLease,

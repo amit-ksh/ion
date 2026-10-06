@@ -24,6 +24,7 @@ mod inputs;
 mod materialize;
 mod projections;
 mod recovery;
+pub(crate) mod remote;
 mod reviews;
 mod storage;
 #[cfg(test)]

@@ -31,6 +31,9 @@ mod tests;
 // Actual worker adapters and scripted tests share the same trusted seam.
 trait Executor: Send + Sync {
     fn ready(&self, profile: &AgentProfile) -> Result<DispatchHost>;
+    fn remote_stopped(&self, _coordinator: &TeamCoordinator, _attempt: Uuid) -> Result<bool> {
+        Ok(false)
+    }
     fn run(
         &self,
         coordinator: &TeamCoordinator,
@@ -43,10 +46,79 @@ trait Executor: Send + Sync {
 struct NativeExecutor {
     catalog: Mutex<Option<(Instant, Result<Vec<String>, String>)>>,
     claude: Mutex<HashMap<PathBuf, (Instant, Result<(), String>)>>,
+    readiness: Mutex<HashMap<String, (Instant, Result<(), String>)>>,
+    remote_checks: Mutex<HashMap<Uuid, Instant>>,
     settings: Arc<DaemonSettingsStore>,
 }
 impl Executor for NativeExecutor {
     fn ready(&self, profile: &AgentProfile) -> Result<DispatchHost> {
+        if profile.execution.environment == ExecutionEnvironment::NebiusSandbox {
+            let settings = self.settings.get();
+            let key = format!(
+                "remote:{}:{}:{}:{}",
+                profile.provider.id(),
+                profile.model.as_deref().unwrap_or_default(),
+                profile
+                    .execution
+                    .sandbox_target
+                    .as_deref()
+                    .unwrap_or_default(),
+                settings
+                    .extra
+                    .get("nebius_sandbox_enabled")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(true)
+            );
+            let remote = self.cached_ready(key, || driver::team_remote::ready(&settings, profile));
+            if remote.is_ok() {
+                return Ok(DispatchHost::NebiusSandbox {
+                    target: profile
+                        .execution
+                        .sandbox_target
+                        .clone()
+                        .context("Sandbox target missing")?,
+                });
+            }
+            if !profile.execution.local_fallback {
+                remote?;
+            }
+            // No spawn/model request has been sent. Fallback verifies the
+            // same selected local harness/model before an attempt is claimed.
+        }
+        if profile.provider == ProviderKind::Pi {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Pi model for this agent")?;
+            let binary = self.binary(ProviderKind::Pi)?;
+            self.cached_ready(format!("local:pi:{}:{model}", binary.display()), || {
+                driver::team_pi::ready(&binary, model)
+            })?;
+            return local_host(profile);
+        }
+        if profile.provider == ProviderKind::OpenCode {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned OpenCode model for this agent")?;
+            let binary = self.binary(ProviderKind::OpenCode)?;
+            self.cached_ready(
+                format!("local:opencode:{}:{model}", binary.display()),
+                || driver::team_opencode::ready(&binary, model),
+            )?;
+            return local_host(profile);
+        }
+        if profile.provider == ProviderKind::Codex {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Codex model for this agent")?;
+            let binary = self.binary(ProviderKind::Codex)?;
+            self.cached_ready(format!("local:codex:{}:{model}", binary.display()), || {
+                driver::team_codex::ready(&binary, model)
+            })?;
+            return local_host(profile);
+        }
         if profile.provider == ProviderKind::Claude {
             let model = profile
                 .model
@@ -77,7 +149,8 @@ impl Executor for NativeExecutor {
         }
         ensure!(
             profile.provider == ProviderKind::Nebius,
-            "This agent's selected harness needs its Teams adapter; select Nebius or wait for that adapter"
+            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode and Pi. The selected harness is retained",
+            profile.provider.display_name()
         );
         let model = profile
             .model
@@ -108,6 +181,25 @@ impl Executor for NativeExecutor {
         );
         local_host(profile)
     }
+    fn remote_stopped(&self, coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
+        if coordinator.remote_attempt_stopped(attempt)? {
+            return Ok(true);
+        }
+        {
+            let mut checks = self.remote_checks.lock();
+            if checks
+                .get(&attempt)
+                .is_some_and(|t| t.elapsed() < Duration::from_secs(5))
+            {
+                return Ok(false);
+            }
+            if checks.len() >= 256 {
+                checks.clear();
+            }
+            checks.insert(attempt, Instant::now());
+        }
+        driver::team_remote::reconcile(coordinator, attempt)
+    }
     fn run(
         &self,
         coordinator: &TeamCoordinator,
@@ -116,11 +208,49 @@ impl Executor for NativeExecutor {
         events: &DriverEventSender,
         cancelled: &AtomicBool,
     ) -> Result<NativeTeamExit> {
+        let assignment = match &start {
+            NativeTeamStart::Fresh(c) => &c.assignment,
+            NativeTeamStart::Resumed(c) => &c.claimed.assignment,
+        };
+        if assignment
+            .attempts
+            .last()
+            .is_some_and(|a| a.environment == ExecutionEnvironment::NebiusSandbox)
+        {
+            return driver::team_remote::run(coordinator, start, workspace, events, cancelled);
+        }
         let provider = match &start {
             NativeTeamStart::Fresh(c) => c.profile.provider,
             NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
         };
-        if provider == ProviderKind::Claude {
+        if provider == ProviderKind::Pi {
+            driver::team_pi::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::Pi)?,
+            )
+        } else if provider == ProviderKind::OpenCode {
+            driver::team_opencode::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::OpenCode)?,
+            )
+        } else if provider == ProviderKind::Codex {
+            driver::team_codex::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::Codex)?,
+            )
+        } else if provider == ProviderKind::Claude {
             driver::team_claude::run(
                 coordinator,
                 start,
@@ -135,17 +265,42 @@ impl Executor for NativeExecutor {
     }
 }
 impl NativeExecutor {
+    fn cached_ready(&self, key: String, check: impl FnOnce() -> Result<()>) -> Result<()> {
+        if let Some((time, result)) = self.readiness.lock().get(&key) {
+            if time.elapsed() < Duration::from_secs(30) {
+                return result.clone().map_err(anyhow::Error::msg);
+            }
+        }
+        let result = check().map_err(|e| e.to_string());
+        let mut cache = self.readiness.lock();
+        if cache.len() >= 256 {
+            cache.retain(|_, (time, _)| time.elapsed() < Duration::from_secs(30));
+            if cache.len() >= 256 {
+                cache.clear();
+            }
+        }
+        cache.insert(key, (Instant::now(), result.clone()));
+        result.map_err(anyhow::Error::msg)
+    }
     fn claude_binary(&self) -> Result<PathBuf> {
+        self.binary(ProviderKind::Claude)
+    }
+    fn binary(&self, provider: ProviderKind) -> Result<PathBuf> {
         crate::model::provider_probe(
-            ProviderKind::Claude,
+            provider,
             self.settings
                 .get()
                 .provider_binary_overrides
-                .get(&ProviderKind::Claude)
+                .get(&provider)
                 .map(String::as_str),
         )
         .path
-        .context("Install Claude Code or set its executable in Settings")
+        .with_context(|| {
+            format!(
+                "Install {} or set its executable in Settings",
+                provider.display_name()
+            )
+        })
     }
 }
 fn local_host(profile: &AgentProfile) -> Result<DispatchHost> {
@@ -208,6 +363,8 @@ impl TeamRuntime {
             Arc::new(NativeExecutor {
                 catalog: Mutex::new(None),
                 claude: Mutex::new(HashMap::new()),
+                readiness: Mutex::new(HashMap::new()),
+                remote_checks: Mutex::new(HashMap::new()),
                 settings,
             }),
         )
@@ -494,6 +651,32 @@ impl TeamRuntime {
                     self.stream(run.id, work.id, work.task_id, attempt.id);
                 }
             }
+            if work.status == AssignmentStatus::Uncertain {
+                if let Some(attempt) = work
+                    .attempts
+                    .last()
+                    .filter(|a| a.environment == ExecutionEnvironment::NebiusSandbox)
+                {
+                    if self
+                        .executor
+                        .remote_stopped(&self.coordinator, attempt.id)
+                        .unwrap_or(false)
+                    {
+                        let outcome = if run.status == TeamRunStatus::Stopping {
+                            AssignmentOutcome::Canceled
+                        } else {
+                            AssignmentOutcome::Blocked("Remote process confirmed stopped; no request was repeated. Review retained usage and checkpoint before starting further work.".into())
+                        };
+                        self.coordinator.resolve_uncertain(
+                            run.id,
+                            work.id,
+                            attempt.id,
+                            outcome,
+                            unix_time(),
+                        )?;
+                    }
+                }
+            }
             if !matches!(
                 work.status,
                 AssignmentStatus::Queued | AssignmentStatus::Waiting
@@ -546,7 +729,9 @@ impl TeamRuntime {
                     DispatchHost::Local | DispatchHost::LocalFallback { .. } => self
                         .coordinator
                         .prepare_local_workspace(run.id, &workspace, unix_time())?,
-                    DispatchHost::NebiusSandbox { .. } => workspace,
+                    DispatchHost::NebiusSandbox { .. } => self
+                        .coordinator
+                        .prepare_local_workspace(run.id, &workspace, unix_time())?,
                 };
                 Ok((workspace, host))
             })();
@@ -867,12 +1052,18 @@ impl TeamRuntime {
         ) {
             return Ok(());
         }
-        ensure!(
-            work.attempts.last().is_some_and(
-                |a| a.id == lease.attempt_id() && a.environment == ExecutionEnvironment::Local
-            ),
-            "Stopped local worker cannot reconcile another attempt/host"
-        );
+        let attempt = work
+            .attempts
+            .last()
+            .filter(|a| a.id == lease.attempt_id())
+            .context("Stopped worker attempt changed")?;
+        if attempt.environment == ExecutionEnvironment::NebiusSandbox {
+            ensure!(
+                self.executor
+                    .remote_stopped(&self.coordinator, attempt.id)?,
+                "Remote process stop is unconfirmed; no fallback/retry is allowed"
+            );
+        }
         let outcome = if run.status == TeamRunStatus::Stopping
             || work.status == AssignmentStatus::Canceling
         {

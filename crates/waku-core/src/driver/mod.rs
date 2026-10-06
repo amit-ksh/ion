@@ -16,6 +16,15 @@ mod pi;
 mod support;
 pub(crate) mod team_apps;
 pub(crate) mod team_claude;
+pub(crate) mod team_codex;
+mod team_completion;
+mod team_gate;
+pub(crate) mod team_opencode;
+pub(crate) mod team_pi;
+pub(crate) mod team_remote;
+#[cfg(test)]
+mod team_test_http;
+pub(crate) mod team_worker;
 mod title_refresh;
 
 pub(crate) use acp::catalog_agent;
@@ -263,8 +272,8 @@ pub(crate) fn start_local_with_workspace(
         // service carries every workspace, and every Waku task rides its one
         // event stream.
         ProviderKind::OpenCode2 => Arc::new(opencode2::OpenCode2Driver::start(options, events)?),
-        // Claude serves a realtime stream of user messages on stdin — the same
-        // transport the Agent SDK drives — which is what lets its Supervised
+        // Claude serves a realtime stream of user messages on stdin â€” the same
+        // transport the Agent SDK drives â€” which is what lets its Supervised
         // mode ask rather than decide alone.
         ProviderKind::Claude => Arc::new(claude::ClaudeDriver::start(options, events)?),
         // Amp reads newline-delimited user messages on stdin and stays alive

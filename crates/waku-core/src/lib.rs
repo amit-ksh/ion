@@ -39,6 +39,7 @@ mod frontmatter;
 pub mod git_branch;
 pub mod git_commit;
 pub mod grok_session;
+pub mod harness_worker;
 mod http_wire;
 pub mod i18n;
 pub mod identity;

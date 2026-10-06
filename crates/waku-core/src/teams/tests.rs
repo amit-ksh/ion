@@ -4181,3 +4181,123 @@ mod followup_tests;
 
 #[path = "automation_tests.rs"]
 mod automation_tests;
+
+#[test]
+fn team_remote_submission_ledger_is_fenced_pinned_and_survives_lost_acknowledgement() {
+    let f = Fixture::new();
+    let image = Uuid::new_v4();
+    let mut lead = f.run().profiles[0].clone();
+    lead.execution = AgentExecution {
+        environment: ExecutionEnvironment::NebiusSandbox,
+        sandbox_target: Some(format!("worker@{image}")),
+        local_fallback: true,
+    };
+    f.definitions
+        .save(
+            f.definitions.load().unwrap().revision,
+            ControlRecord::Agent(lead),
+        )
+        .unwrap();
+    let run = f.run();
+    let claim = f
+        .store
+        .claim(
+            run.id,
+            run.work[0].id,
+            DispatchHost::NebiusSandbox {
+                target: format!("worker@{image}"),
+            },
+            101,
+            100,
+        )
+        .unwrap();
+    assert!(
+        f.store
+            .begin_remote_call(&claim.lease, image, "fixture-project", 102)
+            .is_err()
+    );
+    let reservation = f
+        .store
+        .reserve_model_call(&claim.lease, 1, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    assert!(
+        f.store
+            .begin_remote_call(&claim.lease, Uuid::new_v4(), "fixture-project", 102)
+            .is_err()
+    );
+    let call = f
+        .store
+        .begin_remote_call(&claim.lease, image, "fixture-project", 102)
+        .unwrap();
+    assert!(
+        f.store
+            .begin_remote_call(&claim.lease, image, "fixture-project", 102)
+            .is_err()
+    );
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    assert!(
+        !reopened
+            .remote_attempt_stopped(claim.lease.attempt_id())
+            .unwrap()
+    );
+    assert!(
+        reopened.remote_calls(claim.lease.attempt_id()).unwrap()[0]
+            .operation
+            .is_none()
+    );
+    let operation = Uuid::new_v4();
+    reopened.bind_remote_operation(call, operation).unwrap();
+    assert!(
+        reopened
+            .bind_remote_operation(call, Uuid::new_v4())
+            .is_err()
+    );
+    assert!(
+        reopened
+            .finish_remote_call(call, Some(operation), "EXECUTING", None)
+            .is_err()
+    );
+    assert!(
+        reopened
+            .finish_remote_call(call, Some(Uuid::new_v4()), "CANCELLED", None)
+            .is_err()
+    );
+    reopened
+        .finish_remote_call(call, Some(operation), "CANCELLED", None)
+        .unwrap();
+    assert!(
+        reopened
+            .remote_attempt_stopped(claim.lease.attempt_id())
+            .unwrap()
+    );
+    assert!(reopened.snapshot(run.id).unwrap().usage.reserved_tokens > 0);
+    reopened
+        .record_model_usage(
+            &reservation,
+            ModelTokenUsage {
+                input_tokens: 1,
+                output_tokens: 1,
+            },
+            103,
+        )
+        .unwrap();
+    assert!(
+        reopened
+            .begin_remote_call(&claim.lease, image, "fixture-project", 103)
+            .is_err()
+    );
+}
+#[test]
+fn team_local_assignment_cannot_acquire_remote_transport() {
+    let f = Fixture::new();
+    let run = f.run();
+    let claim = f.claim(run.id, run.work[0].id);
+    f.store
+        .reserve_model_call(&claim.lease, 1, allowance("model-0", 100, 10), 102)
+        .unwrap();
+    assert!(
+        f.store
+            .begin_remote_call(&claim.lease, Uuid::new_v4(), "fixture-project", 102)
+            .is_err()
+    );
+}

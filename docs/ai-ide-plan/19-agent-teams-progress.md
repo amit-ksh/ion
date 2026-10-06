@@ -1211,3 +1211,66 @@ no dependencies were installed.
 No live provider billing, app mutation, cloud deployment, phone/device acceptance,
 visual test, second watcher or integration into `ion-prod` was performed. The review
 checklist retains those acceptance items and the full release development gaps.
+
+
+## Selected harness and registered remote worker increment (2026-10-06)
+
+Previous checkpoint: `19ceaad`. Protocol remains **27**; no wire migration is
+introduced by the private worker/operation ledger.
+
+- Local Teams now use native Codex, OpenCode and Pi, alongside Nebius and Claude.
+  Exact model metadata supplies conservative reservations. A one-use transport
+  removes native tools and validates the complete provider receipt before the
+  CLI receives it. Ion alone executes the bounded structured actions through its
+  existing workspace, app, hierarchy and approval checks.
+- Native CLIs run in isolated private roots with resource/plugin controls and
+  contained process trees. OpenCode's auxiliary title/summary/compaction agents
+  are disabled; explicit titles prevent a second provider call. OpenCode and Pi
+  copy only the selected direct native account and exclude inherited key overrides.
+- The versioned headless worker runs one selected harness completion in a pinned
+  ConTree image. Host capabilities must match the exact harness/model and bound
+  the actual native token limits. The owner sends bounded context and receives
+  validated action/usage JSON. Host credentials are configured on that host;
+  owner vaults, auth files and provider keys are not sent in the instance request.
+- A durable remote ledger precedes POST and pins request, image, project and
+  acknowledged operation. Stop/restart checks and cancels existing operation IDs.
+  Cancellation acknowledgement does not release capacity; confirmed terminal
+  state does. A missing spawn acknowledgement retains uncertainty and is never
+  resubmitted or assumed stopped. Valid late usage can settle after Stop/restart
+  without authorizing tools, new calls or resumed execution.
+- Local fallback occurs on verified pre-execution readiness failure, with the
+  same saved harness/model/grants. Once submission starts, uncertainty cannot
+  create a second remote request or Local worker. Inference leases cover the
+  bounded transport/cancellation wait and still clip to the run's deadline.
+- Accepted HTTP sockets explicitly become blocking with bounded read/write
+  timeouts. Windows inherits a listener's nonblocking mode; a delayed-request
+  regression protects the transport from intermittent pre-request failures.
+
+[Contracts, local/remote setup and live review](22-harness-adapters-remote-execution.md)
+record the precise boundary. **The other nine catalog harnesses remain Teams
+adapter development. Full remote files/commands, executed checks, resource/egress
+and monetary controls, and GPU/ML provisioning also remain development.** The
+current remote worker performs selected-harness completions; file/app actions
+still execute on the owner through existing grants. This checkpoint is not the
+complete planned Ion release.
+
+
+Verification: the broad Teams regression passed **138 tests** (three optional
+installed-CLI fixtures excluded). The final adapter/remote suite passed **24 tests**,
+including installed **Codex 0.160.0**, **OpenCode 1.18.15** and **Pi 0.84.1** against
+fixture-only loopback providers. The coordinator suite passed **124 tests**. A final
+remote exit/receipt decoding test passed after accounting for optional integer
+signal representations. Desktop/daemon checking, the Windows worker binary build,
+Rust formatting and whitespace gates passed. The actual worker binary rejected an
+invalid protocol with empty stdout and sanitized diagnostics. These suite counts
+overlap; they are not an aggregate count of distinct tests.
+
+Two cases in the first regression failed when Windows inherited the listener's
+nonblocking mode. After the production/fixture fix, the complete regression and
+final adapter suite passed. The native fixture deadline also covers cold CLI
+startup, and failed fixture receipts now report only fake-account diagnostics.
+
+No live provider billing, cloud instance submission, Linux image build/deployment,
+app-account mutation, phone/device or visual acceptance, second development watcher
+or integration into `ion-prod` was performed. Live target/account setup and the
+remaining implementation contracts are recorded in the linked checklist.

@@ -28,7 +28,10 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
         .filter(|p| {
             matches!(
                 p.provider,
-                waku_protocol::model::ProviderKind::Nebius
+                waku_protocol::model::ProviderKind::Pi
+                    | waku_protocol::model::ProviderKind::Codex
+                    | waku_protocol::model::ProviderKind::OpenCode
+                    | waku_protocol::model::ProviderKind::Nebius
                     | waku_protocol::model::ProviderKind::Claude
             )
         })
@@ -222,7 +225,10 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
             p.id == work.agent_id
                 && matches!(
                     p.provider,
-                    waku_protocol::model::ProviderKind::Nebius
+                    waku_protocol::model::ProviderKind::Pi
+                        | waku_protocol::model::ProviderKind::Codex
+                        | waku_protocol::model::ProviderKind::OpenCode
+                        | waku_protocol::model::ProviderKind::Nebius
                         | waku_protocol::model::ProviderKind::Claude
                 )
         })

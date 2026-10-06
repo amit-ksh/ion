@@ -100,6 +100,11 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             generation INTEGER NOT NULL, step INTEGER NOT NULL, model TEXT NOT NULL,
             started_at INTEGER NOT NULL, UNIQUE(attempt_id,step));
         CREATE INDEX IF NOT EXISTS ion_team_calls_run ON ion_team_model_calls(run_id);
+        CREATE TABLE IF NOT EXISTS ion_team_remote_calls (
+            call_id TEXT PRIMARY KEY REFERENCES ion_team_model_calls(id),work_id TEXT NOT NULL,
+            attempt_id TEXT NOT NULL,image TEXT NOT NULL,project TEXT NOT NULL,
+            operation TEXT,state TEXT NOT NULL,receipt TEXT,started_at INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS ion_team_remote_attempt ON ion_team_remote_calls(attempt_id,state);
         CREATE TABLE IF NOT EXISTS ion_team_call_budgets (
             call_id TEXT PRIMARY KEY REFERENCES ion_team_model_calls(id),
             input_cap INTEGER NOT NULL, output_cap INTEGER NOT NULL,

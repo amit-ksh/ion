@@ -17,8 +17,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
   wait for their actual outcome and read accepted generated documents.
 - [x] Durable task creation, pinned definitions, nested delegation, bounded private
   handoffs, transactional capacity and lease fencing across restart.
-- [x] Actual local execution for native Nebius and the bounded Claude bridge.
-  Other selected harnesses display their missing adapter rather than being replaced.
+- [x] Actual local Teams execution for native Nebius, restricted Claude, Codex,
+  OpenCode and Pi. Exact model/account/transport restrictions and fixture evidence
+  are recorded in [adapter and remote execution setup](22-harness-adapters-remote-execution.md).
 - [x] Parent acceptance/rework, linked correction tasks, output contracts, generated
   documents and child/dependency scope checks.
 - [x] Important decisions and exact Composio account/action/version/argument approval,
@@ -56,11 +57,17 @@ assert live account acceptance, visual validation or production release readines
 
 ## Development still required for the full planned release
 
-- [ ] Codex, OpenCode and other selected Teams harness adapters with proven permission,
-  single-request budget, lifecycle, cancellation and receipt handling.
+- [ ] Additional Teams adapters for Antigravity, Amp, Cursor, DeepSeek, Fx, OpenCode 2,
+  Grok, Kimi and Oh My Pi; OpenCode/Pi OAuth/custom provider transports. Their
+  existing solo drivers do not prove the bounded Teams execution contract.
 - [ ] Normal-task team invocation bridges for external solo harnesses.
-- [ ] Registered Nebius execution host: readiness, bounded input transfer, actual
-  chosen-harness launch, remote state/cancel/checkpoint retrieval and safe fallback.
+- [x] Registered immutable ConTree worker: actual selected-harness completion,
+  readiness, bounded transfer, durable operation identity, cancellation, restart
+  reconciliation, usage and pre-execution Local fallback. Live setup/review pending.
+- [ ] Verified operator recovery for lost sandbox spawn acknowledgements and safe
+  remote checkpoint continuation after a confirmed terminal operation.
+- [ ] Full remote project/command execution, remote checks, resource/egress controls
+  and GPU/ML job provisioning; current worker returns model actions to the owner.
 - [ ] Executed test/check receipts and enforceable command isolation. Declared check
   labels and model-written test claims are not executed validation.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.

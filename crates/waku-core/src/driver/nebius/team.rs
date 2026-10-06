@@ -289,6 +289,44 @@ pub fn run_native_team_assignment(
     )
 }
 
+pub(in crate::driver) fn worker_completion(
+    model: &str,
+    system: &str,
+    messages: &[Value],
+    tools: Value,
+    cancelled: &AtomicBool,
+    input_cap: u64,
+    output_cap: u64,
+) -> Result<StreamCompletion> {
+    let key = std::env::var("ION_TEAM_NEBIUS_KEY")
+        .context("Configure the worker's Nebius account credential on the execution host")?;
+    let client = reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(120))
+        .build()?;
+    let allowance = model_allowance(&client, &key, model)?;
+    anyhow::ensure!(
+        allowance.max_input_tokens <= input_cap && allowance.max_output_tokens <= output_cap,
+        "Registered Nebius allowance is too small"
+    );
+    let mut request = vec![json!({"role":"system","content":system})];
+    request.extend_from_slice(messages);
+    let response=client.post(format!("{TOKEN_FACTORY_BASE_URL}/chat/completions")).bearer_auth(&key).json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true},"max_completion_tokens":MAX_OUTPUT_TOKENS,"n":1})).send()?;
+    anyhow::ensure!(
+        response.status().is_success(),
+        "Nebius worker completion failed (HTTP {})",
+        response.status()
+    );
+    let (wake, _) = smol::channel::bounded(1);
+    let (events, _) = crate::driver::event_channel(wake);
+    parse_stream_metered(
+        BufReader::new(response.take(1024 * 1024)),
+        &events,
+        cancelled,
+        false,
+    )
+}
+
 // Reserving the full provider context limit avoids treating bytes/4 or another
 // tokenizer guess as a permission to spend. If verbose metadata is unavailable,
 // execution blocks before sending a billable completion.
@@ -621,7 +659,10 @@ pub(in crate::driver) fn run_with_harness_and_apps(
                 journal.steps < MAX_TEAM_STEPS,
                 "Native assignment model-call limit reached"
             );
-            coordinator.renew(&claimed.lease, crate::model::unix_time(), 180)?;
+            // Cover CLI startup/transport join and the bounded remote operation
+            // plus cancellation acknowledgement. Renewal still clips to the run
+            // deadline; it cannot extend the user's overall authorization.
+            coordinator.renew(&claimed.lease, crate::model::unix_time(), 240)?;
             journal.steps += 1;
             journal.save(coordinator, &claimed.lease)?;
             let reservation = coordinator.reserve_model_call(

@@ -132,3 +132,6 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Workflow/routine execution and review](21-workflows-routines.md): durable
   sequential stages, assigned teams, human gates and restart-safe interval schedules.
+
+- [Teams harness adapters and registered remote execution](22-harness-adapters-remote-execution.md)
+    records exact coverage, host setup, lifecycle behavior and pending live review.
