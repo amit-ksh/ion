@@ -82,6 +82,15 @@ pub fn execute(input: &[u8]) -> Result<Value> {
                 &cancelled,
             )?
         }
+        ProviderKind::Grok => driver::team_grok::worker_completion(
+            model,
+            &request.system,
+            &request.messages,
+            &request.tools,
+            &cancelled,
+            cap.input_cap,
+            cap.output_cap,
+        )?,
         ProviderKind::Kimi => driver::team_kimi::worker_completion(
             model,
             &request.system,

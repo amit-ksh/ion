@@ -85,6 +85,17 @@ impl Executor for NativeExecutor {
             // No spawn/model request has been sent. Fallback verifies the
             // same selected local harness/model before an attempt is claimed.
         }
+        if profile.provider == ProviderKind::Grok {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Grok model for this agent")?;
+            let binary = self.binary(ProviderKind::Grok)?;
+            self.cached_ready(format!("local:grok:{}:{model}", binary.display()), || {
+                driver::team_grok::ready(&binary, model)
+            })?;
+            return local_host(profile);
+        }
         if profile.provider == ProviderKind::Kimi {
             let model = profile
                 .model
@@ -257,7 +268,16 @@ impl Executor for NativeExecutor {
             NativeTeamStart::Fresh(c) => c.profile.provider,
             NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
         };
-        if provider == ProviderKind::Kimi {
+        if provider == ProviderKind::Grok {
+            driver::team_grok::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::Grok)?,
+            )
+        } else if provider == ProviderKind::Kimi {
             driver::team_kimi::run(
                 coordinator,
                 start,

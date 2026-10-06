@@ -62,6 +62,18 @@ impl Gate {
             Some(output),
         )
     }
+    pub fn grok(model: &str, output: u64, task: &str) -> Result<Self> {
+        ensure!(
+            (1..=32768).contains(&output),
+            "Grok completion limit is invalid"
+        );
+        Self::start_with_prompt(
+            model,
+            "https://api.x.ai/v1/responses",
+            Some(output),
+            Some(task.to_owned()),
+        )
+    }
     pub(super) fn start(model: &str, upstream: &str) -> Result<Self> {
         Self::start_with_output_limit(model, upstream, None)
     }
@@ -69,6 +81,14 @@ impl Gate {
         model: &str,
         upstream: &str,
         output_limit: Option<u64>,
+    ) -> Result<Self> {
+        Self::start_with_prompt(model, upstream, output_limit, None)
+    }
+    pub(super) fn start_with_prompt(
+        model: &str,
+        upstream: &str,
+        output_limit: Option<u64>,
+        task: Option<String>,
     ) -> Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         listener.set_nonblocking(true)?;
@@ -80,20 +100,30 @@ impl Gate {
         let cancelled = stop.clone();
         let worker=thread::Builder::new().name("ion-harness-gate".into()).spawn(move || {
             let deadline=Instant::now()+Duration::from_secs(100);
+            let mut auxiliary_rejections = 0;
             loop {
                 ensure!(!cancelled.load(Ordering::Acquire) && Instant::now()<deadline,"Harness gate stopped before a request");
                 match listener.accept() {
                     Ok((mut connection,_)) => {
-                        // One connection/request only. Dropping the listener makes retries impossible.
-                        drop(listener);
+                        // Only one upstream request. Grok's unreserved title calls
+                        // are rejected locally before the saved prompt is admitted.
                         // Windows accepted sockets inherit the listener's mode.
                         // HTTP reads must wait for data, bounded by these timeouts.
                         connection.set_nonblocking(false)?;
                         connection.set_read_timeout(Some(Duration::from_secs(8)))?;
                         connection.set_write_timeout(Some(Duration::from_secs(8)))?;
-                        let result=forward(&mut connection,&model,&upstream,&prefix,output_limit);
-                        if result.is_err() { let _=connection.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"); }
-                        return result;
+                        let result=forward(&mut connection,&model,&upstream,&prefix,output_limit,task.as_deref());
+                        match result {
+                            Ok(Some(receipt)) => return Ok(receipt),
+                            Ok(None) => {
+                                auxiliary_rejections += 1;
+                                ensure!(auxiliary_rejections <= 4, "Too many unreserved Grok auxiliary calls");
+                            },
+                            Err(error) => {
+                                let _=connection.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                                return Err(error);
+                            }
+                        }
                     },
                     Err(e) if e.kind()==std::io::ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(20)),
                     Err(e)=>return Err(e.into())
@@ -129,7 +159,8 @@ fn forward(
     upstream: &str,
     prefix: &str,
     output_limit: Option<u64>,
-) -> Result<Receipt> {
+    task: Option<&str>,
+) -> Result<Option<Receipt>> {
     let (headers, mut body) = request(connection)?;
     let first = headers
         .lines()
@@ -154,17 +185,58 @@ fn forward(
             ),
         "Unsupported harness route"
     );
+    if let Some(task) = task {
+        ensure!(
+            route.ends_with("/responses"),
+            "Grok native protocol changed"
+        );
+        if !grok_prompt_matches(&body, task) {
+            // No auth, prompt, output or provider request leaves this loopback gate.
+            let error = br#"{"error":{"message":"Ion blocked an unreserved auxiliary call"}}"#;
+            write!(
+                connection,
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                error.len()
+            )?;
+            connection.write_all(error)?;
+            return Ok(None);
+        }
+        ensure!(
+            [
+                "instructions",
+                "previous_response_id",
+                "conversation",
+                "prompt"
+            ]
+            .iter()
+            .all(|k| body.get(k).is_none()),
+            "Grok changed the saved request context"
+        );
+        // Native startup context and bundled workflow reminders are not part of
+        // the saved Teams input. Only the exact owner instructions/input leave.
+        body["input"] = json!([
+            {"role":"system","content":super::team_completion::INSTRUCTIONS},
+            {"role":"user","content":task}
+        ]);
+    }
     ensure!(
         body["model"].as_str() == Some(model),
         "Harness changed the pinned model"
     );
     if let Some(limit) = output_limit {
         ensure!(
-            route.ends_with("/chat/completions")
-                && body["max_completion_tokens"]
-                    .as_u64()
-                    .is_some_and(|cap| cap > 0 && cap <= limit)
-                && body.get("max_tokens").is_none(),
+            if route.ends_with("/responses") {
+                task.is_some()
+                    && body["max_output_tokens"].as_u64() == Some(limit)
+                    && body.get("max_tokens").is_none()
+                    && body.get("max_completion_tokens").is_none()
+            } else {
+                route.ends_with("/chat/completions")
+                    && body["max_completion_tokens"]
+                        .as_u64()
+                        .is_some_and(|cap| cap > 0 && cap <= limit)
+                    && body.get("max_tokens").is_none()
+            },
             "Harness completion cap changed; no provider request was sent"
         );
     }
@@ -180,6 +252,9 @@ fn forward(
         .context("Harness request must be an object")?
         .remove("parallel_tool_calls");
     body["stream"] = json!(true);
+    if task.is_some() {
+        body["store"] = json!(false);
+    }
     if chat {
         body["stream_options"] = json!({"include_usage":true});
     }
@@ -280,7 +355,31 @@ fn forward(
         bytes.len()
     )?;
     connection.write_all(&bytes)?;
-    Ok(receipt)
+    Ok(Some(receipt))
+}
+fn grok_prompt_matches(body: &Value, task: &str) -> bool {
+    let Some(input) = body["input"].as_array() else {
+        return false;
+    };
+    let text = |row: &Value| -> Option<String> {
+        if let Some(s) = row["content"].as_str() {
+            return Some(s.to_owned());
+        }
+        let parts = row["content"].as_array()?;
+        let mut result = String::new();
+        for part in parts {
+            if !matches!(part["type"].as_str(), Some("input_text" | "text")) {
+                return None;
+            }
+            result.push_str(part["text"].as_str()?);
+        }
+        Some(result)
+    };
+    input.iter().any(|r| {
+        r["role"] == "system" && text(r).as_deref() == Some(super::team_completion::INSTRUCTIONS)
+    }) && input
+        .iter()
+        .any(|r| r["role"] == "user" && text(r).is_some_and(|s| s.contains(task)))
 }
 fn request(connection: &mut TcpStream) -> Result<(String, Value)> {
     let mut data = Vec::new();
@@ -586,6 +685,86 @@ mod tests {
 mod transport_tests {
     use super::*;
     use crate::driver::team_test_http::{Server, responses};
+    #[test]
+    fn team_gate_grok_denies_auxiliary_calls_without_upstream_or_prompt_substitution() {
+        let task = r#"{"instructions":"literal @secret"}"#;
+        let gate = Gate::start_with_prompt(
+            "grok-4.6",
+            "http://127.0.0.1:1/responses",
+            Some(32768),
+            Some(task.into()),
+        )
+        .unwrap();
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let url = format!("{}/responses", gate.url);
+        let auxiliary = json!({"model":"grok-4.6","max_output_tokens":100,"input":[{"role":"system","content":"Generate a session title"},{"role":"user","content":task}]});
+        for _ in 0..4 {
+            assert_eq!(
+                client
+                    .post(&url)
+                    .bearer_auth("fixture-only")
+                    .json(&auxiliary)
+                    .send()
+                    .unwrap()
+                    .status(),
+                400
+            );
+        }
+        // A main request with a different prompt is also rejected without billing.
+        let altered = json!({"model":"grok-4.6","max_output_tokens":32768,"input":[{"role":"system","content":super::super::team_completion::INSTRUCTIONS},{"role":"user","content":"replacement task"}]});
+        assert_eq!(
+            client
+                .post(&url)
+                .bearer_auth("fixture-only")
+                .json(&altered)
+                .send()
+                .unwrap()
+                .status(),
+            400
+        );
+        assert!(gate.receipt().is_err());
+        assert!(client.post(url).json(&altered).send().is_err());
+    }
+    #[test]
+    fn team_gate_grok_requires_exact_model_and_output_cap_before_billing() {
+        let task = r#"{"instructions":"saved"}"#;
+        for (model, cap, other) in [
+            ("replacement", json!(32768), false),
+            ("grok-4.6", json!(32769), false),
+            ("grok-4.6", json!(100), false),
+            ("grok-4.6", json!("32768"), false),
+            ("grok-4.6", json!(32768), true),
+        ] {
+            let gate = Gate::start_with_prompt(
+                "grok-4.6",
+                "http://127.0.0.1:1/responses",
+                Some(32768),
+                Some(task.into()),
+            )
+            .unwrap();
+            let mut body = json!({"model":model,"max_output_tokens":cap,"input":[{"role":"system","content":super::super::team_completion::INSTRUCTIONS},{"role":"user","content":task}]});
+            if other {
+                body["max_tokens"] = json!(1);
+            }
+            let reply = reqwest::blocking::Client::new()
+                .post(format!("{}/responses", gate.url))
+                .bearer_auth("fixture-only")
+                .json(&body)
+                .send()
+                .unwrap();
+            assert_eq!(reply.status(), 502);
+            assert!(gate.receipt().err().unwrap().to_string().contains(
+                if model == "replacement" {
+                    "pinned model"
+                } else {
+                    "cap changed"
+                }
+            ));
+        }
+    }
     #[test]
     fn team_gate_kimi_rejects_missing_changed_or_ambiguous_output_caps_before_billing() {
         for cap in [json!(null), json!(0), json!(32769), json!("32768")] {

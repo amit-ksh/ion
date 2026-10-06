@@ -16,12 +16,13 @@ acceptance is implied by this checkpoint.
 | Oh My Pi | Tool-free CLI plus one-use transport | Yes | Selected direct native SQLite API login; bundled exact model catalog |
 | DeepSeek Harness | Private native headless composition plus one-use Chat transport | Yes | Native host DEEPSEEK_API_KEY; verified 0.1.5-rc.1 runtime |
 | Kimi Code | Private tool-free native CLI plus bounded one-use Chat transport | Yes | Selected native direct coding API login; verified 2.1.1 runtime |
-| Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok | Teams adapter still required | Not enabled | Selection remains pinned |
+| Grok Build | Private native CLI plus prompt-bound one-use Responses transport | Yes | Native host XAI_API_KEY; verified 1.0.46 runtime |
+| Antigravity, Amp, Cursor, Fx, OpenCode 2 | Teams adapter still required | Not enabled | Selection remains pinned |
 
-The other six harnesses remain in the normal app catalog. Their existing solo
+The other five harnesses remain in the normal app catalog. Their existing solo
 runtimes do not establish the permission, single-request and accounting contract
 needed by this Teams executor. They are not silently replaced with another CLI
-or a Nebius model. OpenCode/Pi/Oh My Pi/Kimi OAuth, plugins and custom model endpoints also need
+or a Nebius model. OpenCode/Pi/Oh My Pi/Kimi/Grok OAuth, plugins and custom model endpoints also need
 separate verified transports before they can be enabled here.
 
 ### Contracts still needed for the other catalog harnesses
@@ -33,7 +34,7 @@ is not evidence that a Teams adapter can enforce these constraints.
 | --- | --- | --- |
 | Antigravity | Native NDJSON session | Verified tool/resource disable controls, one-request boundary and exact model usage/caps |
 | Amp | Native streaming JSON and CLI-managed modes | Restricted permission rules and a verified exact model/request/accounting boundary; the current solo launch requires Full access |
-| Cursor, Fx, Grok | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
+| Cursor, Fx | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
 | OpenCode 2 | Shared resident HTTP/event service | Isolated bounded completion sessions with enforceable effects and request/cap accounting |
 
 Those adapters remain development work. Enabling a provider without these checks
@@ -124,6 +125,38 @@ both raw and escaped input are bounded. Full native contexts are reserved:
 1,048,576 for K3 or 262,144 for the other two models, plus 32,768 output tokens.
 The gate rejects missing, enlarged or ambiguous output caps before forwarding.
 Raw credentials/events are not stored in team transcripts or process failure messages.
+
+### Grok native setup and later acceptance
+
+Grok Teams supports native **1.0.46** and exact `grok-4.6` or `grok-4.5`.
+Configure this execution host's native `XAI_API_KEY` privately. The supported
+profile uses the official `https://api.x.ai/v1` route, without cached `auth.json`,
+managed policy, inline/OAuth accounts, auth-provider commands or custom model
+configuration. Ion reads the original profile without editing it. Unsupported
+account/model/policy overrides block readiness instead of substituting a key.
+`grok-4.7`, aliases, other versions and subscription profiles need their own
+verified transport. Do not delete an existing native login to bypass this check.
+
+The private child receives only its selected key and an OS/runtime environment
+allowlist. Its agent has no native tools, skills or subagents. Native discovery,
+MCP, plugins, indexing, telemetry, updates, retries, summaries and background work
+are disabled; version and effective configuration are inspected before inference.
+The private repository has no hooks, remotes or source files and prevents ancestor
+repository discovery. Native connection prewarming is disabled. Automatic title
+calls are rejected locally without consuming a provider request. The gate admits
+only the exact saved Teams prompt, forwards that canonical input, strips native
+tools, pins the model and requires the exact **32,768 output-token cap**. Full
+**500,000 input tokens** are reserved. No auxiliary/native context, raw account
+key or native control event enters the team transcript.
+
+- [ ] Install Grok Build 1.0.46 or choose that exact executable in harness settings.
+- [ ] Configure a compatible direct-key host profile privately and pin one supported
+  model. Existing cached/OAuth/managed accounts remain an implementation gap.
+- [ ] Run one Local team request; inspect exact harness/model, one metered request,
+  usage, generated document and denied native effects. Change the model, endpoint,
+  policy or token cap and verify readiness stops before provider billing.
+- [ ] For sandbox use, register the same runtime/model and full limits in the Linux
+  image; verify Linux execution and its host-owned account later.
 
 ### Kimi acceptance later
 
@@ -256,13 +289,14 @@ Installed CLI fixture checks (no live model request):
 cargo test -p waku-core driver::team_ --lib --locked -- --ignored --nocapture --test-threads=1
 ```
 
-The optional `ION_TEST_PI_BINARY`, `ION_TEST_OPENCODE_BINARY` and
-`ION_TEST_OMP_BINARY` and `ION_TEST_DEEPSEEK_BINARY` variables select
+The optional `ION_TEST_PI_BINARY`, `ION_TEST_OPENCODE_BINARY`,
+`ION_TEST_OMP_BINARY`, `ION_TEST_DEEPSEEK_BINARY`, `ION_TEST_KIMI_BINARY` and
+`ION_TEST_GROK_BINARY` variables select
 an installed executable for these fixture checks. They do not change app settings.
 
 Your live review:
 
-- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi/Oh My Pi/DeepSeek team with your exact available
+- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi/Oh My Pi/DeepSeek/Kimi/Grok team with your exact available
   models and grants; complete a delegated document and an isolated code edit.
 - [ ] Confirm task/run labels show each selected harness, model and actual host.
 - [ ] Set a token cap below one required reservation; verify no provider call starts.
@@ -312,3 +346,13 @@ Kimi contract references: [published 2.1.1 release](https://github.com/MoonshotA
 [native configuration](https://github.com/MoonshotAI/kimi-code/blob/f67e639/docs/en/configuration/config-files.md),
 [agent tool controls](https://github.com/MoonshotAI/kimi-code/blob/f67e639/docs/en/customization/agents.md),
 [request/runtime switches](https://github.com/MoonshotAI/kimi-code/blob/f67e639/docs/en/configuration/env-vars.md).
+
+Grok contract references: [official CLI reference](https://docs.x.ai/build/cli/reference),
+[headless execution](https://docs.x.ai/build/cli/headless-scripting),
+[configuration](https://docs.x.ai/build/settings/reference),
+[primary source snapshot](https://github.com/xai-org/grok-build/tree/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8).
+The source snapshot is newer than the native release; implementation acceptance
+uses the actual 1.0.46 Windows binary (`2765805b9442`), with npm SHA512 integrity
+verified and executable SHA256
+`47ad7fbc51767b8b301714111a1e452acc2c89912c08be260e1779a383302a4c`.
+The source/archive and native fixture runtime remain in ignored cache storage.

@@ -1419,3 +1419,45 @@ Eight selected harnesses now have bounded Teams completion adapters. Remaining:
 Antigravity, Amp, Cursor, Fx, OpenCode 2 and Grok, unverified OAuth/custom transports,
 external solo-harness team bridges and full remote files/commands/GPU execution.
 Later native/cloud acceptance steps are in the adapter guide and release checklist.
+
+
+## 2026-10-06 — bounded native Grok Build adapter
+
+- Added native Grok Build 1.0.46 to Local readiness/dispatch, registered sandbox
+  completion and both recovery paths. Only exact `grok-4.6` and `grok-4.5`, the
+  official direct API route and a compatible host-owned native key are supported.
+  Cached/inline/OAuth/managed accounts, auth commands, custom model/route/header
+  configuration and native login-policy overrides are refused before inference.
+- Inspect the exact native version and effective private configuration before
+  launch. Restrict environment inheritance and child credentials; exclude native
+  skills, hooks, plugins, MCP, indexing, updates, telemetry, retries and background
+  work. The private repository prevents discovery of any ancestor source checkout.
+- Disable native connection prewarming. The one-use Responses gate refuses
+  automatic title/auxiliary requests locally and forwards only the exact saved
+  Teams instructions/input. Native context and tools are removed. The model and
+  32,768 output cap are verified before billing; full 500,000 input tokens are
+  reserved, with complete provider input/output usage required for completion.
+- The official Windows runtime reports `1.0.46 (2765805b9442)`. Its npm SHA512
+  integrity matched the published metadata, and the executable SHA256 is
+  `47ad7fbc51767b8b301714111a1e452acc2c89912c08be260e1779a383302a4c`.
+  Source snapshot `2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8` is newer than
+  that native release; runtime acceptance relies on the actual binary fixture.
+
+Verification: **three Grok tests passed**, including the actual native executable
+against a fake key and localhost provider. It made one upstream request with
+canonical literal input, no native tools, the pinned model/output cap and complete
+usage. The initial fixture exposed an unframed native prewarm GET; source-backed
+prewarm disabling resolved it. Missing native Responses fields and the final SSE
+blank line were repaired in the fake provider fixture. No framing relaxation was
+retained. **158 Teams regression tests passed**, with seven optional installed-CLI
+fixtures ignored; the new Grok native fixture was explicitly run separately. These
+counts overlap. Desktop, daemon and worker binary checking passed, as did formatting
+and whitespace checks. No live provider billing, cloud operation, global install,
+account modification, Linux image acceptance or visual app test was performed.
+
+Nine selected harnesses now have bounded Teams completion adapters. Remaining:
+Antigravity, Amp, Cursor, Fx and OpenCode 2; unverified OAuth/custom transports and
+external solo-harness team bridges. Full remote project files, commands/executed
+checks, resource/egress and monetary limits, and GPU/ML jobs remain development
+work. The sandbox worker currently performs selected-harness completion only.
+Setup and later acceptance are recorded in the adapter guide and release checklist.
