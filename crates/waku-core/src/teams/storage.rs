@@ -105,6 +105,10 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             attempt_id TEXT NOT NULL,image TEXT NOT NULL,project TEXT NOT NULL,
             operation TEXT,state TEXT NOT NULL,receipt TEXT,started_at INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS ion_team_remote_attempt ON ion_team_remote_calls(attempt_id,state);
+        CREATE UNIQUE INDEX IF NOT EXISTS ion_team_remote_operation ON ion_team_remote_calls(project,operation) WHERE operation IS NOT NULL;
+        CREATE TABLE IF NOT EXISTS ion_team_remote_inputs (
+            call_id TEXT PRIMARY KEY REFERENCES ion_team_remote_calls(call_id), body TEXT NOT NULL);
+
         CREATE TABLE IF NOT EXISTS ion_team_call_budgets (
             call_id TEXT PRIMARY KEY REFERENCES ion_team_model_calls(id),
             input_cap INTEGER NOT NULL, output_cap INTEGER NOT NULL,

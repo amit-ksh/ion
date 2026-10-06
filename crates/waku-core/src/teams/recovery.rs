@@ -1,4 +1,4 @@
-//! Explicit continuation of a confirmed stopped local assignment. The adapter
+//! Explicit continuation of a confirmed stopped assignment. The adapter
 //! marks safe checkpoints; unknown workers and unfinished effects cannot resume.
 use super::*;
 use serde_json::{Value, json};
@@ -39,22 +39,26 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
         })
         .map(|p| p.id)
         .collect();
+    let remote_unfinished: HashSet<String> = db.prepare("SELECT DISTINCT attempt_id FROM ion_team_remote_calls WHERE state NOT IN ('SUCCESS','FAILED','CANCELLED','rejected') AND work_id IN (SELECT id FROM ion_team_work WHERE run_id=?)")?
+        .query_map([run.id.to_string()],|r|r.get(0))?.collect::<rusqlite::Result<_>>()?;
     for work in &mut run.work {
-        let local = work
-            .attempts
-            .last()
-            .filter(|a| a.environment == ExecutionEnvironment::Local);
+        let attempt = work.attempts.last();
+        let remote = attempt.is_some_and(|a| a.environment == ExecutionEnvironment::NebiusSandbox);
+        let host_known =
+            attempt.is_some_and(|a| !remote || !remote_unfinished.contains(&a.id.to_string()));
         work.can_resume = !pending
             && run.status == TeamRunStatus::Active
             && work.status == AssignmentStatus::Blocked
-            && local.is_some_and(|a| {
+            && host_known
+            && attempt.is_some_and(|a| {
                 a.status == AssignmentStatus::Blocked
                     && points
                         .get(&work.id.to_string())
                         .is_some_and(|(id, g)| id == &a.id.to_string() && *g == a.generation)
             });
-        work.can_reconcile = local.is_some()
+        work.can_reconcile = attempt.is_some()
             && (work.status == AssignmentStatus::Uncertain
+                || (remote && work.status == AssignmentStatus::Canceling)
                 || (matches!(
                     work.status,
                     AssignmentStatus::Blocked
@@ -65,7 +69,7 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
                         && run.status == TeamRunStatus::Active
                         && work.status == AssignmentStatus::Blocked
                         && native.contains(&work.agent_id)
-                        && local.is_some_and(|a| {
+                        && attempt.is_some_and(|a| {
                             checkpoints
                                 .get(&work.id.to_string())
                                 .is_some_and(|(id, g)| {
@@ -86,9 +90,9 @@ pub(super) fn waiting_note(db: &Connection, work: &TeamAssignment) -> Result<Opt
         .optional()?;
     row.map(|(attempt, reason)| {
         ensure!(
-            work.attempts.last().is_some_and(
-                |a| a.id.to_string() == attempt && a.environment == ExecutionEnvironment::Local
-            ),
+            work.attempts
+                .last()
+                .is_some_and(|a| a.id.to_string() == attempt),
             "Recovery attempt or host changed"
         );
         Ok(reason)
@@ -134,7 +138,7 @@ impl TeamCoordinator {
         );
         ensure!(
             work.can_resume,
-            "Only a stopped Local assignment with a safe checkpoint can continue; reconcile unknown hosts and effects first"
+            "Only a stopped assignment with a safe checkpoint can continue; reconcile unknown hosts and effects first"
         );
         workspace::require_settled_effects(&tx, run.id)?;
         let count: u32 = tx.query_row(
@@ -159,9 +163,7 @@ impl TeamCoordinator {
         text(&reason, 4096, "Previous blocker")?;
         let attempt = work.attempts.last_mut().context("Attempt missing")?;
         ensure!(
-            attempt.id.to_string() == id
-                && attempt.generation == generation
-                && attempt.environment == ExecutionEnvironment::Local,
+            attempt.id.to_string() == id && attempt.generation == generation,
             "Recovery checkpoint is stale"
         );
         attempt.generation = generation
@@ -169,7 +171,10 @@ impl TeamCoordinator {
             .context("Lease generation exhausted")?;
         attempt.status = AssignmentStatus::Waiting;
         work.status = AssignmentStatus::Waiting;
-        work.reason = Some("Continuing from the saved Local checkpoint".into());
+        work.reason = Some(format!(
+            "Continuing from the saved {} checkpoint",
+            attempt.environment.label()
+        ));
         work.can_resume = false;
         tx.execute(
             "INSERT INTO ion_team_recovery_waits VALUES(?,?,?,?)",
@@ -222,7 +227,8 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
     if run.status != TeamRunStatus::Active
         || work.status != AssignmentStatus::Blocked
         || !stopped(work)
-        || attempt.environment != ExecutionEnvironment::Local
+        || (attempt.environment == ExecutionEnvironment::NebiusSandbox
+            && !remote::attempt_stopped(db, attempt.id)?)
         || !run.profiles.iter().any(|p| {
             p.id == work.agent_id
                 && matches!(
@@ -252,10 +258,6 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
 fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamRecoveryReview> {
     let work = assignment(run, work)?;
     let attempt = work.attempts.last().context("Attempt missing")?;
-    ensure!(
-        attempt.environment == ExecutionEnvironment::Local,
-        "Local recovery cannot confirm a sandbox host"
-    );
     let pending:HashSet<String>=db.prepare("SELECT decision_id FROM ion_team_app_effects WHERE run_id=? AND work_id=? AND attempt_id=? AND state='pending'")?
         .query_map(params![run.id.to_string(),work.id.to_string(),attempt.id.to_string()],|r|r.get(0))?.collect::<rusqlite::Result<_>>()?;
     let apps = run
@@ -270,11 +272,37 @@ fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamReco
         attempt_id: attempt.id,
         revision: run.revision,
         host: attempt.host.clone(),
-        host_stopped: stopped(work),
+        host_stopped: stopped(work)
+            && (attempt.environment == ExecutionEnvironment::Local
+                || remote::attempt_stopped(db, attempt.id)?),
         can_prepare_continuation: repairable(db, run, work)? && !work.can_resume,
         workspace_path: run.workspace.as_ref().map(|w| w.path.clone()),
         files: workspace::effect_recovery::files(db, run.id, work.id, attempt.id)?,
         apps,
+        environment: attempt.environment,
+        remote_calls: {
+            let rows: Vec<(String,String,String,Option<String>,String,bool)> = db.prepare("SELECT r.call_id,r.image,r.project,r.operation,r.state,EXISTS(SELECT 1 FROM ion_team_remote_inputs i WHERE i.call_id=r.call_id) FROM ion_team_remote_calls r WHERE r.attempt_id=? ORDER BY r.started_at,r.call_id LIMIT 33")?
+                .query_map([attempt.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?.collect::<rusqlite::Result<_>>()?;
+            ensure!(
+                rows.len() <= 32,
+                "Remote recovery history exceeds its bound"
+            );
+            rows.into_iter()
+                .map(|(id, image, project, operation, state, has_input)| {
+                    Ok(TeamRemoteRecovery {
+                        request_id: Uuid::parse_str(&id)?,
+                        image_id: Uuid::parse_str(&image)?,
+                        project,
+                        can_bind: work.can_reconcile
+                            && operation.is_none()
+                            && state == "submitting"
+                            && has_input,
+                        operation_id: operation.map(|v| Uuid::parse_str(&v)).transpose()?,
+                        state,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+        },
     })
 }
 impl TeamCoordinator {
@@ -290,6 +318,27 @@ impl TeamCoordinator {
         tx.commit()?;
         Ok((review, snapshot))
     }
+    pub(crate) fn recovery_confirmation_replayed(
+        &self,
+        run: Uuid,
+        work: Uuid,
+        attempt: Uuid,
+        revision: u64,
+        confirmation: &TeamRecoveryConfirmation,
+    ) -> Result<bool> {
+        let db = self.connect()?;
+        let old:Option<(String,String,String)>=db.query_row("SELECT run_id,attempt_id,body FROM ion_team_recovery_confirmations WHERE work_id=? AND requested_revision=?",params![work.to_string(),revision],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
+        if let Some((r, a, b)) = old {
+            ensure!(
+                r == run.to_string()
+                    && a == attempt.to_string()
+                    && b == serde_json::to_string(confirmation)?,
+                "Recovery confirmation was reused with changed evidence or identity"
+            );
+            return Ok(true);
+        }
+        Ok(false)
+    }
     /// The owner runtime must first establish that its current worker has joined.
     /// An unknown previous host additionally requires the user's explicit assertion.
     pub(crate) fn confirm_recovery(
@@ -301,6 +350,32 @@ impl TeamCoordinator {
         confirmation: TeamRecoveryConfirmation,
         now: u64,
     ) -> Result<(TeamRecoveryReview, TeamRunSnapshot)> {
+        self.confirm_recovery_verified(
+            run_id,
+            work_id,
+            attempt_id,
+            expected_revision,
+            confirmation,
+            None,
+            now,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn confirm_recovery_verified(
+        &self,
+        run_id: Uuid,
+        work_id: Uuid,
+        attempt_id: Uuid,
+        expected_revision: u64,
+        confirmation: TeamRecoveryConfirmation,
+        verified_revision: Option<u64>,
+        now: u64,
+    ) -> Result<(TeamRecoveryReview, TeamRunSnapshot)> {
+        ensure!(
+            verified_revision.is_none()
+                || confirmation == TeamRecoveryConfirmation::VerifyRemoteStopped,
+            "Only remote terminal verification may observe its own usage settlement"
+        );
         let body = serde_json::to_string(&confirmation)?;
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -315,23 +390,38 @@ impl TeamCoordinator {
             return Ok((review(&tx, &run, work_id)?, run));
         }
         ensure!(
-            run.revision == expected_revision,
+            run.revision == verified_revision.unwrap_or(expected_revision),
             "Run changed; refresh before confirming recovery"
         );
         let mut work = assignment(&run, work_id)?.clone();
         let attempt = work.attempts.last().context("Attempt missing")?;
-        ensure!(
-            attempt.id == attempt_id && attempt.environment == ExecutionEnvironment::Local,
-            "Recovery attempt or Local host changed"
-        );
+        ensure!(attempt.id == attempt_id, "Recovery attempt changed");
         ensure!(
             work.can_reconcile
                 || (stopped(&work)
                     && matches!(confirmation, TeamRecoveryConfirmation::PrepareContinuation)),
-            "Assignment has no recoverable stopped Local action"
+            "Assignment has no recoverable action"
         );
+        if attempt.environment == ExecutionEnvironment::NebiusSandbox
+            && matches!(
+                confirmation,
+                TeamRecoveryConfirmation::FileApplied { .. }
+                    | TeamRecoveryConfirmation::FileRestored { .. }
+                    | TeamRecoveryConfirmation::AppSucceeded { .. }
+                    | TeamRecoveryConfirmation::AppFailed { .. }
+            )
+        {
+            ensure!(
+                remote::attempt_stopped(&tx, attempt_id)?,
+                "Verify all sandbox operations stopped before reconciling owner effects"
+            );
+        }
         match &confirmation {
             TeamRecoveryConfirmation::HostStopped => {
+                ensure!(
+                    attempt.environment == ExecutionEnvironment::Local,
+                    "Sandbox stop requires verified operation receipts; a human assertion cannot clear it"
+                );
                 ensure!(
                     work.status == AssignmentStatus::Uncertain,
                     "Host already has a known outcome"
@@ -356,6 +446,43 @@ impl TeamCoordinator {
                     Some(work_id),
                     "host_stop_confirmed",
                     "User confirmed previous Local worker stopped",
+                    now,
+                )?;
+            }
+            TeamRecoveryConfirmation::BindRemoteOperation { .. } => {
+                anyhow::bail!("Remote binding requires the trusted API verification path");
+            }
+            TeamRecoveryConfirmation::VerifyRemoteStopped => {
+                ensure!(
+                    attempt.environment == ExecutionEnvironment::NebiusSandbox
+                        && remote::attempt_stopped(&tx, attempt_id)?,
+                    "Remote process stop remains unconfirmed; verify its terminal operations first"
+                );
+                if matches!(
+                    work.status,
+                    AssignmentStatus::Uncertain | AssignmentStatus::Canceling
+                ) {
+                    let status = if run.status == TeamRunStatus::Active {
+                        AssignmentStatus::Blocked
+                    } else {
+                        AssignmentStatus::Canceled
+                    };
+                    work.status = status;
+                    work.attempts.last_mut().unwrap().status = status;
+                    work.reason=Some("Verified sandbox operations stopped; review durable receipts before continuing".into());
+                    tx.execute(
+                        "UPDATE ion_team_attempts SET live=0 WHERE id=?",
+                        [attempt_id.to_string()],
+                    )?;
+                    save_work(&tx, &work, false)?;
+                    settle_run(&tx, run_id)?;
+                }
+                audit(
+                    &tx,
+                    run_id,
+                    Some(work_id),
+                    "remote_stop_verified",
+                    "Terminal operation receipts verified; no work submitted and unknown usage retained",
                     now,
                 )?;
             }
@@ -408,7 +535,10 @@ impl TeamCoordinator {
                     continuation::checkpoint_row(&tx, work_id)?.context("Checkpoint missing")?;
                 let pending_wait:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_decision_waits WHERE work_id=?1) OR EXISTS(SELECT 1 FROM ion_team_recovery_waits WHERE work_id=?1)",[work_id.to_string()],|r|r.get(0))?;
                 ensure!(!pending_wait, "Recovery cannot replace an existing wait");
-                let app_receipts = receipts::apps(&tx, &run, &work, attempt_id, now)?;
+                let mut app_receipts = receipts::apps(&tx, &run, &work, attempt_id, now)?;
+                if attempt.environment == ExecutionEnvironment::NebiusSandbox {
+                    app_receipts.push(receipts::remote(&tx, attempt_id)?);
+                }
                 let repaired = crate::driver::repair_native_team_checkpoint(
                     &checkpoint,
                     |request, name, args| {

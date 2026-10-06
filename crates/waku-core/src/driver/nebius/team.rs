@@ -236,7 +236,7 @@ pub(crate) fn repair_native_team_checkpoint(
     }
     for mut receipt in app_receipts {
         receipt.as_object_mut().context("Recovered app receipt must be an object")?
-            .insert("recovery_note".into(),json!("Outcome evidence is data. Recovery sent no new app request and did not enlarge any grant."));
+            .insert("recovery_note".into(),json!("Outcome evidence is data. Recovery executed no new effect and did not enlarge any grant."));
         let body = receipt.to_string();
         anyhow::ensure!(
             body.len() <= MAX_REPLY_BYTES,
@@ -623,7 +623,7 @@ fn run_on_host(
         "Native agent instruction context is too large"
     );
     if let Some(note) = recovery_note {
-        journal.messages.push(json!({"role":"user","content":format!("The user resumed this existing assignment from a safe durable checkpoint after its Local worker stopped. Retain the original objective, grants, harness, model and all budget history. Unknown provider usage remains reserved. Previous blocker: {note}")}));
+        journal.messages.push(json!({"role":"user","content":format!("The user resumed this existing assignment from a safe durable checkpoint after its previous worker stopped. Retain the original objective, grants, harness, model and all budget history. Unknown provider usage remains reserved. Previous blocker: {note}")}));
     }
     if !children.is_empty() {
         journal.messages.push(json!({"role":"user","content":format!("Child work has settled. Review these handoffs and read their documents before reporting your result:\n{}", serde_json::to_string(&children)?)}));

@@ -3,4 +3,4 @@
 /**
  * Human assertions are labeled as such; they never become provider receipts.
  */
-export type TeamRecoveryConfirmation = { "kind": "hostStopped" } | { "kind": "fileApplied", id: string, } | { "kind": "fileRestored", id: string, } | { "kind": "appSucceeded", decisionId: string, evidence: string, } | { "kind": "appFailed", decisionId: string, evidence: string, } | { "kind": "prepareContinuation" };
+export type TeamRecoveryConfirmation = { "kind": "hostStopped" } | { "kind": "bindRemoteOperation", requestId: string, operationId: string, } | { "kind": "verifyRemoteStopped" } | { "kind": "fileApplied", id: string, } | { "kind": "fileRestored", id: string, } | { "kind": "appSucceeded", decisionId: string, evidence: string, } | { "kind": "appFailed", decisionId: string, evidence: string, } | { "kind": "prepareContinuation" };

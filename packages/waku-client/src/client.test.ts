@@ -119,7 +119,7 @@ describe("WakuClient", () => {
     const access = { workspaceRead: true, workspaceWrite: false, shell: false, network: false, appActions: [] };
     const payload = {
       type: "teamRecovery", review: { runId, assignmentId, attemptId,
-        revision: 8, host: "local", hostStopped: true, canPrepareContinuation: true, workspacePath: null, files: [], apps: [] },
+        revision: 8, host: "local", environment: "local", remoteCalls: [], hostStopped: true, canPrepareContinuation: true, workspacePath: null, files: [], apps: [] },
       snapshot: {
         id: runId, revision: 8, rootTaskId: taskId, projectId: "00000000-0000-4000-8000-000000000017",
         definitionRevision: 1, status: "active", workspace: null, inputs: [], followUps: [], createdAt: 100, deadline: 3700,

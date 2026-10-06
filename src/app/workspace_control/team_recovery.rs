@@ -11,6 +11,7 @@ pub(super) struct RecoveryUi {
     pub(super) review: Option<Arc<TeamRecoveryReview>>,
     files: Rc<Vec<Arc<FileRow>>>,
     apps: Rc<Vec<Arc<AppRow>>>,
+    remote: Rc<Vec<Arc<RemoteRow>>>,
     expanded: HashSet<usize>,
     pub(super) busy: bool,
     generation: u64,
@@ -30,7 +31,16 @@ pub(super) struct AppRow {
     identity: String,
     arguments: String,
 }
-fn presentation(review: &TeamRecoveryReview) -> (Vec<Arc<FileRow>>, Vec<Arc<AppRow>>) {
+pub(super) struct RemoteRow {
+    request: Uuid,
+    identity: String,
+    operation: String,
+    status: String,
+    can_bind: bool,
+}
+fn presentation(
+    review: &TeamRecoveryReview,
+) -> (Vec<Arc<FileRow>>, Vec<Arc<AppRow>>, Vec<Arc<RemoteRow>>) {
     let changes: Vec<_> = review
         .files
         .iter()
@@ -82,7 +92,35 @@ fn presentation(review: &TeamRecoveryReview) -> (Vec<Arc<FileRow>>, Vec<Arc<AppR
             })
         })
         .collect();
-    (files, apps)
+    let remote = review
+        .remote_calls
+        .iter()
+        .map(|c| {
+            Arc::new(RemoteRow {
+                request: c.request_id,
+                identity: format!(
+                    "Request {} · image {} · project {}",
+                    c.request_id, c.image_id, c.project
+                ),
+                operation: c
+                    .operation_id
+                    .map(|id| format!("Operation {id}"))
+                    .unwrap_or("Spawn acknowledgement missing".into()),
+                status: match c.state.as_str() {
+                    "submitting" => "Submission outcome unknown",
+                    "running" => "Remote stop not verified",
+                    "SUCCESS" => "Completed",
+                    "FAILED" => "Failed",
+                    "CANCELLED" => "Canceled",
+                    "rejected" => "Rejected before launch",
+                    _ => "Unknown status",
+                }
+                .into(),
+                can_bind: c.can_bind,
+            })
+        })
+        .collect();
+    (files, apps, remote)
 }
 impl Waku {
     pub(super) fn clear_team_recovery(&mut self) {
@@ -137,8 +175,17 @@ impl Waku {
                         let title = format!("{} · {}", agent.name, work.objective);
                         let task = work.task_id;
                         let host_uncertain = work.status == AssignmentStatus::Uncertain;
-                        let (files, apps) = presentation(&review);
-                        Ok((review, snapshot, files, apps, title, task, host_uncertain))
+                        let (files, apps, remote) = presentation(&review);
+                        Ok((
+                            review,
+                            snapshot,
+                            files,
+                            apps,
+                            remote,
+                            title,
+                            task,
+                            host_uncertain,
+                        ))
                     })
                     .await
                 })
@@ -151,7 +198,7 @@ impl Waku {
                 }
                 this.control_ui.recovery.busy = false;
                 match result {
-                    Ok((review, snapshot, files, apps, title, task, host_uncertain))
+                    Ok((review, snapshot, files, apps, remote, title, task, host_uncertain))
                         if Some(review.run_id) == run =>
                     {
                         this.control_ui.recovery.title = title;
@@ -160,6 +207,7 @@ impl Waku {
                         this.control_ui.recovery.review = Some(Arc::new(review));
                         this.control_ui.recovery.files = Rc::new(files);
                         this.control_ui.recovery.apps = Rc::new(apps);
+                        this.control_ui.recovery.remote = Rc::new(remote);
                         this.control_ui.recovery.expanded.clear();
                         if this
                             .control_ui
@@ -217,9 +265,17 @@ impl Waku {
                 .cloned()
                 .map(Row::RecoveryApp),
         );
+        rows.extend(
+            self.control_ui
+                .recovery
+                .remote
+                .iter()
+                .cloned()
+                .map(Row::RecoveryRemote),
+        );
         if rows.is_empty() {
             rows.push(Row::Empty(
-                "No unresolved file or app receipts for this attempt.",
+                "No unresolved effect receipts for this attempt.",
             ));
         }
         rows
@@ -257,7 +313,14 @@ impl Waku {
                     )
                 },
             ));
-            if !r.host_stopped && self.control_ui.recovery.host_uncertain {
+            if !r.host_stopped && r.environment == ExecutionEnvironment::NebiusSandbox {
+                actions = actions.child(self.control_button(
+                    "team-recovery-remote-stop",
+                    "Verify sandbox stopped",
+                    cx,
+                    |this, _, cx| this.confirm_team_recovery(Confirmation::VerifyRemoteStopped, cx),
+                ));
+            } else if !r.host_stopped && self.control_ui.recovery.host_uncertain {
                 actions = actions.child(self.control_button(
                     "team-recovery-host",
                     "Confirm previous host stopped",
@@ -324,6 +387,8 @@ impl Waku {
                         r.host,
                         if r.host_stopped {
                             "Previous worker stopped"
+                        } else if r.environment == ExecutionEnvironment::NebiusSandbox {
+                            "Bind missing operations, then verify their terminal status"
                         } else if self.control_ui.recovery.host_uncertain {
                             "Stop the previous worker, then confirm its host has stopped"
                         } else {
@@ -338,6 +403,19 @@ impl Waku {
                     .child(self.control_ui.recovery.title.clone()),
             )
             .child(actions);
+        if self
+            .control_ui
+            .recovery
+            .remote
+            .iter()
+            .any(|row| row.can_bind)
+        {
+            header = header.child(control_field(
+                "Operation ID from Nebius",
+                self.control_ui.recovery_operation.clone(),
+                "team-recovery-operation",
+            ));
+        }
         if !r.apps.is_empty() && r.host_stopped {
             header = header.child(control_field(
                 "Provider evidence for app confirmation",
@@ -357,6 +435,49 @@ impl Waku {
             );
         }
         header
+    }
+    pub(super) fn render_team_recovery_remote(
+        &self,
+        row: Arc<RemoteRow>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = Theme::current(cx);
+        let mut body = div()
+            .id(SharedString::from(format!(
+                "recovery-remote-{}",
+                row.request
+            )))
+            .py(px(14.0))
+            .border_b_1()
+            .border_color(theme.border)
+            .flex()
+            .flex_col()
+            .gap(px(9.0))
+            .child(
+                div()
+                    .text_size(sp(14.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(row.status.clone()),
+            )
+            .child(
+                div()
+                    .text_size(sp(12.5))
+                    .text_color(theme.text_secondary)
+                    .child(row.identity.clone()),
+            )
+            .child(div().text_size(sp(12.5)).child(row.operation.clone()));
+        if row.can_bind && !self.control_ui.recovery.busy {
+            let request_id = row.request;
+            body=body.child(self.control_button(format!("recovery-bind-{request_id}"),"Verify and bind operation",cx,move |this,_,cx| {
+                let value=this.control_ui.recovery_operation.read(cx).content().trim().to_owned();
+                match Uuid::parse_str(&value) {
+                    Ok(operation_id) if !operation_id.is_nil()=>this.confirm_team_recovery(Confirmation::BindRemoteOperation{request_id,operation_id},cx),
+                    _=>{this.control_ui.recovery.error=Some("Enter the operation UUID from Nebius, then verify and bind it.".into());cx.notify();}
+                }
+            })).child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
+                .child("Ion verifies this operation against the original input and image. Binding submits no work and does not confirm that it has stopped."));
+        }
+        body.into_any_element()
     }
     pub(super) fn render_team_recovery_file(
         &self,

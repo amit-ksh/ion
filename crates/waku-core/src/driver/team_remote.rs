@@ -111,7 +111,7 @@ impl Client {
             "Sandbox operation is unresolved (HTTP {})",
             response.status()
         );
-        let value = read_json(response, 256 * 1024)?;
+        let value = read_json(response, 512 * 1024)?;
         ensure!(
             value["uuid"].as_str() == Some(&id.to_string())
                 && value["kind"] == "instance"
@@ -307,6 +307,7 @@ fn execute(
         coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
         anyhow::bail!("Stopped before sandbox submission");
     }
+    coordinator.pin_remote_input(request.request_id, std::str::from_utf8(&input)?)?;
     let body = json!({"command":"/usr/local/bin/ion-harness-worker","args":[],"image":image,"shell":false,"hostname":format!("ion-{}",request.request_id),"env":{"PATH":"/usr/local/bin:/usr/bin:/bin"},"cwd":"/ion/work","stdin":{"value":STANDARD.encode(input),"encoding":"base64","close":true},"timeout":150,"truncate_output_at":64*1024,"disposable":true,"preserve_env":false,"resources_limits":{"max_layer_bytes":256*1024*1024},"networking":{"enabled":true}});
     // The image supplies a credential bootstrap outside the prompt. No owner
     // credentials, repository walk, env dump, app tokens or vault files are sent.
@@ -438,6 +439,142 @@ fn worker_output(value: &Value) -> Result<WorkerResponse> {
         "Remote harness output is too large"
     );
     Ok(serde_json::from_slice(&bytes)?)
+}
+/// User input is an operation ID, never proof. Only the actual API metadata
+/// can establish that it belongs to the persisted original worker request.
+pub(crate) fn bind_recovered_operation(
+    coordinator: &TeamCoordinator,
+    run: Uuid,
+    work: Uuid,
+    attempt: Uuid,
+    revision: u64,
+    request: Uuid,
+    operation: Uuid,
+) -> Result<()> {
+    bind_recovered_with(
+        &Client::configured()?,
+        coordinator,
+        run,
+        work,
+        attempt,
+        revision,
+        request,
+        operation,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn bind_recovered_with(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    run: Uuid,
+    work: Uuid,
+    attempt: Uuid,
+    revision: u64,
+    request: Uuid,
+    operation: Uuid,
+) -> Result<()> {
+    if coordinator.recovery_confirmation_replayed(
+        run,
+        work,
+        attempt,
+        revision,
+        &waku_protocol::teams::TeamRecoveryConfirmation::BindRemoteOperation {
+            request_id: request,
+            operation_id: operation,
+        },
+    )? {
+        return Ok(());
+    }
+    ensure!(
+        !operation.is_nil(),
+        "Choose a non-empty sandbox operation ID"
+    );
+    let snapshot = coordinator.snapshot(run)?;
+    ensure!(
+        snapshot.revision == revision,
+        "Run changed; refresh before recovery"
+    );
+    let assignment = snapshot
+        .work
+        .iter()
+        .find(|w| w.id == work)
+        .context("Assignment missing")?;
+    ensure!(
+        assignment.can_reconcile
+            && assignment.attempts.last().is_some_and(|a| a.id == attempt
+                && a.environment == waku_protocol::teams::ExecutionEnvironment::NebiusSandbox),
+        "Remote recovery attempt or state changed"
+    );
+    let calls = coordinator.remote_calls(attempt)?;
+    let call = calls
+        .iter()
+        .find(|c| c.id == request)
+        .context("Remote request missing")?;
+    ensure!(
+        call.state == "submitting" && call.operation.is_none() && call.project == client.project,
+        "Remote request/project changed or is already bound"
+    );
+    let saved=coordinator.remote_input(request)?.context("Legacy request lacks an exact input witness; operator inspection cannot automatically bind it")?;
+    let expected: Value = serde_json::from_str(&saved)?;
+    let value = client.operation(operation, call.image)?;
+    verify_original_request(&value, call.image, request, &expected)?;
+    coordinator.bind_recovered_remote_operation(
+        run,
+        work,
+        attempt,
+        revision,
+        request,
+        operation,
+        crate::model::unix_time(),
+    )
+}
+fn verify_original_request(
+    value: &Value,
+    image: Uuid,
+    request: Uuid,
+    expected: &Value,
+) -> Result<()> {
+    let m = &value["metadata"];
+    ensure!(
+        m["image"].as_str() == Some(&image.to_string())
+            && m["hostname"] == format!("ion-{request}")
+            && m["command"] == "/usr/local/bin/ion-harness-worker"
+            && m["args"] == json!([])
+            && m["shell"] == false
+            && m["env"] == json!({"PATH":"/usr/local/bin:/usr/bin:/bin"})
+            && m["cwd"] == "/ion/work"
+            && m["timeout"] == 150
+            && m["truncate_output_at"] == 64 * 1024
+            && m["disposable"] == true
+            && m["preserve_env"] == false
+            && m["networking"] == json!({"enabled":true})
+            && m["resources_limits"] == json!({"max_layer_bytes":256*1024*1024})
+            && m.get("uid").is_none_or(|v| *v == 0)
+            && m.get("gid").is_none_or(|v| *v == 0)
+            && m.get("files")
+                .is_none_or(|v| v.is_null() || *v == json!({})),
+        "Sandbox metadata differs from the original bounded execution host"
+    );
+    let stdin = &m["stdin"];
+    ensure!(
+        stdin["encoding"] == "base64" && stdin["close"] == true && stdin["truncated"] != true,
+        "Original sandbox input witness is unavailable"
+    );
+    let data = stdin["value"]
+        .as_str()
+        .context("Original sandbox input missing")?;
+    ensure!(
+        data.len() <= 176 * 1024,
+        "Original sandbox input exceeds its bound"
+    );
+    let bytes = STANDARD.decode(data)?;
+    ensure!(
+        bytes.len() <= 128 * 1024
+            && serde_json::from_slice::<Value>(&bytes)? == *expected
+            && expected["request_id"] == request.to_string(),
+        "Sandbox input/model/grants differ from the original request"
+    );
+    Ok(())
 }
 /// Restart/Stop reconciles existing operation IDs only; this never submits work.
 pub(crate) fn reconcile(coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
@@ -1051,6 +1188,534 @@ mod lifecycle_tests {
         assert_eq!(requests.len(), 3);
         assert_eq!(
             requests
+                .iter()
+                .filter(|r| r.line.starts_with("POST "))
+                .count(),
+            1
+        );
+    }
+    fn recovery_checkpoint(f: &Fixture) {
+        f.owner
+            .save_runtime_checkpoint(
+                &f.lease,
+                &json!({"version":1,"steps":1,
+            "messages":[{"role":"user","content":"Review"}],"pending":[]})
+                .to_string(),
+                102,
+            )
+            .unwrap();
+    }
+    fn lost_ack(f: &Fixture) -> Value {
+        recovery_checkpoint(f);
+        let server = Server::new(vec![(201, body(json!({})))]);
+        assert!(
+            execute(
+                &client(&server),
+                &f.owner,
+                f.image,
+                &f.request,
+                &AtomicBool::new(false)
+            )
+            .is_err()
+        );
+        let request = server.finish()[0].body.clone();
+        f.owner.reconcile_owner_restart(103).unwrap();
+        request
+    }
+    #[test]
+    fn team_remote_recovery_binds_exact_original_request_and_continues_same_host_once() {
+        let f = Fixture::new();
+        let metadata = lost_ack(&f);
+        let run = f.lease.run_id();
+        let work = f.lease.work_id();
+        let attempt = f.lease.attempt_id();
+        let (review, unknown) = f.owner.recovery_review(run, work).unwrap();
+        assert!(
+            !review.host_stopped && review.remote_calls[0].can_bind && !unknown.work[0].can_resume
+        );
+        let public = serde_json::to_string(&review).unwrap();
+        assert!(!public.contains("Review granted inputs") && !public.contains("stdin"));
+        for confirmation in [
+            TeamRecoveryConfirmation::HostStopped,
+            TeamRecoveryConfirmation::VerifyRemoteStopped,
+            TeamRecoveryConfirmation::PrepareContinuation,
+        ] {
+            assert!(
+                f.owner
+                    .confirm_recovery(run, work, attempt, unknown.revision, confirmation, 104)
+                    .is_err()
+            );
+        }
+        // An invalid operation image cannot bind, settle usage or release capacity.
+        let id = Uuid::new_v4();
+        let mut wrong = operation(&f, id, "EXECUTING");
+        wrong["image_uuid"] = json!(Uuid::new_v4());
+        let server = Server::new(vec![(200, body(wrong))]);
+        assert!(
+            bind_recovered_with(
+                &client(&server),
+                &f.owner,
+                run,
+                work,
+                attempt,
+                unknown.revision,
+                f.request.request_id,
+                id
+            )
+            .is_err()
+        );
+        assert_eq!(server.finish().len(), 1);
+        assert!(
+            f.owner.remote_calls(attempt).unwrap()[0]
+                .operation
+                .is_none()
+        );
+        let mut verified = operation(&f, id, "EXECUTING");
+        verified["metadata"] = metadata;
+        let server = Server::new(vec![(200, body(verified))]);
+        let remote = client(&server);
+        let reopened = TeamCoordinator::new(f.path.clone());
+        bind_recovered_with(
+            &remote,
+            &reopened,
+            run,
+            work,
+            attempt,
+            unknown.revision,
+            f.request.request_id,
+            id,
+        )
+        .unwrap();
+        let bound = reopened.snapshot(run).unwrap();
+        bind_recovered_with(
+            &remote,
+            &reopened,
+            run,
+            work,
+            attempt,
+            unknown.revision,
+            f.request.request_id,
+            id,
+        )
+        .unwrap();
+        assert_eq!(reopened.snapshot(run).unwrap().revision, bound.revision);
+        assert!(
+            bind_recovered_with(
+                &remote,
+                &reopened,
+                run,
+                work,
+                attempt,
+                unknown.revision,
+                f.request.request_id,
+                Uuid::new_v4()
+            )
+            .is_err()
+        );
+        assert_eq!(server.finish().len(), 1); // response replay sent no second GET or POST
+        let server = Server::new(vec![
+            (200, body(operation(&f, id, "EXECUTING"))),
+            (202, body(json!({}))),
+            (200, body(operation(&f, id, "CANCELLED"))),
+        ]);
+        let remote = client(&server);
+        assert!(!reconcile_with(&remote, &reopened, attempt).unwrap());
+        assert!(!reopened.remote_attempt_stopped(attempt).unwrap());
+        assert!(!reopened.snapshot(run).unwrap().work[0].can_resume);
+        assert!(reconcile_with(&remote, &reopened, attempt).unwrap());
+        let revision = reopened.snapshot(run).unwrap().revision;
+        let (review, blocked) = reopened
+            .confirm_recovery(
+                run,
+                work,
+                attempt,
+                revision,
+                TeamRecoveryConfirmation::VerifyRemoteStopped,
+                104,
+            )
+            .unwrap();
+        assert!(review.host_stopped && review.can_prepare_continuation);
+        assert_eq!(blocked.work[0].status, AssignmentStatus::Blocked);
+        assert_eq!(blocked.usage.reserved_tokens, 1100);
+        assert_eq!(blocked.usage.consumed_tokens, 0);
+        let (_, prepared) = reopened
+            .confirm_recovery(
+                run,
+                work,
+                attempt,
+                blocked.revision,
+                TeamRecoveryConfirmation::PrepareContinuation,
+                104,
+            )
+            .unwrap();
+        assert!(prepared.work[0].can_resume);
+        let prepared_revision = prepared.revision;
+        let queued = reopened
+            .queue_checkpoint_resume(run, work, prepared_revision, 104)
+            .unwrap();
+        let again = reopened
+            .queue_checkpoint_resume(run, work, prepared_revision, 104)
+            .unwrap();
+        assert_eq!(queued.revision, again.revision);
+        let resumed = reopened.resume_after_children(run, work, 105, 100).unwrap();
+        assert_eq!(resumed.claimed.lease.attempt_id(), attempt);
+        assert_eq!(resumed.claimed.assignment.attempts.len(), 1);
+        assert_eq!(
+            resumed.claimed.assignment.attempts[0].environment,
+            ExecutionEnvironment::NebiusSandbox
+        );
+        assert_eq!(resumed.claimed.profile.provider, ProviderKind::Codex);
+        assert_eq!(resumed.claimed.profile.model.as_deref(), Some("pinned"));
+        assert!(
+            resumed.checkpoint.contains("remote_process_receipts")
+                && resumed
+                    .checkpoint
+                    .contains("Cached model actions were not replayed")
+        );
+        assert!(reopened.renew(&f.lease, 105, 100).is_err());
+        assert_eq!(reopened.snapshot(run).unwrap().usage.reserved_tokens, 1100);
+        assert!(server.finish().iter().all(|r| !r.line.starts_with("POST ")));
+    }
+    #[test]
+    fn team_remote_recovery_rejects_metadata_prompt_model_and_permission_changes() {
+        let f = Fixture::new();
+        let metadata = lost_ack(&f);
+        let expected = serde_json::to_value(&f.request).unwrap();
+        let good = json!({"metadata":metadata});
+        verify_original_request(&good, f.image, f.request.request_id, &expected).unwrap();
+        for (key, value) in [
+            ("hostname", json!("another-request")),
+            ("image", json!(Uuid::new_v4())),
+            ("command", json!("/bin/sh")),
+            ("shell", json!(true)),
+            ("args", json!(["expanded"])),
+            ("env", json!({"PATH":"/usr/bin","SECRET":"fixture"})),
+            ("uid", json!(1000)),
+            ("files", json!({"/escape":{"uuid":Uuid::new_v4()}})),
+            ("timeout", json!(999)),
+            ("preserve_env", json!(true)),
+            ("networking", json!({"enabled":false})),
+        ] {
+            let mut wrong = good.clone();
+            wrong["metadata"][key] = value;
+            assert!(
+                verify_original_request(&wrong, f.image, f.request.request_id, &expected).is_err(),
+                "{key}"
+            );
+        }
+        for (key, value) in [
+            ("system", json!("Changed instructions")),
+            ("tools", json!(["shell"])),
+            ("messages", json!([{"role":"user","content":"other input"}])),
+            ("request_id", json!(Uuid::new_v4())),
+        ] {
+            let mut changed = expected.clone();
+            changed[key] = value;
+            let mut wrong = good.clone();
+            wrong["metadata"]["stdin"]["value"] =
+                json!(STANDARD.encode(serde_json::to_vec(&changed).unwrap()));
+            assert!(
+                verify_original_request(&wrong, f.image, f.request.request_id, &expected).is_err(),
+                "{key}"
+            );
+        }
+        let mut changed = expected.clone();
+        changed["capability"]["model"] = json!("other-model");
+        let mut wrong = good.clone();
+        wrong["metadata"]["stdin"]["value"] =
+            json!(STANDARD.encode(serde_json::to_vec(&changed).unwrap()));
+        assert!(verify_original_request(&wrong, f.image, f.request.request_id, &expected).is_err());
+        let mut wrong = good;
+        wrong["metadata"]["stdin"]["truncated"] = json!(true);
+        assert!(verify_original_request(&wrong, f.image, f.request.request_id, &expected).is_err());
+    }
+    #[test]
+    fn team_remote_recovery_legacy_input_and_repeated_post_are_refused() {
+        let f = Fixture::new();
+        recovery_checkpoint(&f);
+        f.owner.reconcile_owner_restart(103).unwrap();
+        let run = f.owner.snapshot(f.lease.run_id()).unwrap();
+        let server = Server::new(vec![]);
+        assert!(
+            bind_recovered_with(
+                &client(&server),
+                &f.owner,
+                run.id,
+                f.lease.work_id(),
+                f.lease.attempt_id(),
+                run.revision,
+                f.request.request_id,
+                Uuid::new_v4()
+            )
+            .is_err()
+        );
+        assert!(
+            !f.owner
+                .recovery_review(run.id, f.lease.work_id())
+                .unwrap()
+                .0
+                .remote_calls[0]
+                .can_bind
+        );
+        assert_eq!(server.finish().len(), 0);
+        let f = Fixture::new();
+        let server = Server::new(vec![(201, body(json!({})))]);
+        let remote = client(&server);
+        assert!(
+            execute(
+                &remote,
+                &f.owner,
+                f.image,
+                &f.request,
+                &AtomicBool::new(false)
+            )
+            .is_err()
+        );
+        assert!(
+            execute(
+                &remote,
+                &f.owner,
+                f.image,
+                &f.request,
+                &AtomicBool::new(false)
+            )
+            .is_err()
+        );
+        assert_eq!(server.finish().len(), 1);
+    }
+    #[test]
+    fn team_remote_recovery_canceled_run_and_changed_revision_cannot_continue() {
+        let f = Fixture::new();
+        let metadata = lost_ack(&f);
+        let unknown = f.owner.snapshot(f.lease.run_id()).unwrap();
+        let stopped = f.owner.stop(unknown.id, unknown.revision, 104).unwrap();
+        let id = Uuid::new_v4();
+        let mut value = operation(&f, id, "CANCELLED");
+        value["metadata"] = metadata;
+        let server = Server::new(vec![(200, body(value.clone()))]);
+        let remote = client(&server);
+        assert!(
+            bind_recovered_with(
+                &remote,
+                &f.owner,
+                unknown.id,
+                f.lease.work_id(),
+                f.lease.attempt_id(),
+                unknown.revision,
+                f.request.request_id,
+                id
+            )
+            .is_err()
+        );
+        bind_recovered_with(
+            &remote,
+            &f.owner,
+            unknown.id,
+            f.lease.work_id(),
+            f.lease.attempt_id(),
+            stopped.revision,
+            f.request.request_id,
+            id,
+        )
+        .unwrap();
+        assert_eq!(server.finish().len(), 1);
+        let server = Server::new(vec![(200, body(value))]);
+        assert!(reconcile_with(&client(&server), &f.owner, f.lease.attempt_id()).unwrap());
+        let revision = f.owner.snapshot(unknown.id).unwrap().revision;
+        let (review, canceled) = f
+            .owner
+            .confirm_recovery(
+                unknown.id,
+                f.lease.work_id(),
+                f.lease.attempt_id(),
+                revision,
+                TeamRecoveryConfirmation::VerifyRemoteStopped,
+                105,
+            )
+            .unwrap();
+        assert!(
+            review.host_stopped && !review.can_prepare_continuation && !canceled.work[0].can_resume
+        );
+        assert_eq!(canceled.work[0].status, AssignmentStatus::Canceled);
+        assert_eq!(canceled.usage.reserved_tokens, 1100);
+        assert!(
+            f.owner
+                .confirm_recovery(
+                    unknown.id,
+                    f.lease.work_id(),
+                    f.lease.attempt_id(),
+                    canceled.revision,
+                    TeamRecoveryConfirmation::PrepareContinuation,
+                    105
+                )
+                .is_err()
+        );
+        assert!(
+            f.owner
+                .queue_checkpoint_resume(unknown.id, f.lease.work_id(), canceled.revision, 105)
+                .is_err()
+        );
+        assert_eq!(server.finish().len(), 1);
+    }
+    #[test]
+    fn team_remote_recovery_resumed_owner_loop_uses_new_call_and_retains_original_unknown_budget() {
+        let now = crate::model::unix_time();
+        let f = Fixture::new_at(now, true);
+        f.owner
+            .save_runtime_checkpoint(
+                &f.lease,
+                &json!({"version":1,"steps":1,
+            "messages":[{"role":"user","content":"Review"}],"pending":[]})
+                .to_string(),
+                now,
+            )
+            .unwrap();
+        let server = Server::new(vec![(201, body(json!({})))]);
+        assert!(
+            execute(
+                &client(&server),
+                &f.owner,
+                f.image,
+                &f.request,
+                &AtomicBool::new(false)
+            )
+            .is_err()
+        );
+        let metadata = server.finish()[0].body.clone();
+        f.owner.reconcile_owner_restart(now).unwrap();
+        let run = f.lease.run_id();
+        let work = f.lease.work_id();
+        let attempt = f.lease.attempt_id();
+        let old_operation = Uuid::new_v4();
+        let mut value = operation(&f, old_operation, "CANCELLED");
+        value["metadata"] = metadata;
+        let server = Server::new(vec![(200, body(value.clone())), (200, body(value))]);
+        let remote = client(&server);
+        let revision = f.owner.snapshot(run).unwrap().revision;
+        bind_recovered_with(
+            &remote,
+            &f.owner,
+            run,
+            work,
+            attempt,
+            revision,
+            f.request.request_id,
+            old_operation,
+        )
+        .unwrap();
+        assert!(reconcile_with(&remote, &f.owner, attempt).unwrap());
+        let revision = f.owner.snapshot(run).unwrap().revision;
+        let (_, blocked) = f
+            .owner
+            .confirm_recovery(
+                run,
+                work,
+                attempt,
+                revision,
+                TeamRecoveryConfirmation::VerifyRemoteStopped,
+                now,
+            )
+            .unwrap();
+        let (_, prepared) = f
+            .owner
+            .confirm_recovery(
+                run,
+                work,
+                attempt,
+                blocked.revision,
+                TeamRecoveryConfirmation::PrepareContinuation,
+                now,
+            )
+            .unwrap();
+        f.owner
+            .queue_checkpoint_resume(run, work, prepared.revision, now)
+            .unwrap();
+        let continuation = f.owner.resume_after_children(run, work, now, 180).unwrap();
+        assert_eq!(server.finish().len(), 2);
+        let operation = Uuid::new_v4();
+        let image = f.image;
+        let request = Arc::new(std::sync::Mutex::new(None::<WorkerRequest>));
+        let captured = request.clone();
+        let server = Server::with_response_handler(
+            vec![
+                (
+                    200,
+                    body(
+                        json!({"version":1,"capabilities":[{"provider":"codex","model":"pinned","input_cap":1000,"output_cap":100}]}),
+                    ),
+                ),
+                (201, body(json!({"uuid":operation}))),
+                (200, vec![]),
+            ],
+            move |r, bytes| {
+                if r.line.starts_with("POST ") {
+                    *captured.lock().unwrap() = Some(
+                        serde_json::from_slice(
+                            &STANDARD
+                                .decode(r.body["stdin"]["value"].as_str().unwrap())
+                                .unwrap(),
+                        )
+                        .unwrap(),
+                    );
+                }
+                if r.line.starts_with(&format!("GET /operations/{operation}")) {
+                    let saved = captured.lock().unwrap();
+                    let request = saved.as_ref().unwrap();
+                    assert!(request.messages.iter().any(|m| {
+                        m["content"]
+                            .as_str()
+                            .is_some_and(|s| s.contains("remote_process_receipts"))
+                    }));
+                    let output=WorkerResponse{version:1,request_id:request.request_id,provider:request.capability.provider,model:request.capability.model.clone(),
+                        content:json!({"text":"Continued","calls":[{"name":"save_document","arguments":{"name":"Recovered.md","format":"md","content":"New completion after verified recovery"}},{"name":"report_blocker","arguments":{"reason":"Review recovered output"}}]}).to_string(),
+                        usage:ModelTokenUsage{input_tokens:10,output_tokens:5}};
+                    return body(
+                        json!({"uuid":operation,"image_uuid":image,"kind":"instance","status":"SUCCESS","metadata":{"result":{"state":{"exit_code":0},"stdout":{"value":STANDARD.encode(serde_json::to_vec(&output).unwrap()),"encoding":"base64","truncated":false}}}}),
+                    );
+                }
+                bytes
+            },
+        );
+        let workspace =
+            crate::driver::team_codex::EmptyDirectory::create("remote-resume-fixture").unwrap();
+        let (events, _) = crate::driver::test_event_channel();
+        let exit = run_with_client(
+            &f.owner,
+            NativeTeamStart::Resumed(continuation),
+            &workspace.0,
+            &events,
+            &AtomicBool::new(false),
+            &client(&server),
+        )
+        .unwrap();
+        assert_eq!(exit, NativeTeamExit::Settled);
+        let resumed = f.owner.snapshot(run).unwrap();
+        assert_eq!(resumed.work[0].attempts.len(), 1);
+        assert_eq!(resumed.work[0].attempts[0].id, attempt);
+        assert_eq!(
+            resumed.work[0].attempts[0].environment,
+            ExecutionEnvironment::NebiusSandbox
+        );
+        assert_eq!(resumed.usage.model_calls, 2);
+        assert_eq!(resumed.usage.consumed_tokens, 15);
+        assert_eq!(resumed.usage.reserved_tokens, 1100);
+        assert_ne!(
+            request.lock().unwrap().as_ref().unwrap().request_id,
+            f.request.request_id
+        );
+        assert_eq!(f.owner.remote_calls(attempt).unwrap().len(), 2);
+        let db = rusqlite::Connection::open(&f.path).unwrap();
+        let content: Vec<u8> = db
+            .query_row(
+                "SELECT content FROM ion_team_document_receipts WHERE work_id=?",
+                [work.to_string()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(content, b"New completion after verified recovery");
+        assert_eq!(
+            server
+                .finish()
                 .iter()
                 .filter(|r| r.line.starts_with("POST "))
                 .count(),

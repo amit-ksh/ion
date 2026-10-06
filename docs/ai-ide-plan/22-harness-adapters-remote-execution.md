@@ -111,6 +111,7 @@ Raw credentials/events are not stored in team transcripts or process failure mes
 
 ## Prepare a registered sandbox host later
 
+Protocol is **28**; rebuild desktop, daemon and client bundles together.
 No deployment target has been supplied. Build/provisioning and live acceptance
 remain your setup steps; this implementation sends no real sandbox requests.
 
@@ -165,7 +166,8 @@ The owner uses the official asynchronous ConTree REST contract at
 `https://api.tokenfactory.nebius.com/sandboxes/v1`:
 
 - Check `/ion/host.json` through image inspection before claiming remote work.
-- Reserve the model call and persist a unique request record **before** POST.
+- Reserve the model call and persist a unique request record and exact private
+  input **before** POST. A second preparation/submission for that ID is rejected.
 - Spawn one instance with bounded base64 stdin, 150-second process timeout,
   64 KiB output and 256 MiB layer limit. The request environment contains only PATH.
 - Persist the acknowledged operation UUID. The run audit includes the request ID,
@@ -179,8 +181,25 @@ The owner uses the official asynchronous ConTree REST contract at
 - Restart checks/cancels existing operation IDs. It never repeats the POST.
   Lost acknowledgement has no trustworthy operation identity: the owner retains
   the reservation/capacity and asks for operator inspection rather than resubmitting.
-  A UI for verified operation binding and remote continuation remains development;
-  inspection alone does not automatically clear that uncertain run.
+  Open **Review recovery** for the uncertain assignment. If its acknowledgement
+  was lost, enter the operation UUID found in Nebius and use **Verify and bind
+  operation** on the corresponding request. Ion fetches the operation in its
+  original project and checks the image, hostname, executable, environment,
+  limits and complete saved input (including harness/model/caps/messages/tools).
+  A typed UUID or human stop assertion alone cannot clear it. Binding never POSTs.
+- Use **Verify sandbox stopped**. Nonterminal operations receive cancellation;
+  acknowledgement alone retains capacity and all unknown token allowances. Refresh
+  and verify again after a terminal result. Valid matching late model usage can
+  settle accounting without authorizing output actions.
+- After terminal verification and any owner file/app reconciliation, use **Prepare
+  continuation**, then **Continue from checkpoint**. The same attempt, actual
+  host, harness/model, grants, deadline and all budget history are retained. Cached
+  provider actions are not replayed. Further completions are new calls within the
+  remaining budget; the old POST is never repeated or moved to Local.
+- Requests saved before this checkpoint lack the full input witness and cannot
+  be automatically bound after a lost acknowledgement. They require external
+  operator inspection and retain their unresolved reservation/capacity. Recovery
+  on a stopped/canceled run can record terminal outcomes but cannot resume it.
 
 Local fallback is selected before execution when a registered host is unavailable
 or incompatible and the same local harness/model is ready. An unavailable local
@@ -230,6 +249,13 @@ Your live review:
   reconciliation of the same operation without a second POST or local worker.
 - [ ] Simulate a lost spawn acknowledgement in a disposable environment; inspect
   the recorded hostname/request in Nebius. It must stay unresolved automatically.
+  Enter the operation ID in Review recovery, verify and bind it, then verify its
+  terminal status. Try an unrelated operation and changed metadata: both must fail.
+- [ ] Prepare and explicitly continue a verified stopped sandbox assignment; confirm
+  the same task/attempt/host and a new request ID, with old unknown usage retained.
+  Retry a lost binding/confirmation response and verify no duplicate POST or GET.
+- [ ] Stop the run before recovery completes; it can reconcile terminal state but
+  cannot prepare or start another completion.
 - [ ] Review actual provider usage and host startup timing. Live subscription routes,
   CLI versions, Linux worker build, image bootstrap and cloud billing remain unverified
   until performed against your configured resources.

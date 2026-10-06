@@ -64,8 +64,9 @@ assert live account acceptance, visual validation or production release readines
 - [x] Registered immutable ConTree worker: actual selected-harness completion,
   readiness, bounded transfer, durable operation identity, cancellation, restart
   reconciliation, usage and pre-execution Local fallback. Live setup/review pending.
-- [ ] Verified operator recovery for lost sandbox spawn acknowledgements and safe
-  remote checkpoint continuation after a confirmed terminal operation.
+- [x] Verified operator binding after a lost sandbox acknowledgement, terminal
+  process verification and explicit remote checkpoint continuation. Exact input
+  witnesses are required; legacy requests and live setup remain review items.
 - [ ] Full remote project/command execution, remote checks, resource/egress controls
   and GPU/ML job provisioning; current worker returns model actions to the owner.
 - [ ] Executed test/check receipts and enforceable command isolation. Declared check
@@ -141,7 +142,7 @@ also requires the unchecked execution and accounting items above.
 
 ## Verification baseline
 
-Current protocol is **27**. Rebuild desktop, daemon and clients together. The
+Current protocol is **28**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

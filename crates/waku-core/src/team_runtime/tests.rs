@@ -922,13 +922,23 @@ fn team_runtime_recovery_confirmation_rejects_an_unjoined_local_job() {
             thread: worker,
         },
     );
-    let result = f.runtime.confirm_recovery(
-        f.run.id,
-        root.assignment.id,
-        root.lease.attempt_id(),
-        unknown.revision,
-        waku_protocol::teams::TeamRecoveryConfirmation::HostStopped,
-    );
+    let mut results = vec![];
+    for confirmation in [
+        TeamRecoveryConfirmation::HostStopped,
+        TeamRecoveryConfirmation::VerifyRemoteStopped,
+        TeamRecoveryConfirmation::BindRemoteOperation {
+            request_id: Uuid::new_v4(),
+            operation_id: Uuid::new_v4(),
+        },
+    ] {
+        results.push(f.runtime.confirm_recovery(
+            f.run.id,
+            root.assignment.id,
+            root.lease.attempt_id(),
+            unknown.revision,
+            confirmation,
+        ));
+    }
     release.send(()).unwrap();
     f.runtime
         .jobs
@@ -938,7 +948,11 @@ fn team_runtime_recovery_confirmation_rejects_an_unjoined_local_job() {
         .thread
         .join()
         .unwrap();
-    assert!(result.unwrap_err().to_string().contains("still finishing"));
+    assert!(
+        results
+            .into_iter()
+            .all(|r| r.unwrap_err().to_string().contains("still finishing"))
+    );
     let (_, blocked) = f
         .runtime
         .confirm_recovery(

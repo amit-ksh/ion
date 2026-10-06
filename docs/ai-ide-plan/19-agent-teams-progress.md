@@ -1345,3 +1345,39 @@ Seven selected harnesses now have bounded Teams completion adapters. Remaining:
 Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok and Kimi, plus unverified OAuth/custom
 transports. Full remote files/commands/GPU jobs and deployment acceptance remain
 implementation work. The current sandbox worker executes completion only.
+
+
+## 2026-10-06 — verified sandbox operation recovery and continuation
+
+- Persist the complete bounded worker input privately before a sandbox POST. A
+  second preparation for that call is refused, including an uncertain submission.
+- Recover a lost operation acknowledgement only after the official API metadata
+  matches the exact saved request, image, project, model, input, tool contract and
+  process limits. UUID entry alone supplies no process or usage proof. Legacy
+  submissions without the original saved input cannot be bound automatically.
+- Native Review recovery shows operation identities and provides Verify and bind
+  operation and Verify sandbox stopped. Cancellation acknowledgement does not
+  release an unresolved operation; a terminal API state is required. Private
+  inputs, outputs and credentials stay outside the recovery projection.
+- Explicit preparation and continuation preserve the same attempt, selected
+  harness, model, grants and actual execution environment. A recovered remote
+  attempt cannot switch to Local. Unknown prior model usage remains reserved;
+  cached actions and uncertain submissions are never replayed.
+- Protocol 28 includes the remote recovery identities and confirmations. Generated
+  client types and the existing request fixture are updated together.
+
+Verification: **151 Teams tests passed**, with five optional installed-runtime
+fixtures ignored in this regression run (those native contracts were checked in
+previous adapter checkpoints). New cases cover changed metadata/input/model/access,
+wrong image, stale revision, terminal process proof, confirmation replay, canceled
+runs, missing legacy input and duplicate POST prevention. The resumed owner loop
+creates one new request and document receipt while retaining the original unknown
+budget. The protocol recovery roundtrip passed; the TypeScript client check and
+**22 client tests** passed. Desktop, daemon and worker binary checking passed.
+Formatting and whitespace gates passed. No visual test or live provider/cloud
+request was performed; the app watcher and primary ion-prod checkout were untouched.
+
+Remaining implementation: the seven other native Teams adapters, full remote
+filesystem/commands and executed checks, resource/egress and monetary controls,
+and GPU/ML jobs. Registered Linux image acceptance and real credentials/deployment
+remain later user setup and review items in the release checklist.

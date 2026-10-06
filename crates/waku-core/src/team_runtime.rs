@@ -474,7 +474,7 @@ impl TeamRuntime {
         // launched until this transaction queues it, so this absence check is stable.
         ensure!(
             !self.jobs.lock().contains_key(&work),
-            "The Local worker is still finishing; refresh and try again"
+            "The assignment worker is still finishing; refresh and try again"
         );
         let snapshot =
             self.coordinator
@@ -492,16 +492,72 @@ impl TeamRuntime {
     ) -> Result<(waku_protocol::teams::TeamRecoveryReview, TeamRunSnapshot)> {
         ensure!(
             !self.jobs.lock().contains_key(&work),
-            "The Local worker is still finishing; refresh and try again"
+            "The assignment worker is still finishing; refresh and try again"
         );
-        let result = self.coordinator.confirm_recovery(
+        if self.coordinator.recovery_confirmation_replayed(
             run,
             work,
             attempt,
             revision,
-            confirmation,
-            unix_time(),
-        )?;
+            &confirmation,
+        )? {
+            return self.coordinator.recovery_review(run, work);
+        }
+        let mut verified_revision = None;
+        match &confirmation {
+            TeamRecoveryConfirmation::BindRemoteOperation {
+                request_id,
+                operation_id,
+            } => {
+                driver::team_remote::bind_recovered_operation(
+                    &self.coordinator,
+                    run,
+                    work,
+                    attempt,
+                    revision,
+                    *request_id,
+                    *operation_id,
+                )?;
+                self.wake();
+                return self.coordinator.recovery_review(run, work);
+            }
+            TeamRecoveryConfirmation::VerifyRemoteStopped => {
+                let snapshot = self.coordinator.snapshot(run)?;
+                ensure!(
+                    snapshot.revision == revision
+                        && snapshot.work.iter().any(|w| w.id == work
+                            && w.attempts.last().is_some_and(|a| a.id == attempt
+                                && a.environment == ExecutionEnvironment::NebiusSandbox)),
+                    "Remote recovery attempt or revision changed"
+                );
+                ensure!(
+                    self.executor.remote_stopped(&self.coordinator, attempt)?,
+                    "Sandbox operation is still stopping. Refresh recovery and verify again; no new work was submitted"
+                );
+                verified_revision = Some(self.coordinator.snapshot(run)?.revision);
+            }
+            _ => {}
+        }
+        let result = if verified_revision.is_some() {
+            self.coordinator.confirm_recovery_verified(
+                run,
+                work,
+                attempt,
+                revision,
+                confirmation,
+                verified_revision,
+                unix_time(),
+            )?
+        } else {
+            self.coordinator.confirm_recovery(
+                run,
+                work,
+                attempt,
+                revision,
+                confirmation,
+                unix_time(),
+            )?
+        };
         self.wake();
         Ok(result)
     }
@@ -765,7 +821,18 @@ impl TeamRuntime {
                     task.workspace.path().unwrap_or(&project.path).to_owned()
                 };
                 ensure!(workspace.is_dir(), "Team project folder is unavailable");
-                let host = self.executor.ready(profile)?;
+                // Continuation readiness follows its actual pinned host. Fallback
+                // remains a pre-execution choice and cannot move an existing attempt.
+                let mut readiness_profile = profile.clone();
+                if work.status == AssignmentStatus::Waiting {
+                    readiness_profile.execution.environment = work
+                        .attempts
+                        .last()
+                        .context("Continuation attempt missing")?
+                        .environment;
+                    readiness_profile.execution.local_fallback = false;
+                }
+                let host = self.executor.ready(&readiness_profile)?;
                 let workspace = match &host {
                     DispatchHost::Local | DispatchHost::LocalFallback { .. } => self
                         .coordinator

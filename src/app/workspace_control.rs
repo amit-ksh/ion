@@ -170,6 +170,7 @@ pub(super) struct ControlUi {
     team_run: Option<Rc<TeamRunSnapshot>>,
     recovery: team_recovery::RecoveryUi,
     recovery_evidence: Entity<TextInput>,
+    recovery_operation: Entity<TextInput>,
     integration: Option<std::sync::Arc<waku_client::teams::TeamIntegration>>,
     integration_busy: bool,
     integration_generation: u64,
@@ -201,6 +202,7 @@ enum Row {
     TeamFollowUp(Rc<waku_client::teams::TeamFollowUp>),
     RecoveryFile(usize, std::sync::Arc<team_recovery::FileRow>),
     RecoveryApp(std::sync::Arc<team_recovery::AppRow>),
+    RecoveryRemote(std::sync::Arc<team_recovery::RemoteRow>),
     SourceChange(usize, std::sync::Arc<team_integration::SourceChangeRow>),
     SourceDiffLine(usize, std::sync::Arc<crate::review_diff::Line>),
     SourceConflict(String),
@@ -349,6 +351,8 @@ impl ControlUi {
             team_runs: Rc::new(Vec::new()),
             team_run: None,
             recovery: Default::default(),
+            recovery_operation: cx
+                .new(|cx| TextInput::new(window, cx).placeholder("Sandbox operation UUID")),
             recovery_evidence: cx.new(|cx| {
                 TextInput::new(window, cx).placeholder("Provider record or outcome evidence")
             }),
@@ -2067,6 +2071,7 @@ impl Waku {
             Row::TeamDecision(decision) => return self.render_team_decision_row(decision, cx),
             Row::RecoveryFile(index, row) => return self.render_team_recovery_file(index, row, cx),
             Row::RecoveryApp(row) => return self.render_team_recovery_app(row, cx),
+            Row::RecoveryRemote(row) => return self.render_team_recovery_remote(row, cx),
             Row::TeamRun(run) => return self.render_team_run_row(run, cx),
             Row::Assignment(row) => return self.render_team_assignment_row(row, cx),
             Row::SourceChange(index, row) => return self.render_team_source_change(index, row, cx),

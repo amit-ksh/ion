@@ -191,3 +191,19 @@ pub(super) fn apps(
         Ok(json!({"app_action_receipt":id,"artifact_id":artifact.id,"successful":body["successful"],"confirmed_by":body.get("confirmed_by").cloned().unwrap_or(json!("provider")),"excerpt":excerpt,"replayed":false}))
     }).collect()
 }
+
+/// Summarize process/accounting witnesses as data. Cached provider actions are
+/// never replayed; pending owner actions use their existing exact durable receipts.
+pub(super) fn remote(db: &Connection, attempt: Uuid) -> Result<Value> {
+    let rows:Vec<(String,Option<String>,String,Option<u64>,Option<u64>)>=db.prepare("SELECT r.call_id,r.operation,r.state,b.input_tokens,b.output_tokens FROM ion_team_remote_calls r JOIN ion_team_call_budgets b ON b.call_id=r.call_id WHERE r.attempt_id=? ORDER BY r.started_at,r.call_id LIMIT 33")?
+        .query_map([attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?.collect::<rusqlite::Result<_>>()?;
+    ensure!(
+        rows.len() <= 32 && super::super::remote::attempt_stopped(db, attempt)?,
+        "Remote process stop is unconfirmed"
+    );
+    Ok(
+        json!({"remote_process_receipts":rows.into_iter().map(|(request,operation,state,input,output)|
+        json!({"request_id":request,"operation_id":operation,"state":state,"input_tokens":input,"output_tokens":output})).collect::<Vec<_>>(),
+        "note":"Previously submitted sandbox work has stopped. Cached model actions were not replayed. Existing owner effects were reconciled separately. Unknown usage stays reserved. Continue with the same pinned harness, model, host, grants and remaining budget."}),
+    )
+}

@@ -416,7 +416,7 @@ impl TeamCoordinator {
             Some(work.id),
             "resumed",
             if recovery_note.is_some() {
-                "User requested continuation from a safe stopped local checkpoint"
+                "User requested continuation from a safe stopped checkpoint"
             } else if decision.is_some() {
                 "User decision receipt delivered under a fresh lease generation"
             } else {

@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 27;
+pub const PROTOCOL_VERSION: u32 = 28;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -892,6 +892,11 @@ mod tests {
         let id = Uuid::new_v4();
         for confirmation in [
             TeamRecoveryConfirmation::HostStopped,
+            TeamRecoveryConfirmation::BindRemoteOperation {
+                request_id: id,
+                operation_id: uuid::Uuid::new_v4(),
+            },
+            TeamRecoveryConfirmation::VerifyRemoteStopped,
             TeamRecoveryConfirmation::FileApplied { id },
             TeamRecoveryConfirmation::FileRestored { id },
             TeamRecoveryConfirmation::AppSucceeded {

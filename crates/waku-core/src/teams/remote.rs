@@ -54,6 +54,95 @@ impl TeamCoordinator {
         tx.commit()?;
         Ok(Uuid::parse_str(&call)?)
     }
+    pub(crate) fn pin_remote_input(&self, call: Uuid, input: &str) -> Result<()> {
+        ensure!(
+            !input.is_empty() && input.len() <= 128 * 1024,
+            "Remote input exceeds its bound"
+        );
+        serde_json::from_str::<serde_json::Value>(input)?;
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let state: (String, Option<String>) = tx.query_row(
+            "SELECT state,operation FROM ion_team_remote_calls WHERE call_id=?",
+            [call.to_string()],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        ensure!(
+            state.0 == "submitting" && state.1.is_none(),
+            "Remote submission already has an outcome"
+        );
+        tx.execute(
+            "INSERT INTO ion_team_remote_inputs VALUES(?,?)",
+            params![call.to_string(), input],
+        )
+        .context("Remote submission already prepared; never repeat its POST")?;
+        tx.commit()?;
+        Ok(())
+    }
+    /// A network-verified witness binds a user-supplied operation only after
+    /// the trusted adapter checks the entire original worker input and host.
+    pub(crate) fn bind_recovered_remote_operation(
+        &self,
+        run_id: Uuid,
+        work_id: Uuid,
+        attempt_id: Uuid,
+        revision: u64,
+        call: Uuid,
+        operation: Uuid,
+        now: u64,
+    ) -> Result<()> {
+        ensure!(!operation.is_nil(), "Remote operation identity required");
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let run = load(&tx, run_id)?;
+        ensure!(
+            run.revision == revision,
+            "Run changed; refresh before binding an operation"
+        );
+        let work = run
+            .work
+            .iter()
+            .find(|w| w.id == work_id)
+            .context("Assignment missing")?;
+        ensure!(
+            work.can_reconcile
+                && work
+                    .attempts
+                    .last()
+                    .is_some_and(|a| a.id == attempt_id
+                        && a.environment == ExecutionEnvironment::NebiusSandbox),
+            "Remote recovery attempt or state changed"
+        );
+        ensure!(tx.execute("UPDATE ion_team_remote_calls SET operation=?,state='running' WHERE call_id=? AND work_id=? AND attempt_id=? AND state='submitting' AND operation IS NULL AND EXISTS(SELECT 1 FROM ion_team_remote_inputs WHERE call_id=?)",
+            params![operation.to_string(),call.to_string(),work_id.to_string(),attempt_id.to_string(),call.to_string()])?==1,
+            "Remote request changed or lacks an original input witness");
+        tx.execute(
+            "INSERT INTO ion_team_recovery_confirmations VALUES(?,?,?,?,?)",
+            params![
+                run_id.to_string(),
+                work_id.to_string(),
+                attempt_id.to_string(),
+                revision,
+                serde_json::to_string(&TeamRecoveryConfirmation::BindRemoteOperation {
+                    request_id: call,
+                    operation_id: operation
+                })?
+            ],
+        )?;
+        audit(
+            &tx,
+            run_id,
+            Some(work_id),
+            "remote_operation_recovered",
+            &format!(
+                "Verified operation {operation} against original request {call}; no work submitted"
+            ),
+            now,
+        )?;
+        bump(&tx, run_id)?;
+        tx.commit()?;
+        Ok(())
+    }
     pub(crate) fn bind_remote_operation(&self, call: Uuid, operation: Uuid) -> Result<()> {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -111,12 +200,21 @@ impl TeamCoordinator {
             })
             .collect()
     }
-    pub(crate) fn remote_attempt_stopped(&self, attempt: Uuid) -> Result<bool> {
-        Ok(self.remote_calls(attempt)?.iter().all(|c| {
-            matches!(
-                c.state.as_str(),
-                "SUCCESS" | "FAILED" | "CANCELLED" | "rejected"
+    pub(crate) fn remote_input(&self, call: Uuid) -> Result<Option<String>> {
+        Ok(self
+            .connect()?
+            .query_row(
+                "SELECT body FROM ion_team_remote_inputs WHERE call_id=?",
+                [call.to_string()],
+                |r| r.get(0),
             )
-        }))
+            .optional()?)
     }
+    pub(crate) fn remote_attempt_stopped(&self, attempt: Uuid) -> Result<bool> {
+        attempt_stopped(&self.connect()?, attempt)
+    }
+}
+
+pub(super) fn attempt_stopped(db: &Connection, attempt: Uuid) -> Result<bool> {
+    Ok(!db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_remote_calls WHERE attempt_id=? AND state NOT IN ('SUCCESS','FAILED','CANCELLED','rejected'))",[attempt.to_string()],|r|r.get::<_,bool>(0))?)
 }

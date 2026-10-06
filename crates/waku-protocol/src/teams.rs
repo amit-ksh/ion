@@ -453,6 +453,19 @@ pub struct TeamRecoveryReview {
     pub workspace_path: Option<std::path::PathBuf>,
     pub files: Vec<TeamFileRecovery>,
     pub apps: Vec<TeamDecision>,
+    pub environment: ExecutionEnvironment,
+    pub remote_calls: Vec<TeamRemoteRecovery>,
+}
+/// Operation identities only. Private inputs, outputs and authentication are never projected.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRemoteRecovery {
+    pub request_id: Uuid,
+    pub image_id: Uuid,
+    pub project: String,
+    pub operation_id: Option<Uuid>,
+    pub state: String,
+    pub can_bind: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -474,9 +487,24 @@ pub struct TeamFileRecovery {
 )]
 pub enum TeamRecoveryConfirmation {
     HostStopped,
-    FileApplied { id: Uuid },
-    FileRestored { id: Uuid },
-    AppSucceeded { decision_id: Uuid, evidence: String },
-    AppFailed { decision_id: Uuid, evidence: String },
+    BindRemoteOperation {
+        request_id: Uuid,
+        operation_id: Uuid,
+    },
+    VerifyRemoteStopped,
+    FileApplied {
+        id: Uuid,
+    },
+    FileRestored {
+        id: Uuid,
+    },
+    AppSucceeded {
+        decision_id: Uuid,
+        evidence: String,
+    },
+    AppFailed {
+        decision_id: Uuid,
+        evidence: String,
+    },
     PrepareContinuation,
 }
