@@ -97,7 +97,7 @@ fn settled(status: AssignmentStatus) -> bool {
             | AssignmentStatus::Canceled
     )
 }
-fn bounded_text(value: &str, maximum: usize) -> String {
+pub(super) fn bounded_text(value: &str, maximum: usize) -> String {
     // Budget JSON escaped bytes, so control characters cannot inflate a handoff.
     let mut size = 0;
     value

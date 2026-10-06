@@ -103,6 +103,7 @@ export type { TeamDecision } from "./TeamDecision";
 export type { TeamDecisionPage } from "./TeamDecisionPage";
 export type { TeamDecisionStatus } from "./TeamDecisionStatus";
 export type { TeamFileRecovery } from "./TeamFileRecovery";
+export type { TeamInputFile } from "./TeamInputFile";
 export type { TeamIntegration } from "./TeamIntegration";
 export type { TeamIntegrationStatus } from "./TeamIntegrationStatus";
 export type { TeamMember } from "./TeamMember";

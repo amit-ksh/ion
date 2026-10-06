@@ -38,6 +38,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
   exact file/directory/delete outcome checks, user-labeled app evidence, durable
   confirmation replay and repaired native continuation without repeating effects.
 
+- [x] Immutable UTF-8 file/folder input handoffs from the normal task composer,
+  pinned to the run and available through intersected read grants.
+
 These checked items record implementation and automated verification. They do not
 assert live account acceptance, visual validation or production release readiness.
 
@@ -52,7 +55,8 @@ assert live account acceptance, visual validation or production release readines
   labels and model-written test claims are not executed validation.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
 - [ ] Additional resource/egress grants and host enforcement for general commands.
-- [ ] Team attachment handoffs and team follow-up prompts.
+- [ ] Image/PDF input interpretation through a verified selected harness.
+- [ ] Team follow-up prompts.
 
 Routines and dynamically generated workflow scheduling over this coordinator
 remain subsequent workspace-control sprints; their presence in navigation is
@@ -60,6 +64,11 @@ not proof of a complete Teams execution backend.
 
 ## Your live review when resources are available
 
+- [ ] Attach a UTF-8 requirements file/folder in New task and invoke `@teamname`.
+  Verify the original prompt and file chips remain in the root transcript; a
+  permitted specialist can read those exact inputs and produce a separate artifact.
+- [ ] Try an image/PDF, private path or oversized selection and confirm the error
+  leaves the prompt and attachments available for correction.
 - [ ] Save the Nebius Token Factory key privately in Settings and Test it.
 - [ ] Install/authenticate the exact selected Claude models/harness on Local.
 - [ ] Configure Composio privately, connect an active account and grant exact actions
@@ -98,7 +107,7 @@ not proof of a complete Teams execution backend.
 
 ## Verification baseline
 
-Current protocol is **24**. Rebuild desktop, daemon and clients together. The
+Current protocol is **25**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

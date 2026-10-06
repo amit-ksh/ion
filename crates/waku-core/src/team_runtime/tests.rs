@@ -244,6 +244,8 @@ impl Fixture {
                         ..Default::default()
                     },
                     access: Default::default(),
+                    input_data: vec![],
+                    source_attachments: vec![],
                     source_prompt: Some("@Engineering Review".into()),
                     origin: None,
                 },

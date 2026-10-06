@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 24;
+pub const PROTOCOL_VERSION: u32 = 25;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -186,6 +186,8 @@ pub enum Command {
         expected_definition_revision: u64,
         team_id: Uuid,
         source_prompt: String,
+        #[serde(default)]
+        attachments: Vec<crate::model::MessageAttachment>,
     },
     /// Prepare coordination for an already-persisted idle root task.
     PrepareTeamRun {
@@ -695,6 +697,7 @@ mod tests {
             expected_definition_revision: 3,
             team_id: Uuid::new_v4(),
             source_prompt: "@engineering Inspect files".into(),
+            attachments: vec![],
         })
         .unwrap();
         assert_eq!(queued["type"], "queueTeamTask");

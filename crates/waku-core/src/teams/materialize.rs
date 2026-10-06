@@ -27,6 +27,7 @@ pub(super) fn task_session(task: &TaskMaterialization) -> AgentSession {
             )
         }),
     ));
+    session.messages.last_mut().unwrap().attachments = task.source_attachments.clone();
     session
 }
 impl TeamCoordinator {

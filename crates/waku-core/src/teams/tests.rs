@@ -93,6 +93,8 @@ impl Fixture {
             team_id: self.team,
             expected_definition_revision: self.definitions.load().unwrap().revision,
             objective: "Implement and validate".into(),
+            input_data: vec![],
+            source_attachments: vec![],
             source_prompt: None,
             origin: None,
             limits: TeamRunLimits {
@@ -4170,3 +4172,6 @@ fn team_checkpoint_resume_request_races_queue_one_continuation_and_obey_limit() 
 
 #[path = "recovery/tests.rs"]
 mod effect_recovery;
+
+#[path = "inputs/tests.rs"]
+mod input_handoffs;

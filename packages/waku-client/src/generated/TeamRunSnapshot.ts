@@ -4,6 +4,7 @@ import type { AgentProfile } from "./AgentProfile";
 import type { Team } from "./Team";
 import type { TeamAssignment } from "./TeamAssignment";
 import type { TeamDecision } from "./TeamDecision";
+import type { TeamInputFile } from "./TeamInputFile";
 import type { TeamRunLimits } from "./TeamRunLimits";
 import type { TeamRunStatus } from "./TeamRunStatus";
 import type { TeamTaskOrigin } from "./TeamTaskOrigin";
@@ -18,4 +19,8 @@ workspace: TeamWorkspace | null, id: string, rootTaskId: string, projectId: stri
 /**
  * Original user text for a queued root, retained separately from its objective.
  */
-sourcePrompt?: string | null, origin?: TeamTaskOrigin | null, };
+sourcePrompt?: string | null,
+/**
+ * Immutable user input metadata, distinct from AI-generated artifacts.
+ */
+inputs: Array<TeamInputFile>, origin?: TeamTaskOrigin | null, };

@@ -289,6 +289,7 @@ impl Backend for WakuBackend {
                 expected_definition_revision,
                 team_id,
                 source_prompt,
+                attachments,
             } => {
                 let gate = self.task_start_gate(session_id);
                 let _guard = gate.lock();
@@ -369,6 +370,12 @@ impl Backend for WakuBackend {
                         })
                         .context("Team lead profile missing")?
                 };
+                let input_data = if let Some(binding) = &binding {
+                    self.teams.queued_input_data(binding.run_id, &attachments)?
+                } else {
+                    self.teams
+                        .snapshot_inputs(&self.attachments, &attachments)?
+                };
                 let snapshot = self.teams.queue_default_task(
                     crate::teams::PrepareRun {
                         id: run_id,
@@ -379,6 +386,8 @@ impl Backend for WakuBackend {
                         objective: invocation.objective,
                         limits: Default::default(),
                         access,
+                        input_data,
+                        source_attachments: attachments,
                         source_prompt: Some(source_prompt),
                         origin: None,
                     },
@@ -440,6 +449,8 @@ impl Backend for WakuBackend {
                         team_id,
                         expected_definition_revision,
                         objective,
+                        input_data: vec![],
+                        source_attachments: vec![],
                         source_prompt: None,
                         origin: None,
                         limits,

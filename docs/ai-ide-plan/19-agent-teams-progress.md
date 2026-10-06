@@ -1049,3 +1049,43 @@ journals and 100 iterations measured 1.007 ms/query before filtering and
 0.003 ms/query after filtering; this is query evidence, not live application FPS.
 No live provider, account mutation, cloud deployment, visual test or second
 development watcher was run.
+
+
+## Immutable text input handoffs increment (2026-10-06)
+
+Recovery checkpoint: `7bd5bc4`.
+
+- New task keeps its existing composer and allows a team invocation with attached
+  UTF-8 text files/folders. The daemon verifies managed attachment references,
+  names, types and paths before preparing a run. Unsupported images/PDFs/binary
+  inputs return a concrete error without consuming the draft.
+- Files are copied into the control database in the same transaction as run
+  preparation and the task outbox. Exact retries compare original presentation
+  and use committed bytes after a lost queue acknowledgement; later upload
+  edits or cleanup cannot change the model's inputs. This snapshot does not
+  execute a command, overwrite project files or create an AI artifact.
+- Up to eight attachments, 64 files and 2 MiB total are supported, with 256 KiB
+  per file, folder depth eight and 256 inspected entries. Private/generated
+  paths and links reject. Folder enumeration sorts deterministically.
+- Native Nebius and the bounded Claude action bridge expose `list_inputs` and
+  `read_input` under the assignment's intersected workspace-read grant. The
+  manifest pages four files; reads return at most 200 lines and 8 KiB escaped
+  data. Exact run/lease checks fence other runs, denied specialists and stale
+  workers. User inputs are labeled data and do not enlarge any permission.
+- Root task materialization retains original attachment chips separately from
+  the original prompt. Metadata-only run projections contain no input bytes or
+  host paths. The native composer retains newer draft edits if a queue response
+  arrives after the user changes its text or attachment set. All input I/O runs
+  on the daemon worker; streaming/render cadence is unchanged.
+- Protocol **25** adds queue attachment metadata and the immutable input manifest.
+  Rebuild desktop, daemon and clients together. Image/PDF interpretation and
+  follow-up prompts remain release development items.
+
+
+Verification: **152 Teams tests**, **11 protocol tests** and **25 TypeScript client
+tests** passed. Generated bindings are current; TypeScript checking,
+desktop/daemon checking, Rust formatting and whitespace gates passed. Fixtures
+cover native delegation/resumption using the pinned input copy, exact queue
+replay after upload modification, task presentation, denied/revoked read grants,
+combined size/count bounds and unsupported input rejection. No live provider,
+account mutation, cloud deployment, visual test or second watcher was run.

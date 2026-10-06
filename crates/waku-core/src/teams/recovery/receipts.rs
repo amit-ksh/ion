@@ -159,6 +159,8 @@ pub(super) fn tool(
         | "report_blocker"
         | "read_file"
         | "list_files"
+        | "list_inputs"
+        | "read_input"
         | "read_document"
         | "describe_app_action" => {}
         _ => anyhow::bail!("Unknown native tool cannot be safely recovered: {name}"),

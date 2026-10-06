@@ -18,6 +18,7 @@ mod continuation;
 mod decisions;
 mod dispatch;
 mod documents;
+mod inputs;
 mod materialize;
 mod projections;
 mod recovery;
@@ -29,6 +30,7 @@ mod workspace;
 pub use apps::{AppActionStart, ApprovedAppAction};
 pub use budget::{ModelCallAllowance, ModelCallReservation, ModelTokenUsage};
 pub use continuation::{AssignmentContinuation, AssignmentHandoff};
+pub(crate) use inputs::PreparedInput;
 pub use reviews::ReviewRequest;
 use storage::*;
 
@@ -49,6 +51,8 @@ pub struct PrepareRun {
     pub access: AgentAccess,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_prompt: Option<String>,
+    pub(crate) input_data: Vec<PreparedInput>,
+    pub(crate) source_attachments: Vec<waku_protocol::model::MessageAttachment>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<TeamTaskOrigin>,
 }
@@ -94,6 +98,7 @@ pub struct TaskMaterialization {
     pub profile: AgentProfile,
     pub binding: TeamTaskBinding,
     pub source_prompt: Option<String>,
+    pub source_attachments: Vec<waku_protocol::model::MessageAttachment>,
 }
 
 /// Explicit host supplied after adapter readiness checks, never workload routing.
@@ -349,6 +354,8 @@ impl TeamCoordinator {
                 project_id,
                 team_id,
                 expected_definition_revision,
+                input_data: vec![],
+                source_attachments: vec![],
                 source_prompt: Some(format!("@team:{team_id} {objective}")),
                 objective,
                 limits: Default::default(),
@@ -391,6 +398,7 @@ impl TeamCoordinator {
         text(&request.objective, 32_000, "Task objective")?;
         validate_access(&request.access)?;
         validate_limits(&request.limits)?;
+        inputs::validate(&request.input_data, &request.source_attachments)?;
         let body = serde_json::to_string(&request)?;
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -512,6 +520,10 @@ impl TeamCoordinator {
             attempts: vec![],
             result: None,
         };
+        ensure!(
+            request.input_data.is_empty() || root.access.workspace_read,
+            "The team lead needs workspace read access to use attached inputs"
+        );
         let deadline = now.saturating_add(u64::from(request.limits.timeout_seconds));
         let run = TeamRunSnapshot {
             id: request.id,
@@ -530,11 +542,22 @@ impl TeamCoordinator {
             deadline,
             work: vec![],
             decisions: vec![],
+            inputs: request
+                .input_data
+                .iter()
+                .map(PreparedInput::metadata)
+                .collect(),
             source_prompt: request.source_prompt,
             origin: request.origin.clone(),
         };
         tx.execute("INSERT INTO ion_team_runs(id,root_task_id,project_id,status,revision,request,body) VALUES(?,?,?,?,1,?,?)",
             params![run.id.to_string(),run.root_task_id.to_string(),run.project_id.to_string(),run_status(run.status),body,serde_json::to_string(&run)?])?;
+        inputs::insert(
+            &tx,
+            run.id,
+            &request.input_data,
+            &request.source_attachments,
+        )?;
         insert_work(&tx, run.id, &root, None, None, root_materialized)?;
         if let Some(origin) = &run.origin {
             tx.execute("INSERT INTO ion_team_invocations(task_id,request_id,signature,run_id) VALUES(?,?,?,?)",params![origin.task_id.to_string(),origin.request_id,origin_signature,run.id.to_string()])?;
@@ -825,6 +848,11 @@ impl TeamCoordinator {
                     run_id: run.id,
                     assignment_id: assignment.id,
                     team_name: run.team.name.clone(),
+                },
+                source_attachments: if assignment.parent_id.is_none() {
+                    inputs::presentations(&tx, run.id)?
+                } else {
+                    vec![]
                 },
                 source_prompt: if assignment.parent_id.is_none() {
                     run.source_prompt
@@ -1420,6 +1448,12 @@ impl TeamCoordinator {
 fn same_request(old: &str, new: &str) -> Result<bool> {
     let normalize = |body: &str| -> Result<serde_json::Value> {
         let mut value: serde_json::Value = serde_json::from_str(body)?;
+        if let Some(object) = value.as_object_mut() {
+            object.entry("input_data").or_insert(serde_json::json!([]));
+            object
+                .entry("source_attachments")
+                .or_insert(serde_json::json!([]));
+        }
         if let Some(limits) = value.get_mut("limits").and_then(|v| v.as_object_mut()) {
             limits
                 .entry("maxModelCalls")

@@ -163,8 +163,20 @@ pub struct TeamRunSnapshot {
     /// Original user text for a queued root, retained separately from its objective.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_prompt: Option<String>,
+    /// Immutable user input metadata, distinct from AI-generated artifacts.
+    #[serde(default)]
+    pub inputs: Vec<TeamInputFile>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<TeamTaskOrigin>,
+}
+
+/// No host path or content is exposed in a run projection.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamInputFile {
+    pub key: String,
+    pub name: String,
+    pub bytes: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

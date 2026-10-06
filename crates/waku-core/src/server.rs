@@ -1245,12 +1245,31 @@ mod tests {
             sessions: vec![],
         })
         .unwrap();
+        use base64::Engine as _;
+        let ResponsePayload::AttachmentStored { attachment } = call(Command::ImportAttachment {
+            name: "requirements.md".into(),
+            upload: waku_protocol::attachments::AttachmentUpload::File {
+                data_base64: base64::engine::general_purpose::STANDARD.encode(b"User requirements"),
+            },
+        })
+        .unwrap() else {
+            panic!("stored input")
+        };
+        let input = waku_protocol::model::MessageAttachment {
+            path: attachment.path,
+            mention: attachment.name.clone(),
+            name: attachment.name,
+            is_dir: false,
+            is_image: false,
+            blob_reference: Some(attachment.reference),
+        };
         let queue = Command::QueueTeamTask {
             run_id: session_id,
             project_id: project.id,
             expected_definition_revision: definitions.revision,
             team_id,
             source_prompt: "@Research inspect files".into(),
+            attachments: vec![input.clone()],
         };
         let ResponsePayload::TeamTaskQueued { snapshot, session } = call(queue.clone()).unwrap()
         else {
@@ -1258,6 +1277,9 @@ mod tests {
         };
         assert_eq!(session.model.as_deref(), Some("chosen-model"));
         assert_eq!(session.messages[0].content, "@Research inspect files");
+        assert_eq!(session.messages[0].attachments, vec![input.clone()]);
+        assert_eq!(snapshot.inputs[0].name, "requirements.md");
+        std::fs::write(&input.path, "Changed managed upload").unwrap();
         let ResponsePayload::TeamTaskQueued {
             snapshot: again, ..
         } = call(queue).unwrap()

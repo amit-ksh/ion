@@ -86,14 +86,6 @@ impl Waku {
             );
             return true;
         }
-        if !self.composer_attachments.is_empty() {
-            restore_error(
-                self,
-                "Team attachment handoffs are not available yet. Keep the files in the project and describe them in the task.",
-                cx,
-            );
-            return true;
-        }
         if !prompt.trim_start().starts_with("@team:") && self.mention_file_index_loading {
             restore_error(
                 self,
@@ -131,6 +123,12 @@ impl Waku {
         let session_id = session.id;
         let revision = self.control_ui.snapshot.revision;
         let source_prompt = prompt.to_owned();
+        let attachments = self
+            .composer_attachments
+            .iter()
+            .cloned()
+            .map(MessageAttachment::from)
+            .collect::<Vec<_>>();
         let draft_key = self.selected_composer_draft_key();
         self.composer
             .update(cx, |input, cx| input.set_content(prompt, cx));
@@ -138,6 +136,7 @@ impl Waku {
         let client = self.daemon.client();
         cx.spawn(async move |this, cx| {
             let source = source_prompt.clone();
+            let source_attachments = attachments.clone();
             let response = cx
                 .background_executor()
                 .spawn(async move {
@@ -162,6 +161,7 @@ impl Waku {
                                 expected_definition_revision: revision,
                                 team_id: invocation.team_id,
                                 source_prompt: source,
+                                attachments: source_attachments,
                             },
                         )
                     })
@@ -173,17 +173,33 @@ impl Waku {
                 match response {
                     Ok(ResponsePayload::TeamTaskQueued { session, .. }) => {
                         let same_input = this.state.selected_session == Some(session_id)
-                            && this.composer.read(cx).content(cx) == source_prompt;
+                            && this.composer.read(cx).content(cx) == source_prompt
+                            && this
+                                .composer_attachments
+                                .iter()
+                                .cloned()
+                                .map(MessageAttachment::from)
+                                .collect::<Vec<_>>()
+                                == attachments;
                         if let Some(key) = draft_key
                             && (same_input
                                 || (this.state.selected_session != Some(session_id)
                                     && this.composer_drafts.get(key).is_some_and(|draft| {
                                         draft.text.trim() == source_prompt.trim()
+                                            && draft
+                                                .attachments
+                                                .iter()
+                                                .cloned()
+                                                .map(ComposerAttachment::from)
+                                                .map(MessageAttachment::from)
+                                                .collect::<Vec<_>>()
+                                                == attachments
                                     })))
                         {
                             this.remove_composer_draft(key, cx);
                         }
                         if same_input {
+                            this.composer_attachments.clear();
                             this.composer.update(cx, |input, cx| input.clear(cx));
                         }
                         if let Some(existing) = this.state.session_mut(session_id) {

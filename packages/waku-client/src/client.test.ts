@@ -84,6 +84,23 @@ async function connect(client: WakuClient, sockets: FakeSocket[]): Promise<FakeS
 
 describe("WakuClient", () => {
 
+  test("sends Teams attachment references and presentation with the original prompt", async () => {
+    const { client, sockets } = fixture();
+    const socket = await connect(client, sockets);
+    const command = {
+      type: "queueTeamTask" as const, runId: "00000000-0000-4000-8000-000000000011",
+      projectId: "00000000-0000-4000-8000-000000000012", teamId: "00000000-0000-4000-8000-000000000013",
+      expectedDefinitionRevision: 8, sourcePrompt: "@Engineering Review attached requirements",
+      attachments: [{ path: "C:/daemon/attachments/input/requirements.md", mention: "requirements.md", name: "requirements.md",
+        is_dir: false, is_image: false, blob_reference: "waku-attachment:00000000-0000-4000-8000-000000000014" }],
+    };
+    const pending = client.request(command);
+    const sent = JSON.parse(socket.sent.at(-1)!);
+    expect(sent.command).toEqual(command);
+    socket.receive({ type: "response", requestId: sent.requestId, outcome: { status: "ok", payload: { type: "ack" } } });
+    await expect(pending).resolves.toEqual({ type: "ack" });
+  });
+
   test("binds recovery to its attempt and preserves user evidence and the paired snapshot", async () => {
     const { client, sockets } = fixture();
     const socket = await connect(client, sockets);
@@ -105,7 +122,7 @@ describe("WakuClient", () => {
         revision: 8, host: "local", hostStopped: true, canPrepareContinuation: true, workspacePath: null, files: [], apps: [] },
       snapshot: {
         id: runId, revision: 8, rootTaskId: taskId, projectId: "00000000-0000-4000-8000-000000000017",
-        definitionRevision: 1, status: "active", workspace: null, createdAt: 100, deadline: 3700,
+        definitionRevision: 1, status: "active", workspace: null, inputs: [], createdAt: 100, deadline: 3700,
         team: { id: "00000000-0000-4000-8000-000000000018", name: "Engineering", objective: "Reviewed outcome", members: [{ agentId, parentId: null }] },
         profiles: [{ id: agentId, name: "Lead", expertise: "Engineering", instructions: "Review evidence", provider: "nebius", model: "fixture-model",
           expectedOutput: "Reviewed document", execution: { environment: "local", sandboxTarget: null, localFallback: true }, access, maxParallelTasks: 1 }],

@@ -255,6 +255,8 @@ $content = @{text='';calls=@($action)} | ConvertTo-Json -Depth 12 -Compress
                 team_id: team,
                 expected_definition_revision: control.load().unwrap().revision,
                 objective: "Create report".into(),
+                input_data: vec![],
+                source_attachments: vec![],
                 source_prompt: None,
                 origin: None,
                 limits: Default::default(),

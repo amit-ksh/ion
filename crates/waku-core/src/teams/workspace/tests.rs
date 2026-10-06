@@ -92,6 +92,8 @@ impl Fixture {
                     objective: "Change value to 2".into(),
                     limits: Default::default(),
                     access,
+                    input_data: vec![],
+                    source_attachments: vec![],
                     source_prompt: None,
                     origin: None,
                 },

@@ -101,6 +101,8 @@ impl Fixture {
                         ..Default::default()
                     },
                     access,
+                    input_data: vec![],
+                    source_attachments: vec![],
                     source_prompt: None,
                     origin: None,
                 },
@@ -1091,4 +1093,93 @@ fn native_team_reads_and_lists_exclude_private_edit_backups() {
             .iter()
             .any(|n| n.to_ascii_lowercase().starts_with(".ion-edit-"))
     );
+}
+
+#[test]
+fn native_team_inputs_reach_real_child_tasks_and_survive_a_resumed_parent() {
+    use crate::attachments::{AttachmentStore, AttachmentUpload};
+    use base64::Engine as _;
+    let mut f = Fixture::new(true);
+    let store = AttachmentStore::new(f.directory.join("attachments"));
+    let stored = store
+        .import(
+            "requirements.md",
+            AttachmentUpload::File {
+                data_base64: base64::engine::general_purpose::STANDARD
+                    .encode(b"Actual user requirements\n"),
+            },
+        )
+        .unwrap();
+    let input = waku_protocol::model::MessageAttachment {
+        path: stored.path,
+        mention: stored.name.clone(),
+        name: stored.name,
+        is_dir: false,
+        is_image: false,
+        blob_reference: Some(stored.reference),
+    };
+    let input_data = f.store.snapshot_inputs(&store, &[input.clone()]).unwrap();
+    f.run = f
+        .store
+        .prepare(
+            PrepareRun {
+                id: Uuid::new_v4(),
+                root_task_id: Uuid::new_v4(),
+                project_id: f.run.project_id,
+                team_id: f.run.team.id,
+                expected_definition_revision: f.control.load().unwrap().revision,
+                objective: "Review attached requirements".into(),
+                limits: f.run.limits.clone(),
+                access: f.run.access.clone(),
+                input_data,
+                source_attachments: vec![input.clone()],
+                source_prompt: None,
+                origin: None,
+            },
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    // Changing the original managed file cannot change what either model reads.
+    fs::write(&input.path, "Newer upload, not this run").unwrap();
+    let root_id = f.run.work[0].id;
+    let manager_id = delegate_and_wait(
+        &f,
+        f.claim(root_id),
+        f.agents[1],
+        "model-0",
+        "private-instructions-0",
+    );
+    let mut step = 0;
+    let mut key = String::new();
+    let mut artifact = Uuid::nil();
+    assert_eq!(f.worker(NativeTeamStart::Fresh(f.claim(manager_id)),|model,system,messages,tools| {
+        assert_eq!(model,"model-1"); assert!(system.contains("immutable run inputs"));
+        assert!(tools.as_array().unwrap().iter().any(|t|t["function"]["name"]=="read_input"));
+        step+=1;
+        Ok(match step {
+            1=>call("list_inputs",json!({})),
+            2=>{let reply=last_reply(messages); key=reply["inputs"][0]["key"].as_str().unwrap().to_owned(); assert_eq!(reply["next_offset"],Value::Null); call("read_input",json!({"key":key}))},
+            3=>{assert_eq!(last_reply(messages)["content"],"Actual user requirements\n"); call("save_document",json!({"name":"review.md","format":"md","content":"Reviewed actual attached requirements."}))},
+            _=>{artifact=Uuid::parse_str(last_reply(messages)["artifact_id"].as_str().unwrap()).unwrap();call("report_result",json!({"summary":"Reviewed input","artifact_ids":[artifact]}))},
+        })
+    }).unwrap(),NativeTeamExit::Settled);
+    let continuation = f
+        .store
+        .resume_after_children(f.run.id, root_id, crate::model::unix_time(), 180)
+        .unwrap();
+    assert_eq!(continuation.children[0].artifact_ids, vec![artifact]);
+    let mut step = 0;
+    assert_eq!(f.worker(NativeTeamStart::Resumed(continuation),|_,_,messages,_| {
+        step+=1;
+        Ok(match step {
+            1=>call("read_input",json!({"key":key})),
+            2=>{assert_eq!(last_reply(messages)["content"],"Actual user requirements\n"); call("read_document",json!({"artifact_id":artifact}))},
+            _=>{assert_eq!(last_reply(messages)["content"],"Reviewed actual attached requirements.");call("report_result",json!({"summary":"Accepted child result against user input","artifact_ids":[artifact]}))},
+        })
+    }).unwrap(),NativeTeamExit::Settled);
+    assert_eq!(
+        f.store.snapshot(f.run.id).unwrap().status,
+        TeamRunStatus::Completed
+    );
+    assert_eq!(f.artifacts().len(), 1);
 }
