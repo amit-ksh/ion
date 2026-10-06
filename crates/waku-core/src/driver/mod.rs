@@ -19,6 +19,7 @@ pub(crate) mod team_claude;
 pub(crate) mod team_codex;
 mod team_completion;
 mod team_gate;
+pub(crate) mod team_omp;
 pub(crate) mod team_opencode;
 pub(crate) mod team_pi;
 pub(crate) mod team_remote;

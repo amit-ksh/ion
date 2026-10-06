@@ -172,6 +172,7 @@ fn capability(client: &Client, profile: &AgentProfile) -> Result<Capability> {
         matches!(
             profile.provider,
             ProviderKind::Pi
+                | ProviderKind::OhMyPi
                 | ProviderKind::Codex
                 | ProviderKind::Claude
                 | ProviderKind::OpenCode
@@ -224,6 +225,17 @@ pub(crate) fn run(
     events: &DriverEventSender,
     cancelled: &AtomicBool,
 ) -> Result<NativeTeamExit> {
+    let client = Client::configured()?;
+    run_with_client(coordinator, start, workspace, events, cancelled, &client)
+}
+fn run_with_client(
+    coordinator: &TeamCoordinator,
+    start: NativeTeamStart,
+    workspace: &Path,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    client: &Client,
+) -> Result<NativeTeamExit> {
     let claim = match &start {
         NativeTeamStart::Fresh(c) => c,
         NativeTeamStart::Resumed(c) => &c.claimed,
@@ -231,9 +243,8 @@ pub(crate) fn run(
     let profile = claim.profile.clone();
     let lease = claim.lease.clone();
     let image = image(&profile)?;
-    let client = Client::configured()?;
-    let cap = capability(&client, &profile)?;
-    super::nebius::team::run_with_harness(
+    let cap = capability(client, &profile)?;
+    super::nebius::team::run_with_remote_harness(
         coordinator,
         start,
         workspace,
@@ -263,7 +274,7 @@ pub(crate) fn run(
                 messages: messages.into(),
                 tools: tools.clone(),
             };
-            let output = execute(&client, coordinator, image, &request, cancelled)?;
+            let output = execute(client, coordinator, image, &request, cancelled)?;
             ensure!(
                 output.version == 1
                     && output.request_id == id
@@ -534,6 +545,9 @@ mod lifecycle_tests {
     }
     impl Fixture {
         fn new() -> Self {
+            Self::new_at(100, true)
+        }
+        fn new_at(now: u64, reserve: bool) -> Self {
             let path =
                 std::env::temp_dir().join(format!("ion-remote-fixture-{}.db", Uuid::new_v4()));
             let definitions = ControlStore::new(path.clone());
@@ -593,7 +607,7 @@ mod lifecycle_tests {
                         limits: TeamRunLimits::default(),
                         access: AgentAccess::default(),
                     },
-                    100,
+                    now,
                 )
                 .unwrap();
             let claim = owner
@@ -603,25 +617,29 @@ mod lifecycle_tests {
                     DispatchHost::NebiusSandbox {
                         target: image.to_string(),
                     },
-                    101,
+                    now + 1,
                     100,
                 )
                 .unwrap();
-            owner
-                .reserve_model_call(
-                    &claim.lease,
-                    1,
-                    ModelCallAllowance {
-                        model: "pinned".into(),
-                        max_input_tokens: 1000,
-                        max_output_tokens: 100,
-                    },
-                    102,
-                )
-                .unwrap();
-            let id = owner
-                .begin_remote_call(&claim.lease, image, "fixture-project", 102)
-                .unwrap();
+            let id = if reserve {
+                owner
+                    .reserve_model_call(
+                        &claim.lease,
+                        1,
+                        ModelCallAllowance {
+                            model: "pinned".into(),
+                            max_input_tokens: 1000,
+                            max_output_tokens: 100,
+                        },
+                        now + 2,
+                    )
+                    .unwrap();
+                owner
+                    .begin_remote_call(&claim.lease, image, "fixture-project", now + 2)
+                    .unwrap()
+            } else {
+                Uuid::new_v4()
+            };
             let request = WorkerRequest {
                 version: 1,
                 request_id: id,
@@ -928,5 +946,114 @@ mod lifecycle_tests {
                 .unwrap()
         );
         server.finish();
+    }
+    #[test]
+    fn team_remote_assignment_runs_through_owner_loop_and_durable_tools() {
+        let f = Fixture::new_at(crate::model::unix_time() - 2, false);
+        let workspace =
+            crate::driver::team_codex::EmptyDirectory::create("remote-owner-fixture").unwrap();
+        let (events, _received) = crate::driver::test_event_channel();
+        let claim = || {
+            let run = f.owner.snapshot(f.lease.run_id()).unwrap();
+            crate::teams::ClaimedAssignment {
+                lease: f.lease.clone(),
+                assignment: run.work[0].clone(),
+                profile: run.profiles[0].clone(),
+            }
+        };
+        // A local native adapter still cannot consume a sandbox assignment.
+        let local = crate::driver::nebius::team::run_with_harness(
+            &f.owner,
+            NativeTeamStart::Fresh(claim()),
+            &workspace.0,
+            &events,
+            &AtomicBool::new(false),
+            ProviderKind::Codex,
+            |_| panic!("No local reservation is allowed"),
+            |_, _, _, _| panic!("No local inference is allowed"),
+        );
+        assert!(
+            local
+                .unwrap_err()
+                .to_string()
+                .contains("Selected execution host")
+        );
+        let operation = Uuid::new_v4();
+        let image = f.image;
+        let request = Arc::new(std::sync::Mutex::new(None::<WorkerRequest>));
+        let captured = request.clone();
+        let server = Server::with_response_handler(
+            vec![
+                (
+                    200,
+                    body(
+                        json!({"version":1,"capabilities":[{"provider":"codex","model":"pinned","input_cap":1000,"output_cap":100}]}),
+                    ),
+                ),
+                (201, body(json!({"uuid":operation}))),
+                (200, vec![]),
+            ],
+            move |r, body_bytes| {
+                if r.line.starts_with("POST ") {
+                    let bytes = STANDARD
+                        .decode(r.body["stdin"]["value"].as_str().unwrap())
+                        .unwrap();
+                    *captured.lock().unwrap() = Some(serde_json::from_slice(&bytes).unwrap());
+                }
+                if r.line.starts_with(&format!("GET /operations/{operation}")) {
+                    let saved = captured.lock().unwrap();
+                    let request = saved.as_ref().unwrap();
+                    let output=WorkerResponse {version:1,request_id:request.request_id,provider:request.capability.provider,model:request.capability.model.clone(),
+                    content:json!({"text":"Remote completion","calls":[{"name":"save_document","arguments":{"name":"Remote-report.md","format":"md","content":"Generated by the registered remote harness"}},{"name":"report_blocker","arguments":{"reason":"Fixture awaits owner review"}}]}).to_string(),
+                    usage:ModelTokenUsage{input_tokens:10,output_tokens:5}};
+                    return body(
+                        json!({"uuid":operation,"image_uuid":image,"kind":"instance","status":"SUCCESS","metadata":{"result":{"state":{"exit_code":0},"stdout":{"value":STANDARD.encode(serde_json::to_vec(&output).unwrap()),"encoding":"base64","truncated":false}}}}),
+                    );
+                }
+                body_bytes
+            },
+        );
+        let exit = run_with_client(
+            &f.owner,
+            NativeTeamStart::Fresh(claim()),
+            &workspace.0,
+            &events,
+            &AtomicBool::new(false),
+            &client(&server),
+        )
+        .unwrap();
+        assert!(matches!(exit, NativeTeamExit::Settled));
+        let run = f.owner.snapshot(f.lease.run_id()).unwrap();
+        assert_eq!(run.work[0].status, AssignmentStatus::Blocked);
+        assert_eq!(
+            run.work[0].attempts.last().unwrap().environment,
+            ExecutionEnvironment::NebiusSandbox
+        );
+        let db = rusqlite::Connection::open(&f.path).unwrap();
+        let content: Vec<u8> = db
+            .query_row(
+                "SELECT content FROM ion_team_document_receipts WHERE work_id=?",
+                [f.lease.work_id().to_string()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(content, b"Generated by the registered remote harness");
+        assert_eq!(run.usage.model_calls, 1);
+        assert_eq!(run.usage.consumed_tokens, 15);
+        assert_eq!(run.usage.reserved_tokens, 0);
+        assert!(
+            f.owner
+                .remote_attempt_stopped(f.lease.attempt_id())
+                .unwrap()
+        );
+        let requests = server.finish();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.line.starts_with("POST "))
+                .count(),
+            1
+        );
     }
 }

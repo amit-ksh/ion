@@ -82,6 +82,15 @@ pub fn execute(input: &[u8]) -> Result<Value> {
                 &cancelled,
             )?
         }
+        ProviderKind::OhMyPi => driver::team_omp::worker_completion(
+            model,
+            &request.system,
+            &request.messages,
+            &request.tools,
+            &cancelled,
+            cap.input_cap,
+            cap.output_cap,
+        )?,
         ProviderKind::Pi => driver::team_pi::worker_completion(
             model,
             &request.system,

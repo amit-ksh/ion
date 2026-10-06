@@ -462,9 +462,59 @@ pub(in crate::driver) fn run_with_harness_and_apps(
     events: &DriverEventSender,
     cancelled: &AtomicBool,
     harness: ProviderKind,
+    allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
+    completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
+    apps: &dyn TeamApps,
+) -> Result<NativeTeamExit> {
+    run_on_host(
+        coordinator,
+        start,
+        workspace,
+        events,
+        cancelled,
+        harness,
+        allowance,
+        completion,
+        apps,
+        ExecutionEnvironment::Local,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(in crate::driver) fn run_with_remote_harness(
+    coordinator: &TeamCoordinator,
+    start: NativeTeamStart,
+    workspace: &Path,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    harness: ProviderKind,
+    allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
+    completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
+) -> Result<NativeTeamExit> {
+    run_on_host(
+        coordinator,
+        start,
+        workspace,
+        events,
+        cancelled,
+        harness,
+        allowance,
+        completion,
+        &ComposioApps,
+        ExecutionEnvironment::NebiusSandbox,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn run_on_host(
+    coordinator: &TeamCoordinator,
+    start: NativeTeamStart,
+    workspace: &Path,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    harness: ProviderKind,
     mut allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
     mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
     apps: &dyn TeamApps,
+    environment: ExecutionEnvironment,
 ) -> Result<NativeTeamExit> {
     let (mut claimed, mut journal, children, decision, recovery_note) = match start {
         NativeTeamStart::Fresh(claimed) => {
@@ -521,8 +571,8 @@ pub(in crate::driver) fn run_with_harness_and_apps(
         .last()
         .context("Claimed attempt missing")?;
     anyhow::ensure!(
-        attempt.environment == ExecutionEnvironment::Local,
-        "Native local adapter cannot execute a sandbox assignment"
+        attempt.environment == environment,
+        "Selected execution host differs from the trusted adapter"
     );
     // Bind the inherited journal to this generation before readiness or any
     // resumed app effect can fail. The safe marker is granted only after receipts.

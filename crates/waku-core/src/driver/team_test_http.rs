@@ -23,17 +23,30 @@ impl Server {
         Self::with_hook(responses, |_| {})
     }
     pub fn with_timeout(responses: Vec<(u16, Vec<u8>)>, timeout: Duration) -> Self {
-        Self::build(responses, |_| {}, timeout)
+        Self::build(responses, |_, body| body, timeout)
     }
     pub fn with_hook(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request) + Send + 'static,
     ) -> Self {
+        Self::build(
+            responses,
+            move |request, body| {
+                hook(request);
+                body
+            },
+            Duration::from_secs(20),
+        )
+    }
+    pub fn with_response_handler(
+        responses: Vec<(u16, Vec<u8>)>,
+        hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
+    ) -> Self {
         Self::build(responses, hook, Duration::from_secs(20))
     }
     fn build(
         responses: Vec<(u16, Vec<u8>)>,
-        hook: impl Fn(&Request) + Send + 'static,
+        hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
         timeout: Duration,
     ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -93,7 +106,7 @@ impl Server {
                         serde_json::from_slice(&data[offset..offset + len]).unwrap()
                     },
                 };
-                hook(&request);
+                let body = hook(&request, body);
                 captured.lock().unwrap().push(request);
                 write!(stream,"HTTP/1.1 {status} Fixture\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",body.len()).unwrap();
                 stream.write_all(&body).unwrap();

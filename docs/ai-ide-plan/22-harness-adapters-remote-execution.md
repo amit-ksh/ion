@@ -13,9 +13,10 @@ acceptance is implied by this checkpoint.
 | Codex | Isolated CLI plus one-use Responses transport | Yes | That host's native Codex login |
 | OpenCode | Pure CLI plus one-use transport | Yes | Selected direct OpenAI, Anthropic or Nebius API login |
 | Pi | Tool-free CLI plus one-use transport | Yes | Selected direct OpenAI, Anthropic or Nebius API login |
-| Antigravity, Amp, Cursor, DeepSeek, Fx, OpenCode 2, Grok, Kimi, Oh My Pi | Teams adapter still required | Not enabled | Selection remains pinned |
+| Oh My Pi | Tool-free CLI plus one-use transport | Yes | Selected direct native SQLite API login; bundled exact model catalog |
+| Antigravity, Amp, Cursor, DeepSeek, Fx, OpenCode 2, Grok, Kimi | Teams adapter still required | Not enabled | Selection remains pinned |
 
-The other nine harnesses remain in the normal app catalog. Their existing solo
+The other eight harnesses remain in the normal app catalog. Their existing solo
 runtimes do not establish the permission, single-request and accounting contract
 needed by this Teams executor. They are not silently replaced with another CLI
 or a Nebius model. OpenCode/Pi OAuth, plugins and custom model endpoints also need
@@ -32,7 +33,6 @@ is not evidence that a Teams adapter can enforce these constraints.
 | Amp | Native streaming JSON and CLI-managed modes | Restricted permission rules and a verified exact model/request/accounting boundary; the current solo launch requires Full access |
 | Cursor, Fx, Grok, Kimi | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
 | DeepSeek Harness, OpenCode 2 | Shared resident HTTP/event services | Isolated bounded completion sessions with enforceable effects and request/cap accounting |
-| Oh My Pi | Its own Pi RPC dialect | Verify its own isolation/auth/catalog flags and request gate; do not assume Pi's flags or home layout apply |
 
 Those adapters remain development work. Enabling a provider without these checks
 would expand an agent's saved access or spend beyond its reserved calls. Unsupported
@@ -62,13 +62,16 @@ fields. Do not describe this checkpoint as an ML execution service.
 
 1. Install and sign in to the exact selected CLI on the machine running the daemon.
    Claude and Codex retain native authentication. OpenCode and Pi currently use a
-   selected direct API login stored by their own CLI.
-2. Pin an exact model, including the provider namespace for OpenCode/Pi. Aliases,
+   selected direct API login stored by their own CLI. Oh My Pi reads its own
+   SQLite `agent.db` login without modifying it.
+2. Pin an exact model, including the provider namespace for OpenCode/Pi/Oh My Pi. Aliases,
    unknown endpoints, absent token limits and unavailable models block readiness.
 3. Codex needs a fresh native `models_cache.json` (under `CODEX_HOME`, or
    `~/.codex`), less than 24 hours old. Refresh it by using Codex normally.
 4. Pi requires its current offline/resource-disable flags. OpenCode requires
-   `run --pure`. Readiness checks these controls before an attempt starts.
+   `run --pure`. Oh My Pi requires its own no-tools, no-session, no-LSP,
+   no-PTY, no-extensions, no-skills, no-rules, no-title and no-prewalk flags.
+   Readiness checks these controls before an attempt starts.
 5. If a package-manager shim fails, set the installed executable in ion's harness
    settings. The local fixture check uses the actual installed binary; no harness
    is substituted. Windows Volta wrappers can fail when their install directory
@@ -86,8 +89,14 @@ provider origin, checks the pinned model and complete usage, and forbids redirec
 and retries. Temporary selected-account files and private scratch data are cleaned
 up after the contained process tree exits. OpenCode and Pi remove inherited direct
 provider key overrides so the copied selected account supplies authentication.
-Raw credentials/events are not stored
-in team transcripts or process failure messages.
+Oh My Pi clears inherited environment variables except the OS/runtime allowlist.
+It uses private SQLite/YAML configuration, pins every model role and disables
+fallbacks, retries, updates, setup and auxiliary work. A native startup discovery
+request cannot consume the inference capability: only the exact model route is
+changed to that gate. Readiness rejects native brokers, profile/overlay selection,
+custom model files, ambiguous accounts and OAuth; those routes need their own
+verified transport. `PI_CONFIG_DIR` must be relative to the native home.
+Raw credentials/events are not stored in team transcripts or process failure messages.
 
 ## Prepare a registered sandbox host later
 
@@ -189,12 +198,13 @@ Installed CLI fixture checks (no live model request):
 cargo test -p waku-core driver::team_ --lib --locked -- --ignored --nocapture --test-threads=1
 ```
 
-The optional `ION_TEST_PI_BINARY` and `ION_TEST_OPENCODE_BINARY` variables select
+The optional `ION_TEST_PI_BINARY`, `ION_TEST_OPENCODE_BINARY` and
+`ION_TEST_OMP_BINARY` variables select
 an installed executable for these fixture checks. They do not change app settings.
 
 Your live review:
 
-- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi team with your exact available
+- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi/Oh My Pi team with your exact available
   models and grants; complete a delegated document and an isolated code edit.
 - [ ] Confirm task/run labels show each selected harness, model and actual host.
 - [ ] Set a token cap below one required reservation; verify no provider call starts.
@@ -223,6 +233,9 @@ Your live review:
   [configuration layers](https://opencode.ai/docs/config/)
 - Pi installed package `@earendil-works/pi-coding-agent` 0.84.1:
   `docs/models.md`, CLI flags, native RPC, model registry and auth storage source.
+- [Oh My Pi v18.6.1 source and release](https://github.com/can1357/oh-my-pi/releases/tag/v18.6.1):
+  native CLI flags, RPC catalog, model registry, SQLite credential storage and
+  native directory resolution. Its contract differs from Pi.
 - [ConTree OpenAPI contract](https://eu-north.nebius.computer/static/api.yaml),
   [instance spawn](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance),
   [operation cancellation](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/operations/cancel-an-operation).

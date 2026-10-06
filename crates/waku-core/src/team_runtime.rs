@@ -85,6 +85,17 @@ impl Executor for NativeExecutor {
             // No spawn/model request has been sent. Fallback verifies the
             // same selected local harness/model before an attempt is claimed.
         }
+        if profile.provider == ProviderKind::OhMyPi {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Oh My Pi model for this agent")?;
+            let binary = self.binary(ProviderKind::OhMyPi)?;
+            self.cached_ready(format!("local:omp:{}:{model}", binary.display()), || {
+                driver::team_omp::ready(&binary, model)
+            })?;
+            return local_host(profile);
+        }
         if profile.provider == ProviderKind::Pi {
             let model = profile
                 .model
@@ -149,7 +160,7 @@ impl Executor for NativeExecutor {
         }
         ensure!(
             profile.provider == ProviderKind::Nebius,
-            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode and Pi. The selected harness is retained",
+            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi and Oh My Pi. The selected harness is retained",
             profile.provider.display_name()
         );
         let model = profile
@@ -223,7 +234,16 @@ impl Executor for NativeExecutor {
             NativeTeamStart::Fresh(c) => c.profile.provider,
             NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
         };
-        if provider == ProviderKind::Pi {
+        if provider == ProviderKind::OhMyPi {
+            driver::team_omp::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::OhMyPi)?,
+            )
+        } else if provider == ProviderKind::Pi {
             driver::team_pi::run(
                 coordinator,
                 start,

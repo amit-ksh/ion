@@ -1274,3 +1274,45 @@ No live provider billing, cloud instance submission, Linux image build/deploymen
 app-account mutation, phone/device or visual acceptance, second development watcher
 or integration into `ion-prod` was performed. Live target/account setup and the
 remaining implementation contracts are recorded in the linked checklist.
+
+
+## Oh My Pi and remote assignment loop increment (2026-10-06)
+
+Previous checkpoint: `635be70`. Protocol remains **27**.
+
+- Added Oh My Pi using its own native catalog/RPC, SQLite API credential and YAML
+  model configuration. This is a separate adapter from Pi. Local dispatch,
+  registered remote completion and supported restart recovery retain its exact
+  provider/model. Direct OpenAI, Anthropic and Nebius API routes are supported;
+  brokers, named profiles, overlays, custom model configurations and OAuth remain
+  unsupported and block readiness.
+- Native resource-disable flags, a private home/config/workspace, an OS/runtime
+  environment allowlist and the one-request gate prevent native effects and
+  additional inference calls. Model limits come from the exact bundled catalog.
+  The native SQLite account is opened read-only and must be unambiguous.
+- The official Windows v18.6.1 executable was downloaded into the ignored test
+  cache and checked against the release SHA256SUMS. The actual executable ran
+  against a fixture account/provider. Its initial model discovery request exposed
+  a routing failure; pinning only the exact model's inference endpoint fixed it
+  without allowing a second request through the gate.
+- Fixed a real remote integration defect: the shared Teams loop previously required
+  a Local attempt even when called by the remote adapter. Trusted Local and remote
+  entry points now enforce their respective saved host. A complete fake-cloud
+  assignment exercises the owner loop, one POST, exact remote identity, usage
+  settlement, a durable generated-document receipt and blocker reporting. A Local
+  adapter still rejects that sandbox claim before reserving or invoking a model.
+
+Verification: **148 Teams tests passed**, including all four optional installed
+Codex/OpenCode/Pi/Oh My Pi native executable fixtures, with fake credentials and
+loopback providers. The earlier focused adapter/remote suite passed **29 tests**;
+these counts overlap. Desktop, daemon and headless worker binary checking passed.
+The final conservative `PI_CONFIG_DIR` validation was included in that build check.
+Rust formatting and whitespace gates passed.
+
+Six selected harnesses now have Teams completion adapters; **eight catalog harnesses
+still require adapters**. Full remote files/commands, executed checks, resource and
+egress controls, monetary limits, GPU/ML jobs and verified lost-ack recovery remain
+implementation work. The remote worker currently returns actions for owner-side
+execution. No live model billing, cloud submission/deployment, account mutation,
+Linux image acceptance, visual test, second watcher or integration into `ion-prod`
+was performed. See the adapter setup and release checklist for the remaining work.
