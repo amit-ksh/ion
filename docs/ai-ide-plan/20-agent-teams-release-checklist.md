@@ -77,8 +77,11 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Full remote project/command execution, remote checks, resource/egress controls
   and GPU/ML job provisioning. Separate bounded command jobs are implemented;
   the selected-harness completion worker still returns model actions to the owner.
-- [ ] Executed test/check receipts and enforceable command isolation. Declared check
-  labels and model-written test claims are not executed validation.
+- [x] Pinned bounded remote command check gates use original successful receipts
+  and current source witnesses at submission and parent acceptance. Descriptive
+  check labels do not prove execution.
+- [ ] Local/fallback/general project checks and Linux/live command isolation
+  acceptance; bounded remote gates do not establish these broader capabilities.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
 - [ ] Additional resource/egress grants and host enforcement for general commands.
 - [ ] Image/PDF input interpretation through a verified selected harness.
@@ -200,4 +203,7 @@ second development watcher was performed during these checkpoints.
   dataset/checkpoint volumes, retention policy and live acceptance.
 - [ ] Persistent post-cancellation result collection; the owner collector remains
   available, but a canceled run does not imply further automatic receipt polling.
-- [ ] Enforce executed command receipts in required output-contract check gates.
+- [x] Enforce pinned executed command receipts in required output-contract gates,
+  with exact arguments/files/time, current-attempt identity and source freshness.
+- [ ] Live executed-check review, including source changes, parent rework, missing
+  output and restart replay; see the command guide.

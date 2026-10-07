@@ -147,6 +147,7 @@ fn team_recovery_recovers_committed_documents_and_delegation_without_duplicate_e
             &root.lease,
             delegation,
             OutputContract {
+                required_commands: vec![],
                 minimum_documents: 1,
                 ..Default::default()
             },

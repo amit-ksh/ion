@@ -334,6 +334,19 @@ CLI remains a setup blocker. A failure after submission does not automatically
 launch a second worker, even if its remote outcome is uncertain. Review that
 operation before further work. Unknown usage stays reserved.
 
+## Required command checks
+
+Native Teams delegation can pin `requiredCommands` with exact literal arguments,
+explicit input/output files and timeout. `report_result.executed_checks` must
+reference successful owner receipts from the current assignment/attempt. Both
+submission and parent acceptance recheck current source bytes and the saved edit
+epoch. Check names alone remain observations; they cannot satisfy executed
+requirements. A Local/fallback attempt cannot claim a remote check receipt.
+
+See [command requirements and later review](23-remote-command-gpu-jobs.md#executed-command-checks)
+for the tool fields, bounded transfer limits and current limitations. This does
+not enable additional harness contracts, general Local shell or GPU submission.
+
 ## Verification and live review
 
 Automated fixture evidence is recorded in

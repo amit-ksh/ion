@@ -1779,3 +1779,47 @@ checks passed. Existing ts-rs, dead-code and proc-macro warnings remain. No live
 account/cloud request, app bundle, second watcher or visual test was run.
 See [the recovery contract research](RESEARCH-nebius-gpu-recovery.md) and
 [the review guide](23-remote-command-gpu-jobs.md#original-gpu-operation-recovery).
+
+
+## Executed remote command check gates (2026-10-07)
+
+- Protocol **31** adds `requiredCommands` to the immutable output contract and
+  `executedChecks` to assignment results. Empty extension fields are omitted so
+  existing stored delegation/result replays remain compatible. Generated client
+  bindings were regenerated and checked.
+- Leads pin exact names, literal arguments, ordered explicit input/output paths
+  and timeouts before delegation. The complete contract is bounded to 32 KiB and
+  16 commands. Existing descriptive checks remain observations.
+- Native `report_result.executed_checks` references original trusted owner command
+  receipts from the same run/assignment/current attempt. Submission and parent
+  acceptance both reject missing, foreign, old-attempt, failed, timed-out, canceled
+  or output-error receipts, and any command/file/time mismatch.
+- Before bundling, the owner captures the sealed isolated workspace and bounded
+  edit epoch; it rechecks that context before reservation. Review verifies current
+  scoped regular input bytes against the original immutable bundle. Changed source
+  or owner edit history invalidates the receipt. Rework retains all requirements
+  and must obtain new execution evidence for the correction.
+- Owner workers perform verification. Bounded child handoffs preserve complete
+  receipt names/IDs and report omissions; sixteen escaped handoffs remain within
+  the 32 KiB context cap. No source I/O is added to UI frames.
+- Native delegation/report parsing is covered through a real model tool loop.
+  Forged Local claims do not complete the assignment. The existing shared-client
+  recovery fixture now includes the required GPU recovery field exposed by the
+  previous protocol revision.
+
+Verification: **170 distinct core regressions** passed (127 coordinator, 19 command
+and 24 native tool tests), including 13 new command-contract/source/review/native
+cases. **22 client tests**, shared-client TypeScript checking, generated-binding
+checking, desktop/daemon `cargo check`, formatting and whitespace gates passed.
+TypeScript reused the primary checkout's existing compiler/types; no dependency
+installation was needed. Existing ts-rs, dead-code and proc-macro warnings remain.
+Initial fixture compile/path assertions were repaired before the final gates.
+No live account/cloud request, app bundle, second watcher or visual test was run.
+
+These gates prove the explicit remote file bundle at submission/acceptance, not
+unlisted source, later edits or an entire project checkout. Local/fallback shell
+checks, GPU training/metric gates, full remote project/dataset transfers, verified
+prices/billing/resource/egress controls, GPU agent submission and post-cancellation
+collection remain development. Amp/Cursor contracts, Fx native Linux/macOS
+acceptance and live provider/cloud review remain open. The full goal stays active.
+See [executed command requirements and review](23-remote-command-gpu-jobs.md#executed-command-checks).

@@ -328,13 +328,32 @@ pub struct TeamAssignment {
     pub result: Option<AssignmentResult>,
 }
 
-/// Structural output requirements; declared checks are evidence, not proof of execution.
+/// Document requirements, declared observations and pinned executed command checks.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 pub struct OutputContract {
     pub minimum_documents: u16,
     pub required_formats: Vec<String>,
     pub required_checks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_commands: Vec<RequiredCommandCheck>,
+}
+/// Exact literal command and explicit source/output files, pinned before delegation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct RequiredCommandCheck {
+    pub name: String,
+    pub argv: Vec<String>,
+    pub input_paths: Vec<String>,
+    pub output_paths: Vec<String>,
+    pub timeout_seconds: u32,
+}
+/// References trusted owner receipts; names alone never establish successful execution.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ExecutedCommandCheck {
+    pub name: String,
+    pub request_id: Uuid,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -377,6 +396,8 @@ pub struct AssignmentResult {
     pub summary: String,
     pub artifact_ids: Vec<Uuid>,
     pub checks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub executed_checks: Vec<ExecutedCommandCheck>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

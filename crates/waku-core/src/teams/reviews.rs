@@ -20,6 +20,7 @@ pub(super) fn submitted_status(work: &TeamAssignment) -> AssignmentStatus {
 }
 
 pub(super) fn validate_contract(contract: &OutputContract) -> Result<()> {
+    checks::validate_contract(contract)?;
     ensure!(
         contract.minimum_documents <= 64
             && contract.required_formats.len() <= 16
@@ -53,6 +54,7 @@ pub(super) fn validate_output(
 ) -> Result<()> {
     let contract = &work.output_contract;
     validate_contract(contract)?;
+    checks::verify(db, run, work, result)?;
     ensure!(
         result.artifact_ids.len() >= usize::from(contract.minimum_documents),
         "Required output documents are missing"
@@ -155,6 +157,7 @@ impl TeamCoordinator {
             &run,
             parent,
             &AssignmentResult {
+                executed_checks: vec![],
                 summary: request.feedback.clone(),
                 artifact_ids: request.artifact_ids.clone(),
                 checks: request.checks.clone(),

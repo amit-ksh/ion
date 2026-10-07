@@ -172,6 +172,7 @@ impl TeamCoordinator {
             .find(|p| p.id == agent_id)
             .context("Pinned job profile missing")
     }
+    #[cfg(test)]
     pub(crate) fn reserve_remote_job(
         &self,
         lease: &AssignmentLease,
@@ -182,10 +183,29 @@ impl TeamCoordinator {
         maximum: u16,
         now: u64,
     ) -> Result<Option<JobResponse>> {
+        self.reserve_remote_job_with_context(
+            lease, request, image, project, policy, maximum, now, None,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn reserve_remote_job_with_context(
+        &self,
+        lease: &AssignmentLease,
+        request: &JobRequest,
+        image: Uuid,
+        project: &str,
+        policy: &str,
+        maximum: u16,
+        now: u64,
+        check_context: Option<&super::checks::CommandCheckContext>,
+    ) -> Result<Option<JobResponse>> {
         self.authorize_remote_job(lease, now)?;
-        let signature =
-            serde_json::json!({"request":request,"image":image,"project":project,"policy":policy})
-                .to_string();
+        let mut signature =
+            serde_json::json!({"request":request,"image":image,"project":project,"policy":policy});
+        if let Some(context) = check_context {
+            signature["check_context"] = serde_json::to_value(context)?;
+        }
+        let signature = signature.to_string();
         ensure!(
             signature.len() <= 768 * 1024
                 && !request.request_id.is_nil()
@@ -197,6 +217,7 @@ impl TeamCoordinator {
         let run = load(&tx, lease.run_id)?;
         active(&run, now)?;
         let work = checked_lease(&run, lease, now, false)?;
+        super::checks::verify_context(&tx, &run, work, check_context)?;
         let previous: Option<(String,String,Option<String>)> = tx.query_row(
             "SELECT signature,state,receipt FROM ion_team_jobs WHERE work_id=? AND request_id=?",
             params![work.id.to_string(),request.request_id.to_string()], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;

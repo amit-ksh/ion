@@ -586,6 +586,7 @@ fn team_workspace_pending_edit_survives_restart_and_fences_effects_and_completio
             .report(
                 &root.lease,
                 AssignmentOutcome::Completed(AssignmentResult {
+                    executed_checks: vec![],
                     summary: "Do not accept".into(),
                     artifact_ids: vec![doc.id],
                     checks: vec![]
@@ -891,6 +892,7 @@ fn finish_coding(f: &Fixture, root: &ClaimedAssignment) -> TeamRunSnapshot {
         .report(
             &root.lease,
             AssignmentOutcome::Completed(AssignmentResult {
+                executed_checks: vec![],
                 summary: "Reviewed code complete".into(),
                 artifact_ids: vec![document.id],
                 checks: vec![],

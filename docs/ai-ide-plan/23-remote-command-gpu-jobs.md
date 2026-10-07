@@ -22,8 +22,9 @@ failed command; a model cannot convert it into successful test evidence.
 The receipt and AI-generated JSON summary artifact commit in one transaction.
 `read_remote_output` returns 4 KiB base64 pages from those saved outputs, restricted
 to the original assignment. Files are not written to the original checkout.
-Required check labels are still declared evidence: wiring real command receipts
-into enforceable output-contract/check gates remains development.
+Required check labels remain declared observations. Pinned `requiredCommands`
+now enforce actual successful receipts at assignment submission and parent
+acceptance; see [executed command checks](#executed-command-checks).
 
 Limits: 32 files/direction, 64 KiB/file, 256 KiB aggregate/direction, 8 KiB retained
 per log stream, 120 seconds/command maximum, configured count and image-layer cap.
@@ -50,6 +51,80 @@ be bound. Confirmation replay uses its committed receipt; subsequent GET returns
 the real exit/log/output receipt. Prepare continuation and Continue retain the
 original attempt, journal, harness and budget, with no repeated command POST.
 Private commands/files are not included in the public recovery projection.
+
+## Executed command checks
+
+A lead can pin up to 16 command checks in the child's `output_contract` at
+`delegate` time. The complete output contract fits 32 KiB. Each `requiredCommands`
+entry fixes a name, exact literal `argv`, ordered `inputPaths` and `outputPaths`,
+and `timeoutSeconds`. All requirements remain unchanged through rework.
+`requiredChecks` remains descriptive evidence, such as a source audit.
+
+Example tool arguments inside a delegated contract:
+
+```json
+{
+  "requiredCommands": [{
+    "name": "Unit check",
+    "argv": ["/usr/bin/python3", "check.py"],
+    "inputPaths": ["check.py"],
+    "outputPaths": ["test-report.json"],
+    "timeoutSeconds": 30
+  }]
+}
+```
+
+The selected Nebius child runs that exact command through `run_remote_command`.
+It includes the returned request ID in `report_result`:
+
+```json
+{
+  "executed_checks": [{
+    "name": "Unit check",
+    "requestId": "<returned request UUID>"
+  }]
+}
+```
+
+The owner loads its original durable receipt for the same run, assignment and
+current attempt. Submission and parent acceptance both require exit zero, no
+timeout/cancellation/output errors and the exact command/file/time contract.
+A label, another task's receipt, a previous attempt or a legacy receipt without
+its original check context cannot satisfy this requirement.
+
+Project input checks require the sealed isolated run workspace. The owner captures
+a bounded edit epoch before bundling, rechecks it before reserving the command,
+and verifies original input bytes against current scoped regular files at each
+review gate. An owner edit or changed/missing input invalidates the receipt; the
+child must rerun against the current source. Parent rework retains the pinned
+requirements. This proves the explicit file bundle at the gate, not unlisted
+files, later edits or an entire remote checkout. No receipt is copied from a
+superseded child into a correction attempt.
+
+Verification occurs on owner workers; UI frames do not read source files.
+Handoffs include bounded complete receipt references and explicit omission counts.
+Empty extension fields are omitted, preserving existing stored replay signatures.
+Protocol version **31** requires the daemon and clients to use matching builds.
+
+These gates currently support bounded remote command receipts. Local/fallback
+shell checks, large project transfers, GPU metric/training checks, dedicated
+CPU/RAM policy, verified prices/billing and Linux/live acceptance remain open.
+A new command requirement grants no additional command, image, file or network
+access.
+
+Later review:
+
+- [ ] Delegate a pinned test command to a configured Nebius-selected specialist;
+  inspect the actual receipt, generated report and accepted child result.
+- [ ] Submit only a matching check label or another assignment's receipt and confirm
+  completion is refused.
+- [ ] Run a failing command, timeout and command with a missing required output;
+  verify no successful check is recorded.
+- [ ] Change a bundled source file after execution, and again after child submission;
+  verify both submission and parent acceptance reject the old receipt.
+- [ ] Request rework and rerun against current files with a fresh command ID.
+- [ ] Restart before parent review; verify the original settled receipt is reused
+  without another command POST.
 
 ## Setup and later review
 

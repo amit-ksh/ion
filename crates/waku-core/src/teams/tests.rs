@@ -160,6 +160,7 @@ impl Drop for Fixture {
 }
 fn result() -> AssignmentResult {
     AssignmentResult {
+        executed_checks: vec![],
         summary: "Change delivered".into(),
         artifact_ids: vec![],
         checks: vec!["Validation evidence".into()],
@@ -660,6 +661,7 @@ fn results_require_evidence_and_documents_belonging_to_the_assignment() {
             .report(
                 &root.lease,
                 AssignmentOutcome::Completed(AssignmentResult {
+                    executed_checks: vec![],
                     summary: "Report".into(),
                     artifact_ids: vec![artifact],
                     checks: vec![]
@@ -1545,6 +1547,7 @@ fn uncertain_children_do_not_wake_the_parent_and_handoffs_stay_bounded() {
             .is_err()
     );
     let evidence = AssignmentResult {
+        executed_checks: vec![],
         summary: "文\u{1}\"".repeat(1000),
         artifact_ids: vec![],
         checks: vec!["Confirmed evidence".into(); 64],
@@ -1633,6 +1636,7 @@ fn assignment_documents_commit_payload_provenance_and_exact_replay_across_restar
         .report(
             &root.lease,
             AssignmentOutcome::Completed(AssignmentResult {
+                executed_checks: vec![],
                 summary: "Review complete".into(),
                 artifact_ids: vec![artifact.id],
                 checks: vec![],
@@ -2115,6 +2119,7 @@ fn output_contract_requires_unique_documents_format_and_declared_checks_before_s
     let request = f.delegation(1);
     let request_id = request.request_id;
     let contract = OutputContract {
+        required_commands: vec![],
         minimum_documents: 1,
         required_formats: vec!["md".into()],
         required_checks: vec!["Source audit".into()],
@@ -2148,6 +2153,7 @@ fn output_contract_requires_unique_documents_format_and_declared_checks_before_s
             .report(
                 &worker.lease,
                 AssignmentOutcome::Completed(AssignmentResult {
+                    executed_checks: vec![],
                     summary: "Evidence".into(),
                     artifact_ids: vec![html.id],
                     checks: vec!["Source audit".into()]
@@ -2182,6 +2188,7 @@ fn output_contract_requires_unique_documents_format_and_declared_checks_before_s
                 .report(
                     &worker.lease,
                     AssignmentOutcome::Completed(AssignmentResult {
+                        executed_checks: vec![],
                         summary: "Evidence".into(),
                         artifact_ids: ids,
                         checks
@@ -2196,6 +2203,7 @@ fn output_contract_requires_unique_documents_format_and_declared_checks_before_s
         .report(
             &worker.lease,
             AssignmentOutcome::Completed(AssignmentResult {
+                executed_checks: vec![],
                 summary: "Evidence".into(),
                 artifact_ids: vec![md.id],
                 checks: vec!["Source audit".into()],
@@ -2239,6 +2247,7 @@ fn output_contract_requires_unique_documents_format_and_declared_checks_before_s
             .report(
                 &corrected.lease,
                 AssignmentOutcome::Completed(AssignmentResult {
+                    executed_checks: vec![],
                     summary: "Reused rejected output".into(),
                     artifact_ids: vec![md.id],
                     checks: vec!["Source audit".into()]
@@ -2405,6 +2414,7 @@ fn review_revalidates_candidate_documents_before_acceptance() {
             &parent.lease,
             f.delegation(1),
             OutputContract {
+                required_commands: vec![],
                 minimum_documents: 1,
                 ..Default::default()
             },
@@ -2428,6 +2438,7 @@ fn review_revalidates_candidate_documents_before_acceptance() {
         .report(
             &worker.lease,
             AssignmentOutcome::Completed(AssignmentResult {
+                executed_checks: vec![],
                 summary: "Evidence".into(),
                 artifact_ids: vec![document.id],
                 checks: vec![],
@@ -2481,6 +2492,7 @@ fn review_handoffs_fit_context_for_sixteen_superseded_children_with_escaped_evid
             .report(
                 &worker.lease,
                 AssignmentOutcome::Completed(AssignmentResult {
+                    executed_checks: vec![],
                     summary: "\n\t\"Source 界\"".repeat(400),
                     artifact_ids: vec![],
                     checks: vec!["\n\t\"Checked 界\"".repeat(100)],
@@ -3703,6 +3715,7 @@ fn team_source_authorization_allows_only_supplied_grants_and_reads_accepted_resu
         .report(
             &root.lease,
             AssignmentOutcome::Completed(AssignmentResult {
+                executed_checks: vec![],
                 summary: "Reviewed implementation".into(),
                 artifact_ids: vec![doc.id],
                 checks: vec![],

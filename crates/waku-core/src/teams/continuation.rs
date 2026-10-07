@@ -27,6 +27,10 @@ pub struct AssignmentHandoff {
     pub checks: Vec<String>,
     pub omitted_artifacts: usize,
     pub omitted_checks: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub executed_checks: Vec<ExecutedCommandCheck>,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub omitted_executed_checks: usize,
 }
 
 pub(super) fn check_capacity(
@@ -113,9 +117,12 @@ pub(super) fn bounded_text(value: &str, maximum: usize) -> String {
         })
         .collect()
 }
+fn is_zero(value: &usize) -> bool {
+    *value == 0
+}
 fn handoff(work: &TeamAssignment) -> AssignmentHandoff {
     let result = work.result.as_ref();
-    AssignmentHandoff {
+    let mut handoff = AssignmentHandoff {
         assignment_id: work.id,
         task_id: work.task_id,
         agent_id: work.agent_id,
@@ -145,7 +152,31 @@ fn handoff(work: &TeamAssignment) -> AssignmentHandoff {
             .unwrap_or_default(),
         omitted_artifacts: result.map_or(0, |r| r.artifact_ids.len().saturating_sub(4)),
         omitted_checks: result.map_or(0, |r| r.checks.len().saturating_sub(2)),
+        executed_checks: result
+            .map(|r| {
+                r.executed_checks
+                    .iter()
+                    .filter(|c| serde_json::to_vec(&c.name).is_ok_and(|v| v.len() <= 130))
+                    .take(2)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default(),
+        omitted_executed_checks: 0,
+    };
+    // Preserve complete receipt names. Oversized evidence is omitted with a count,
+    // never truncated into a different name. Sixteen handoffs still fit 32 KiB.
+    handoff.omitted_executed_checks = result.map_or(0, |r| {
+        r.executed_checks
+            .len()
+            .saturating_sub(handoff.executed_checks.len())
+    });
+    while !handoff.executed_checks.is_empty() && serde_json::to_vec(&handoff).unwrap().len() > 2000
+    {
+        handoff.executed_checks.pop();
+        handoff.omitted_executed_checks += 1;
     }
+    handoff
 }
 
 impl TeamCoordinator {
@@ -454,5 +485,79 @@ impl TeamCoordinator {
             recovery_note,
             gpu_result,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn command_check_receipt_handoffs_keep_identity_and_fit_sixteen_children() {
+        let text = "\n\t\"Evidence 界\"".repeat(100);
+        let names = vec![
+            "A".repeat(128),
+            "B".repeat(128),
+            "\n".repeat(128),
+            "C".repeat(256),
+        ];
+        let work = TeamAssignment {
+            can_resume: false,
+            can_reconcile: false,
+            id: Uuid::new_v4(),
+            task_id: Uuid::new_v4(),
+            parent_id: Some(Uuid::new_v4()),
+            agent_id: Uuid::new_v4(),
+            objective: text.clone(),
+            expected_output: text.clone(),
+            output_contract: Default::default(),
+            requires_review: true,
+            rework_of: Some(Uuid::new_v4()),
+            review: Some(AssignmentReview {
+                id: Uuid::new_v4(),
+                verdict: ReviewVerdict::Accepted,
+                feedback: text.clone(),
+                artifact_ids: vec![],
+                checks: vec![],
+                reviewer_task_id: Uuid::new_v4(),
+                replacement_assignment_id: None,
+                created_at: 100,
+            }),
+            dependencies: vec![],
+            access: Default::default(),
+            status: AssignmentStatus::Completed,
+            reason: Some(text.clone()),
+            attempts: vec![],
+            result: Some(AssignmentResult {
+                summary: text.clone(),
+                artifact_ids: (0..64).map(|_| Uuid::new_v4()).collect(),
+                checks: vec![text; 64],
+                executed_checks: names
+                    .into_iter()
+                    .map(|name| ExecutedCommandCheck {
+                        name,
+                        request_id: Uuid::new_v4(),
+                    })
+                    .collect(),
+            }),
+        };
+        let full = &work.result.as_ref().unwrap().executed_checks;
+        let items: Vec<_> = (0..16).map(|_| handoff(&work)).collect();
+        assert!(serde_json::to_vec(&items).unwrap().len() <= 32 * 1024);
+        for item in items {
+            assert_eq!(
+                item.executed_checks.len() + item.omitted_executed_checks,
+                full.len()
+            );
+            assert!(
+                item.executed_checks
+                    .iter()
+                    .all(|reference| full.contains(reference))
+            );
+            assert!(
+                item.executed_checks
+                    .iter()
+                    .all(|reference| reference.name.len() == 128 && !reference.name.contains('\n'))
+            );
+        }
     }
 }

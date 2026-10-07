@@ -68,6 +68,7 @@ pub(super) fn tool(
                     .filter(|v| !v.is_null())
                     .cloned()
                     .unwrap_or(serde_json::to_value(OutputContract {
+                        required_commands: vec![],
                         minimum_documents: 1,
                         ..Default::default()
                     })?);

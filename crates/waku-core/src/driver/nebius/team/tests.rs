@@ -1256,3 +1256,42 @@ fn native_team_followup_queued_before_start_is_present_once_in_first_request() {
     assert_eq!(step, 2);
     assert_eq!(f.store.snapshot(f.run.id).unwrap().follow_ups.len(), 1);
 }
+
+#[test]
+fn native_team_command_check_contract_survives_delegation_and_denies_forged_local_receipt() {
+    let f = Fixture::new(true);
+    let root = f.claim(f.run.work[0].id);
+    let mut step = 0;
+    let mut child = Uuid::nil();
+    let command = json!({"name":"Unit check","argv":["/usr/bin/python3","check.py"],"inputPaths":[],"outputPaths":[],"timeoutSeconds":10});
+    let exit=f.worker(NativeTeamStart::Fresh(root),|_,system,messages,tools| {
+        assert!(system.contains("requiredCommands need verified execution receipts"));
+        assert!(tools.as_array().unwrap().iter().any(|tool|tool["function"]["name"]=="delegate" && tool["function"]["parameters"]["properties"]["output_contract"]["properties"].get("requiredCommands").is_some()));
+        step+=1;
+        Ok(if step==1 {call("delegate",json!({"agent_id":f.agents[1],"objective":"Run a check","expected_output":"Actual receipt",
+            "output_contract":{"requiredCommands":[command.clone()]}}))}
+        else {child=Uuid::parse_str(last_reply(messages)["assignment_id"].as_str().unwrap()).unwrap();call("await_children",json!({"assignment_ids":[child]}))})
+    }).unwrap();
+    assert_eq!(exit, NativeTeamExit::Yielded);
+    let worker = f.claim(child);
+    assert_eq!(
+        serde_json::to_value(&worker.assignment.output_contract.required_commands[0]).unwrap(),
+        command
+    );
+    let mut step = 0;
+    let mut artifact = Uuid::nil();
+    let exit=f.worker(NativeTeamStart::Fresh(worker),|_,_,messages,_| {
+        step+=1;
+        Ok(match step {
+            1=>call("save_document",json!({"name":"report.md","format":"md","content":"A proposed check is not an execution receipt."})),
+            2=>{artifact=Uuid::parse_str(last_reply(messages)["artifact_id"].as_str().unwrap()).unwrap();call("report_result",json!({"summary":"Claimed test","artifact_ids":[artifact],"checks":["Unit check"],
+                "executed_checks":[{"name":"Unit check","requestId":Uuid::new_v4()}]}))},
+            _=>{assert!(last_reply(messages).to_string().contains("Local/fallback attempt"));call("report_blocker",json!({"reason":"This check requires configured remote execution"}))}
+        })
+    }).unwrap();
+    assert_eq!(exit, NativeTeamExit::Settled);
+    let snapshot = f.store.snapshot(f.run.id).unwrap();
+    let work = snapshot.work.iter().find(|w| w.id == child).unwrap();
+    assert_eq!(work.status, AssignmentStatus::Blocked);
+    assert!(work.result.is_none());
+}

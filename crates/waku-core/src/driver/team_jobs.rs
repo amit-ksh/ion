@@ -306,12 +306,14 @@ pub(crate) fn run(
     let target = Uuid::parse_str(target.rsplit('@').next().unwrap_or(target))?;
     let policy = policy(target)?;
     validate_args(&policy, &args)?;
+    let check_context =
+        coordinator.command_check_context(&claimed.lease, workspace, crate::model::unix_time())?;
     let request = bundle(request_id, &args, workspace)?;
     // Validate the full wire request before creating a durable submitting record.
     body(&policy, &request)?;
     let client = Client::configured()?;
     manifest(&client, &policy)?;
-    let output = match coordinator.reserve_remote_job(
+    let output = match coordinator.reserve_remote_job_with_context(
         &claimed.lease,
         &request,
         policy.image,
@@ -319,6 +321,7 @@ pub(crate) fn run(
         &serde_json::to_string(&policy)?,
         policy.max_commands,
         crate::model::unix_time(),
+        check_context.as_ref(),
     )? {
         Some(receipt) => receipt,
         None => execute_with(
@@ -1221,3 +1224,7 @@ mod tests {
         assert!(validate_receipt(&reply, &f.request).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "team_job_checks_tests.rs"]
+mod check_tests;

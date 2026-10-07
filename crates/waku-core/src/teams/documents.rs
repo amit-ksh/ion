@@ -70,6 +70,7 @@ impl TeamCoordinator {
             &run,
             work,
             &AssignmentResult {
+                executed_checks: vec![],
                 summary: "Read assignment document".into(),
                 artifact_ids: vec![id],
                 checks: vec![],

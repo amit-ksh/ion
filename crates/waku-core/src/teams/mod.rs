@@ -15,6 +15,7 @@ use waku_protocol::{control::*, teams::*};
 mod apps;
 mod automation;
 mod budget;
+mod checks;
 mod continuation;
 mod decisions;
 mod dispatch;
@@ -1551,6 +1552,7 @@ fn validate_result(
     work: &TeamAssignment,
     result: &AssignmentResult,
 ) -> Result<()> {
+    checks::validate_references(result)?;
     text(&result.summary, 32_000, "Result summary")?;
     ensure!(
         serde_json::to_vec(result)?.len() <= 32 * 1024,

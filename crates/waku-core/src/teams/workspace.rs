@@ -630,7 +630,7 @@ fn compare_file(path: &Path, expected: Option<&str>) -> Result<()> {
     }
     Ok(())
 }
-fn safe_edit_path(root: &Path, relative: &str) -> Result<PathBuf> {
+pub(super) fn safe_edit_path(root: &Path, relative: &str) -> Result<PathBuf> {
     let value = Path::new(relative);
     ensure!(
         !value.is_absolute()
