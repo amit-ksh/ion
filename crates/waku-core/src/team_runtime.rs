@@ -85,6 +85,41 @@ impl Executor for NativeExecutor {
             // No spawn/model request has been sent. Fallback verifies the
             // same selected local harness/model before an attempt is claimed.
         }
+        if profile.provider == ProviderKind::Fx {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Fx model for this agent")?;
+            let binary = self.binary(ProviderKind::Fx)?;
+            self.cached_ready(format!("local:fx:{}:{model}", binary.display()), || {
+                driver::team_fx::ready(&binary, model)
+            })?;
+            return local_host(profile);
+        }
+        if profile.provider == ProviderKind::Antigravity {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned Antigravity model for this agent")?;
+            let binary = self.binary(ProviderKind::Antigravity)?;
+            self.cached_ready(
+                format!("local:antigravity:{}:{model}", binary.display()),
+                || driver::team_antigravity::ready(&binary, model),
+            )?;
+            return local_host(profile);
+        }
+        if profile.provider == ProviderKind::OpenCode2 {
+            let model = profile
+                .model
+                .as_deref()
+                .context("Choose a pinned OpenCode 2 model for this agent")?;
+            let binary = self.binary(ProviderKind::OpenCode2)?;
+            self.cached_ready(
+                format!("local:opencode2:{}:{model}", binary.display()),
+                || driver::team_opencode2::ready(&binary, model),
+            )?;
+            return local_host(profile);
+        }
         if profile.provider == ProviderKind::Grok {
             let model = profile
                 .model
@@ -192,9 +227,19 @@ impl Executor for NativeExecutor {
                 .map_err(|e| anyhow::anyhow!("Claude setup is required: {e}"))?;
             return local_host(profile);
         }
+        if profile.provider == ProviderKind::Amp {
+            anyhow::bail!(
+                "Amp Teams still requires a verified bounded request and usage receipt for its native account. Native modes alone do not pin the model; the plugin helper exposes maxTokens but does not return metered usage. The selected harness is retained"
+            );
+        }
+        if profile.provider == ProviderKind::Cursor {
+            anyhow::bail!(
+                "Cursor Teams still requires a verified bounded request and usage receipt for its native account. Read-only/ACP permission rejection does not disable all native tools or bound completion tokens. The selected harness is retained"
+            );
+        }
         ensure!(
             profile.provider == ProviderKind::Nebius,
-            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi, Oh My Pi, DeepSeek and Kimi. The selected harness is retained",
+            "{} does not yet expose a verified Teams completion contract. Supported Teams harnesses: Nebius, Claude, Codex, OpenCode, Pi, Oh My Pi, DeepSeek, Kimi, Grok, OpenCode 2, Antigravity and Fx. The selected harness is retained",
             profile.provider.display_name()
         );
         let model = profile
@@ -268,7 +313,34 @@ impl Executor for NativeExecutor {
             NativeTeamStart::Fresh(c) => c.profile.provider,
             NativeTeamStart::Resumed(c) => c.claimed.profile.provider,
         };
-        if provider == ProviderKind::Grok {
+        if provider == ProviderKind::Fx {
+            driver::team_fx::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::Fx)?,
+            )
+        } else if provider == ProviderKind::Antigravity {
+            driver::team_antigravity::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::Antigravity)?,
+            )
+        } else if provider == ProviderKind::OpenCode2 {
+            driver::team_opencode2::run(
+                coordinator,
+                start,
+                workspace,
+                events,
+                cancelled,
+                &self.binary(ProviderKind::OpenCode2)?,
+            )
+        } else if provider == ProviderKind::Grok {
             driver::team_grok::run(
                 coordinator,
                 start,

@@ -82,6 +82,33 @@ pub fn execute(input: &[u8]) -> Result<Value> {
                 &cancelled,
             )?
         }
+        ProviderKind::Fx => driver::team_fx::worker_completion(
+            model,
+            &request.system,
+            &request.messages,
+            &request.tools,
+            &cancelled,
+            cap.input_cap,
+            cap.output_cap,
+        )?,
+        ProviderKind::Antigravity => driver::team_antigravity::worker_completion(
+            model,
+            &request.system,
+            &request.messages,
+            &request.tools,
+            &cancelled,
+            cap.input_cap,
+            cap.output_cap,
+        )?,
+        ProviderKind::OpenCode2 => driver::team_opencode2::worker_completion(
+            model,
+            &request.system,
+            &request.messages,
+            &request.tools,
+            &cancelled,
+            cap.input_cap,
+            cap.output_cap,
+        )?,
         ProviderKind::Grok => driver::team_grok::worker_completion(
             model,
             &request.system,

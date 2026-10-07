@@ -32,6 +32,9 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
                     | waku_protocol::model::ProviderKind::OhMyPi
                     | waku_protocol::model::ProviderKind::DeepSeek
                     | waku_protocol::model::ProviderKind::Kimi
+                    | waku_protocol::model::ProviderKind::Antigravity
+                    | waku_protocol::model::ProviderKind::OpenCode2
+                    | waku_protocol::model::ProviderKind::Fx
                     | waku_protocol::model::ProviderKind::Grok
                     | waku_protocol::model::ProviderKind::Codex
                     | waku_protocol::model::ProviderKind::OpenCode
@@ -239,6 +242,9 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
                         | waku_protocol::model::ProviderKind::OhMyPi
                         | waku_protocol::model::ProviderKind::DeepSeek
                         | waku_protocol::model::ProviderKind::Kimi
+                        | waku_protocol::model::ProviderKind::Antigravity
+                        | waku_protocol::model::ProviderKind::OpenCode2
+                        | waku_protocol::model::ProviderKind::Fx
                         | waku_protocol::model::ProviderKind::Grok
                         | waku_protocol::model::ProviderKind::Codex
                         | waku_protocol::model::ProviderKind::OpenCode

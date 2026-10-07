@@ -130,7 +130,7 @@ pub fn discover_catalog(
     binary: &Path,
 ) -> (Vec<ProviderModel>, Vec<ProviderAgentPreset>) {
     let (discovered, discovered_presets) = match provider {
-        ProviderKind::Antigravity => (Vec::new(), None),
+        ProviderKind::Antigravity => (discover_antigravity_models(binary), None),
         // Amp exposes stable agent modes rather than a model inventory. Keep
         // the picker aligned with the modes advertised by the current CLI.
         ProviderKind::Amp => (Vec::new(), None),
@@ -883,6 +883,59 @@ fn parse_deepseek_model_catalog(catalog: &Value) -> Vec<ProviderModel> {
                 })
         })
         .collect()
+}
+
+// Catalog discovery runs on the provider worker, never on a render path.
+fn discover_antigravity_models(binary: &Path) -> Vec<ProviderModel> {
+    let mut command = crate::command_env::command(binary);
+    command
+        .arg("models")
+        .env("AGY_CLI_DISABLE_AUTO_UPDATE", "true");
+    let Ok(output) = crate::team_process::bounded_process(
+        &mut command,
+        b"",
+        &std::sync::atomic::AtomicBool::new(false),
+        Duration::from_secs(20),
+    ) else {
+        return Vec::new();
+    };
+    parse_antigravity_models(&String::from_utf8_lossy(&output))
+}
+fn parse_antigravity_models(output: &str) -> Vec<ProviderModel> {
+    let mut models: Vec<_> = output
+        .lines()
+        .filter_map(|line| {
+            let (id, name) = line.split_once('\t')?;
+            let id = id.trim();
+            let name = name.trim();
+            if id.is_empty()
+                || name.is_empty()
+                || id.len() > 256
+                || id.chars().any(char::is_whitespace)
+            {
+                return None;
+            }
+            Some(ProviderModel::new(id, name))
+        })
+        .collect();
+    if !models.is_empty() {
+        models.insert(
+            0,
+            ProviderModel::new("default", "Antigravity default").default(),
+        );
+    }
+    models
+}
+#[cfg(test)]
+#[test]
+fn antigravity_catalog_preserves_exact_native_effort_slugs() {
+    let models = parse_antigravity_models(
+        "Fetching available models...\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\ngemini-3.1-pro-low\tGemini 3.1 Pro (Low)\ninvalid slug\tInvalid\n",
+    );
+    assert_eq!(
+        models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+        vec!["default", "gemini-3.1-pro-high", "gemini-3.1-pro-low"]
+    );
 }
 
 fn discover_fx_models(binary: &Path) -> Vec<ProviderModel> {

@@ -175,6 +175,9 @@ fn capability(client: &Client, profile: &AgentProfile) -> Result<Capability> {
                 | ProviderKind::OhMyPi
                 | ProviderKind::DeepSeek
                 | ProviderKind::Kimi
+                | ProviderKind::Antigravity
+                | ProviderKind::OpenCode2
+                | ProviderKind::Fx
                 | ProviderKind::Grok
                 | ProviderKind::Codex
                 | ProviderKind::Claude

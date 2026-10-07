@@ -1,6 +1,6 @@
 # Agent Teams release checklist
 
-Updated 2026-10-06. Implementation branch: `codex/ion-agent-teams` in the managed
+Updated 2026-10-07. Implementation branch: `codex/ion-agent-teams` in the managed
 worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
@@ -58,9 +58,15 @@ assert live account acceptance, visual validation or production release readines
 
 ## Development still required for the full planned release
 
-- [ ] Additional Teams adapters for Antigravity, Amp, Cursor, Fx and OpenCode 2;
-  OpenCode/Pi/Oh My Pi/Kimi/Grok OAuth/custom provider transports. Their
-  existing solo drivers do not prove the bounded Teams execution contract.
+- [x] Antigravity native direct Gemini and OpenCode 2 standalone direct OpenAI
+  Teams adapters: Local, registered completion and recovery wiring.
+- [x] Fx configured direct OpenAI/Nebius adapter implementation and dispatch wiring.
+- [ ] Fx official native Linux/macOS fixture acceptance (no compatible Linux runtime
+  is available on this Windows development host).
+- [ ] Amp and Cursor Teams adapters: verified native account/request caps, effects,
+  auxiliary-call boundary and complete per-call usage. These remain development.
+- [ ] Unverified OAuth/subscription/custom provider transports for the additional
+  harnesses; preserving solo availability does not establish a Teams contract.
 - [ ] Normal-task team invocation bridges for external solo harnesses.
 - [x] Registered immutable ConTree worker: actual selected-harness completion,
   readiness, bounded transfer, durable operation identity, cancellation, restart
@@ -147,3 +153,16 @@ Current protocol is **28**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.
+
+## 2026-10-07 — additional harness review
+
+- [ ] Antigravity 1.3.0/1.3.1: select native Gemini credentials and exact low/high
+  slug; verify thinking tokens are included in usage and output reservation.
+- [ ] OpenCode 2 beta-17823: verify standalone execution preserves the original
+  service and native selected direct account; test conflicting/OAuth profiles.
+- [ ] Fx 0.0.13: verify the official native binary on Linux/macOS, exact configured
+  model limits and account, one provider call and no native effects.
+- [ ] With live access, verify all three adapters through delegation, review, stop,
+  checkpoints, registered worker and pre-execution Local fallback.
+- [ ] Amp/Cursor: finish the outstanding development contracts in the adapter guide
+  before enabling Teams. Credentials alone do not complete those adapters.

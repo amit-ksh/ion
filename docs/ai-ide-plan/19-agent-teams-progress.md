@@ -1461,3 +1461,58 @@ external solo-harness team bridges. Full remote project files, commands/executed
 checks, resource/egress and monetary limits, and GPU/ML jobs remain development
 work. The sandbox worker currently performs selected-harness completion only.
 Setup and later acceptance are recorded in the adapter guide and release checklist.
+
+## 2026-10-07 — Antigravity, OpenCode 2 and Fx adapter implementations
+
+- Added private native Antigravity Gemini and OpenCode 2 standalone completions,
+  with selected host-owned accounts and exact supported models/releases. Wired
+  Local readiness/dispatch, registered worker execution and both recovery paths.
+- Added Fx 0.0.13's configured direct OpenAI/Nebius ask contract and the same
+  execution wiring. Windows Local readiness explains its Linux/macOS requirement.
+  Official native Linux/macOS acceptance is still outstanding.
+- Added canonical bounded transport input/output. Native context/history and tools
+  are removed before a single authenticated provider call. Google title requests
+  are rejected locally; native function/code/file effects never reach the client.
+  Usage must include thinking and stay within the reserved call.
+- Added Antigravity model discovery in a bounded background process, preserving
+  exact low/high native slugs. Normal New Task/team invocation behavior is intact.
+- Research found remaining Amp/Cursor native contract gaps. Their specific
+  readiness errors retain the selected harness and stop before an attempt. The
+  adapter guide records current official references and outstanding work.
+
+Verification before the final small profile/timeout fixes: 166 targeted Teams
+regression tests passed, 10 optional native fixtures ignored. OpenCode 2 and
+Antigravity native fixtures were run separately with fake keys/localhost and
+passed. Running them concurrently with filesystem-heavy regression tests exposed
+fixture startup contention; their fixture timeout now matches the bounded native
+startup. Antigravity's self-updating public fixture also exposed a patch release;
+1.3.1's official SHA512 manifest was verified before extending acceptance.
+
+The official OpenCode 2 npm integrity matched; executable SHA256:
+`d24907b190298e03bd5a06a6d0a47767878660948db40e7040d3ea7df7ec7ae6`.
+Antigravity 1.3.0 SHA256:
+`c1b0001989c4051a41f5104484de182db5014fa155053c8088baacf1663063bf`;
+1.3.1 SHA256:
+`38f30c7dd1ed808f5cf98fe2014de3d30903035a4f0df02d3eb72a9ff8993741`.
+Fx official v0.0.13 source and Linux release were cached for inspection. Public
+binaries/source remain only in the ignored cache; no global installation or
+account modification was requested. One initial OpenCode endpoint-schema fixture
+failure reached the official provider with a fake key and received 401; the
+compatible schema corrected it. No live billing was performed. No cloud operation,
+full remote command/GPU execution, visual test or second watcher was performed.
+
+Twelve Teams adapters are implemented; eleven have native transport/CLI fixture evidence.
+Fx native acceptance, Amp/Cursor adapters, additional account transports and full
+remote files/commands/GPU execution remain outstanding. See the release checklist
+and adapter guide for development and later live-review gates.
+
+
+Final verification after those fixes: **19 focused checks passed**, including
+both actual native OpenCode 2 and Antigravity 1.3.1 executable fixtures. The checks
+cover canonical Chat/Responses/Gemini requests, complete usage and thinking,
+rejected effects/identity changes, private account/profile contracts and native
+model discovery. The Fx installed-binary fixture remains ignored pending a
+compatible Linux/macOS host. These counts overlap the earlier 166-test regression
+run and are not an additional count of unique regression tests. Final desktop,
+daemon and worker binary checking, formatting and Git whitespace checks passed.
+No live account acceptance, cloud operation or visual test was performed.

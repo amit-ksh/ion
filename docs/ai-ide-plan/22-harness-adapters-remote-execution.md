@@ -1,6 +1,6 @@
 # Teams harness adapters and Nebius execution
 
-Updated 2026-10-06. Implementation: `codex/ion-agent-teams` in the managed
+Updated 2026-10-07. Implementation: `codex/ion-agent-teams` in the managed
 worktree. No integration into `ion-prod`, cloud deployment or live provider
 acceptance is implied by this checkpoint.
 
@@ -17,29 +17,45 @@ acceptance is implied by this checkpoint.
 | DeepSeek Harness | Private native headless composition plus one-use Chat transport | Yes | Native host DEEPSEEK_API_KEY; verified 0.1.5-rc.1 runtime |
 | Kimi Code | Private tool-free native CLI plus bounded one-use Chat transport | Yes | Selected native direct coding API login; verified 2.1.1 runtime |
 | Grok Build | Private native CLI plus prompt-bound one-use Responses transport | Yes | Native host XAI_API_KEY; verified 1.0.46 runtime |
-| Antigravity, Amp, Cursor, Fx, OpenCode 2 | Teams adapter still required | Not enabled | Selection remains pinned |
+| Antigravity | Private native Gemini completion, canonical one-use gate | Yes | Native Gemini profile and host GEMINI_API_KEY; 1.3.0/1.3.1 |
+| OpenCode 2 | Private standalone CLI, canonical one-use Responses gate | Yes | Native direct OpenAI key; beta-17823 |
+| Fx | Configured direct-provider ask adapter; Linux/macOS native acceptance pending | Wired, Linux/macOS required | Native selected configured OpenAI or Nebius bearer slot; 0.0.13 |
+| Amp, Cursor | Verified Teams contract still required | Not enabled | Selection remains pinned |
 
-The other five harnesses remain in the normal app catalog. Their existing solo
-runtimes do not establish the permission, single-request and accounting contract
-needed by this Teams executor. They are not silently replaced with another CLI
-or a Nebius model. OpenCode/Pi/Oh My Pi/Kimi/Grok OAuth, plugins and custom model endpoints also need
-separate verified transports before they can be enabled here.
+Twelve catalog harnesses have Teams adapter implementations. Eleven have native
+transport/CLI fixture evidence; Fx's new implementation has source/profile/transport tests
+but still needs its official Linux/macOS executable acceptance. No compatible
+Linux distribution is available on this Windows host; the installed Ubuntu WSL
+entry cannot mount its missing disk. This is an outstanding verification gate.
 
-### Contracts still needed for the other catalog harnesses
+Unsupported native account types, custom endpoints and releases block readiness.
+They remain selectable for normal solo use. A saved Teams harness is preserved
+when readiness fails; another CLI or Nebius account is never substituted.
 
-The current source transports establish the following gaps. A normal solo run
-is not evidence that a Teams adapter can enforce these constraints.
+### Amp and Cursor: remaining development contracts
 
-| Harness group | Existing transport | Contract required before enabling Teams |
-| --- | --- | --- |
-| Antigravity | Native NDJSON session | Verified tool/resource disable controls, one-request boundary and exact model usage/caps |
-| Amp | Native streaming JSON and CLI-managed modes | Restricted permission rules and a verified exact model/request/accounting boundary; the current solo launch requires Full access |
-| Cursor, Fx | Long-lived ACP sessions | Disable native effects and auxiliary calls; pin a model, enforce request limits and receive complete usage |
-| OpenCode 2 | Shared resident HTTP/event service | Isolated bounded completion sessions with enforceable effects and request/cap accounting |
+Research was checked against current official docs and public native releases on
+2026-10-07. These are contract gaps, not completed adapters or just missing keys.
 
-Those adapters remain development work. Enabling a provider without these checks
-would expand an agent's saved access or spend beyond its reserved calls. Unsupported
-profiles block readiness before an attempt or billable request is created.
+- **Amp:** native modes are account-managed. Custom plugin agents can pin a model
+  and remove tools. The plugin AI helper accepts `maxTokens`, but returns text or
+  an object without per-call metered usage. Thread-level usage and server routing
+  still need a verified, bounded single-call transport, with auxiliary work and
+  account fallback controlled. Inspected native `0.0.1791302439-g888480`.
+  [Plugin API](https://ampcode.com/docs/plugin-api),
+  [native settings](https://ampcode.com/docs/cli/settings),
+  [account routing](https://ampcode.com/docs/customize/model-routing).
+- **Cursor:** native `2026.10.01-e373342` help and ACP support model selection and
+  read-only modes; read-only still permits native reads. A permission callback
+  does not constrain every native tool or completion token. The separate local
+  provider runtime is another account/transport contract and must be verified
+  before support is claimed. Implement a gate for the selected native account
+  with output caps, complete usage and blocked auxiliary/effect dispatch.
+  [parameters](https://cursor.com/docs/cli/reference/parameters),
+  [ACP](https://cursor.com/docs/cli/acp).
+
+Readiness reports the specific gap before an attempt/model call starts. Those two
+Teams adapters remain unchecked in the release checklist.
 
 ## What executes where
 
@@ -125,6 +141,54 @@ both raw and escaped input are bounded. Full native contexts are reserved:
 1,048,576 for K3 or 262,144 for the other two models, plus 32,768 output tokens.
 The gate rejects missing, enlarged or ambiguous output caps before forwarding.
 Raw credentials/events are not stored in team transcripts or process failure messages.
+
+### Antigravity, OpenCode 2 and Fx setup
+
+**Antigravity:** install native 1.3.0 or 1.3.1. Select its Gemini provider in the
+native CLI and set the execution host's `GEMINI_API_KEY` privately. Select exact
+`gemini-3.1-pro-low` or `gemini-3.1-pro-high` in Ion. The native catalog is now
+read with a bounded background probe, retaining exact effort slugs. The Gemini
+API model is `gemini-3.1-pro-preview`; 1,048,576 input and 32,768 total output
+(including thinking) tokens are reserved. Signed-in Google accounts and custom
+model routes require separate verification. Ion reads the native settings without
+changing them. Private profile/environment paths prevent user project, plugin,
+skill and MCP discovery. Title requests are rejected locally; only canonical Ion
+instructions/input reach Google. Native task/function/code/file effects cannot
+reach the CLI. [Google thinking/output limits](https://ai.google.dev/gemini-api/docs/generate-content/thinking).
+
+**OpenCode 2:** use exact native `opencode2 v0.0.0-beta-17823` and model
+`openai/gpt-5.4`. Its direct native credential is read from the host's credential
+SQLite store or matching `OPENAI_API_KEY`. Conflicting, OAuth, ambiguous or custom
+profiles are refused. The standalone child uses a private home, config, database,
+cache, state and empty workspace, without registering/adopting the user's service.
+The native compatible `provider.options.baseURL` schema is used. The gate clamps
+output to 32,768, reserves 272,000 input, strips native context/tools and requires
+complete usage. Automatic service/session configuration remains untouched.
+
+**Fx:** use 0.0.13 on Linux/macOS (including a registered Linux worker). Native
+`~/.fx/settings.json` must select a configured `openai-chat-completions` provider
+with the official OpenAI or Nebius base URL, bearer environment slot and exact
+model context/output metadata. Pin that exact model ID. Ion preserves the native
+provider/credential selection. A private profile disables saved sessions, context,
+permission grants, titles, upgrades and prompt history. The native `ask` command
+gets literal stdin, one step and a decimal-seconds timeout. Canonical gated input
+is bounded before submission; output is clamped to the native limit or 32,768,
+whichever is smaller. Gateway/Codex/Grok subscription routes require their own
+transport. A Windows Local choice reports the platform requirement.
+[Official Fx v0.0.13 source](https://github.com/vercel-labs/fx/tree/v0.0.13).
+
+Later acceptance checklist:
+
+- [ ] Install/authenticate a compatible native profile on the chosen execution host;
+  keep keys out of chat and committed configuration.
+- [ ] Run a Local lead/specialist task for each new adapter. Check exact harness,
+  model, grants, one-use request, usage, document handoff and review.
+- [ ] Run the official Fx binary fixture on Linux/macOS with a fake key and localhost
+  provider before marking Fx native acceptance complete.
+- [ ] Configure/register the same native profiles in immutable sandbox worker images;
+  verify Local fallback before execution and no fallback after uncertain submission.
+- [ ] Review cancellation, changed profile/model/limits, over-budget replies and
+  unavailable accounts; check that no native tools, retry or title call can bill.
 
 ### Grok native setup and later acceptance
 
@@ -290,13 +354,13 @@ cargo test -p waku-core driver::team_ --lib --locked -- --ignored --nocapture --
 ```
 
 The optional `ION_TEST_PI_BINARY`, `ION_TEST_OPENCODE_BINARY`,
-`ION_TEST_OMP_BINARY`, `ION_TEST_DEEPSEEK_BINARY`, `ION_TEST_KIMI_BINARY` and
-`ION_TEST_GROK_BINARY` variables select
-an installed executable for these fixture checks. They do not change app settings.
+`ION_TEST_OMP_BINARY`, `ION_TEST_DEEPSEEK_BINARY`, `ION_TEST_KIMI_BINARY`,
+`ION_TEST_GROK_BINARY`, `ION_TEST_ANTIGRAVITY_BINARY`, `ION_TEST_OPENCODE2_BINARY`
+and `ION_TEST_FX_BINARY` variables select an installed executable for these fixture checks. They do not change app settings.
 
 Your live review:
 
-- [ ] Create a mixed Nebius/Claude/Codex/OpenCode/Pi/Oh My Pi/DeepSeek/Kimi/Grok team with your exact available
+- [ ] Create a mixed team from the supported harnesses with your exact available
   models and grants; complete a delegated document and an isolated code edit.
 - [ ] Confirm task/run labels show each selected harness, model and actual host.
 - [ ] Set a token cap below one required reservation; verify no provider call starts.
