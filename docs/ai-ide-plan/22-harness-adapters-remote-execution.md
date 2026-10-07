@@ -74,8 +74,9 @@ Later increments add bounded credential-free command/file jobs with authentic
 receipts, plus GPU owner lifecycle/result transport and durable waits for approved
 bound jobs. See [remote commands and GPU jobs](23-remote-command-gpu-jobs.md) for
 current coverage. Full remote project/large-file transfers and enabled GPU agent
-submission remain development; command receipts are not yet enforced in required
-output-contract checks. ConTree's
+submission remain development. Pinned required-command gates now verify original
+successful receipts and current source witnesses. Saved GPU maintenance continues
+through task cancellation and owner restart. ConTree's
 verified instance request has a layer-size limit but no verified GPU/CPU resource
 fields. Do not describe this checkpoint as an ML execution service.
 

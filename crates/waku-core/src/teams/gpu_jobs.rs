@@ -2,6 +2,7 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+mod maintenance;
 pub(in crate::teams) mod recovery;
 mod resources;
 mod results;
@@ -235,13 +236,16 @@ impl TeamCoordinator {
             .and_then(|v| v.strip_suffix('s'))
             .and_then(|v| v.parse().ok())
             .context("GPU timeout missing")?;
+        ensure!(
+            (3600..=86400).contains(&seconds),
+            "GPU job timeout must be 3600..86400 seconds"
+        );
         let deadline = now.checked_add(seconds).context("GPU deadline overflow")?;
         ensure!(
-            (1..=86400).contains(&seconds)
-                && deadline
-                    <= run
-                        .created_at
-                        .saturating_add(u64::from(run.limits.timeout_seconds)),
+            deadline
+                <= run
+                    .created_at
+                    .saturating_add(u64::from(run.limits.timeout_seconds)),
             "GPU deadline exceeds the original team deadline"
         );
         tx.execute("INSERT INTO ion_team_gpu_jobs(request_id,run_id,work_id,attempt_id,project,signature,body,policy,reserved_micros,currency,deadline_at,state,compute_ids) VALUES(?,?,?,?,?,?,?,?,?,?,?,'submitting','[]')",

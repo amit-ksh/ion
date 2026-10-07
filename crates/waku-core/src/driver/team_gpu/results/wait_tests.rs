@@ -18,6 +18,17 @@ fn running() -> (super::super::tests::Fixture, Launch) {
     (f, l)
 }
 fn finish_with_proofs(f: &super::super::tests::Fixture, l: &Launch) {
+    finish_cleanup(f, l);
+    f.coordinator
+        .record_gpu_result(
+            l.request.request_id,
+            "aijob-fixture",
+            &receipt(&l.request),
+            crate::model::unix_time(),
+        )
+        .unwrap();
+}
+pub(super) fn finish_cleanup(f: &super::super::tests::Fixture, l: &Launch) {
     let now = crate::model::unix_time();
     f.coordinator
         .record_gpu_observation(
@@ -25,14 +36,6 @@ fn finish_with_proofs(f: &super::super::tests::Fixture, l: &Launch) {
             "aijob-fixture",
             "COMPLETED",
             &["compute-fixture".into()],
-            now,
-        )
-        .unwrap();
-    f.coordinator
-        .record_gpu_result(
-            l.request.request_id,
-            "aijob-fixture",
-            &receipt(&l.request),
             now,
         )
         .unwrap();

@@ -37,6 +37,14 @@ trait Executor: Send + Sync {
     fn gpu_progress(&self, _coordinator: &TeamCoordinator, _work: Uuid) -> Result<bool> {
         Ok(false)
     }
+    fn gpu_maintenance(
+        &self,
+        _coordinator: &TeamCoordinator,
+        _attempt: Uuid,
+        _request: Uuid,
+    ) -> Result<bool> {
+        Ok(false)
+    }
     fn run(
         &self,
         coordinator: &TeamCoordinator,
@@ -277,6 +285,14 @@ impl Executor for NativeExecutor {
     fn gpu_progress(&self, coordinator: &TeamCoordinator, work: Uuid) -> Result<bool> {
         driver::team_gpu::progress_wait(coordinator, work)
     }
+    fn gpu_maintenance(
+        &self,
+        coordinator: &TeamCoordinator,
+        attempt: Uuid,
+        request: Uuid,
+    ) -> Result<bool> {
+        driver::team_gpu::progress_saved_job(coordinator, attempt, request)
+    }
     fn remote_stopped(&self, coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
         if coordinator.remote_attempt_stopped(attempt)?
             && coordinator.unfinished_jobs(attempt)?.is_empty()
@@ -515,6 +531,7 @@ pub(crate) struct TeamRuntime {
     scheduler: Mutex<Option<JoinHandle<()>>>,
     automation_tick: Mutex<Option<Instant>>,
     gpu_polls: Mutex<HashMap<Uuid, (Instant, Option<JoinHandle<()>>)>>,
+    gpu_maintenance_tick: Mutex<Option<Instant>>,
 }
 impl TeamRuntime {
     pub(crate) fn new(
@@ -565,6 +582,7 @@ impl TeamRuntime {
             scheduler: Mutex::new(None),
             automation_tick: Mutex::new(None),
             gpu_polls: Mutex::new(HashMap::new()),
+            gpu_maintenance_tick: Mutex::new(None),
         })
     }
     pub(crate) fn start(self: &Arc<Self>, publisher: RuntimePublisher) -> Result<()> {
@@ -860,6 +878,7 @@ impl TeamRuntime {
                 self.publisher().tasks_changed();
             }
         }
+        self.poll_gpu_maintenance()?;
         let runs = self.coordinator.dispatch_runs(*after, 32)?;
         if runs.is_empty() {
             *after = None;
@@ -873,6 +892,70 @@ impl TeamRuntime {
         }
         Ok(())
     }
+    /// Saved GPU work has its own durable queue after canceled runs leave dispatch.
+    /// It shares the four-worker pool with active waits and never starts a model.
+    fn poll_gpu_maintenance(&self) -> Result<()> {
+        if self.stopping.load(Ordering::Acquire) {
+            return Ok(());
+        };
+        {
+            let mut last = self.gpu_maintenance_tick.lock();
+            if last.is_some_and(|at| at.elapsed() < Duration::from_secs(5)) {
+                return Ok(());
+            };
+            *last = Some(Instant::now());
+        }
+        let mut polls = self.gpu_polls.lock();
+        for (_, handle) in polls.values_mut() {
+            if handle.as_ref().is_some_and(JoinHandle::is_finished) {
+                let _ = handle.take().unwrap().join();
+            }
+        }
+        polls.retain(|_, (at, h)| h.is_some() || at.elapsed() < Duration::from_secs(5));
+        while polls.values().filter(|(_, h)| h.is_some()).count() < 4 {
+            let busy: Vec<_> = polls.keys().copied().collect();
+            let Some(claim) = self.coordinator.claim_gpu_maintenance(unix_time(), &busy)? else {
+                break;
+            };
+            let coordinator = self.coordinator.clone();
+            let executor = self.executor.clone();
+            let wake = self.wake.clone();
+            let publisher = self.publisher.lock().clone();
+            let work = claim.work_id;
+            let rollback = claim.clone();
+            let handle = thread::Builder::new()
+                .name("ion-gpu-maintenance".into())
+                .spawn(move || {
+                    let outcome =
+                        executor.gpu_maintenance(&coordinator, claim.attempt_id, claim.request_id);
+                    let complete = matches!(outcome, Ok(true));
+                    if let Err(error) = outcome {
+                        eprintln!("Teams GPU maintenance: {error:#}");
+                    }
+                    if let Err(error) =
+                        coordinator.finish_gpu_maintenance(&claim, complete, unix_time())
+                    {
+                        eprintln!("Teams GPU maintenance schedule: {error:#}");
+                    }
+                    if let Some(publisher) = publisher {
+                        publisher.tasks_changed();
+                    }
+                    let _ = wake.try_send(());
+                });
+            match handle {
+                Ok(handle) => {
+                    polls.insert(work, (Instant::now(), Some(handle)));
+                }
+                Err(error) => {
+                    self.coordinator
+                        .finish_gpu_maintenance(&rollback, false, unix_time())?;
+                    return Err(error.into());
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Bounded independent workers keep provider waits off the dispatcher/state locks.
     fn poll_gpu_wait(&self, work: Uuid) -> Result<()> {
         if self.coordinator.gpu_wait_request(work)?.is_none() {

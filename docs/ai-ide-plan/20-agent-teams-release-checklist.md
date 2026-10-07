@@ -201,8 +201,13 @@ second development watcher was performed during these checkpoints.
   verified cleanup. Monetary reservations remain held independently.
 - [ ] GPU agent submission, verified monetary/resource/egress enforcement, large
   dataset/checkpoint volumes, retention policy and live acceptance.
-- [ ] Persistent post-cancellation result collection; the owner collector remains
-  available, but a canceled run does not imply further automatic receipt polling.
+- [x] Persistent post-cancellation result collection and cleanup maintenance with
+  saved backoff, fenced expiring claims and the shared four-worker GPU pool.
+  Runtime receipt/cleanup settlement retains canceled status and monetary holds.
+- [x] Provider GPU job timeout minimum (one hour), separate short command deadline
+  and unchanged original team deadline; invalid new jobs fail before reservation.
+- [ ] Live post-cancellation/restart/permission/concurrency review from the command
+  and GPU guide; GPU submission still needs the launch policy integrations above.
 - [x] Enforce pinned executed command receipts in required output-contract gates,
   with exact arguments/files/time, current-attempt identity and source freshness.
 - [ ] Live executed-check review, including source changes, parent rework, missing

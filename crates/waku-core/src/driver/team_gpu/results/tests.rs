@@ -461,3 +461,194 @@ fn team_gpu_result_without_terminal_observation_or_approved_volume_does_no_stora
             .is_err()
     );
 }
+
+#[test]
+fn team_gpu_maintenance_collects_late_canceled_receipt_after_restart_without_rerunning_or_releasing_money()
+ {
+    use crate::teams::AssignmentOutcome;
+    use waku_protocol::teams::TeamRunStatus;
+    let (f, l) = setup(true);
+    super::wait_tests::finish_cleanup(&f, &l);
+    let now = crate::model::unix_time();
+    let run = f.coordinator.snapshot(f.lease.run_id()).unwrap();
+    f.coordinator.stop(run.id, run.revision, now).unwrap();
+    let stopped = f
+        .coordinator
+        .report(&f.lease, AssignmentOutcome::Canceled, now)
+        .unwrap();
+    assert_eq!(stopped.status, TeamRunStatus::Canceled);
+    let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+    assert!(reopened.dispatch_runs(None, 32).unwrap().is_empty());
+    let api = Server::new(vec![(200, bytes(bucket())), (200, bytes(bucket()))]);
+    let objects = Server::new(vec![
+        (404, vec![]),
+        (200, serde_json::to_vec(&receipt(&l.request)).unwrap()),
+    ]);
+    let c = client(&api);
+    let claim = reopened.claim_gpu_maintenance(now, &[]).unwrap().unwrap();
+    let record = reopened.gpu_jobs(claim.attempt_id).unwrap().remove(0);
+    assert!(
+        !super::super::progress_saved_with(
+            &c,
+            &reopened,
+            &record,
+            claim.attempt_id,
+            |c, coordinator, record, attempt| collect_saved_with(
+                c,
+                coordinator,
+                record,
+                attempt,
+                || Ok(reader(&objects))
+            )
+        )
+        .unwrap()
+    );
+    reopened.finish_gpu_maintenance(&claim, false, now).unwrap();
+    assert!(reopened.has_pending_effect(run.id).unwrap());
+    assert!(
+        reopened.gpu_jobs(claim.attempt_id).unwrap()[0]
+            .result_receipt
+            .is_none()
+    );
+    let restarted = TeamCoordinator::new(f.dir.join("control.db"));
+    let next = restarted
+        .claim_gpu_maintenance(now + 5, &[])
+        .unwrap()
+        .unwrap();
+    assert_eq!(next.request_id, claim.request_id);
+    assert!(
+        super::super::progress_saved_with(
+            &c,
+            &restarted,
+            &record,
+            next.attempt_id,
+            |c, coordinator, record, attempt| collect_saved_with(
+                c,
+                coordinator,
+                record,
+                attempt,
+                || Ok(reader(&objects))
+            )
+        )
+        .unwrap()
+    );
+    restarted
+        .finish_gpu_maintenance(&next, true, now + 5)
+        .unwrap();
+    let saved = restarted.gpu_jobs(next.attempt_id).unwrap().remove(0);
+    assert_eq!(saved.state, "settled");
+    assert_eq!(saved.result_receipt.as_ref().unwrap().exit_code, 7);
+    assert_eq!(
+        saved.result_receipt.as_ref().unwrap().outputs[0].sha256,
+        receipt(&l.request).outputs[0].sha256
+    );
+    assert!(saved.result_artifact.is_some());
+    assert_eq!(
+        restarted.snapshot(run.id).unwrap().status,
+        TeamRunStatus::Canceled
+    );
+    assert!(!restarted.has_pending_effect(run.id).unwrap());
+    assert!(
+        restarted
+            .claim_gpu_maintenance(now + 1000, &[])
+            .unwrap()
+            .is_none()
+    );
+    let revision = restarted.snapshot(run.id).unwrap().revision;
+    // The actual production entry point replays saved proofs without any credentials.
+    assert!(
+        super::super::progress_saved_job(&restarted, next.attempt_id, next.request_id).unwrap()
+    );
+    assert!(super::super::progress_saved_job(&restarted, Uuid::new_v4(), next.request_id).is_err());
+    assert_eq!(restarted.snapshot(run.id).unwrap().revision, revision);
+    let db = rusqlite::Connection::open(f.dir.join("control.db")).unwrap();
+    let (money,count):(u64,u64)=db.query_row("SELECT reserved_micros,(SELECT count(*) FROM ion_team_gpu_results) FROM ion_team_gpu_jobs WHERE request_id=?",[next.request_id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(money, f.policy.reservation_micros);
+    assert_eq!(count, 1);
+    assert!(
+        api.finish()
+            .iter()
+            .all(|r| r.line.starts_with("GET /storage/v1/buckets/"))
+    );
+    let reads = objects.finish();
+    assert_eq!(reads.len(), 2);
+    assert_eq!(reads[0].line, reads[1].line);
+}
+#[test]
+fn team_gpu_maintenance_retains_real_result_even_when_cleanup_observation_fails() {
+    let (f, l) = setup(true);
+    let api = Server::new(vec![(500, bytes(json!({}))), (200, bytes(bucket()))]);
+    let objects = Server::new(vec![(
+        200,
+        serde_json::to_vec(&receipt(&l.request)).unwrap(),
+    )]);
+    let record = f
+        .coordinator
+        .gpu_jobs(f.lease.attempt_id())
+        .unwrap()
+        .remove(0);
+    assert!(
+        super::super::progress_saved_with(
+            &client(&api),
+            &f.coordinator,
+            &record,
+            f.lease.attempt_id(),
+            |c, coordinator, record, attempt| collect_saved_with(
+                c,
+                coordinator,
+                record,
+                attempt,
+                || Ok(reader(&objects))
+            )
+        )
+        .is_err()
+    );
+    let saved = f
+        .coordinator
+        .gpu_jobs(f.lease.attempt_id())
+        .unwrap()
+        .remove(0);
+    assert_eq!(saved.result_receipt.as_ref().unwrap().exit_code, 7);
+    assert!(saved.result_artifact.is_some());
+    assert_eq!(saved.state, "terminal");
+    assert!(f.coordinator.has_pending_effect(f.lease.run_id()).unwrap());
+    assert!(api.finish().iter().all(|r| r.line.starts_with("GET ")));
+    assert_eq!(objects.finish().len(), 1);
+}
+#[test]
+fn team_gpu_maintenance_missing_result_credentials_do_not_undo_cleanup_or_claim_success() {
+    let (f, l) = setup(true);
+    super::wait_tests::finish_cleanup(&f, &l);
+    let api = Server::new(vec![]);
+    let record = f
+        .coordinator
+        .gpu_jobs(f.lease.attempt_id())
+        .unwrap()
+        .remove(0);
+    let error = super::super::progress_saved_with(
+        &client(&api),
+        &f.coordinator,
+        &record,
+        f.lease.attempt_id(),
+        |c, coordinator, record, attempt| {
+            collect_saved_with(c, coordinator, record, attempt, || {
+                anyhow::bail!("S3 credentials unavailable")
+            })
+        },
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("S3 credentials unavailable"));
+    assert!(
+        record
+            .cleanup
+            .as_ref()
+            .is_some_and(|c| c.state == "verified")
+    );
+    assert!(
+        f.coordinator.gpu_jobs(f.lease.attempt_id()).unwrap()[0]
+            .result_receipt
+            .is_none()
+    );
+    assert!(f.coordinator.has_pending_effect(f.lease.run_id()).unwrap());
+    assert!(api.finish().is_empty());
+}

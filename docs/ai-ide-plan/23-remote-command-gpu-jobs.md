@@ -183,8 +183,8 @@ behavior only. The implementation still needs:
   plus structured absence checks for the original job, every captured VM and disk.
   Verified cleanup releases compute capacity only; outputs and unknown costs stay
   reserved independently.
-- [ ] GPU recovery UI and verified binding of the original job after lost create/
-  cancellation acknowledgement. No automatic create retry or Local fallback.
+- [x] GPU recovery UI and verified binding of original create/cancel/delete
+  operations from exact native witnesses. No automatic mutation retry or Local fallback.
 - [x] Native asynchronous waits for approved bound jobs with Stop/restart/deadline handling,
   retaining the selected harness, environment, grants and task identity.
 - [ ] Verified price snapshots and billing reconciliation for compute, startup,
@@ -199,9 +199,8 @@ behavior only. The implementation still needs:
 - [ ] GPU-compatible image validation and resource/quota/readiness checks.
 - [ ] Enforced egress/resource grants. `publicIp=false` is not a network-deny rule;
   registered subnet policy and access authorization are needed.
-- [ ] Recovery of jobs whose VM/disk inventory was never captured, and verified
-  operator binding after a lost deletion acknowledgement. These remain unresolved;
-  no missing witness is promoted into proof and no DELETE is automatically repeated.
+- [ ] Recovery of jobs whose VM/disk inventory was never captured. Missing native
+  operation/input witnesses remain unresolved; no DELETE is automatically repeated.
 - [ ] Live GPU acceptance with your configured project/quota/resources.
 
 ### GPU resource cleanup behavior
@@ -379,3 +378,49 @@ Later live review:
   grants, spending reservation and provider request count.
 - [ ] After deletion binding, delay job/VM/disk absence separately; verify cleanup
   remains unresolved until all original resources are confirmed absent.
+
+
+### Persistent GPU maintenance after task cancellation
+
+The owner now polls saved bound jobs even after canceled runs leave normal task
+dispatch. Terminal/blocked assignments and inactive runs use a durable maintenance
+queue. The queue retains the original request/attempt/job/operation identities;
+unbound or unknown create requests are not resubmitted. Active GPU waits retain
+their existing collector.
+
+Maintenance shares the four-worker pool with active waits, excludes work already
+being polled and checks for due work at most every five seconds. Poll claims have
+a saved token and ten-minute expiry. Owner restart reuses the schedule; after an
+owner crash, the unfinished claim becomes eligible when its lease expires. Missing
+receipts and unavailable permissions/credentials retain exponential retry backoff
+from five seconds to five minutes. Replaced callbacks cannot mark a newer claim
+done or reset its retry schedule. Provider reads stay outside dispatcher/state locks.
+
+A canceled model task does not prevent approved receipt collection or independent
+resource cleanup. A valid late command receipt and artifact remain inspectable,
+including real failure exit codes. Cleanup errors do not discard a retrieved
+receipt; missing S3 access does not prevent cleanup. Runtime settlement requires
+both receipt and cleanup proof. Canceled tasks stay canceled and all monetary
+reservations remain held for independent billing reconciliation.
+
+The provider job timeout now requires **3600–86400 seconds**: the documented
+Nebius minimum plus Ion's existing 24-hour cap. The worker command can have its
+own shorter limit. Ion never pads the original team deadline to fit a job; a run
+must have enough remaining time for the entire provider job lifetime. The default
+one-hour team limit may therefore need an explicit increase before GPU launch.
+[Provider timeout requirements](https://docs.nebius.com/serverless/jobs/manage).
+Agent submission still awaits the launch policy, price/resource/egress, volume
+and live acceptance work in [GPU launch research](RESEARCH-nebius-gpu-launch-policy.md).
+
+Later live review:
+
+- [ ] Stop a disposable GPU task, confirm it leaves dispatch, then publish its
+  approved receipt late; verify the same job produces one artifact without a new job.
+- [ ] Restart the owner during a retry and after an interrupted poll; verify saved
+  backoff/claim expiry and original IDs, with no model or Local fallback launch.
+- [ ] Deny storage and cleanup permissions independently; verify the other operation
+  continues, missing evidence stays pending and costs remain reserved.
+- [ ] Hold several provider observations; verify at most four shared GPU workers,
+  responsive task dispatch and no duplicate concurrent poll for the same work.
+- [ ] Try a sub-hour GPU job or insufficient original team time; verify rejection
+  before reservation/submission. Verify a short command deadline remains unchanged.

@@ -1823,3 +1823,47 @@ prices/billing/resource/egress controls, GPU agent submission and post-cancellat
 collection remain development. Amp/Cursor contracts, Fx native Linux/macOS
 acceptance and live provider/cloud review remain open. The full goal stays active.
 See [executed command requirements and review](23-remote-command-gpu-jobs.md#executed-command-checks).
+
+
+## Persistent GPU maintenance and provider timeout correction (2026-10-07)
+
+- The owner now polls original bound GPU jobs after terminal/blocked assignments
+  and canceled runs leave the normal dispatch index. Previously saved jobs are
+  adopted without migration-generated cloud requests or model execution.
+- A durable token/expiry fences maintenance callbacks. Retry schedules survive
+  owner restart with five-second to five-minute exponential backoff. An abandoned
+  claim can be reclaimed after ten minutes; an older callback cannot overwrite
+  the newer schedule. Unknown/unbound create requests remain unresolved.
+- Maintenance shares the existing four-worker GPU wait pool, excludes busy work
+  and runs provider I/O outside dispatcher/state locks. The actual owner tick is
+  tested with five canceled runs and held provider workers: four start, a repeated
+  tick starts no duplicate, and the fifth uses the next released slot.
+- The original request and attempt are checked before settlement. Result reads
+  target one original receipt, not every job in an attempt. Cleanup and approved
+  result collection are attempted independently. Missing credentials do not
+  invent success, and cleanup permission failure does not discard a valid receipt.
+- A late nonzero receipt produces one durable artifact after cancellation/restart.
+  Verified receipt plus cleanup closes the runtime fence, while the task stays
+  canceled and all monetary reservations remain held. Saved settlement replays
+  without credentials or provider calls. A foreign attempt cannot settle the job.
+- Nebius documents a one-hour minimum job timeout. New launch/body/reservation
+  validation now requires 3600–86400 seconds, preserving Ion's 24-hour cap,
+  independent short command limits and the original team deadline. GPU fixtures
+  use a valid one-hour provider lifetime with enough pinned team time. No team
+  limit is silently expanded. See the cited launch research for provider details.
+
+Verification: **187 distinct core regressions** passed (43 GPU, 130 coordinator,
+19 runtime, with 5 overlaps), including **8 new maintenance/timeout cases**.
+Desktop/daemon `cargo check`, formatting and whitespace checks passed. Two test
+fixture assumptions were repaired before the final gates. Existing ts-rs,
+dead-code and proc-macro warnings remain. No live account/cloud request, app
+bundle, second watcher or visual test was run. Protocol/client interfaces did
+not change in this increment.
+
+Remaining development: enabled GPU agent submission, verified price/account/
+billing reconciliation, image/quota/readiness/resource/egress enforcement,
+historical missing-inventory recovery, large project/dataset/checkpoint transfers,
+Amp/Cursor Teams adapters and the other adapter transport/bridge contracts.
+Native Linux/macOS and live provider/cloud acceptance remain review gates.
+The full goal stays active. See [maintenance and later review](23-remote-command-gpu-jobs.md#persistent-gpu-maintenance-after-task-cancellation)
+and [GPU launch policy research](RESEARCH-nebius-gpu-launch-policy.md).

@@ -1278,3 +1278,157 @@ fn team_gpu_owner_poll_frees_dispatcher_limits_concurrency_and_does_not_duplicat
     drop(runtime);
     drop(gpu);
 }
+
+struct HeldGpuMaintenance {
+    entered: Sender<(Uuid, Uuid)>,
+    release: Receiver<()>,
+}
+impl Executor for HeldGpuMaintenance {
+    fn ready(&self, _: &AgentProfile) -> Result<DispatchHost> {
+        anyhow::bail!("Maintenance cannot start a model")
+    }
+    fn run(
+        &self,
+        _: &TeamCoordinator,
+        _: NativeTeamStart,
+        _: &Path,
+        _: &DriverEventSender,
+        _: &AtomicBool,
+    ) -> Result<NativeTeamExit> {
+        anyhow::bail!("Maintenance cannot run a harness or Local fallback")
+    }
+    fn gpu_maintenance(
+        &self,
+        coordinator: &TeamCoordinator,
+        attempt: Uuid,
+        request: Uuid,
+    ) -> Result<bool> {
+        ensure!(
+            coordinator
+                .gpu_jobs(attempt)?
+                .iter()
+                .any(|j| j.request_id == request),
+            "Original saved job missing"
+        );
+        self.entered.send((attempt, request))?;
+        self.release.recv_timeout(Duration::from_secs(10))?;
+        Ok(true)
+    }
+}
+#[test]
+fn team_gpu_maintenance_owner_tick_polls_canceled_runs_off_dispatcher_with_four_workers_and_no_duplicates()
+ {
+    use driver::team_gpu::tests::{Fixture as GpuFixture, launch, launch_body};
+    let f = Fixture::new(64);
+    let now = unix_time();
+    f.runtime
+        .coordinator
+        .stop(f.run.id, f.run.revision, now)
+        .unwrap();
+    let mut gpu = Vec::new();
+    let mut expected = HashSet::new();
+    for _ in 0..5 {
+        let mut fixture = GpuFixture::new_in(f.dir.clone(), true, true);
+        fixture.policy.max_parallel = 8;
+        let l = launch();
+        fixture
+            .coordinator
+            .reserve_gpu_launch(
+                &fixture.lease,
+                &l.request,
+                &launch_body(&l),
+                &fixture.policy,
+                now,
+            )
+            .unwrap();
+        fixture
+            .coordinator
+            .bind_gpu_acknowledgement(
+                l.request.request_id,
+                &format!("operation-{}", l.request.request_id),
+                &format!("aijob-{}", l.request.request_id),
+                now,
+            )
+            .unwrap();
+        let run = fixture
+            .coordinator
+            .snapshot(fixture.lease.run_id())
+            .unwrap();
+        fixture.coordinator.stop(run.id, run.revision, now).unwrap();
+        fixture
+            .coordinator
+            .report(&fixture.lease, AssignmentOutcome::Canceled, now)
+            .unwrap();
+        expected.insert((fixture.lease.attempt_id(), l.request.request_id));
+        gpu.push(fixture);
+    }
+    assert!(
+        f.runtime
+            .coordinator
+            .dispatch_runs(None, 32)
+            .unwrap()
+            .is_empty()
+    );
+    let (entered, observations) = bounded(8);
+    let (releases, release) = bounded(8);
+    let runtime = TeamRuntime::with_executor(
+        f.runtime.coordinator.clone(),
+        f.runtime.store.clone(),
+        f.runtime.state.clone(),
+        f.runtime.settings.clone(),
+        f.runtime.removed.clone(),
+        Arc::new(HeldGpuMaintenance { entered, release }),
+    );
+    let mut cursor = None;
+    runtime.tick(&mut cursor).unwrap();
+    let mut observed = HashSet::new();
+    for _ in 0..4 {
+        observed.insert(observations.recv_timeout(Duration::from_secs(3)).unwrap());
+    }
+    assert_eq!(observed.len(), 4);
+    assert!(observed.is_subset(&expected));
+    assert!(runtime.state.try_lock().is_some());
+    *runtime.gpu_maintenance_tick.lock() = None;
+    runtime.tick(&mut cursor).unwrap();
+    assert!(observations.try_recv().is_err());
+    for _ in 0..4 {
+        releases.send(()).unwrap();
+    }
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        assert!(
+            Instant::now() < deadline,
+            "GPU maintenance workers did not finish"
+        );
+        if runtime
+            .gpu_polls
+            .lock()
+            .values()
+            .all(|(_, h)| h.as_ref().is_none_or(JoinHandle::is_finished))
+        {
+            break;
+        }
+        thread::sleep(Duration::from_millis(2));
+    }
+    *runtime.gpu_maintenance_tick.lock() = None;
+    runtime.tick(&mut cursor).unwrap();
+    observed.insert(observations.recv_timeout(Duration::from_secs(3)).unwrap());
+    assert_eq!(observed, expected);
+    assert!(observations.try_recv().is_err());
+    releases.send(()).unwrap();
+    for (_, handle) in runtime.gpu_polls.lock().values_mut() {
+        if let Some(h) = handle.take() {
+            h.join().unwrap();
+        }
+    }
+    assert!(
+        runtime
+            .coordinator
+            .claim_gpu_maintenance(now + 1000, &[])
+            .unwrap()
+            .is_none()
+    );
+    runtime.shutdown();
+    drop(runtime);
+    drop(gpu);
+}

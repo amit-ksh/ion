@@ -205,6 +205,42 @@ fn collect_record(
     coordinator.record_gpu_result(record.request_id, job, &receipt, crate::model::unix_time())?;
     Ok(true)
 }
+/// Only this original request, not every job in an old attempt, is polled.
+pub(super) fn collect_saved(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    record: &GpuJobRecord,
+    attempt: Uuid,
+) -> Result<bool> {
+    collect_saved_with(
+        client,
+        coordinator,
+        record,
+        attempt,
+        ResultReader::configured,
+    )
+}
+fn collect_saved_with(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    record: &GpuJobRecord,
+    attempt: Uuid,
+    reader: impl FnOnce() -> Result<ResultReader>,
+) -> Result<bool> {
+    if record.result_volume.is_none() || record.result_receipt.is_some() {
+        return Ok(true);
+    };
+    let current = coordinator
+        .gpu_jobs(attempt)?
+        .into_iter()
+        .find(|r| r.request_id == record.request_id)
+        .context("Original GPU result request missing")?;
+    if current.state != "terminal" {
+        return Ok(false);
+    };
+    collect_record(&reader()?, client, coordinator, &current)
+}
+
 /// Owner/background only; missing S3 credentials must never prevent resource Stop/cleanup.
 pub(crate) fn collect_attempt(coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
     let records = coordinator.gpu_jobs(attempt)?;

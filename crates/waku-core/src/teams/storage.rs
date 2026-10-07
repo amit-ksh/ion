@@ -103,6 +103,12 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_gpu_results (
             request_id TEXT PRIMARY KEY REFERENCES ion_team_gpu_jobs(request_id),
             receipt TEXT NOT NULL,artifact_id TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_gpu_maintenance (
+            request_id TEXT PRIMARY KEY REFERENCES ion_team_gpu_jobs(request_id),
+            next_poll_at INTEGER NOT NULL DEFAULT 0,busy_until INTEGER NOT NULL DEFAULT 0,
+            token TEXT,failures INTEGER NOT NULL DEFAULT 0,done INTEGER NOT NULL DEFAULT 0);
+        CREATE INDEX IF NOT EXISTS ion_team_gpu_maintenance_due ON ion_team_gpu_maintenance(done,next_poll_at,busy_until);
+        CREATE INDEX IF NOT EXISTS ion_team_gpu_collection ON ion_team_gpu_jobs(state,work_id,request_id);
         CREATE TABLE IF NOT EXISTS ion_team_gpu_waits (
             work_id TEXT PRIMARY KEY REFERENCES ion_team_work(id),
             request_id TEXT NOT NULL UNIQUE REFERENCES ion_team_gpu_jobs(request_id));

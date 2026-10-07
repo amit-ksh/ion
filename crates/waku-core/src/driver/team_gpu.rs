@@ -62,9 +62,14 @@ impl Launch {
                 && digest.bytes().all(|b| b.is_ascii_hexdigit()),
             "Invalid pinned GPU image"
         );
+        // Nebius requires at least one hour; Ion retains its 24-hour policy cap.
+        // Do not pad a short team deadline or silently change the child command limit.
         ensure!(
-            (1..=86400).contains(&self.timeout_seconds)
-                && self.request.version == 1
+            (3600..=86400).contains(&self.timeout_seconds),
+            "GPU job timeout must be 3600..86400 seconds"
+        );
+        ensure!(
+            self.request.version == 1
                 && !self.request.request_id.is_nil()
                 && self.request.timeout_seconds > 0
                 && self.request.timeout_seconds <= 3600
@@ -495,6 +500,57 @@ pub(crate) fn progress_wait(coordinator: &TeamCoordinator, work: uuid::Uuid) -> 
     outputs?;
     coordinator.settle_gpu_result(request, crate::model::unix_time())
 }
+/// Owner maintenance for a saved job after the model/task no longer dispatches.
+/// The original mutation claims still fence cancel/delete; a missing receipt is pending.
+pub(crate) fn progress_saved_job(
+    coordinator: &TeamCoordinator,
+    attempt: uuid::Uuid,
+    request: uuid::Uuid,
+) -> Result<bool> {
+    // Check the original attempt before settling; a stale/foreign callback must
+    // not mutate another assignment even if its receipt is already complete.
+    let record = coordinator
+        .gpu_jobs(attempt)?
+        .into_iter()
+        .find(|r| r.request_id == request)
+        .context("Saved GPU maintenance request missing")?;
+    if coordinator.settle_gpu_result(request, crate::model::unix_time())? {
+        return Ok(true);
+    };
+    progress_saved_with(
+        &Client::configured()?,
+        coordinator,
+        &record,
+        attempt,
+        results::collect_saved,
+    )
+}
+fn progress_saved_with(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    record: &GpuJobRecord,
+    attempt: uuid::Uuid,
+    collect: impl FnOnce(&Client, &TeamCoordinator, &GpuJobRecord, uuid::Uuid) -> Result<bool>,
+) -> Result<bool> {
+    let lifecycle = if resources_closed(record) {
+        Ok(true)
+    } else {
+        advance_record(client, coordinator, record, true)
+    };
+    // Result retrieval remains independent of cleanup permissions, including after Stop.
+    let output = collect(client, coordinator, record, attempt);
+    lifecycle?;
+    output?;
+    if record.result_volume.is_none() {
+        return Ok(coordinator
+            .gpu_jobs(attempt)?
+            .iter()
+            .find(|r| r.request_id == record.request_id)
+            .is_some_and(resources_closed));
+    }
+    coordinator.settle_gpu_result(record.request_id, crate::model::unix_time())
+}
+
 /// Stop/restart observes and cancels bound jobs. No create POST or Local execution.
 /// Terminal states retain resource reservations until cleanup is independently verified.
 pub(crate) fn reconcile_attempt(
@@ -655,7 +711,7 @@ pub(crate) mod tests {
             subnet: "vpcsubnet-fixture".into(),
             disk_bytes: 16 * 1024 * 1024 * 1024,
             shm_bytes: 0,
-            timeout_seconds: 60,
+            timeout_seconds: 3600,
             result_volume: None,
         }
     }
@@ -741,7 +797,10 @@ pub(crate) mod tests {
                         team_id: team,
                         expected_definition_revision: definitions.load().unwrap().revision,
                         objective: "GPU fixture".into(),
-                        limits: TeamRunLimits::default(),
+                        limits: TeamRunLimits {
+                            timeout_seconds: 7200,
+                            ..Default::default()
+                        },
                         access,
                         input_data: vec![],
                         source_attachments: vec![],
@@ -813,6 +872,70 @@ pub(crate) mod tests {
         v["metadata"]["id"] = json!("aijob-fixture");
         v["status"] = json!({"state":state});
         v
+    }
+    #[test]
+    fn team_gpu_provider_timeout_minimum_is_separate_from_command_and_original_team_deadlines() {
+        let f = Fixture::new(true, true);
+        let now = crate::model::unix_time();
+        let mut l = launch();
+        for seconds in [0, 1, 60, 3599, 86401, 604800] {
+            l.timeout_seconds = seconds;
+            assert!(
+                l.body()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("GPU job timeout")
+            );
+        }
+        l.timeout_seconds = 3600;
+        let body = l.body().unwrap();
+        assert_eq!(body["spec"]["timeout"], "3600s");
+        assert_eq!(l.request.timeout_seconds, 30);
+        for seconds in [0, 60, 3599, 86401] {
+            let mut invalid = body.clone();
+            invalid["spec"]["timeout"] = json!(format!("{seconds}s"));
+            assert!(
+                f.coordinator
+                    .reserve_gpu_launch(&f.lease, &l.request, &invalid, &f.policy, now)
+                    .is_err()
+            );
+            assert!(
+                f.coordinator
+                    .gpu_jobs(f.lease.attempt_id())
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        // Valid provider timeout still cannot expand the original run deadline.
+        let mut long = body.clone();
+        long["spec"]["timeout"] = json!("86400s");
+        assert!(
+            f.coordinator
+                .reserve_gpu_launch(&f.lease, &l.request, &long, &f.policy, now)
+                .unwrap_err()
+                .to_string()
+                .contains("original team deadline")
+        );
+        assert!(
+            f.coordinator
+                .gpu_jobs(f.lease.attempt_id())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            f.coordinator
+                .reserve_gpu_launch(&f.lease, &l.request, &body, &f.policy, now)
+                .unwrap()
+        );
+        let saved = f
+            .coordinator
+            .gpu_jobs(f.lease.attempt_id())
+            .unwrap()
+            .remove(0);
+        assert_eq!(saved.deadline_at, now + 3600);
+        assert_eq!(saved.body, body);
+        l.timeout_seconds = 86400;
+        assert!(l.body().is_ok());
     }
     #[test]
     fn team_gpu_real_api_contract_keeps_creation_job_and_cancel_identities_separate() {
