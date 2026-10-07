@@ -61,8 +61,9 @@ assert live account acceptance, visual validation or production release readines
 - [x] Antigravity native direct Gemini and OpenCode 2 standalone direct OpenAI
   Teams adapters: Local, registered completion and recovery wiring.
 - [x] Fx configured direct OpenAI/Nebius adapter implementation and dispatch wiring.
-- [ ] Fx official native Linux/macOS fixture acceptance (no compatible Linux runtime
-  is available on this Windows development host).
+- [x] Fx official native Linux x86_64 fixture acceptance with the actual 0.0.13
+  binary, fake key and localhost provider; twelve Linux transport regressions.
+- [ ] Fx macOS and live selected-account/registered-host acceptance.
 - [ ] Amp and Cursor Teams adapters: verified native account/request caps, effects,
   auxiliary-call boundary and complete per-call usage. These remain development.
 - [ ] Unverified OAuth/subscription/custom provider transports for the additional
@@ -277,3 +278,25 @@ second development watcher was performed during these checkpoints.
 - [ ] Remaining agent GPU submission, image/device/egress/CUDA, historical inventory
   and dataset/checkpoint/retention integrations. See the
   [research note](RESEARCH-nebius-gpu-price-receipt.md) and command guide review list.
+
+## 2026-10-07 — native release packaging and registered process identity
+
+- [x] Reproducible multi-stage worker release recipe using reviewed tracked source,
+  supplied pinned bases and unchanged release profile/lockfile. No build HOME,
+  Cargo cache, source tree or native credentials are copied to runtime.
+- [x] Manifest version 2 explicitly pins Linux UID/GID 1000 and `/home/ion`.
+  Instance POST includes UID/GID and PATH/HOME; the worker verifies effective
+  identity/home/cwd before native account/catalog lookup. Original input pins
+  identity through recovery; old omitted fields retain legacy request semantics.
+- [x] Nonroot runtime setup creates private `/ion/work` and home/config directories
+  and removes inherited setuid/setgid bits. The release ABI check has no request.
+- [x] 21 remote/worker Rust tests and desktop/daemon compile gates passed, including
+  identity/version errors, durable submission and exact recovery restrictions.
+- [ ] Run actual updated release-image boundary tests and record its source/digest.
+- [ ] Install/accept each exact native CLI/runtime/catalog privately, add version-2
+  `/ion/host.json`, configure host-native authentication and register immutable UUID.
+- [ ] Live complete worker/usage/stop/restart/lost-acknowledgement acceptance remains
+  separate. The recipe alone does not establish a deployed cloud execution host.
+- [x] Current Amp native catalog/plugin fixtures and Cursor 1.0.36 SDK/bridge
+  research saved. Amp's complete bounded actor usage and Cursor's hard completion
+  cap/unexpected effects/native-account acceptance remain unimplemented.

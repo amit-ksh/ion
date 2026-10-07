@@ -2035,3 +2035,35 @@ contracts and other native account transports/bridges. The full goal remains
 active. No live account/cloud/GPU request, credentials, deployment, app bundle,
 second watcher or visual test was used. See
 [pricing evidence and later acceptance](RESEARCH-nebius-gpu-price-receipt.md).
+
+## Native release packaging and explicit process identity (2026-10-07)
+
+- Added `packages/harness-worker`: production multi-stage recipe, tracked Git
+  export instructions, reviewed pinned bases and actual executable boundary tests.
+  Built the unchanged locked Linux release worker from `39a1521` with thin LTO,
+  one codegen unit and stripping. That initial build passed its no-request ABI
+  probe. Its initial runtime lacked `/ion/work`; the updated recipe fixes this,
+  uses private nonroot directories and removes inherited privilege bits.
+- Found that OCI USER does not establish ConTree's process identity. Manifest
+  version 2 now pins UID/GID 1000 and `/home/ion`; the instance body sends them
+  explicitly with PATH/HOME. Before native catalog/authentication, the worker
+  verifies effective UID/GID, HOME and `/ion/work`. Original private request
+  witnesses include identity, and operator recovery rejects changed/missing UID,
+  GID, HOME, cwd or input. Historical omitted execution fields keep exact legacy
+  serialization and recovery semantics; new images require version 2.
+- Added current native Amp and Cursor contract research. Amp's actual official
+  catalog fixture preserves exact model/caps but its offline plugin runner rejects
+  inference dispatch and the helper drops metering provenance. Cursor SDK 1.0.36
+  supplies an explicit native account, toolset and retry controls but lacks a
+  documented hard completion ceiling; unexpected effects and final usage still
+  need executable acceptance. Neither Teams adapter is falsely marked complete.
+
+Verification: **19 remote and two worker Rust tests passed**, including five
+new identity-related test groups. Desktop/daemon `cargo check`, formatting and
+whitespace checks passed; existing ts-rs/dead-code/proc-macro warnings remain.
+The updated release recipe/executable is the next concrete acceptance check.
+No real account/provider/cloud/GPU request, credentials, deployment, app bundle,
+second watcher or visual test was used. The full goal remains active; Amp/Cursor,
+other native account transports/bridges, full project/dataset/checkpoint transfer,
+GPU agent launch, complete GPU image/device/IPC/egress/CUDA, billing/finality and
+historical missing inventory/retention remain development.

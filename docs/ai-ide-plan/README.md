@@ -148,3 +148,10 @@ target; see [the deployment checklist](../../services/speech/README.md).
 - [Nebius GPU native price receipts](RESEARCH-nebius-gpu-price-receipt.md): pinned
   calculator schema, exact estimate/reservation arithmetic and atomic witnesses;
   unverified native Job support, billing-account binding and remaining finality.
+
+- [Amp native Teams contract](RESEARCH-amp-teams-contract.md): actual native
+  catalog/plugin fixtures, checksum provenance and remaining actor usage controls.
+- [Cursor native Teams contract](RESEARCH-cursor-teams-contract.md): released Local
+  SDK/bridge options, account identity, output cap and effects/usage acceptance gaps.
+- [Linux harness worker release recipe](../../packages/harness-worker/README.md):
+  reviewed tracked source, pinned bases, nonroot identity and actual-binary checks.

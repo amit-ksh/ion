@@ -38,22 +38,22 @@ when readiness fails; another CLI or Nebius account is never substituted.
 Research was checked against current official docs and public native releases on
 2026-10-07. These are contract gaps, not completed adapters or just missing keys.
 
-- **Amp:** native modes are account-managed. Custom plugin agents can pin a model
-  and remove tools. The plugin AI helper accepts `maxTokens`, but returns text or
-  an object without per-call metered usage. Thread-level usage and server routing
-  still need a verified, bounded single-call transport, with auxiliary work and
-  account fallback controlled. Inspected native `0.0.1791302439-g888480`.
-  [Plugin API](https://ampcode.com/docs/plugin-api),
-  [native settings](https://ampcode.com/docs/cli/settings),
-  [account routing](https://ampcode.com/docs/customize/model-routing).
-- **Cursor:** native `2026.10.01-e373342` help and ACP support model selection and
-  read-only modes; read-only still permits native reads. A permission callback
-  does not constrain every native tool or completion token. The separate local
-  provider runtime is another account/transport contract and must be verified
-  before support is claimed. Implement a gate for the selected native account
-  with output caps, complete usage and blocked auxiliary/effect dispatch.
-  [parameters](https://cursor.com/docs/cli/reference/parameters),
-  [ACP](https://cursor.com/docs/cli/acp).
+- **Amp:** official `0.0.1791302439-g888480` checksum and actual native
+  localhost catalog fixture are verified. The plugin helper supports `maxTokens`
+  and exact model selection but returns only text/object, dropping native usage
+  provenance. The offline plugin runner actually rejects `ai.inference` dispatch;
+  the account-managed actor needs a supported complete single-call contract with
+  auxiliary billing and cancellation bounded. Estimated/missing stream counters
+  cannot settle verified token usage. See
+  [the native contract evidence](RESEARCH-amp-teams-contract.md).
+- **Cursor:** official `@cursor/sdk` **1.0.36**, its npm integrity and pinned bridge
+  sources were inspected. The Local SDK can select native Cursor credentials,
+  exact model, empty tools, private settings and disable retries, and exposes
+  request/cancel/usage handles. It has no documented completion output/turn cap;
+  native callbacks, account usage and bridge option fidelity still need actual
+  adversarial SDK acceptance. Internal `maxSteps` is rejected on the network
+  path. Use a supported native SDK seam without switching the selected account.
+  See [the SDK contract evidence](RESEARCH-cursor-teams-contract.md).
 
 Readiness reports the specific gap before an attempt/model call starts. Those two
 Teams adapters remain unchecked in the release checklist.
@@ -271,12 +271,17 @@ steps; this implementation sends no real sandbox requests.
   A host-owned wrapper may supply its native credential/bootstrap environment
   before executing the worker. Test that on the registered host. Keep credentials
   outside prompts and public images; no secret is included in the example below.
-- [ ] Add `/ion/host.json`, version 1, listing exact installed harness/model limits.
+- [ ] Build the release image from a reviewed tracked Git snapshot with the
+  [native worker recipe](../../packages/harness-worker/README.md). Pin reviewed
+  builder/runtime digests; keep native login material out of build layers.
+- [ ] Add `/ion/host.json`, version 2, listing exact installed harness/model limits
+  and the explicit nonroot Linux execution identity.
   Example shape (replace the placeholder ID and limits with native catalog values):
 
   ```json
   {
-    "version": 1,
+    "version": 2,
+    "execution": { "uid": 1000, "gid": 1000, "home": "/home/ion" },
     "capabilities": [
       {
         "provider": "codex",
@@ -290,6 +295,10 @@ steps; this implementation sends no real sandbox requests.
 
   The worker verifies actual native limits before inference. A smaller registered
   allowance, unsupported harness or changed identity fails without completing.
+  Version 2 sends UID/GID explicitly and sets HOME, then verifies effective
+  UID/GID/HOME/cwd before any native catalog/login access. OCI `USER` alone is not
+  a ConTree process guarantee. Legacy version-1 images/requests keep their
+  original omitted identity for recovery; new release images use version 2.
 - [ ] Register/pin the resulting immutable image UUID. The agent's sandbox target
   accepts `UUID` or a readable `name@UUID`; an unpinned image alias is rejected.
 - [ ] Configure `ION_NEBIUS_SANDBOX_IAM_TOKEN` and
@@ -308,7 +317,9 @@ The owner uses the official asynchronous ConTree REST contract at
 - Reserve the model call and persist a unique request record and exact private
   input **before** POST. A second preparation/submission for that ID is rejected.
 - Spawn one instance with bounded base64 stdin, 150-second process timeout,
-  64 KiB output and 256 MiB layer limit. The request environment contains only PATH.
+  64 KiB output and 256 MiB layer limit. Version-2 hosts receive only PATH and
+  HOME plus explicit UID/GID 1000; legacy requests retain their original PATH-only
+  shape. Effective identity/home/cwd is checked by the worker before native access.
 - Persist the acknowledged operation UUID. The run audit includes the request ID,
   hostname and operation ID for operator inspection, without the POST response's
   echoed environment or credentials.

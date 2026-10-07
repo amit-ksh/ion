@@ -22,6 +22,8 @@ use waku_protocol::{
     control::AgentProfile,
     model::{DriverEvent, ProviderKind},
 };
+mod identity;
+pub(crate) use identity::ExecutionIdentity;
 const BASE: &str = "https://api.tokenfactory.nebius.com/sandboxes/v1";
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -36,6 +38,12 @@ pub(crate) struct Capability {
 struct Manifest {
     version: u16,
     capabilities: Vec<Capability>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    execution: Option<ExecutionIdentity>,
+}
+struct RegisteredHost {
+    capability: Capability,
+    execution: Option<ExecutionIdentity>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,6 +51,8 @@ pub(crate) struct WorkerRequest {
     pub version: u16,
     pub request_id: Uuid,
     pub capability: Capability,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<ExecutionIdentity>,
     pub system: String,
     pub messages: Vec<Value>,
     pub tools: Value,
@@ -187,7 +197,7 @@ pub(crate) fn ready(settings: &DaemonSettings, profile: &AgentProfile) -> Result
     capability(&client, profile)?;
     Ok(())
 }
-fn capability(client: &Client, profile: &AgentProfile) -> Result<Capability> {
+fn capability(client: &Client, profile: &AgentProfile) -> Result<RegisteredHost> {
     ensure!(
         matches!(
             profile.provider,
@@ -222,15 +232,24 @@ fn capability(client: &Client, profile: &AgentProfile) -> Result<Capability> {
         response.status()
     );
     let value = read_json(response, 64 * 1024)?;
+    registered_host(value, profile.provider, model)
+}
+fn registered_host(value: Value, provider: ProviderKind, model: &str) -> Result<RegisteredHost> {
     let manifest: Manifest = serde_json::from_value(value)?;
     ensure!(
-        manifest.version == 1 && manifest.capabilities.len() <= 128,
+        matches!(
+            (manifest.version, manifest.execution.is_some()),
+            (1, false) | (2, true)
+        ) && manifest.capabilities.len() <= 128,
         "Sandbox worker protocol/manifest is unsupported"
     );
+    if let Some(execution) = &manifest.execution {
+        execution.validate()?;
+    }
     let mut matches = manifest
         .capabilities
         .into_iter()
-        .filter(|c| c.provider == profile.provider && c.model == model);
+        .filter(|c| c.provider == provider && c.model == model);
     let selected = matches
         .next()
         .context("Selected harness/model is unavailable in this sandbox image")?;
@@ -242,7 +261,10 @@ fn capability(client: &Client, profile: &AgentProfile) -> Result<Capability> {
     );
     // These are registered host capabilities, not model-produced metadata. The
     // worker verifies them against its actual native catalog before inference.
-    Ok(selected)
+    Ok(RegisteredHost {
+        capability: selected,
+        execution: manifest.execution,
+    })
 }
 pub(crate) fn run(
     coordinator: &TeamCoordinator,
@@ -269,7 +291,8 @@ fn run_with_client(
     let profile = claim.profile.clone();
     let lease = claim.lease.clone();
     let image = image(&profile)?;
-    let cap = capability(client, &profile)?;
+    let host = capability(client, &profile)?;
+    let cap = host.capability;
     super::nebius::team::run_with_remote_harness(
         coordinator,
         start,
@@ -296,6 +319,7 @@ fn run_with_client(
                 version: 1,
                 request_id: id,
                 capability: cap.clone(),
+                execution: host.execution.clone(),
                 system: system.into(),
                 messages: messages.into(),
                 tools: tools.clone(),
@@ -332,8 +356,19 @@ fn execute(
         coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
         anyhow::bail!("Stopped before sandbox submission");
     }
+    if let Some(identity) = &request.execution {
+        if let Err(error) = identity.validate() {
+            coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
+            return Err(error);
+        }
+    }
     coordinator.pin_remote_input(request.request_id, std::str::from_utf8(&input)?)?;
-    let body = json!({"command":"/usr/local/bin/ion-harness-worker","args":[],"image":image,"shell":false,"hostname":format!("ion-{}",request.request_id),"env":{"PATH":"/usr/local/bin:/usr/bin:/bin"},"cwd":"/ion/work","stdin":{"value":STANDARD.encode(input),"encoding":"base64","close":true},"timeout":150,"truncate_output_at":64*1024,"disposable":true,"preserve_env":false,"resources_limits":{"max_layer_bytes":256*1024*1024},"networking":{"enabled":true}});
+    let mut body = json!({"command":"/usr/local/bin/ion-harness-worker","args":[],"image":image,"shell":false,"hostname":format!("ion-{}",request.request_id),"env":{"PATH":"/usr/local/bin:/usr/bin:/bin"},"cwd":"/ion/work","stdin":{"value":STANDARD.encode(input),"encoding":"base64","close":true},"timeout":150,"truncate_output_at":64*1024,"disposable":true,"preserve_env":false,"resources_limits":{"max_layer_bytes":256*1024*1024},"networking":{"enabled":true}});
+    if let Some(identity) = &request.execution {
+        body["uid"] = json!(identity.uid);
+        body["gid"] = json!(identity.gid);
+        body["env"]["HOME"] = json!(identity.home);
+    }
     // The image supplies a credential bootstrap outside the prompt. No owner
     // credentials, repository walk, env dump, app tokens or vault files are sent.
     let response=client.request(reqwest::Method::POST,"/instances").json(&body).send().context("Sandbox spawn acknowledgement lost; no local fallback or repeated submission is allowed")?;
@@ -559,6 +594,15 @@ fn verify_original_request(
     request: Uuid,
     expected: &Value,
 ) -> Result<()> {
+    let original: WorkerRequest = serde_json::from_value(expected.clone())?;
+    let identity = original.execution.as_ref();
+    if let Some(identity) = identity {
+        identity.validate()?;
+    }
+    let environment = match identity {
+        Some(identity) => json!({"PATH":"/usr/local/bin:/usr/bin:/bin", "HOME":identity.home}),
+        None => json!({"PATH":"/usr/local/bin:/usr/bin:/bin"}),
+    };
     let m = &value["metadata"];
     ensure!(
         m["image"].as_str() == Some(&image.to_string())
@@ -566,7 +610,7 @@ fn verify_original_request(
             && m["command"] == "/usr/local/bin/ion-harness-worker"
             && m["args"] == json!([])
             && m["shell"] == false
-            && m["env"] == json!({"PATH":"/usr/local/bin:/usr/bin:/bin"})
+            && m["env"] == environment
             && m["cwd"] == "/ion/work"
             && m["timeout"] == 150
             && m["truncate_output_at"] == 64 * 1024
@@ -574,8 +618,11 @@ fn verify_original_request(
             && m["preserve_env"] == false
             && m["networking"] == json!({"enabled":true})
             && m["resources_limits"] == json!({"max_layer_bytes":256*1024*1024})
-            && m.get("uid").is_none_or(|v| *v == 0)
-            && m.get("gid").is_none_or(|v| *v == 0)
+            && match identity {
+                Some(identity) => m["uid"] == identity.uid && m["gid"] == identity.gid,
+                None =>
+                    m.get("uid").is_none_or(|v| *v == 0) && m.get("gid").is_none_or(|v| *v == 0),
+            }
             && m.get("files")
                 .is_none_or(|v| v.is_null() || *v == json!({})),
         "Sandbox metadata differs from the original bounded execution host"
@@ -812,6 +859,7 @@ mod lifecycle_tests {
                     input_cap: 1000,
                     output_cap: 100,
                 },
+                execution: None,
                 system: "Review granted inputs".into(),
                 messages: vec![],
                 tools: json!([]),
@@ -896,6 +944,136 @@ mod lifecycle_tests {
         let request: WorkerRequest = serde_json::from_slice(&stdin).unwrap();
         assert_eq!(request.request_id, f.request.request_id);
         assert!(!String::from_utf8(stdin).unwrap().contains("fixture-IAM"));
+    }
+    fn registered_identity() -> ExecutionIdentity {
+        ExecutionIdentity {
+            uid: 1000,
+            gid: 1000,
+            home: "/home/ion".into(),
+        }
+    }
+    #[test]
+    fn team_remote_manifest_versions_require_their_exact_registered_identity() {
+        let cap = json!({"provider":"codex","model":"pinned","input_cap":1000,"output_cap":100});
+        let legacy = json!({"version":1,"capabilities":[cap.clone()]});
+        assert!(
+            registered_host(legacy.clone(), ProviderKind::Codex, "pinned")
+                .unwrap()
+                .execution
+                .is_none()
+        );
+        let current = json!({"version":2,"execution":registered_identity(),"capabilities":[cap]});
+        assert_eq!(
+            registered_host(current.clone(), ProviderKind::Codex, "pinned")
+                .unwrap()
+                .execution
+                .unwrap()
+                .uid,
+            1000
+        );
+        for (version, execution) in [
+            (1, Some(json!(registered_identity()))),
+            (2, None),
+            (3, Some(json!(registered_identity()))),
+        ] {
+            let mut value = legacy.clone();
+            value["version"] = json!(version);
+            if let Some(identity) = execution {
+                value["execution"] = identity;
+            }
+            assert!(registered_host(value, ProviderKind::Codex, "pinned").is_err());
+        }
+        for (field, value) in [
+            ("uid", json!(0)),
+            ("gid", json!(0)),
+            ("home", json!("/root")),
+            ("extra", json!(true)),
+        ] {
+            let mut changed = current.clone();
+            changed["execution"][field] = value;
+            assert!(
+                registered_host(changed, ProviderKind::Codex, "pinned").is_err(),
+                "{field}"
+            );
+        }
+        assert!(registered_host(current.clone(), ProviderKind::Claude, "pinned").is_err());
+        assert!(registered_host(current, ProviderKind::Codex, "other-model").is_err());
+    }
+    #[test]
+    fn team_remote_nonroot_submission_pins_and_recovers_exact_process_identity() {
+        let mut f = Fixture::new();
+        f.request.execution = Some(registered_identity());
+        let metadata = lost_ack(&f);
+        assert_eq!(metadata["uid"], 1000);
+        assert_eq!(metadata["gid"], 1000);
+        assert_eq!(
+            metadata["env"],
+            json!({"PATH":"/usr/local/bin:/usr/bin:/bin","HOME":"/home/ion"})
+        );
+        let saved = f.owner.remote_input(f.request.request_id).unwrap().unwrap();
+        let expected: Value = serde_json::from_str(&saved).unwrap();
+        assert_eq!(expected["execution"], json!(registered_identity()));
+        let good = json!({"metadata":metadata});
+        verify_original_request(&good, f.image, f.request.request_id, &expected).unwrap();
+        for (key, value) in [
+            ("uid", json!(0)),
+            ("gid", json!(0)),
+            ("uid", json!(null)),
+            ("gid", json!(null)),
+            ("cwd", json!("/ion")),
+            ("env", json!({"PATH":"/usr/local/bin:/usr/bin:/bin"})),
+            (
+                "env",
+                json!({"PATH":"/usr/local/bin:/usr/bin:/bin","HOME":"/root"}),
+            ),
+        ] {
+            let mut changed = good.clone();
+            changed["metadata"][key] = value;
+            assert!(
+                verify_original_request(&changed, f.image, f.request.request_id, &expected)
+                    .is_err(),
+                "{key}"
+            );
+        }
+        let mut changed = good.clone();
+        let mut stripped = expected.clone();
+        stripped.as_object_mut().unwrap().remove("execution");
+        changed["metadata"]["stdin"]["value"] =
+            json!(STANDARD.encode(serde_json::to_vec(&stripped).unwrap()));
+        assert!(
+            verify_original_request(&changed, f.image, f.request.request_id, &expected).is_err()
+        );
+    }
+    #[test]
+    fn team_remote_invalid_identity_rejects_before_pinning_or_submission() {
+        let mut f = Fixture::new();
+        f.request.execution = Some(ExecutionIdentity {
+            uid: 0,
+            ..registered_identity()
+        });
+        let server = Server::new(vec![]);
+        assert!(
+            execute(
+                &client(&server),
+                &f.owner,
+                f.image,
+                &f.request,
+                &AtomicBool::new(false)
+            )
+            .is_err()
+        );
+        assert!(
+            f.owner
+                .remote_input(f.request.request_id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            f.owner
+                .remote_attempt_stopped(f.lease.attempt_id())
+                .unwrap()
+        );
+        assert!(server.finish().is_empty());
     }
     #[test]
     fn team_remote_cancel_ack_keeps_capacity_until_terminal_operation() {

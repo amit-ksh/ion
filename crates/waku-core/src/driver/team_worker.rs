@@ -20,6 +20,9 @@ pub fn execute(input: &[u8]) -> Result<Value> {
             && request.tools.is_array(),
         "Unsupported worker request"
     );
+    if let Some(identity) = &request.execution {
+        identity.verify_process()?;
+    }
     let cap = &request.capability;
     ensure!(
         (1..=32_000_000).contains(&cap.input_cap)
@@ -185,6 +188,21 @@ mod tests {
     use super::*;
     fn request() -> Value {
         json!({"version":1,"request_id":uuid::Uuid::new_v4(),"capability":{"provider":"amp","model":"fixture","input_cap":1000,"output_cap":100},"system":"fixture","messages":[],"tools":[]})
+    }
+    #[test]
+    fn team_worker_registered_identity_is_checked_before_native_authentication() {
+        let mut input = request();
+        input["capability"]["provider"] = json!("codex");
+        input["execution"] = json!({"uid":0,"gid":1000,"home":"/home/ion"});
+        let error = execute(&serde_json::to_vec(&input).unwrap()).unwrap_err();
+        assert!(error.to_string().contains("Registered worker identity"));
+        input["execution"] = json!({"uid":1000,"gid":1000,"home":"/home/ion","unrecognized":true});
+        assert!(
+            execute(&serde_json::to_vec(&input).unwrap())
+                .unwrap_err()
+                .to_string()
+                .contains("unknown field")
+        );
     }
     #[test]
     fn team_worker_rejects_invalid_contracts_before_authentication_or_execution() {
