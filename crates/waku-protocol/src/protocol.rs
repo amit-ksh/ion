@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 28;
+pub const PROTOCOL_VERSION: u32 = 29;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -935,6 +935,28 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn team_remote_recovery_preserves_command_purpose_and_legacy_default() {
+        use crate::teams::{TeamRemotePurpose, TeamRemoteRecovery};
+        let legacy = serde_json::json!({"requestId":Uuid::new_v4(),"imageId":Uuid::new_v4(),
+            "project":"fixture-project","operationId":null,"state":"submitting","canBind":true});
+        let default: TeamRemoteRecovery = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(matches!(
+            default.purpose,
+            TeamRemotePurpose::ModelCompletion
+        ));
+        let mut command = legacy;
+        command["purpose"] = serde_json::json!("command");
+        let command: TeamRemoteRecovery = serde_json::from_value(command).unwrap();
+        assert!(matches!(command.purpose, TeamRemotePurpose::Command));
+        let wire = serde_json::to_value(command).unwrap();
+        assert_eq!(wire["purpose"], "command");
+        assert_eq!(wire.as_object().unwrap().len(), 7);
+        for private in ["argv", "inputs", "outputs", "token", "policy"] {
+            assert!(wire.get(private).is_none());
+        }
     }
 
     #[test]

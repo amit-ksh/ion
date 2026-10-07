@@ -26,7 +26,7 @@ mod team_gate;
     dead_code,
     reason = "GPU lifecycle is not exposed until durable waits, accounting and output receipts are integrated"
 )]
-mod team_gpu;
+pub(crate) mod team_gpu;
 pub(crate) mod team_grok;
 pub(crate) mod team_jobs;
 pub(crate) mod team_kimi;

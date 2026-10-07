@@ -6,7 +6,7 @@ mod receipts;
 
 pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling'))",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned')",
         [run.id.to_string()], |r| r.get(0),
     )?;
     let points: Vec<(String,String,u32)> = db.prepare(
@@ -17,7 +17,7 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
         .map(|(work, attempt, generation)| (work, (attempt, generation)))
         .collect();
     let unfinished: HashSet<String> = db.prepare(
-        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')",
+        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling') UNION SELECT work_id FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned'",
     )?.query_map([run.id.to_string()], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
     let checkpoints: std::collections::HashMap<String,(String,u32)> = db.prepare(
         "SELECT c.work_id,c.attempt_id,c.generation FROM ion_team_continuations c JOIN ion_team_work w ON w.id=c.work_id WHERE w.run_id=? AND w.status='blocked' AND c.dependencies='[]' AND json_extract(c.checkpoint,'$.version')=1 AND json_extract(c.checkpoint,'$.steps')<16 LIMIT 257",
@@ -263,7 +263,7 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
     let value: Value = serde_json::from_str(&checkpoint)?;
     Ok(id==attempt.id.to_string() && generation==attempt.generation && dependencies=="[]"
         && value["version"]==1 && value["steps"].as_u64().is_some_and(|n|n<16)
-        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling'))",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
+        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned')",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
 }
 fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamRecoveryReview> {
     let work = assignment(run, work)?;
@@ -297,9 +297,11 @@ fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamReco
                 rows.len() <= 32,
                 "Remote recovery history exceeds its bound"
             );
-            rows.into_iter()
+            let mut projected = rows
+                .into_iter()
                 .map(|(id, image, project, operation, state, has_input)| {
                     Ok(TeamRemoteRecovery {
+                        purpose: TeamRemotePurpose::ModelCompletion,
                         request_id: Uuid::parse_str(&id)?,
                         image_id: Uuid::parse_str(&image)?,
                         project,
@@ -311,7 +313,27 @@ fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamReco
                         state,
                     })
                 })
-                .collect::<Result<Vec<_>>>()?
+                .collect::<Result<Vec<_>>>()?;
+            let commands:Vec<(String,String,String,Option<String>,String)>=db.prepare(
+                "SELECT request_id,image,project,operation,state FROM ion_team_jobs WHERE attempt_id=? ORDER BY rowid LIMIT 129")?
+                .query_map([attempt.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            ensure!(
+                commands.len() <= 128,
+                "Command recovery history exceeded its bound"
+            );
+            for (id, image, project, operation, state) in commands {
+                projected.push(TeamRemoteRecovery {
+                    purpose: TeamRemotePurpose::Command,
+                    request_id: Uuid::parse_str(&id)?,
+                    image_id: Uuid::parse_str(&image)?,
+                    project,
+                    can_bind: work.can_reconcile && operation.is_none() && state == "submitting",
+                    operation_id: operation.map(|v| Uuid::parse_str(&v)).transpose()?,
+                    state,
+                });
+            }
+            projected
         },
     })
 }

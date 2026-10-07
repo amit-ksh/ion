@@ -290,9 +290,15 @@ impl Executor for NativeExecutor {
             }
             checks.insert(attempt, Instant::now());
         }
-        let models_stopped = driver::team_remote::reconcile(coordinator, attempt)?;
-        let jobs_stopped = driver::team_jobs::reconcile_attempt(coordinator, attempt)?;
-        Ok(models_stopped && jobs_stopped)
+        // Try every resource class even when one credential context is unavailable.
+        // Propagate failures only after the remaining original resources were checked.
+        let models = driver::team_remote::reconcile(coordinator, attempt);
+        let jobs = driver::team_jobs::reconcile_attempt(coordinator, attempt);
+        let gpu = driver::team_gpu::reconcile_attempt(coordinator, attempt);
+        let models_stopped = models?;
+        let jobs_stopped = jobs?;
+        let gpu_stopped = gpu?;
+        Ok(models_stopped && jobs_stopped && gpu_stopped)
     }
     fn run(
         &self,
@@ -625,15 +631,32 @@ impl TeamRuntime {
                 request_id,
                 operation_id,
             } => {
-                driver::team_remote::bind_recovered_operation(
-                    &self.coordinator,
-                    run,
-                    work,
-                    attempt,
-                    revision,
-                    *request_id,
-                    *operation_id,
-                )?;
+                if self
+                    .coordinator
+                    .unfinished_jobs(attempt)?
+                    .iter()
+                    .any(|j| j.id == *request_id)
+                {
+                    driver::team_jobs::bind_recovered_operation(
+                        &self.coordinator,
+                        run,
+                        work,
+                        attempt,
+                        revision,
+                        *request_id,
+                        *operation_id,
+                    )?;
+                } else {
+                    driver::team_remote::bind_recovered_operation(
+                        &self.coordinator,
+                        run,
+                        work,
+                        attempt,
+                        revision,
+                        *request_id,
+                        *operation_id,
+                    )?;
+                }
                 self.wake();
                 return self.coordinator.recovery_review(run, work);
             }

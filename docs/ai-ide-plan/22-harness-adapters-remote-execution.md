@@ -236,7 +236,7 @@ key or native control event enters the team transcript.
 
 ## Prepare a registered sandbox host later
 
-Protocol is **28**; rebuild desktop, daemon and client bundles together.
+Protocol is **29**; rebuild desktop, daemon and client bundles together.
 No deployment target has been supplied. Build/provisioning and live acceptance
 remain your setup steps; this implementation sends no real sandbox requests.
 

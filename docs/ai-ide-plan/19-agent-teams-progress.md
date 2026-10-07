@@ -1564,3 +1564,50 @@ UID/GID, no supplementary groups and inherited no-new-privileges, protecting the
 receipt collector from command-side signalling or native privilege elevation.
 Command/GPU fixtures and desktop/daemon checking were repeated after the contract
 change; Linux native acceptance remains outstanding.
+
+
+## 2026-10-07 — command recovery binding and durable GPU reservations
+
+- Review recovery now distinguishes command operations and model completions.
+  Lost command acknowledgements can be bound only after verifying the complete
+  original command/input/policy witness against the operation. The current run
+  revision and attempt are fenced again when the binding commits. Repeating an
+  accepted confirmation uses its saved receipt without another request.
+- The real command receipt and artifact survive terminal observation, Prepare
+  continuation and the user's Continue action. Native journal recovery matches
+  the original arguments and never repeats the command POST. Protocol **29** adds
+  the purpose label; legacy records default to model completion. No command/file/
+  credential content is projected publicly.
+- GPU launch now reserves its immutable request/body, selected target, private
+  owner-approved currency/quote/expiry/spending allowance, count/concurrency and
+  original team deadline before create. Exact replay returns its saved state.
+  Lost acknowledgement retains the reservation and cannot invoke Local fallback.
+- GPU Stop/restart observes the same bound job and claims cancellation before its
+  single POST. It records creation/job/cancel identities separately and accumulates
+  compute IDs. Terminal status and cancellation acknowledgement keep all spending,
+  resource and continuation reservations. Unchanged observations do not increment
+  revisions or append audit events on every poll. Stop attempts all resource
+  classes before returning an error from an unavailable credential context.
+- Agent GPU launch remains gated. Approved resource/subnet/volume policies,
+  provider price/billing reconciliation, asynchronous native waits, authentic
+  output receipts, cleanup proofs and GPU operator recovery remain development.
+  Owner-approved launch allowances are not provider invoice totals or a verified
+  ceiling on billing after an uncertain cleanup.
+
+Verification: **37 core tests passed** (10 command, 6 GPU, 15 sandbox/recovery,
+6 owner recovery), **1 protocol compatibility/privacy test passed**, and **22
+client tests passed**. Client TypeScript checking passed using the existing
+compiler/types from the primary checkout because this worktree has no `tsc`
+installation. Focused test code generation used command-local optimization
+settings for core/protocol/client; app profiles and dependencies were unchanged.
+The initial command fixture omitted Queue continuation after Prepare; it was
+corrected to follow the real user action before final acceptance.
+Final desktop/daemon checking, formatting and Git whitespace checks passed. The
+GPU identity/stable-observation checks and sandbox owner-loop tests were repeated
+after the final safeguards; those runs overlap the counts above. Existing core
+warnings remain unchanged.
+
+No live account, provider billing, cloud submission/deployment, app visual test or
+second watcher was used. Amp/Cursor contracts, Fx native acceptance, executed-check
+gates and full remote project/large transfers also remain development. The full
+goal is active; this checkpoint does not mark it complete.

@@ -456,10 +456,19 @@ pub struct TeamRecoveryReview {
     pub environment: ExecutionEnvironment,
     pub remote_calls: Vec<TeamRemoteRecovery>,
 }
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TeamRemotePurpose {
+    #[default]
+    ModelCompletion,
+    Command,
+}
 /// Operation identities only. Private inputs, outputs and authentication are never projected.
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamRemoteRecovery {
+    #[serde(default)]
+    pub purpose: TeamRemotePurpose,
     pub request_id: Uuid,
     pub image_id: Uuid,
     pub project: String,

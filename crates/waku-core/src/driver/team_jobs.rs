@@ -444,6 +444,146 @@ pub(crate) fn read_output(
     let end = (offset + 4096).min(bytes.len());
     Ok(json!({"path":path,"offset":offset,"next_offset":end,"total_bytes":bytes.len(),"content_base64":STANDARD.encode(&bytes[offset..end]),"sha256":output.sha256}).to_string())
 }
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn bind_recovered_operation(
+    coordinator: &TeamCoordinator,
+    run: Uuid,
+    work: Uuid,
+    attempt: Uuid,
+    revision: u64,
+    request: Uuid,
+    operation: Uuid,
+) -> Result<()> {
+    bind_recovered_with(
+        &Client::configured()?,
+        coordinator,
+        run,
+        work,
+        attempt,
+        revision,
+        request,
+        operation,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn bind_recovered_with(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    run: Uuid,
+    work: Uuid,
+    attempt: Uuid,
+    revision: u64,
+    request: Uuid,
+    operation: Uuid,
+) -> Result<()> {
+    use waku_protocol::teams::{ExecutionEnvironment, TeamRecoveryConfirmation};
+    if coordinator.recovery_confirmation_replayed(
+        run,
+        work,
+        attempt,
+        revision,
+        &TeamRecoveryConfirmation::BindRemoteOperation {
+            request_id: request,
+            operation_id: operation,
+        },
+    )? {
+        return Ok(());
+    }
+    ensure!(
+        !operation.is_nil(),
+        "Choose a non-empty command operation ID"
+    );
+    let snapshot = coordinator.snapshot(run)?;
+    ensure!(
+        snapshot.revision == revision,
+        "Run changed; refresh command recovery"
+    );
+    let assignment = snapshot
+        .work
+        .iter()
+        .find(|w| w.id == work)
+        .context("Command assignment missing")?;
+    ensure!(
+        assignment.can_reconcile
+            && assignment.attempts.last().is_some_and(
+                |a| a.id == attempt && a.environment == ExecutionEnvironment::NebiusSandbox
+            ),
+        "Command recovery attempt/state changed"
+    );
+    let record = coordinator
+        .unfinished_jobs(attempt)?
+        .into_iter()
+        .find(|j| j.id == request)
+        .context("Original command request missing")?;
+    ensure!(
+        record.state == "submitting"
+            && record.operation.is_none()
+            && record.project == client.project,
+        "Command request/project changed or already bound"
+    );
+    let policy: Policy = serde_json::from_str(&record.policy)?;
+    validate_policy(&policy)?;
+    ensure!(policy.image == record.image, "Stored command image changed");
+    let expected = body(&policy, &record.request)?;
+    let observed = client.operation_bounded(operation, record.image, 3 * 1024 * 1024)?;
+    verify_original_command(&observed, &expected)?;
+    coordinator.bind_recovered_job_operation(
+        run,
+        work,
+        attempt,
+        revision,
+        request,
+        operation,
+        crate::model::unix_time(),
+    )
+}
+fn verify_original_command(observed: &Value, expected: &Value) -> Result<()> {
+    let metadata = &observed["metadata"];
+    for (key, value) in expected.as_object().context("Saved command body invalid")? {
+        if key == "stdin" {
+            continue;
+        }
+        ensure!(
+            metadata[key] == *value
+                || (matches!(key.as_str(), "uid" | "gid")
+                    && *value == 0
+                    && metadata[key].is_null()),
+            "Command operation differs from saved execution policy: {key}"
+        );
+    }
+    ensure!(
+        metadata
+            .get("files")
+            .is_none_or(|v| v.is_null() || *v == json!({})),
+        "Command operation added unapproved files"
+    );
+    let stdin = &metadata["stdin"];
+    ensure!(
+        stdin["encoding"] == "base64" && stdin["close"] == true && stdin["truncated"] != true,
+        "Original command input witness unavailable"
+    );
+    let input = stdin["value"]
+        .as_str()
+        .context("Original command input is missing")?;
+    ensure!(
+        input.len() <= 700 * 1024,
+        "Original command input exceeds its bound"
+    );
+    let bytes = STANDARD.decode(input)?;
+    ensure!(
+        bytes.len() <= 512 * 1024
+            && serde_json::from_slice::<Value>(&bytes)?
+                == serde_json::from_slice::<Value>(
+                    &STANDARD.decode(
+                        expected["stdin"]["value"]
+                            .as_str()
+                            .context("Saved command input missing")?
+                    )?
+                )?,
+        "Original command/files/arguments differ from saved request"
+    );
+    Ok(())
+}
 pub(crate) fn reconcile_attempt(coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
     let jobs = coordinator.unfinished_jobs(attempt)?;
     if jobs.is_empty() {
@@ -986,6 +1126,148 @@ mod tests {
             )
             .is_err()
         );
+    }
+    #[test]
+    fn team_job_lost_ack_binding_verifies_original_input_and_recovers_without_post() {
+        let f = Fixture::new(true, true);
+        let now = crate::model::unix_time();
+        let args =
+            json!({"argv":f.request.argv,"input_paths":[],"output_paths":[],"timeout_seconds":10});
+        let call = json!({"id":"command-recovery","name":"run_remote_command","arguments":args,
+            "request_id":f.request.request_id,"activity_id":"command-recovery"});
+        let journal=json!({"version":1,"steps":1,"messages":[{"role":"user","content":"Execute check"},
+            {"role":"assistant","content":null,"tool_calls":[{"id":"command-recovery","type":"function",
+            "function":{"name":"run_remote_command","arguments":args.to_string()}}]}],"pending":[call]}).to_string();
+        f.store
+            .save_runtime_checkpoint(&f.claim.lease, &journal, now)
+            .unwrap();
+        f.reserve().unwrap();
+        f.store.reconcile_owner_restart(now + 1).unwrap();
+        let run = f.claim.lease.run_id();
+        let work = f.claim.lease.work_id();
+        let attempt = f.claim.lease.attempt_id();
+        let (review, snapshot) = f.store.recovery_review(run, work).unwrap();
+        assert_eq!(review.remote_calls.len(), 1);
+        assert!(matches!(
+            review.remote_calls[0].purpose,
+            TeamRemotePurpose::Command
+        ));
+        assert!(
+            review.remote_calls[0].can_bind && !review.host_stopped && !snapshot.work[0].can_resume
+        );
+        let operation = Uuid::new_v4();
+        let mut observed = terminal(&f, operation, &response(&f.request, 7));
+        let result = observed["metadata"]["result"].clone();
+        observed["metadata"] = body(&f.policy, &f.request).unwrap();
+        observed["metadata"]["result"] = result;
+        let server = Server::new(vec![(200, bytes(observed.clone())), (200, bytes(observed))]);
+        let client = Client::fixture(&server.url, "fixture-project");
+        bind_recovered_with(
+            &client,
+            &f.store,
+            run,
+            work,
+            attempt,
+            snapshot.revision,
+            f.request.request_id,
+            operation,
+        )
+        .unwrap();
+        // Lost owner response is replayed from the durable confirmation without another GET.
+        bind_recovered_with(
+            &client,
+            &f.store,
+            run,
+            work,
+            attempt,
+            snapshot.revision,
+            f.request.request_id,
+            operation,
+        )
+        .unwrap();
+        assert!(
+            reconcile_with(&client, &f.store, f.store.unfinished_jobs(attempt).unwrap()).unwrap()
+        );
+        assert!(f.store.remote_attempt_stopped(attempt).unwrap());
+        let revision = f.store.snapshot(run).unwrap().revision;
+        f.store
+            .confirm_recovery(
+                run,
+                work,
+                attempt,
+                revision,
+                TeamRecoveryConfirmation::VerifyRemoteStopped,
+                now + 2,
+            )
+            .unwrap();
+        let revision = f.store.snapshot(run).unwrap().revision;
+        let (_, ready) = f
+            .store
+            .confirm_recovery(
+                run,
+                work,
+                attempt,
+                revision,
+                TeamRecoveryConfirmation::PrepareContinuation,
+                now + 3,
+            )
+            .unwrap();
+        assert!(ready.work[0].can_resume);
+        f.store
+            .queue_checkpoint_resume(run, work, ready.revision, now + 4)
+            .unwrap();
+        let resumed = f
+            .store
+            .resume_after_children(run, work, now + 4, 180)
+            .unwrap();
+        let journal: Value = serde_json::from_str(&resumed.checkpoint).unwrap();
+        assert_eq!(journal["pending"], json!([]));
+        let tool = journal["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["role"] == "tool")
+            .unwrap();
+        let receipt: Value = serde_json::from_str(tool["content"].as_str().unwrap()).unwrap();
+        assert_eq!(receipt["exit_code"], 7);
+        assert!(receipt["artifact_id"].is_string());
+        let requests = server.finish();
+        assert_eq!(requests.len(), 2);
+        assert!(requests.iter().all(|r| r.line.starts_with("GET ")));
+    }
+    #[test]
+    fn team_job_binding_rejects_modified_command_files_limits_and_added_capabilities() {
+        let f = Fixture::new(true, true);
+        let expected = body(&f.policy, &f.request).unwrap();
+        let observed = json!({"metadata":expected});
+        assert!(verify_original_command(&observed, &expected).is_ok());
+        for key in [
+            "hostname",
+            "command",
+            "image",
+            "args",
+            "env",
+            "networking",
+            "resources_limits",
+            "timeout",
+            "uid",
+        ] {
+            let mut changed = observed.clone();
+            changed["metadata"][key] = json!("different");
+            assert!(
+                verify_original_command(&changed, &expected).is_err(),
+                "{key}"
+            );
+        }
+        let mut changed = observed.clone();
+        let mut request = f.request.clone();
+        request.argv.push("changed".into());
+        changed["metadata"]["stdin"]["value"] =
+            json!(STANDARD.encode(serde_json::to_vec(&request).unwrap()));
+        assert!(verify_original_command(&changed, &expected).is_err());
+        changed = observed;
+        changed["metadata"]["files"] = json!({"/ion/private":"extra"});
+        assert!(verify_original_command(&changed, &expected).is_err());
     }
     #[test]
     fn team_job_rejects_paths_unregistered_commands_and_invented_output_receipts() {

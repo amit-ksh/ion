@@ -99,8 +99,14 @@ fn presentation(
             Arc::new(RemoteRow {
                 request: c.request_id,
                 identity: format!(
-                    "Request {} · image {} · project {}",
-                    c.request_id, c.image_id, c.project
+                    "{} {} · image {} · project {}",
+                    match c.purpose {
+                        waku_client::teams::TeamRemotePurpose::Command => "Command",
+                        waku_client::teams::TeamRemotePurpose::ModelCompletion => "Completion",
+                    },
+                    c.request_id,
+                    c.image_id,
+                    c.project
                 ),
                 operation: c
                     .operation_id
@@ -109,6 +115,9 @@ fn presentation(
                 status: match c.state.as_str() {
                     "submitting" => "Submission outcome unknown",
                     "running" => "Remote stop not verified",
+                    "canceling" => "Cancellation requested",
+                    "settled" => "Command receipt saved",
+                    "failed" => "Stopped without a command receipt",
                     "SUCCESS" => "Completed",
                     "FAILED" => "Failed",
                     "CANCELLED" => "Canceled",

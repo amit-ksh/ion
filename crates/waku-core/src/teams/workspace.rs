@@ -40,7 +40,7 @@ pub(super) fn projection(db: &Connection, run: Uuid) -> Result<Option<TeamWorksp
 }
 pub(super) fn require_settled_effects(db: &Connection, run: Uuid) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling'))",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned')",
         [run.to_string()],
         |r| r.get(0),
     )?;

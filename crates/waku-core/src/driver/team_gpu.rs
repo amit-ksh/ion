@@ -1,15 +1,20 @@
 //! Nebius Serverless AI Jobs lifecycle transport, separate from ConTree.
 //! This module is not exposed as an agent tool yet. The coordinator must add
-//! monetary reservations, durable GPU waits and output retrieval before launch
-//! can be enabled. A job state is not a command/test receipt or cleanup proof.
-use crate::teams::jobs::JobRequest;
+//! durable GPU waits, verified cleanup and output retrieval before launch
+//! can be enabled. Launch/cancel requests persist their reservations first.
+//! A job state is not a command/test receipt or cleanup proof.
+use crate::teams::{
+    AssignmentLease, TeamCoordinator,
+    gpu_jobs::{GpuBudgetPolicy, GpuJobRecord},
+    jobs::JobRequest,
+};
 use anyhow::{Context, Result, ensure};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{io::Read, time::Duration};
 const BASE: &str = "https://api.nebius.cloud";
 
-pub(super) struct Launch {
+pub(crate) struct Launch {
     pub request: JobRequest,
     pub project: String,
     pub image: String,
@@ -128,6 +133,7 @@ pub(super) struct Acknowledged {
 pub(super) struct Observation {
     pub state: String,
     pub terminal: bool,
+    pub compute_ids: Vec<String>,
 }
 pub(super) struct Client {
     http: reqwest::blocking::Client,
@@ -187,7 +193,7 @@ impl Client {
             "GPU project differs from its owner context"
         );
         let body = launch.body()?;
-        let response=self.request(reqwest::Method::POST,"/ai/v1/jobs").json(&body).send()
+        let response=self.request(reqwest::Method::POST,"/ai/v1/jobs").header("X-Idempotency-Key",launch.request.request_id.to_string()).json(&body).send()
             .context("GPU create acknowledgement lost; inspect the original named job, never resubmit or fall back")?;
         let receipt = Self::response(response)?;
         let operation = receipt["id"]
@@ -239,13 +245,30 @@ impl Client {
                 .query(&[("view", "SECRET")])
                 .send()?,
         )?;
-        let expected = launch.body()?;
+        self.verify_observation(&launch.body()?, ack, &value)
+    }
+    fn observe_saved(&self, body: &Value, ack: &Acknowledged) -> Result<Observation> {
+        identifier(&ack.job)?;
+        let value = Self::response(
+            self.request(reqwest::Method::GET, &format!("/ai/v1/jobs/{}", ack.job))
+                .query(&[("view", "SECRET")])
+                .send()?,
+        )?;
+        self.verify_observation(body, ack, &value)
+    }
+    fn verify_observation(
+        &self,
+        expected: &Value,
+        ack: &Acknowledged,
+        value: &Value,
+    ) -> Result<Observation> {
         ensure!(
-            value["metadata"]["id"] == ack.job
+            expected["metadata"]["parentId"] == self.project
+                && value["metadata"]["id"] == ack.job
                 && value["metadata"]["parentId"] == self.project
-                && value["metadata"]["name"] == launch.name()
+                && value["metadata"]["name"] == expected["metadata"]["name"]
                 && value["metadata"]["labels"]["ion-request"]
-                    == launch.request.request_id.to_string(),
+                    == expected["metadata"]["labels"]["ion-request"],
             "GPU job provenance changed"
         );
         for (key, expected) in expected["spec"].as_object().unwrap() {
@@ -293,16 +316,53 @@ impl Client {
             ),
             "Unknown GPU job state"
         );
+        let instances = value["status"]
+            .get("instances")
+            .filter(|v| !v.is_null())
+            .map(|v| v.as_array().context("GPU instance status invalid"))
+            .transpose()?;
+        ensure!(
+            instances.is_none_or(|v| v.len() <= 16),
+            "GPU instance status exceeds its bound"
+        );
+        let mut compute_ids = Vec::new();
+        for instance in instances.into_iter().flatten() {
+            if let Some(id) = instance
+                .get("computeInstanceId")
+                .filter(|v| !v.is_null() && *v != "")
+            {
+                let id = id.as_str().context("GPU compute identity invalid")?;
+                identifier(id)?;
+                if !compute_ids.iter().any(|v| v == id) {
+                    compute_ids.push(id.to_string());
+                }
+            }
+            ensure!(
+                instance
+                    .get("publicIp")
+                    .is_none_or(|v| v.is_null() || *v == ""),
+                "Unapproved GPU public endpoint appeared"
+            );
+        }
+        ensure!(
+            value["status"]
+                .get("publicEndpoints")
+                .is_none_or(|v| v.is_null() || v.as_array().is_some_and(Vec::is_empty)),
+            "Unapproved GPU public endpoints appeared"
+        );
         Ok(Observation {
             state: state.into(),
             terminal: matches!(state, "COMPLETED" | "FAILED" | "CANCELLED" | "ERROR"),
+            compute_ids,
         })
     }
     /// Cancellation acknowledgement is not terminal job or compute cleanup proof.
-    pub(super) fn cancel(&self, ack: &Acknowledged) -> Result<String> {
+    pub(super) fn cancel(&self, ack: &Acknowledged, key: uuid::Uuid) -> Result<String> {
         identifier(&ack.job)?;
+        ensure!(!key.is_nil(), "GPU cancellation identity missing");
         let value = Self::response(
             self.request(reqwest::Method::POST, "/ai/v1/jobs/cancel")
+                .header("X-Idempotency-Key", key.to_string())
                 .json(&json!({"id":ack.job}))
                 .send()?,
         )?;
@@ -314,8 +374,102 @@ impl Client {
             .as_str()
             .context("GPU cancellation operation missing")?;
         identifier(operation)?;
+        ensure!(
+            operation != ack.operation && operation != ack.job,
+            "GPU cancellation reused creation/job identity"
+        );
         Ok(operation.into())
     }
+}
+
+/// Trusted owner entrypoint, not an agent-facing tool. All preflight failures happen
+/// before reservation; everything after it retains the exact launch and budget.
+pub(crate) fn launch_once(
+    coordinator: &TeamCoordinator,
+    lease: &AssignmentLease,
+    launch: &Launch,
+    policy: &GpuBudgetPolicy,
+) -> Result<GpuJobRecord> {
+    launch_once_with(&Client::configured()?, coordinator, lease, launch, policy)
+}
+fn launch_once_with(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    lease: &AssignmentLease,
+    launch: &Launch,
+    policy: &GpuBudgetPolicy,
+) -> Result<GpuJobRecord> {
+    ensure!(
+        launch.project == client.project,
+        "GPU owner project changed before launch"
+    );
+    let body = launch.body()?;
+    if coordinator.reserve_gpu_launch(
+        lease,
+        &launch.request,
+        &body,
+        policy,
+        crate::model::unix_time(),
+    )? {
+        let ack = client.submit(launch)?;
+        coordinator.bind_gpu_acknowledgement(
+            launch.request.request_id,
+            &ack.operation,
+            &ack.job,
+            crate::model::unix_time(),
+        )?;
+    }
+    coordinator
+        .gpu_jobs(lease.attempt_id())?
+        .into_iter()
+        .find(|v| v.request_id == launch.request.request_id)
+        .context("Saved GPU launch missing")
+}
+/// Stop/restart observes and cancels bound jobs. No create POST or Local execution.
+/// Terminal states retain resource reservations until cleanup is independently verified.
+pub(crate) fn reconcile_attempt(
+    coordinator: &TeamCoordinator,
+    attempt: uuid::Uuid,
+) -> Result<bool> {
+    let records = coordinator.gpu_jobs(attempt)?;
+    if records.iter().all(|r| r.state == "cleaned") {
+        return Ok(true);
+    }
+    reconcile_with(&Client::configured()?, coordinator, records)
+}
+fn reconcile_with(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    records: Vec<GpuJobRecord>,
+) -> Result<bool> {
+    for record in records.iter().filter(|r| r.state != "cleaned") {
+        ensure!(
+            record.project == client.project,
+            "Use the GPU job's original owner project/account"
+        );
+        let (Some(operation), Some(job)) = (&record.creation_operation, &record.job_id) else {
+            continue;
+        };
+        let ack = Acknowledged {
+            operation: operation.clone(),
+            job: job.clone(),
+        };
+        let observed = client.observe_saved(&record.body, &ack)?;
+        coordinator.record_gpu_observation(
+            record.request_id,
+            job,
+            &observed.state,
+            &observed.compute_ids,
+            crate::model::unix_time(),
+        )?;
+        if !observed.terminal {
+            if let Some(key) = coordinator.claim_gpu_cancellation(record.request_id, job)? {
+                let cancel = client.cancel(&ack, key)?;
+                coordinator.bind_gpu_cancellation(record.request_id, job, &cancel)?;
+            }
+        }
+    }
+    Ok(records.iter().all(|r| r.state == "cleaned"))
 }
 
 #[cfg(test)]
@@ -345,6 +499,133 @@ mod tests {
             disk_bytes: 16 * 1024 * 1024 * 1024,
             shm_bytes: 0,
             timeout_seconds: 60,
+        }
+    }
+    struct Fixture {
+        dir: std::path::PathBuf,
+        coordinator: TeamCoordinator,
+        lease: AssignmentLease,
+        policy: GpuBudgetPolicy,
+    }
+    impl Fixture {
+        fn new(remote: bool, network: bool) -> Self {
+            use crate::{
+                control::ControlStore,
+                teams::{DispatchHost, PrepareRun},
+            };
+            use waku_protocol::{control::*, model::ProviderKind, teams::*};
+            let dir = std::env::temp_dir().join(format!("ion-gpu-test-{}", Uuid::new_v4()));
+            let path = dir.join("control.db");
+            let definitions = ControlStore::new(path.clone());
+            let agent = Uuid::new_v4();
+            let team = Uuid::new_v4();
+            let target = Uuid::new_v4().to_string();
+            let access = AgentAccess {
+                shell: true,
+                workspace_read: true,
+                network,
+                ..Default::default()
+            };
+            definitions
+                .save(
+                    definitions.load().unwrap().revision,
+                    ControlRecord::Agent(AgentProfile {
+                        id: agent,
+                        name: "GPU fixture".into(),
+                        expertise: "Training".into(),
+                        instructions: "Run one reviewed job".into(),
+                        provider: ProviderKind::Nebius,
+                        model: Some("fixture".into()),
+                        expected_output: "Receipt".into(),
+                        execution: AgentExecution {
+                            environment: if remote {
+                                ExecutionEnvironment::NebiusSandbox
+                            } else {
+                                ExecutionEnvironment::Local
+                            },
+                            sandbox_target: remote.then(|| target.clone()),
+                            local_fallback: true,
+                        },
+                        access: access.clone(),
+                        max_parallel_tasks: 1,
+                    }),
+                )
+                .unwrap();
+            definitions
+                .save(
+                    definitions.load().unwrap().revision,
+                    ControlRecord::Team(Team {
+                        id: team,
+                        name: "GPU team".into(),
+                        objective: "Bounded training".into(),
+                        limits: None,
+                        members: vec![TeamMember {
+                            agent_id: agent,
+                            parent_id: None,
+                        }],
+                    }),
+                )
+                .unwrap();
+            let coordinator = TeamCoordinator::new(path);
+            let now = crate::model::unix_time();
+            let run = coordinator
+                .prepare(
+                    PrepareRun {
+                        id: Uuid::new_v4(),
+                        root_task_id: Uuid::new_v4(),
+                        project_id: Uuid::new_v4(),
+                        team_id: team,
+                        expected_definition_revision: definitions.load().unwrap().revision,
+                        objective: "GPU fixture".into(),
+                        limits: TeamRunLimits::default(),
+                        access,
+                        input_data: vec![],
+                        source_attachments: vec![],
+                        source_prompt: None,
+                        origin: None,
+                    },
+                    now,
+                )
+                .unwrap();
+            let claimed = coordinator
+                .claim(
+                    run.id,
+                    run.work[0].id,
+                    if remote {
+                        DispatchHost::NebiusSandbox {
+                            target: target.clone(),
+                        }
+                    } else {
+                        DispatchHost::Local
+                    },
+                    now,
+                    180,
+                )
+                .unwrap();
+            Self {
+                dir,
+                coordinator,
+                lease: claimed.lease,
+                policy: GpuBudgetPolicy {
+                    version: 1,
+                    target,
+                    currency: "USD".into(),
+                    quote_id: "approved-fixture-bound".into(),
+                    valid_until: now + 3600,
+                    reservation_micros: 10000,
+                    run_budget_micros: 10000,
+                    max_jobs: 4,
+                    max_parallel: 2,
+                },
+            }
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            for name in ["control.db", "control.db-wal", "control.db-shm"] {
+                let _ = std::fs::remove_file(self.dir.join(name));
+            }
+            let _ = std::fs::remove_dir(&self.dir);
         }
     }
     fn bytes(v: Value) -> Vec<u8> {
@@ -395,7 +676,7 @@ mod tests {
         let observed = c.observe(&l, &ack).unwrap();
         assert_eq!(observed.state, "RUNNING");
         assert!(!observed.terminal);
-        assert_eq!(c.cancel(&ack).unwrap(), "operation-cancel");
+        assert_eq!(c.cancel(&ack, Uuid::new_v4()).unwrap(), "operation-cancel");
         assert!(c.observe(&l, &ack).unwrap().terminal);
         let requests = server.finish();
         assert_eq!(requests.len(), 5);
@@ -407,6 +688,209 @@ mod tests {
         assert_eq!(requests[0].body["spec"]["publicIp"], false);
         assert!(requests[2].line.contains("view=SECRET"));
         assert_eq!(requests[3].body, json!({"id":"aijob-fixture"}));
+    }
+    #[test]
+    fn team_gpu_durable_launch_replay_stop_and_terminal_keep_original_reservations() {
+        let f = Fixture::new(true, true);
+        let l = launch();
+        let mut running = job(&l, "RUNNING");
+        running["status"]["instances"] =
+            json!([{"computeInstanceId":"compute-fixture","state":"RUNNING"}]);
+        let terminal = job(&l, "CANCELLED");
+        let server = Server::new(vec![
+            (
+                200,
+                bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
+            ),
+            (200, bytes(running)),
+            (
+                200,
+                bytes(json!({"id":"operation-cancel","resourceId":"aijob-fixture"})),
+            ),
+            (200, bytes(terminal)),
+        ]);
+        let c = client(&server);
+        let record = launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
+        assert_eq!(record.job_id.as_deref(), Some("aijob-fixture"));
+        assert_eq!(
+            launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy)
+                .unwrap()
+                .creation_operation,
+            record.creation_operation
+        );
+        let reopened = TeamCoordinator::new(f.dir.join("control.db"));
+        assert!(
+            !reconcile_with(
+                &c,
+                &reopened,
+                reopened.gpu_jobs(f.lease.attempt_id()).unwrap()
+            )
+            .unwrap()
+        );
+        assert!(
+            !reconcile_with(
+                &c,
+                &reopened,
+                reopened.gpu_jobs(f.lease.attempt_id()).unwrap()
+            )
+            .unwrap()
+        );
+        let record = reopened.gpu_jobs(f.lease.attempt_id()).unwrap().remove(0);
+        assert_eq!(record.state, "terminal");
+        assert_eq!(record.compute_ids, vec!["compute-fixture"]);
+        assert_eq!(
+            record.cancellation_operation.as_deref(),
+            Some("operation-cancel")
+        );
+        assert!(record.cancel_requested);
+        assert!(reopened.has_pending_effect(f.lease.run_id()).unwrap());
+        assert!(
+            !reopened
+                .remote_attempt_stopped(f.lease.attempt_id())
+                .unwrap()
+        );
+        let mut second = launch();
+        second.request.request_id = Uuid::new_v4();
+        let error = reopened
+            .reserve_gpu_launch(
+                &f.lease,
+                &second.request,
+                &second.body().unwrap(),
+                &f.policy,
+                crate::model::unix_time(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("reservation budget reached"));
+        let requests = server.finish();
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.line.starts_with("POST /ai/v1/jobs "))
+                .count(),
+            1
+        );
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.line.starts_with("POST /ai/v1/jobs/cancel "))
+                .count(),
+            1
+        );
+    }
+    #[test]
+    fn team_gpu_lost_create_ack_replays_saved_state_without_second_submission_or_fallback() {
+        let f = Fixture::new(true, true);
+        let l = launch();
+        let server = Server::new(vec![(500, bytes(json!({})))]);
+        let c = client(&server);
+        assert!(launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).is_err());
+        let record = launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
+        assert_eq!(record.state, "submitting");
+        assert!(record.job_id.is_none());
+        assert!(!reconcile_with(&c, &f.coordinator, vec![record]).unwrap());
+        let mut changed = launch();
+        changed.request.request_id = l.request.request_id;
+        changed.request.argv.push("changed".into());
+        assert!(launch_once_with(&c, &f.coordinator, &f.lease, &changed, &f.policy).is_err());
+        assert!(
+            !f.coordinator
+                .remote_attempt_stopped(f.lease.attempt_id())
+                .unwrap()
+        );
+        assert!(f.coordinator.has_pending_effect(f.lease.run_id()).unwrap());
+        assert_eq!(server.finish().len(), 1);
+    }
+    #[test]
+    fn team_gpu_lost_cancel_ack_does_not_duplicate_cancellation_or_release_capacity() {
+        let f = Fixture::new(true, true);
+        let l = launch();
+        let server = Server::new(vec![
+            (
+                200,
+                bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
+            ),
+            (200, bytes(job(&l, "RUNNING"))),
+            (500, bytes(json!({}))),
+            (200, bytes(job(&l, "RUNNING"))),
+        ]);
+        let c = client(&server);
+        launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
+        assert!(
+            reconcile_with(
+                &c,
+                &f.coordinator,
+                f.coordinator.gpu_jobs(f.lease.attempt_id()).unwrap()
+            )
+            .is_err()
+        );
+        let before = f.coordinator.snapshot(f.lease.run_id()).unwrap().revision;
+        assert!(
+            !reconcile_with(
+                &c,
+                &f.coordinator,
+                f.coordinator.gpu_jobs(f.lease.attempt_id()).unwrap()
+            )
+            .unwrap()
+        );
+        let record = f
+            .coordinator
+            .gpu_jobs(f.lease.attempt_id())
+            .unwrap()
+            .remove(0);
+        assert_eq!(
+            f.coordinator.snapshot(f.lease.run_id()).unwrap().revision,
+            before
+        );
+        assert_eq!(record.state, "canceling");
+        assert!(record.cancel_requested);
+        assert!(record.cancellation_operation.is_none());
+        let requests = server.finish();
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.line.starts_with("POST /ai/v1/jobs/cancel "))
+                .count(),
+            1
+        );
+    }
+    #[test]
+    fn team_gpu_authorization_currency_quote_and_policy_fail_before_network() {
+        let l = launch();
+        let server = Server::new(vec![]);
+        let c = client(&server);
+        let local = Fixture::new(false, true);
+        assert!(launch_once_with(&c, &local.coordinator, &local.lease, &l, &local.policy).is_err());
+        let no_network = Fixture::new(true, false);
+        assert!(
+            launch_once_with(
+                &c,
+                &no_network.coordinator,
+                &no_network.lease,
+                &l,
+                &no_network.policy
+            )
+            .is_err()
+        );
+        let f = Fixture::new(true, true);
+        for mutate in 0..4 {
+            let mut policy = f.policy.clone();
+            match mutate {
+                0 => policy.valid_until = crate::model::unix_time(),
+                1 => policy.currency = "usd".into(),
+                2 => policy.target = "wrong-target".into(),
+                _ => policy.reservation_micros = policy.run_budget_micros + 1,
+            }
+            assert!(launch_once_with(&c, &f.coordinator, &f.lease, &l, &policy).is_err());
+        }
+        assert!(
+            f.coordinator
+                .gpu_jobs(f.lease.attempt_id())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(server.finish().is_empty());
     }
     #[test]
     fn team_gpu_rejects_mutable_images_oversized_configs_and_changed_job_provenance() {
@@ -439,6 +923,22 @@ mod tests {
         let server = Server::new(vec![(500, bytes(json!({})))]);
         let c = client(&server);
         assert!(c.submit(&l).is_err());
+        assert_eq!(server.finish().len(), 1);
+        let server = Server::new(vec![(
+            200,
+            bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
+        )]);
+        let c = client(&server);
+        assert!(
+            c.cancel(
+                &Acknowledged {
+                    operation: "operation-create".into(),
+                    job: "aijob-fixture".into()
+                },
+                Uuid::new_v4()
+            )
+            .is_err()
+        );
         assert_eq!(server.finish().len(), 1);
     }
 }

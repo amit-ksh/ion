@@ -83,6 +83,18 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             UNIQUE(work_id,request_id));
         CREATE INDEX IF NOT EXISTS ion_team_jobs_attempt ON ion_team_jobs(attempt_id,state);
         CREATE INDEX IF NOT EXISTS ion_team_jobs_run ON ion_team_jobs(run_id,state);
+        CREATE TABLE IF NOT EXISTS ion_team_gpu_jobs (
+            request_id TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
+            work_id TEXT NOT NULL REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,
+            project TEXT NOT NULL,signature TEXT NOT NULL,body TEXT NOT NULL,policy TEXT NOT NULL,
+            reserved_micros INTEGER NOT NULL,currency TEXT NOT NULL,deadline_at INTEGER NOT NULL,
+            state TEXT NOT NULL,creation_operation TEXT,job_id TEXT,cancellation_operation TEXT,
+            cancel_requested INTEGER NOT NULL DEFAULT 0,cancellation_key TEXT,remote_state TEXT,
+            compute_ids TEXT NOT NULL,UNIQUE(work_id,request_id));
+        CREATE INDEX IF NOT EXISTS ion_team_gpu_attempt ON ion_team_gpu_jobs(attempt_id,state);
+        CREATE INDEX IF NOT EXISTS ion_team_gpu_project ON ion_team_gpu_jobs(project,state);
+        CREATE UNIQUE INDEX IF NOT EXISTS ion_team_gpu_resource ON ion_team_gpu_jobs(project,job_id) WHERE job_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS ion_team_gpu_operation ON ion_team_gpu_jobs(project,creation_operation) WHERE creation_operation IS NOT NULL;
         CREATE TABLE IF NOT EXISTS ion_team_workspaces (
             run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id), state TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_workspace_edits (

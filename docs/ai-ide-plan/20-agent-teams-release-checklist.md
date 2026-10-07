@@ -150,7 +150,7 @@ also requires the unchecked execution and accounting items above.
 
 ## Verification baseline
 
-Current protocol is **28**. Rebuild desktop, daemon and clients together. The
+Current protocol is **29**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.
@@ -179,7 +179,11 @@ second development watcher was performed during these checkpoints.
   Agent GPU launch remains disabled pending the integrations below.
 - [ ] Linux/image/live command acceptance from the
   [command and GPU review guide](23-remote-command-gpu-jobs.md).
-- [ ] Command lost-acknowledgement operator binding and richer recovery projection.
+- [x] Command lost-acknowledgement operator binding, separate command recovery
+  labels, exact original input/policy witness and continuation without resubmission.
+- [x] GPU durable launch/cancel claims, immutable owner spending allowances,
+  count/concurrency/deadline checks and saved resource identities. Unknown or
+  terminal outcomes do not release reservations. Agent GPU launch remains gated.
 - [ ] GPU durable waits, monetary/resource/egress enforcement, dataset/checkpoint
   volumes, real output retrieval, cleanup verification and live acceptance.
 - [ ] Enforce executed command receipts in required output-contract check gates.

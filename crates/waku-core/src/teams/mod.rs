@@ -20,6 +20,11 @@ mod decisions;
 mod dispatch;
 mod documents;
 mod followups;
+#[expect(
+    dead_code,
+    reason = "GPU launch is gated until asynchronous waits, output receipts and cleanup are complete"
+)]
+pub(crate) mod gpu_jobs;
 mod inputs;
 pub(crate) mod jobs;
 mod materialize;

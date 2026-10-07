@@ -115,6 +115,7 @@ export type { TeamIntegrationStatus } from "./TeamIntegrationStatus";
 export type { TeamMember } from "./TeamMember";
 export type { TeamRecoveryConfirmation } from "./TeamRecoveryConfirmation";
 export type { TeamRecoveryReview } from "./TeamRecoveryReview";
+export type { TeamRemotePurpose } from "./TeamRemotePurpose";
 export type { TeamRemoteRecovery } from "./TeamRemoteRecovery";
 export type { TeamRunLimits } from "./TeamRunLimits";
 export type { TeamRunPage } from "./TeamRunPage";

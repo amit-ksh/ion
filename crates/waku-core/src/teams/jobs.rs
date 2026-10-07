@@ -88,6 +88,7 @@ pub(crate) struct JobRecord {
     pub operation: Option<Uuid>,
     pub state: String,
     pub request: JobRequest,
+    pub policy: String,
 }
 impl TeamCoordinator {
     pub(crate) fn authorize_remote_job(
@@ -298,11 +299,11 @@ impl TeamCoordinator {
     }
     pub(crate) fn unfinished_jobs(&self, attempt: Uuid) -> Result<Vec<JobRecord>> {
         let db = self.connect()?;
-        let rows = db.prepare("SELECT request_id,image,project,operation,state,request FROM ion_team_jobs WHERE attempt_id=? AND state IN ('submitting','running','canceling') LIMIT 129")?
-            .query_map([attempt.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,Option<String>>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        let rows = db.prepare("SELECT request_id,image,project,operation,state,request,json_extract(signature,'$.policy') FROM ion_team_jobs WHERE attempt_id=? AND state IN ('submitting','running','canceling') LIMIT 129")?
+            .query_map([attempt.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,Option<String>>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
         ensure!(rows.len() <= 128, "Remote job limit exceeded");
         rows.into_iter()
-            .map(|(id, image, project, operation, state, request)| {
+            .map(|(id, image, project, operation, state, request, policy)| {
                 Ok(JobRecord {
                     id: Uuid::parse_str(&id)?,
                     image: Uuid::parse_str(&image)?,
@@ -310,9 +311,71 @@ impl TeamCoordinator {
                     operation: operation.map(|s| Uuid::parse_str(&s)).transpose()?,
                     state,
                     request: serde_json::from_str(&request)?,
+                    policy,
                 })
             })
             .collect()
+    }
+    pub(crate) fn bind_recovered_job_operation(
+        &self,
+        run_id: Uuid,
+        work_id: Uuid,
+        attempt_id: Uuid,
+        revision: u64,
+        request: Uuid,
+        operation: Uuid,
+        now: u64,
+    ) -> Result<()> {
+        ensure!(!operation.is_nil(), "Command operation identity is empty");
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let run = load(&tx, run_id)?;
+        ensure!(
+            run.revision == revision,
+            "Run changed; refresh command recovery"
+        );
+        let work = run
+            .work
+            .iter()
+            .find(|w| w.id == work_id)
+            .context("Command assignment missing")?;
+        ensure!(
+            work.can_reconcile
+                && work
+                    .attempts
+                    .last()
+                    .is_some_and(|a| a.id == attempt_id
+                        && a.environment == ExecutionEnvironment::NebiusSandbox),
+            "Command recovery attempt/state changed"
+        );
+        ensure!(tx.execute("UPDATE ion_team_jobs SET operation=?,state='running' WHERE request_id=? AND run_id=? AND work_id=? AND attempt_id=? AND state='submitting' AND operation IS NULL",
+            params![operation.to_string(),request.to_string(),run_id.to_string(),work_id.to_string(),attempt_id.to_string()])?==1,"Command request was changed or already bound");
+        tx.execute(
+            "INSERT INTO ion_team_recovery_confirmations VALUES(?,?,?,?,?)",
+            params![
+                run_id.to_string(),
+                work_id.to_string(),
+                attempt_id.to_string(),
+                revision,
+                serde_json::to_string(&TeamRecoveryConfirmation::BindRemoteOperation {
+                    request_id: request,
+                    operation_id: operation
+                })?
+            ],
+        )?;
+        audit(
+            &tx,
+            run_id,
+            Some(work_id),
+            "command_operation_recovered",
+            &format!(
+                "Verified original command {request} against operation {operation}; no submission"
+            ),
+            now,
+        )?;
+        bump(&tx, run_id)?;
+        tx.commit()?;
+        Ok(())
     }
     pub(crate) fn job_receipt(
         &self,

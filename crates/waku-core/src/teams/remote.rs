@@ -216,5 +216,5 @@ impl TeamCoordinator {
 }
 
 pub(super) fn attempt_stopped(db: &Connection, attempt: Uuid) -> Result<bool> {
-    Ok(!db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_remote_calls WHERE attempt_id=?1 AND state NOT IN ('SUCCESS','FAILED','CANCELLED','rejected')) OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE attempt_id=?1 AND state IN ('submitting','running','canceling'))",[attempt.to_string()],|r|r.get::<_,bool>(0))?)
+    Ok(!db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_remote_calls WHERE attempt_id=?1 AND state NOT IN ('SUCCESS','FAILED','CANCELLED','rejected')) OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE attempt_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE attempt_id=?1 AND state!='cleaned')",[attempt.to_string()],|r|r.get::<_,bool>(0))?)
 }

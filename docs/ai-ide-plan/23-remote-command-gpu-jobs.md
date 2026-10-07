@@ -42,9 +42,14 @@ are not a monetary reservation or dedicated CPU/RAM allocation.
 Stop/restart observes or cancels the original bound operation. Cancellation
 acknowledgement is not terminal evidence. Unknown acknowledgement keeps its
 reservation and prevents continuation; no duplicate POST or Local retry occurs.
-Command lost-acknowledgement binding is still outstanding; the existing UI binding
-for model calls does not resolve command jobs. Recoverable native calls are
-matched to their original arguments and committed artifacts without execution.
+Review recovery now lists commands separately from model completions. For a lost
+acknowledgement, Verify and bind checks the original operation's saved hostname,
+image, literal command, files, environment, network, resource/time limits and
+complete input witness before attaching it. A changed or missing witness cannot
+be bound. Confirmation replay uses its committed receipt; subsequent GET returns
+the real exit/log/output receipt. Prepare continuation and Continue retain the
+original attempt, journal, harness and budget, with no repeated command POST.
+Private commands/files are not included in the public recovery projection.
 
 ## Setup and later review
 
@@ -63,6 +68,10 @@ available; no VM/image/cloud account changes are performed by local tests.
 - [ ] Try private/traversal/link/oversized files and an unregistered executable.
 - [ ] Stop during a command; confirm the original operation becomes terminal.
 - [ ] Restart after an acknowledged launch; verify GET/DELETE only, no second POST.
+- [ ] In a disposable command run, interrupt the create acknowledgement. Use
+  Review recovery to bind the original operation. Verify modified command/input/
+  limit witnesses are rejected and repeated confirmations do not submit again.
+  Prepare continuation, then Continue; inspect the real command receipt/artifact.
 - [ ] Test Linux subreaper/process cleanup, including detached descendants and
   symlink/hardlink outputs, in the disposable image.
 - [ ] Verify source checkout remains intact and output reads cannot cross tasks.
@@ -75,6 +84,9 @@ poll, bound job observation and cancellation requests. It separates creation,
 job and cancellation identities; verifies project/request/image/resource/input
 provenance; bounds responses; and never retries a create POST. It pins an image
 digest and explicit platform, preset, subnet, disk, timeout and no-restart policy.
+Create and cancel carry their persisted UUID idempotency keys, following the
+[official API contract](https://github.com/nebius/api). This implementation still
+makes one create/cancel submission; acknowledgement loss does not retry either.
 The native injected configuration must fit 64 KiB. These field names and lifecycle
 routes were checked against the [official REST schema](https://api.nebius.cloud/openapi.json)
 and [Job service definition](https://github.com/nebius/api/blob/main/nebius/ai/v1/job_service.proto).
@@ -82,12 +94,23 @@ and [Job service definition](https://github.com/nebius/api/blob/main/nebius/ai/v
 **Agent GPU submission is not enabled.** Transport fixtures establish protocol
 behavior only. The implementation still needs:
 
-- [ ] Durable GPU resource records, one-time launch reservation and verified
-  recovery/binding after an uncertain acknowledgement.
+- [x] Durable GPU launch/body/operation/job records and a one-time launch
+  reservation. Exact replay reads saved state and never repeats create.
+- [x] Private owner-approved currency/quote/expiry/reservation/run-budget/job-count
+  and project-concurrency limits, checked before launch. The saved target must
+  match the actual Nebius assignment with command/read/network grants. These are
+  launch allowances, not provider invoice totals or a verified billing ceiling.
+- [x] Stop/restart observation and one-time cancellation claim before POST, with a
+  separately persisted cancellation identity. Lost acknowledgement remains held;
+  observed compute IDs accumulate, even if terminal responses omit them. Job
+  terminal/cancel acknowledgement cannot release money, resources or continuation.
+- [ ] GPU recovery UI and verified binding of the original job after lost create/
+  cancellation acknowledgement. No automatic create retry or Local fallback.
 - [ ] Native asynchronous waits for long jobs with Stop/restart/deadline handling,
   retaining the selected harness, environment, grants and task identity.
-- [ ] Price/currency snapshots, aggregate monetary reservations and reconciliation
-  of compute, startup, disk/storage and unknown cost.
+- [ ] Verified price snapshots and billing reconciliation for compute, startup,
+  disk/storage and unknown cost. Aggregate reservations exist; unknown and
+  terminal-job costs retain the full approved allowance until reconciliation.
 - [ ] Approved dataset/checkpoint volumes, bounded download/readback, real worker
   receipt/log retrieval and artifacts with actual command evidence.
 - [ ] GPU-compatible image validation and resource/quota/readiness checks.
