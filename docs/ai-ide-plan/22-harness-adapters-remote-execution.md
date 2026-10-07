@@ -24,9 +24,10 @@ acceptance is implied by this checkpoint.
 
 Twelve catalog harnesses have Teams adapter implementations. Eleven have native
 transport/CLI fixture evidence; Fx's new implementation has source/profile/transport tests
-but still needs its official Linux/macOS executable acceptance. No compatible
-Linux distribution is available on this Windows host; the installed Ubuntu WSL
-entry cannot mount its missing disk. This is an outstanding verification gate.
+but still needs its official Linux/macOS executable acceptance. Docker's Linux
+engine is now available on this Windows host and has run the fixed command guard
+tests. The installed Ubuntu WSL entry still has a missing disk. Fx native binary
+acceptance remains an outstanding verification gate.
 
 Unsupported native account types, custom endpoints and releases block readiness.
 They remain selectable for normal solo use. A saved Teams harness is preserved
@@ -78,8 +79,10 @@ submission remain development. Pinned required-command gates now verify original
 successful receipts and current source witnesses. Saved GPU maintenance continues
 through task cancellation and owner restart. New trusted GPU launches additionally
 require exact owner project/network/preset/resource approval, fresh quota/capacity
-reads and atomic cross-run resource reservations; live acceptance, prices/billing,
-image/egress policy and the agent submit contract remain open. ConTree's
+reads and atomic cross-run resource reservations. The fixed Linux child socket
+guard now has real kernel fixture evidence and explicit image approval; complete
+GPU device/IPC/egress acceptance, prices/billing and the agent submit contract
+remain open. ConTree's
 verified instance request has a layer-size limit but no verified GPU/CPU resource
 fields. Do not describe this checkpoint as an ML execution service.
 

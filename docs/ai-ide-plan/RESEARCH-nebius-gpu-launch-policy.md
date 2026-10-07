@@ -365,3 +365,14 @@ restrictive managed-job NIC attachment and child network enforcement cannot be
 proven solely by those reads. Credentials or an account-ready status are not the
 missing implementation. None of these unresolved requirements changes the user's
 explicit agent environment/harness choice or authorizes cloud provisioning.
+
+## Subsequent child socket boundary checkpoint (2026-10-07)
+
+The fixed pre-exec Linux guard and new image-bound socket-mechanism approval are
+now implemented. Nine CLI guard cases passed on a local pinned Docker Linux
+image, also with outer seccomp disabled; six worker cases passed. This advances
+item 4 above but does not complete managed-job egress acceptance: devices such
+as RDMA, network mounts and IPC/file proxies remain separate runtime constraints.
+GPU/CUDA/provider startup still needs acceptance, as do verified price/account/
+billing and the agent submission contract. See [the boundary investigation and
+local implementation evidence](RESEARCH-linux-gpu-child-network.md).

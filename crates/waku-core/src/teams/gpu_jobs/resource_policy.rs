@@ -19,6 +19,14 @@ pub(crate) struct GpuResourcePolicy {
     pub project_limit: GpuResourceVector,
     pub tenant_limit: GpuResourceVector,
     pub quotas: Vec<GpuQuotaPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_network: Option<GpuChildNetworkPolicy>,
+}
+/// Image approval names the tested mechanism; it is not a provider egress attestation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum GpuChildNetworkPolicy {
+    SeccompSocketDenyV1,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -161,6 +169,13 @@ impl GpuResourcePolicy {
                 "GPU quota identity/unit approval invalid"
             );
         }
+        Ok(())
+    }
+    pub(crate) fn require_child_network(&self) -> Result<()> {
+        ensure!(
+            self.child_network == Some(GpuChildNetworkPolicy::SeccompSocketDenyV1),
+            "Approve the pinned image's tested Linux child socket boundary before a new GPU launch"
+        );
         Ok(())
     }
     pub(crate) fn matches_body(&self, body: &Value) -> Result<()> {

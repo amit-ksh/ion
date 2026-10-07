@@ -196,9 +196,11 @@ behavior only. The implementation still needs:
   agent submission stays gated by the remaining launch requirements.
 - [ ] Approved large dataset/checkpoint volumes, retention/storage cost policy and
   full project/large-file transfer. Small receipt-contained outputs remain bounded.
-- [ ] GPU-compatible image validation and resource/quota/readiness checks.
-- [ ] Enforced egress/resource grants. `publicIp=false` is not a network-deny rule;
-  registered subnet policy and access authorization are needed.
+- [x] Exact resource/quota/readiness approvals and cross-run quantity reservations.
+- [x] Fixed child socket filter with Linux CLI evidence and image-bound approval.
+- [ ] GPU-compatible image/device/runtime acceptance and complete egress grants.
+  `publicIp=false` is not a network-deny rule; runtime devices, proxies, mounts
+  and registered network policy still need review.
 - [ ] Recovery of jobs whose VM/disk inventory was never captured. Missing native
   operation/input witnesses remain unresolved; no DELETE is automatically repeated.
 - [ ] Live GPU acceptance with your configured project/quota/resources.
@@ -471,9 +473,10 @@ the provider has counted. Readiness is a snapshot, not an allocation guarantee,
 price lock, complete managed-job disk inventory or proof of an egress boundary.
 No additional cloud permission is granted by this policy.
 
-Agent GPU submission remains disabled. Verified pricing/account/billing, child
-network enforcement, GPU-compatible image acceptance, historical missing inventory,
-large dataset/checkpoint volumes and retention policy remain development.
+Agent GPU submission remains disabled. The fixed child socket boundary is now
+implemented and locally kernel-tested. Verified pricing/account/billing, complete
+GPU image/device/IPC/egress acceptance, historical missing inventory, large
+dataset/checkpoint volumes and retention policy remain development.
 
 Later live review:
 
@@ -490,3 +493,42 @@ Later live review:
   capacity while costs and missing command receipts stay pending.
 - [ ] Replay an original eligible launch after availability changes; verify the
   saved job is returned without new readiness reads, submission or Local fallback.
+
+### Fixed Linux child socket boundary
+
+Production isolated command execution now goes through a fixed root-owned guard
+before exec of user arguments. The nonroot guard uses an isolated Python startup,
+checks empty capabilities and no_new_privs, accepts only image-pinned exact kernel
+releases and trusted libseccomp, and closes inherited/launcher descriptors. The
+filter denies socket families, io_uring, namespace creation, descriptor theft,
+ptrace/BPF and compatibility ABIs. Ordinary threads/fork/exec inherit the filter.
+The trusted root collector remains outside it. A guard failure is a real failed
+receipt (exit 125), with no user code started or successful output-check evidence.
+
+The image requires reviewed `PYTHON_BASE`, exact `LIBSECCOMP_VERSION` and
+`ACCEPTED_KERNEL_RELEASES` build arguments. New owner preflight also requires
+`"child_network":"seccompSocketDenyV1"` in the immutable resource policy before
+any readiness read/reservation. This approval names the tested mechanism, not
+an attestation of the provider runtime. Historical missing fields are omitted
+from serialization: eligible original replay/recovery still uses the exact saved
+signature and no reads or resubmission; that old policy cannot launch new work.
+
+Nine guard CLI cases plus six worker cases passed in a pinned local Linux x86_64
+image. Guard checks passed with and without Docker's outer seccomp filter, and
+cover actual sockets/raw syscalls, inheritance, x32, descriptor closure, failure
+before user code and private exclusive collector receipts. No GPU/cloud call was
+made. See [research and remaining boundaries](RESEARCH-linux-gpu-child-network.md)
+and [worker setup](../../packages/job-worker/README.md).
+
+Later acceptance:
+
+- [ ] Review and pin each actual provider kernel/image/library/runtime. A release
+  string alone is not binary attestation. Reaccept changed runtimes and ARM64.
+- [ ] Exclude child-accessible RDMA/NIC/VFIO devices, preconnected handles, network
+  filesystems and IPC/file proxies. Socket denial cannot constrain those paths.
+- [ ] Run a small offline GPU training/checkpoint with actual device/thread access;
+  verify denial of sockets/metadata access and authentic collector result reads.
+- [ ] Validate private mounted-result and exclusive-create/flush semantics on the
+  provider filesystem, including failed commands and duplicate UUID refusal.
+- [ ] Preserve explicit environment/harness/grants and all existing launch, money,
+  recovery and live account gates. The agent GPU submit tool remains disabled.

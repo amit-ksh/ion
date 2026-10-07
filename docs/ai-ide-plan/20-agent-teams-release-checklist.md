@@ -153,7 +153,7 @@ also requires the unchecked execution and accounting items above.
 
 ## Verification baseline
 
-Current protocol is **29**. Rebuild desktop, daemon and clients together. The
+Current protocol is **31**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.
@@ -180,7 +180,9 @@ second development watcher was performed during these checkpoints.
 - [x] Native command/output tools and recovery of exact argument-bound receipts.
 - [x] Separate Serverless AI Jobs lifecycle transport and localhost contract tests.
   Agent GPU launch remains disabled pending the integrations below.
-- [ ] Linux/image/live command acceptance from the
+- [x] Fixed Linux command/guard CLI acceptance in a pinned Docker image, including
+  real child isolation, failed outcomes and private exclusive result collection.
+- [ ] Imported image/live command acceptance from the
   [command and GPU review guide](23-remote-command-gpu-jobs.md).
 - [x] Command lost-acknowledgement operator binding, separate command recovery
   labels, exact original input/policy witness and continuation without resubmission.
@@ -219,3 +221,22 @@ second development watcher was performed during these checkpoints.
   with exact arguments/files/time, current-attempt identity and source freshness.
 - [ ] Live executed-check review, including source changes, parent rework, missing
   output and restart replay; see the command guide.
+
+## 2026-10-07 — trusted Linux child socket boundary
+
+- [x] Fixed root-owned guard runs after UID/GID demotion and before user exec;
+  exact accepted kernel, trusted libseccomp, empty capabilities, sanitized env,
+  closed FDs, socket/io_uring/namespace/theft/compatibility-ABI denial and inherited
+  no_new_privs/filter. Missing support stops before user code.
+- [x] Nine Linux CLI guard checks plus six worker checks in a pinned image,
+  including testing with Docker outer seccomp disabled. Root collector can still
+  write genuine isolated receipts; child cannot forge the result volume.
+- [x] New owner GPU preflight requires image-bound socket-mechanism approval before
+  reads/reservation. Legacy original-policy replay/recovery retains signatures;
+  missing approval cannot authorize a new launch.
+- [ ] Accept each provider GPU image/kernel and CUDA workload. Exclude RDMA/NIC/
+  VFIO devices, inherited handles, network filesystem and IPC/file proxies; check
+  actual device access, threading, private collector mount and receipt persistence.
+- [ ] Review account/billing, complete egress/runtime enforcement and remaining
+  GPU agent submit integrations before enabling the target. Local Docker tests
+  do not establish cloud/GPU acceptance.

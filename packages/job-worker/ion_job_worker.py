@@ -196,9 +196,15 @@ def run(request, workspace):
         child_options = {'user': identity[0], 'group': identity[1], 'extra_groups': []}
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(home),
            'TMPDIR': str(root.parent), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8'}
-    process = subprocess.Popen(request['argv'], cwd=root, env=env, stdin=subprocess.DEVNULL,
+    argv = request['argv']
+    if identity:
+        # A fixed trusted isolated interpreter loads the kernel boundary before user
+        # code. Never use preexec_fn or load it from the command's working directory.
+        argv = [sys.executable, '-I', '-S', '/usr/local/libexec/ion-job-guard.py',
+                str(identity[0]), str(identity[1]), '--', *argv]
+    process = subprocess.Popen(argv, cwd=root, env=env, stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               start_new_session=os.name == 'posix', **child_options)
+                               start_new_session=os.name == 'posix', close_fds=True, **child_options)
     captured = {}
     def drain(name, pipe):
         content, count = bytearray(), 0

@@ -129,6 +129,7 @@ impl Client {
             .resources
             .as_ref()
             .context("Approve an exact GPU project/network/resource policy before a new launch")?;
+        approved.require_child_network()?;
         let body = launch.body()?;
         approved.matches_body(&body)?;
         ensure!(

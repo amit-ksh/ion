@@ -2,7 +2,8 @@ use super::*;
 use crate::driver::team_gpu::tests::{Fixture, bytes, client, launch};
 use crate::driver::team_test_http::Server;
 use crate::teams::gpu_jobs::{
-    GpuComputeInventory, GpuDiskInventory, GpuQuotaPolicy, GpuQuotaScope, GpuResourceVector,
+    GpuChildNetworkPolicy, GpuComputeInventory, GpuDiskInventory, GpuQuotaPolicy, GpuQuotaScope,
+    GpuResourceVector,
 };
 pub(in crate::driver::team_gpu) fn policy(l: &Launch) -> GpuResourcePolicy {
     let cap = GpuResourceVector {
@@ -33,6 +34,7 @@ pub(in crate::driver::team_gpu) fn policy(l: &Launch) -> GpuResourcePolicy {
         shm_bytes: l.shm_bytes,
         project_limit: cap.clone(),
         tenant_limit: cap,
+        child_network: Some(GpuChildNetworkPolicy::SeccompSocketDenyV1),
         quotas: [GpuQuotaScope::Project, GpuQuotaScope::Tenant]
             .into_iter()
             .flat_map(|scope| {
@@ -152,7 +154,7 @@ fn team_gpu_preflight_missing_or_changed_owner_approval_cannot_read_or_reserve()
             .to_string()
             .contains("exact GPU")
     );
-    for field in 0..11 {
+    for field in 0..12 {
         let mut budget = f.policy.clone();
         let mut p = policy(&l);
         match field {
@@ -166,7 +168,8 @@ fn team_gpu_preflight_missing_or_changed_owner_approval_cannot_read_or_reserve()
             7 => p.quotas.pop().map(|_| ()).unwrap(),
             8 => p.shape.jobs = 2,
             9 => p.quotas[3].unit = "GiB".into(),
-            _ => p.quotas[0].name = "../quota".into(),
+            10 => p.quotas[0].name = "../quota".into(),
+            _ => p.child_network = None,
         };
         budget.resources = Some(p);
         assert!(launch_once_with(&c, &f.coordinator, &f.lease, &l, &budget).is_err());
@@ -634,7 +637,7 @@ fn team_gpu_preflight_tenant_caps_quota_headroom_and_unknown_legacy_resources_bl
                     &a.body().unwrap(),
                     &first.policy,
                     &r,
-                    now,
+                    crate::model::unix_time(),
                 )
                 .unwrap();
         }
@@ -655,7 +658,7 @@ fn team_gpu_preflight_tenant_caps_quota_headroom_and_unknown_legacy_resources_bl
                 &b.body().unwrap(),
                 &second.policy,
                 &r,
-                now,
+                crate::model::unix_time(),
             )
             .unwrap_err()
             .to_string();
@@ -742,4 +745,68 @@ fn team_gpu_preflight_capacity_headroom_is_reserved_atomically_across_independen
                 .len(),
         1
     );
+}
+
+#[test]
+fn team_gpu_preflight_legacy_socket_policy_replays_original_without_reads_but_cannot_launch_new_work()
+ {
+    let mut f = Fixture::new(true, true);
+    let l = launch();
+    let p = policy(&l);
+    f.policy.resources = Some(p.clone());
+    let server = Server::new(responses(&l, &p));
+    let receipt = client(&server).verify_preflight(&l, &f.policy).unwrap();
+    server.finish();
+    f.coordinator
+        .reserve_verified_gpu_launch(
+            &f.lease,
+            &l.request,
+            &l.body().unwrap(),
+            &f.policy,
+            &receipt,
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    // Simulate a persisted resource-policy reservation from before the optional
+    // socket contract was introduced. Missing extension fields must remain omitted.
+    f.policy.resources.as_mut().unwrap().child_network = None;
+    let policy_value = serde_json::to_value(&f.policy).unwrap();
+    assert!(policy_value["resources"].get("child_network").is_none());
+    let decoded: GpuBudgetPolicy = serde_json::from_value(policy_value.clone()).unwrap();
+    assert_eq!(serde_json::to_value(decoded).unwrap(), policy_value);
+    let signature =
+        json!({"request":l.request,"body":l.body().unwrap(),"policy":f.policy}).to_string();
+    let db = rusqlite::Connection::open(f.dir.join("control.db")).unwrap();
+    db.execute(
+        "UPDATE ion_team_gpu_jobs SET policy=?,signature=? WHERE request_id=?",
+        rusqlite::params![
+            policy_value.to_string(),
+            signature,
+            l.request.request_id.to_string()
+        ],
+    )
+    .unwrap();
+    db.execute(
+        "DELETE FROM ion_team_gpu_preflight WHERE request_id=?",
+        [l.request.request_id.to_string()],
+    )
+    .unwrap();
+    drop(db);
+    let restarted = TeamCoordinator::new(f.dir.join("control.db"));
+    let server = Server::new(vec![]);
+    let c = client(&server);
+    let original = launch_once_with(&c, &restarted, &f.lease, &l, &f.policy).unwrap();
+    assert_eq!(original.request_id, l.request.request_id);
+    assert_eq!(original.state, "submitting");
+    let new = launch();
+    assert!(
+        launch_once_with(&c, &restarted, &f.lease, &new, &f.policy)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("child socket boundary")
+    );
+    assert!(server.finish().is_empty());
+    assert_eq!(restarted.gpu_jobs(f.lease.attempt_id()).unwrap().len(), 1);
+    assert!(restarted.has_pending_effect(f.lease.run_id()).unwrap());
 }

@@ -1908,3 +1908,43 @@ child egress and GPU image enforcement, missing historical inventory, large
 project/dataset/checkpoint volumes, retention policy and live acceptance remain
 development. Amp/Cursor and the remaining adapter account/transport/bridge contracts
 remain open. The full goal stays active.
+
+## Trusted Linux child socket boundary (2026-10-07)
+
+- Added a fixed root-owned isolated Python launcher between child demotion and
+  user exec. It verifies explicit nonroot identity/empty capabilities, trusted
+  libseccomp and exact image-approved kernel, sets no_new_privs, rejects socket,
+  io_uring, namespace/theft/ptrace/BPF and compatibility-ABI escapes, and closes
+  inherited/launcher descriptors. Threads/fork/exec inherit the filter.
+- The root result collector stays outside it. Missing library/unapproved kernel
+  stops before user code with an authentic failed receipt. Worker JSON version 1
+  and result paths/hashes/exclusive writes remain compatible.
+- Image builds require a pinned base, exact signed libseccomp version and accepted
+  kernel release list. New GPU owner preflight requires the immutable image's
+  `child_network` approval before reads/reservation. Legacy missing fields retain
+  exact stored signatures and original-operation replay/recovery, but reject new
+  allocation. Agent GPU submission remains gated.
+- Started the already-installed Docker Desktop hidden after confirming it was
+  unavailable. Existing user images were preserved; disposable test containers
+  were removed. No host credential or cloud resource was used. The local test
+  image remains cached for continuing native Linux harness acceptance.
+
+Verification: **52 GPU Rust regressions**, **nine real Linux guard CLI tests**
+and **six worker tests** passed. The guard suite passed both normally and with
+Docker outer seccomp disabled on x86_64 kernel
+`6.18.40.1-microsoft-standard-WSL2`; the six worker checks also passed on Windows.
+Test image used immutable `python@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f`
+and signed `libseccomp2=2.6.0-2`. Linux tests cover domains/raw syscalls, inheritance,
+x32, descriptor/env closure, missing support and private authentic failed/exclusive
+receipts. A fixture timestamp and nested script quoting were repaired before the
+final checks. Desktop/daemon checking passed with existing ts-rs/dead-code/
+proc-macro warnings; formatting and whitespace gates passed.
+
+This is socket-mechanism evidence, not complete GPU isolation. Provider image/
+device/CUDA acceptance must exclude RDMA/NIC/VFIO, connected handles and network
+filesystem/IPC/file proxies. Full GPU launch, verified price/account/billing,
+historical missing inventory, large project/dataset/checkpoint transfer, Amp/
+Cursor contracts and other adapter transport/bridge contracts remain development.
+Fx native Linux binary acceptance is now feasible locally and remains pending.
+No live provider/GPU/deployment, app bundle, visual test or second watcher was run.
+The full goal stays active.
