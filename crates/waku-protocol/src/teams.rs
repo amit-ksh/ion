@@ -455,6 +455,8 @@ pub struct TeamRecoveryReview {
     pub apps: Vec<TeamDecision>,
     pub environment: ExecutionEnvironment,
     pub remote_calls: Vec<TeamRemoteRecovery>,
+    #[serde(default)]
+    pub gpu_jobs: Vec<TeamGpuRecovery>,
 }
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -475,6 +477,30 @@ pub struct TeamRemoteRecovery {
     pub operation_id: Option<Uuid>,
     pub state: String,
     pub can_bind: bool,
+}
+/// GPU operation IDs are provider resource strings, distinct from ConTree UUIDs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum TeamGpuOperationPurpose {
+    Creation,
+    Cancellation,
+    Deletion,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamGpuRecovery {
+    pub request_id: Uuid,
+    pub project: String,
+    pub job_id: Option<String>,
+    pub creation_operation: Option<String>,
+    pub cancellation_operation: Option<String>,
+    pub deletion_operation: Option<String>,
+    pub state: String,
+    pub cancel_requested: bool,
+    pub cleanup_state: Option<String>,
+    pub can_bind_creation: bool,
+    pub can_bind_cancellation: bool,
+    pub can_bind_deletion: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -500,6 +526,11 @@ pub enum TeamRecoveryConfirmation {
         request_id: Uuid,
         operation_id: Uuid,
     },
+    BindGpuOperation {
+        request_id: Uuid,
+        purpose: TeamGpuOperationPurpose,
+        operation_id: String,
+    },
     VerifyRemoteStopped,
     FileApplied {
         id: Uuid,
@@ -516,4 +547,21 @@ pub enum TeamRecoveryConfirmation {
         evidence: String,
     },
     PrepareContinuation,
+}
+
+#[cfg(test)]
+mod recovery_protocol_tests {
+    use super::*;
+    #[test]
+    fn gpu_recovery_confirmation_preserves_provider_strings_and_exact_purpose() {
+        let value = serde_json::json!({"kind":"bindGpuOperation","requestId":Uuid::new_v4(),"purpose":"deletion","operationId":"aijoboperation-original"});
+        let confirmation: TeamRecoveryConfirmation = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(confirmation).unwrap(), value);
+        let mut changed = value.clone();
+        changed["purpose"] = serde_json::json!("auto");
+        assert!(serde_json::from_value::<TeamRecoveryConfirmation>(changed).is_err());
+        let mut changed = value;
+        changed["credentials"] = serde_json::json!("unapproved");
+        assert!(serde_json::from_value::<TeamRecoveryConfirmation>(changed).is_err());
+    }
 }

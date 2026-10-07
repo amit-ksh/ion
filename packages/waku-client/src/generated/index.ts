@@ -109,6 +109,8 @@ export type { TeamDecisionStatus } from "./TeamDecisionStatus";
 export type { TeamFileRecovery } from "./TeamFileRecovery";
 export type { TeamFollowUp } from "./TeamFollowUp";
 export type { TeamFollowUpStatus } from "./TeamFollowUpStatus";
+export type { TeamGpuOperationPurpose } from "./TeamGpuOperationPurpose";
+export type { TeamGpuRecovery } from "./TeamGpuRecovery";
 export type { TeamInputFile } from "./TeamInputFile";
 export type { TeamIntegration } from "./TeamIntegration";
 export type { TeamIntegrationStatus } from "./TeamIntegrationStatus";

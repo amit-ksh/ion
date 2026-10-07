@@ -186,8 +186,11 @@ second development watcher was performed during these checkpoints.
   terminal outcomes do not release reservations. Agent GPU launch remains gated.
 - [x] GPU VM/disk inventory and one-time deletion claim; typed completed deletion
   plus absence proofs release compute capacity while output/unknown cost remain held.
-- [ ] GPU recovery for missing inventory and lost creation/cancellation/deletion
-  acknowledgements; authenticated original-resource binding, without repeat mutations.
+- [x] GPU lost creation/cancellation/deletion acknowledgement binding: native
+  recovery controls, original typed request/key/input verification and revision
+  fencing, with no repeated mutation or reservation release.
+- [ ] GPU recovery for missing historical VM/disk inventory; lost acknowledgements
+  without sufficient native operation/input evidence remain unresolved.
 - [x] GPU result volume and owner signed S3 receipt reader, original command/file
   validation, durable generated artifact, replay and assignment-scoped readback.
 - [x] GPU durable waits for approved bound jobs, owner background polling, Stop/

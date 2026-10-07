@@ -2,6 +2,7 @@
 import type { ExecutionEnvironment } from "./ExecutionEnvironment";
 import type { TeamDecision } from "./TeamDecision";
 import type { TeamFileRecovery } from "./TeamFileRecovery";
+import type { TeamGpuRecovery } from "./TeamGpuRecovery";
 import type { TeamRemoteRecovery } from "./TeamRemoteRecovery";
 
-export type TeamRecoveryReview = { runId: string, assignmentId: string, attemptId: string, revision: number, host: string, hostStopped: boolean, canPrepareContinuation: boolean, workspacePath: string | null, files: Array<TeamFileRecovery>, apps: Array<TeamDecision>, environment: ExecutionEnvironment, remoteCalls: Array<TeamRemoteRecovery>, };
+export type TeamRecoveryReview = { runId: string, assignmentId: string, attemptId: string, revision: number, host: string, hostStopped: boolean, canPrepareContinuation: boolean, workspacePath: string | null, files: Array<TeamFileRecovery>, apps: Array<TeamDecision>, environment: ExecutionEnvironment, remoteCalls: Array<TeamRemoteRecovery>, gpuJobs: Array<TeamGpuRecovery>, };

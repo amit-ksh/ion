@@ -3,8 +3,8 @@ use super::*;
 use anyhow::Context as _;
 use std::sync::Arc;
 use waku_client::teams::{
-    TeamFileRecovery, TeamRecoveryConfirmation as Confirmation, TeamRecoveryReview,
-    TeamSourceChange,
+    TeamFileRecovery, TeamGpuOperationPurpose, TeamRecoveryConfirmation as Confirmation,
+    TeamRecoveryReview, TeamSourceChange,
 };
 #[derive(Default)]
 pub(super) struct RecoveryUi {
@@ -33,6 +33,8 @@ pub(super) struct AppRow {
 }
 pub(super) struct RemoteRow {
     request: Uuid,
+    key: String,
+    gpu_purpose: Option<TeamGpuOperationPurpose>,
     identity: String,
     operation: String,
     status: String,
@@ -92,12 +94,14 @@ fn presentation(
             })
         })
         .collect();
-    let remote = review
+    let mut remote: Vec<Arc<RemoteRow>> = review
         .remote_calls
         .iter()
         .map(|c| {
             Arc::new(RemoteRow {
                 request: c.request_id,
+                key: c.request_id.to_string(),
+                gpu_purpose: None,
                 identity: format!(
                     "{} {} · image {} · project {}",
                     match c.purpose {
@@ -129,6 +133,59 @@ fn presentation(
             })
         })
         .collect();
+    for gpu in &review.gpu_jobs {
+        for (purpose, label, operation, claimed, can_bind) in [
+            (
+                TeamGpuOperationPurpose::Creation,
+                "creation",
+                &gpu.creation_operation,
+                true,
+                gpu.can_bind_creation,
+            ),
+            (
+                TeamGpuOperationPurpose::Cancellation,
+                "cancellation",
+                &gpu.cancellation_operation,
+                gpu.cancel_requested,
+                gpu.can_bind_cancellation,
+            ),
+            (
+                TeamGpuOperationPurpose::Deletion,
+                "deletion",
+                &gpu.deletion_operation,
+                gpu.cleanup_state.is_some(),
+                gpu.can_bind_deletion,
+            ),
+        ] {
+            if !claimed {
+                continue;
+            }
+            remote.push(Arc::new(RemoteRow {
+                request: gpu.request_id,
+                key: format!("gpu-{}-{label}", gpu.request_id),
+                gpu_purpose: Some(purpose),
+                identity: format!(
+                    "Request {} · project {} · job {}",
+                    gpu.request_id,
+                    gpu.project,
+                    gpu.job_id.as_deref().unwrap_or("unbound")
+                ),
+                operation: operation
+                    .as_ref()
+                    .map(|id| format!("Operation {id}"))
+                    .unwrap_or("Acknowledgement missing".into()),
+                status: format!(
+                    "GPU {label} · {}",
+                    if operation.is_none() {
+                        "Outcome unknown"
+                    } else {
+                        "Original operation bound"
+                    }
+                ),
+                can_bind,
+            }));
+        }
+    }
     (files, apps, remote)
 }
 impl Waku {
@@ -452,10 +509,7 @@ impl Waku {
     ) -> AnyElement {
         let theme = Theme::current(cx);
         let mut body = div()
-            .id(SharedString::from(format!(
-                "recovery-remote-{}",
-                row.request
-            )))
+            .id(SharedString::from(format!("recovery-remote-{}", row.key)))
             .py(px(14.0))
             .border_b_1()
             .border_color(theme.border)
@@ -477,14 +531,27 @@ impl Waku {
             .child(div().text_size(sp(12.5)).child(row.operation.clone()));
         if row.can_bind && !self.control_ui.recovery.busy {
             let request_id = row.request;
-            body=body.child(self.control_button(format!("recovery-bind-{request_id}"),"Verify and bind operation",cx,move |this,_,cx| {
+            let purpose = row.gpu_purpose;
+            body=body.child(self.control_button(format!("recovery-bind-{}",row.key),"Verify and bind operation",cx,move |this,_,cx| {
                 let value=this.control_ui.recovery_operation.read(cx).content().trim().to_owned();
-                match Uuid::parse_str(&value) {
-                    Ok(operation_id) if !operation_id.is_nil()=>this.confirm_team_recovery(Confirmation::BindRemoteOperation{request_id,operation_id},cx),
-                    _=>{this.control_ui.recovery.error=Some("Enter the operation UUID from Nebius, then verify and bind it.".into());cx.notify();}
+                if let Some(purpose)=purpose {
+                    if !value.is_empty() && value.len()<=160 && value.bytes().all(|b|b.is_ascii_alphanumeric() || matches!(b,b'-'|b'_')) {
+                        this.confirm_team_recovery(Confirmation::BindGpuOperation{request_id,purpose,operation_id:value},cx);
+                    } else {
+                        this.control_ui.recovery.error=Some("Enter the GPU operation ID from Nebius, then verify and bind it.".into());cx.notify();
+                    }
+                } else {
+                    match Uuid::parse_str(&value) {
+                        Ok(operation_id) if !operation_id.is_nil()=>this.confirm_team_recovery(Confirmation::BindRemoteOperation{request_id,operation_id},cx),
+                        _=>{this.control_ui.recovery.error=Some("Enter the operation UUID from Nebius, then verify and bind it.".into());cx.notify();}
+                    }
                 }
             })).child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
-                .child("Ion verifies this operation against the original input and image. Binding submits no work and does not confirm that it has stopped."));
+                .child(if row.gpu_purpose.is_some() {
+                    "Ion verifies the original request and idempotency key. Binding retains the spending reservation. Results and resource cleanup are verified separately."
+                } else {
+                    "Ion verifies this operation against the original input and image. Binding submits no work and does not confirm that it has stopped."
+                }));
         }
         body.into_any_element()
     }

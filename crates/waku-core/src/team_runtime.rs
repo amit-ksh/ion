@@ -668,6 +668,24 @@ impl TeamRuntime {
                 self.wake();
                 return self.coordinator.recovery_review(run, work);
             }
+            TeamRecoveryConfirmation::BindGpuOperation {
+                request_id,
+                purpose,
+                operation_id,
+            } => {
+                driver::team_gpu::bind_recovered_operation(
+                    &self.coordinator,
+                    run,
+                    work,
+                    attempt,
+                    revision,
+                    *request_id,
+                    *purpose,
+                    operation_id,
+                )?;
+                self.wake();
+                return self.coordinator.recovery_review(run, work);
+            }
             TeamRecoveryConfirmation::VerifyRemoteStopped => {
                 let snapshot = self.coordinator.snapshot(run)?;
                 ensure!(

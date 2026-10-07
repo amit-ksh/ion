@@ -1750,3 +1750,32 @@ operator recovery and persistent post-cancellation collection, full remote
 project/dataset/large-file transfers, enforced executed-check receipts,
 Amp/Cursor Teams contracts and Fx native Linux/macOS acceptance. The full goal
 remains active; this is an implementation checkpoint.
+
+## GPU original-operation recovery increment (2026-10-07)
+
+- Protocol **30** adds bounded GPU creation/cancellation/deletion identities to
+  recovery review and a typed confirmation carrying native provider ID strings.
+  Client bindings were regenerated and checked against the exporter.
+- The owner verifies a candidate using fixed-origin bounded GETs, the original
+  idempotency key and exact typed request. Creation compares saved intent and
+  verifies immutable injected bytes plus fixed environment values through the
+  same job's SECRET read. Known sensitive history leaves/defaults are handled
+  without dropping paths, names, mounts or unknown capabilities.
+- Atomic binding rechecks run revision, current attempt, saved request signature
+  and original mutation claim. It records compute identities seen during create
+  recovery. Exact confirmation replay does not repeat network access or submit
+  work. Binding retains money and never proves successful work or cleanup.
+- Native recovery rows are prepared off frames and use the existing virtualized
+  panel and keyboard controls. Each phase has its own identity and binding action.
+  Settled/cleaned jobs do not produce stale lost-cancellation recovery notices.
+- Missing operation/key/SECRET evidence remains unresolved. Historical missing
+  VM/disk inventory recovery, enabled GPU submission, resource/egress/monetary
+  integration, large transfer volumes and live acceptance remain development.
+  Amp/Cursor and the broader adapter contracts remain open in the release guide.
+
+Verification: **35 GPU tests**, **124 coordinator tests**, **1 protocol test**, the
+protocol exporter check, desktop/daemon `cargo check`, formatting and whitespace
+checks passed. Existing ts-rs, dead-code and proc-macro warnings remain. No live
+account/cloud request, app bundle, second watcher or visual test was run.
+See [the recovery contract research](RESEARCH-nebius-gpu-recovery.md) and
+[the review guide](23-remote-command-gpu-jobs.md#original-gpu-operation-recovery).

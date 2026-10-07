@@ -200,8 +200,8 @@ enter receipt diagnostics.
 
 GPU submission remains an internal owner transport. The native adapter can await
 an already approved, observed job and read its verified outputs. Billing,
-egress/resource validation, large datasets/checkpoints and GPU operator recovery
-remain development. The result collector can operate separately
+egress/resource validation, large datasets/checkpoints and missing historical
+GPU inventory recovery remain development. The result collector can operate separately
 from resource cleanup: missing result credentials cannot prevent Stop/cancel
 attempts. Saved objects persist after job deletion; retention, trusted Linux
 mount semantics and associated storage costs need explicit integration/acceptance.
@@ -260,3 +260,47 @@ Later review:
 - [ ] Stop or reach the original deadline while waiting; confirm original resources
   are canceled/verified without a replacement job or Local fallback.
 - [ ] Inspect resumed task/attempt/host/model/grants and retained spending.
+
+### Original GPU operation recovery
+
+Protocol **30** adds creation, cancellation and deletion binding to the existing
+native **Review recovery** panel. Supply the original Nebius operation ID (a
+provider resource string, separate from the command worker's UUID), then use
+**Verify and bind operation** on the relevant phase. The candidate is checked on
+an owner background worker before an atomic database update.
+
+The fixed-origin GET must return the original typed request, distinct operation
+and job identities, and exactly the saved `x-idempotency-key`. Creation additionally
+requires the saved metadata/specification intent and a SECRET read of that same
+job. Operation history can redact sensitive input leaves; paths and environment
+names must still match, and the immutable injected bytes and fixed environment
+values must match the full job read. Known protobuf defaults are normalized;
+unknown capabilities, dry runs, absent input declarations and ambiguous keys are
+rejected. See [the API research note](RESEARCH-nebius-gpu-recovery.md).
+
+Binding captures compute IDs observed during creation recovery, preserves the
+original assignment/attempt/grants, and rechecks the run revision and mutation
+claim after network access. Exact confirmation replay reads the saved outcome
+without another provider call. A pending or failed operation can establish its
+identity; it does not establish successful work, a stopped process or cleanup.
+Deletion still needs successful typed completion and independent absence of the
+original job and every captured VM/disk. Monetary reservations remain held.
+Settled/cleaned jobs no longer produce stale lost-cancellation recovery notices.
+
+Missing operation/key/input evidence stays unresolved. A deleted VM with missing
+historical disk inventory is not proven clean by its name or a partial operation
+listing. Agent GPU submission and monetary/resource/egress integrations remain
+separate development work.
+
+Later live review:
+
+- [ ] Lose each create/cancel/delete acknowledgement and bind its exact original
+  operation. Confirm no second mutation or Local fallback occurs.
+- [ ] Try another task's operation, a changed key/type/path/input, a missing SECRET
+  permission and an operation without the key header; confirm binding is denied.
+- [ ] Change the run while verification is in flight; refresh and confirm the
+  stale result is rejected without changing the original request or budget.
+- [ ] Replay the exact saved confirmation and inspect unchanged identities,
+  grants, spending reservation and provider request count.
+- [ ] After deletion binding, delay job/VM/disk absence separately; verify cleanup
+  remains unresolved until all original resources are confirmed absent.

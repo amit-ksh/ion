@@ -12,8 +12,10 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{io::Read, time::Duration};
 const BASE: &str = "https://api.nebius.cloud";
+mod recovery;
 mod resources;
 mod results;
+pub(crate) use recovery::bind_recovered_operation;
 
 pub(crate) struct Launch {
     pub request: JobRequest,

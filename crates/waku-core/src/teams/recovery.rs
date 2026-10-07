@@ -6,7 +6,7 @@ mod receipts;
 
 pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned')",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))",
         [run.id.to_string()], |r| r.get(0),
     )?;
     let points: Vec<(String,String,u32)> = db.prepare(
@@ -17,8 +17,11 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
         .map(|(work, attempt, generation)| (work, (attempt, generation)))
         .collect();
     let unfinished: HashSet<String> = db.prepare(
-        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling') UNION SELECT work_id FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned'",
+        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling') UNION SELECT work_id FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned')",
     )?.query_map([run.id.to_string()], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    let gpu_unknown: HashSet<String> = db.prepare(
+        "SELECT DISTINCT j.work_id FROM ion_team_gpu_jobs j LEFT JOIN ion_team_gpu_cleanup c ON c.request_id=j.request_id WHERE j.run_id=? AND j.state NOT IN ('settled','cleaned') AND ((j.state='submitting' AND j.creation_operation IS NULL AND j.job_id IS NULL) OR (j.cancel_requested=1 AND j.cancellation_operation IS NULL) OR (c.state='claimed' AND json_extract(c.body,'$.operation') IS NULL))")?
+        .query_map([run.id.to_string()], |r|r.get(0))?.collect::<rusqlite::Result<_>>()?;
     let checkpoints: std::collections::HashMap<String,(String,u32)> = db.prepare(
         "SELECT c.work_id,c.attempt_id,c.generation FROM ion_team_continuations c JOIN ion_team_work w ON w.id=c.work_id WHERE w.run_id=? AND w.status='blocked' AND c.dependencies='[]' AND json_extract(c.checkpoint,'$.version')=1 AND json_extract(c.checkpoint,'$.steps')<16 LIMIT 257",
     )?.query_map([run.id.to_string()], |r| Ok((r.get(0)?,(r.get(1)?,r.get(2)?))))?.collect::<rusqlite::Result<_>>()?;
@@ -62,7 +65,9 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
                         .is_some_and(|(id, g)| id == &a.id.to_string() && *g == a.generation)
             });
         work.can_reconcile = attempt.is_some()
-            && (work.status == AssignmentStatus::Uncertain
+            && ((work.status == AssignmentStatus::Waiting
+                && gpu_unknown.contains(&work.id.to_string()))
+                || work.status == AssignmentStatus::Uncertain
                 || (remote && work.status == AssignmentStatus::Canceling)
                 || (matches!(
                     work.status,
@@ -263,7 +268,7 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
     let value: Value = serde_json::from_str(&checkpoint)?;
     Ok(id==attempt.id.to_string() && generation==attempt.generation && dependencies=="[]"
         && value["version"]==1 && value["steps"].as_u64().is_some_and(|n|n<16)
-        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned')",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
+        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
 }
 fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamRecoveryReview> {
     let work = assignment(run, work)?;
@@ -290,6 +295,7 @@ fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamReco
         files: workspace::effect_recovery::files(db, run.id, work.id, attempt.id)?,
         apps,
         environment: attempt.environment,
+        gpu_jobs: gpu_jobs::recovery::projection(db, work, attempt.id)?,
         remote_calls: {
             let rows: Vec<(String,String,String,Option<String>,String,bool)> = db.prepare("SELECT r.call_id,r.image,r.project,r.operation,r.state,EXISTS(SELECT 1 FROM ion_team_remote_inputs i WHERE i.call_id=r.call_id) FROM ion_team_remote_calls r WHERE r.attempt_id=? ORDER BY r.started_at,r.call_id LIMIT 33")?
                 .query_map([attempt.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?.collect::<rusqlite::Result<_>>()?;
@@ -481,7 +487,8 @@ impl TeamCoordinator {
                     now,
                 )?;
             }
-            TeamRecoveryConfirmation::BindRemoteOperation { .. } => {
+            TeamRecoveryConfirmation::BindRemoteOperation { .. }
+            | TeamRecoveryConfirmation::BindGpuOperation { .. } => {
                 anyhow::bail!("Remote binding requires the trusted API verification path");
             }
             TeamRecoveryConfirmation::VerifyRemoteStopped => {
@@ -565,7 +572,7 @@ impl TeamCoordinator {
                 );
                 let (_, generation, _, checkpoint) =
                     continuation::checkpoint_row(&tx, work_id)?.context("Checkpoint missing")?;
-                let pending_wait:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_decision_waits WHERE work_id=?1) OR EXISTS(SELECT 1 FROM ion_team_recovery_waits WHERE work_id=?1)",[work_id.to_string()],|r|r.get(0))?;
+                let pending_wait:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_decision_waits WHERE work_id=?1) OR EXISTS(SELECT 1 FROM ion_team_recovery_waits WHERE work_id=?1) OR EXISTS(SELECT 1 FROM ion_team_gpu_waits WHERE work_id=?1)",[work_id.to_string()],|r|r.get(0))?;
                 ensure!(!pending_wait, "Recovery cannot replace an existing wait");
                 let mut app_receipts = receipts::apps(&tx, &run, &work, attempt_id, now)?;
                 if attempt.environment == ExecutionEnvironment::NebiusSandbox {

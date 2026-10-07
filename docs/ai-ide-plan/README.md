@@ -140,3 +140,7 @@ target; see [the deployment checklist](../../services/speech/README.md).
   execution, recovery and worker setup; separate GPU lifecycle transport and
   durable bound-job waits/results, and remaining GPU launch, resource, recovery
   and monetary integration.
+
+- [Nebius GPU recovery contracts](RESEARCH-nebius-gpu-recovery.md): official
+  operation/key witnesses, immutable SECRET input verification and the limits of
+  missing historical VM/disk inventory.

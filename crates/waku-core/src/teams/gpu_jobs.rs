@@ -2,9 +2,11 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+pub(in crate::teams) mod recovery;
 mod resources;
 mod results;
 pub(super) mod waits;
+pub(crate) use recovery::GpuRecoveryWitness;
 pub(crate) use resources::{GpuCleanupRecord, GpuComputeInventory, GpuDiskInventory};
 pub(crate) use results::GpuResultVolume;
 
