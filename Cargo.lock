@@ -8861,6 +8861,7 @@ dependencies = [
  "chrono",
  "crossbeam-channel",
  "dirs",
+ "hmac",
  "libc",
  "nucleo-matcher",
  "objc2-foundation 0.3.2",

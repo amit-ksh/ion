@@ -1,6 +1,7 @@
 import base64
 import importlib.util
 import os
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -69,6 +70,50 @@ class JobTests(unittest.TestCase):
             worker.validate(value)
         with self.assertRaises(ValueError):
             worker.validate(self.request('', inputs=[{'path': 'x', 'content_base64': '%%%'}]))
+
+class GpuResultTests(unittest.TestCase):
+    request = JobTests.request
+    run_fixture = JobTests.run_fixture
+    def test_result_volume_stores_actual_nonzero_logs_and_output_without_overwrite(self):
+        request = self.request("import pathlib,sys; pathlib.Path('output.txt').write_bytes(b'checkpoint'); print('training failed',file=sys.stderr); sys.exit(9)")
+        result = self.run_fixture(request)
+        with tempfile.TemporaryDirectory(prefix='ion-result-test-') as temp:
+            volume = Path(temp)
+            folder = worker.prepare_result_directory(volume, request['request_id'])
+            worker.write_result(folder, result)
+            saved = json.loads((folder / 'receipt.json').read_bytes())
+            self.assertEqual(saved, result)
+            self.assertEqual(saved['exit_code'], 9)
+            self.assertEqual(base64.b64decode(saved['stderr']['content_base64']).strip(), b'training failed')
+            self.assertEqual(base64.b64decode(saved['outputs'][0]['content_base64']), b'checkpoint')
+            with self.assertRaises(FileExistsError):
+                worker.write_result(folder, result)
+            with self.assertRaises(FileExistsError):
+                worker.prepare_result_directory(volume, request['request_id'])
+
+    def test_result_identity_size_and_destination_fail_before_writing(self):
+        request = self.request('', output_paths=[])
+        result = self.run_fixture(request)
+        with tempfile.TemporaryDirectory(prefix='ion-result-test-') as temp:
+            volume = Path(temp)
+            for identity in ['../escape', str(uuid.UUID(int=0)), '12345678-1234-4234-8234-123456789ABC']:
+                with self.assertRaises(ValueError):
+                    worker.prepare_result_directory(volume, identity)
+            folder = worker.prepare_result_directory(volume, request['request_id'])
+            with self.assertRaises(ValueError):
+                worker.write_result(folder, {**result,'request_id': str(uuid.uuid4())})
+            with self.assertRaises(ValueError):
+                worker.write_result(folder, {**result,'extra': 'x'*(512*1024)})
+            self.assertFalse((folder/'receipt.json').exists())
+            if os.name == 'posix':
+                link = volume/'link'
+                link.symlink_to(folder, target_is_directory=True)
+                with self.assertRaises(ValueError):
+                    worker.prepare_result_directory(link, str(uuid.uuid4()))
+                (folder/'receipt.json').symlink_to(volume/'outside')
+                with self.assertRaises(FileExistsError):
+                    worker.write_result(folder, result)
+                self.assertFalse((volume/'outside').exists())
 
 if __name__ == '__main__':
     unittest.main()

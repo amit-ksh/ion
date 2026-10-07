@@ -188,6 +188,8 @@ second development watcher was performed during these checkpoints.
   plus absence proofs release compute capacity while output/unknown cost remain held.
 - [ ] GPU recovery for missing inventory and lost creation/cancellation/deletion
   acknowledgements; authenticated original-resource binding, without repeat mutations.
-- [ ] GPU durable waits, monetary/resource/egress enforcement, dataset/checkpoint
-  volumes, real output retrieval and live acceptance.
+- [x] GPU result volume and owner signed S3 receipt reader, original command/file
+  validation, durable generated artifact, replay and assignment-scoped readback.
+- [ ] GPU durable waits and agent integration, monetary/resource/egress enforcement,
+  large dataset/checkpoint volumes, retention policy and live acceptance.
 - [ ] Enforce executed command receipts in required output-contract check gates.

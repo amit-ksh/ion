@@ -100,6 +100,9 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             body TEXT NOT NULL,PRIMARY KEY(request_id,compute_id));
         CREATE TABLE IF NOT EXISTS ion_team_gpu_cleanup (
             request_id TEXT PRIMARY KEY REFERENCES ion_team_gpu_jobs(request_id),body TEXT NOT NULL,state TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_gpu_results (
+            request_id TEXT PRIMARY KEY REFERENCES ion_team_gpu_jobs(request_id),
+            receipt TEXT NOT NULL,artifact_id TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_workspaces (
             run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id), state TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_workspace_edits (

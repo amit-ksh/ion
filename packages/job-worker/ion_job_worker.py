@@ -255,15 +255,59 @@ def run(request, workspace):
             'outputs': outputs, 'output_errors': failures}
 
 
+def prepare_result_directory(volume, request_id):
+    # The caller secures /ion before launching the demoted child. It cannot reach
+    # this mount even if the backing object filesystem does not implement chmod.
+    if str(uuid.UUID(request_id)) != request_id or uuid.UUID(request_id).int == 0:
+        raise ValueError('Invalid result identity')
+    if volume.is_symlink() or not volume.is_dir():
+        raise ValueError('Result volume must be a directory without links')
+    folder = volume / request_id
+    folder.mkdir(mode=0o700, exist_ok=False)
+    if folder.is_symlink() or not folder.is_dir():
+        raise ValueError('Result directory is unsafe')
+    return folder
+
+
+def write_result(folder, result):
+    # This is the trusted supervisor's output, after every command descendant stops.
+    # A crashed/partial write stays unusable; the owner never repeats the command.
+    if folder.is_symlink() or not folder.is_dir() or folder.name != result['request_id']:
+        raise ValueError('Result destination changed')
+    data = json.dumps(result, separators=(',', ':')).encode('utf-8')
+    if len(data) > 512 * 1024:
+        raise ValueError('Result exceeds its bound')
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+    fd = os.open(folder / 'receipt.json', flags, 0o600)
+    with os.fdopen(fd, 'wb') as target:
+        info = os.fstat(target.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError('Result must be an exclusive regular file')
+        target.write(data)
+        target.flush()
+        os.fsync(target.fileno())
+
+
+def secure_result_parent():
+    parent = Path('/ion')
+    info = parent.lstat()
+    if parent.is_symlink() or not stat.S_ISDIR(info.st_mode) or info.st_uid != 0:
+        raise ValueError('Result parent must belong to the trusted supervisor')
+    parent.chmod(0o700)
+    if stat.S_IMODE(parent.stat().st_mode) != 0o700:
+        raise ValueError('Result parent isolation unavailable')
+
+
 def main():
     if sys.argv[1:] == ['--help']:
         print('ion-job-worker: versioned JSON request on stdin; isolated remote images only.\n'
-              'Options: --help, --version, --request-file /ion/job-request.json')
+              'Options: --help, --version, --request-file /ion/job-request.json [--result-volume /ion/results]')
         return 0
     if sys.argv[1:] == ['--version']:
         print('ion-job-worker/1')
         return 0
-    if sys.argv[1:] not in ([], ['--request-file', '/ion/job-request.json']):
+    if sys.argv[1:] not in ([], ['--request-file', '/ion/job-request.json'],
+                           ['--request-file', '/ion/job-request.json', '--result-volume', '/ion/results']):
         print(json.dumps({'error': 'Unsupported arguments', 'help': 'Run ion-job-worker --help'}))
         return 2
     if sys.platform != 'linux' or os.environ.get('ION_JOB_ISOLATED') != '1' or os.geteuid() != 0:
@@ -278,9 +322,18 @@ def main():
             raise ValueError('Job input exceeds its bound')
         request = json.loads(data)
         validate(request)
+        result_folder = None
+        if len(sys.argv) == 5:
+            secure_result_parent()
+            result_folder = prepare_result_directory(Path('/ion/results'), request['request_id'])
         with tempfile.TemporaryDirectory(prefix='ion-job-') as temporary:
             result = run(request, Path(temporary) / 'work')
-            sys.stdout.write(json.dumps(result, separators=(',', ':')))
+            if result_folder is not None:
+                write_result(result_folder, result)
+                sys.stdout.write(json.dumps({'version': VERSION, 'request_id': request['request_id'],
+                                            'result_written': True}, separators=(',', ':')))
+            else:
+                sys.stdout.write(json.dumps(result, separators=(',', ':')))
         return 0
     except (ValueError, OSError, TypeError, KeyError):
         print(json.dumps({'error': 'Job contract or execution failed',

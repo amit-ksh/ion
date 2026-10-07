@@ -1,6 +1,6 @@
 //! Nebius Serverless AI Jobs lifecycle transport, separate from ConTree.
 //! This module is not exposed as an agent tool yet. The coordinator must add
-//! durable GPU waits, accounting and output retrieval before launch
+//! durable GPU waits, accounting and resource policy integration before launch
 //! can be enabled. Cleanup proofs are persisted independently. Launch/cancel requests persist their reservations first.
 //! A job state is not a command/test receipt or cleanup proof.
 use crate::teams::{
@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use std::{io::Read, time::Duration};
 const BASE: &str = "https://api.nebius.cloud";
 mod resources;
+mod results;
 
 pub(crate) struct Launch {
     pub request: JobRequest,
@@ -25,6 +26,7 @@ pub(crate) struct Launch {
     pub disk_bytes: u64,
     pub shm_bytes: u64,
     pub timeout_seconds: u32,
+    pub result_volume: Option<crate::teams::gpu_jobs::GpuResultVolume>,
 }
 fn identifier(value: &str) -> Result<()> {
     ensure!(
@@ -113,8 +115,7 @@ impl Launch {
             payload.len() <= 64 * 1024,
             "GPU injected configuration exceeds 64 KiB; use an approved dataset volume integration"
         );
-        Ok(
-            json!({"metadata":{"parentId":self.project,"name":self.name(),
+        let mut body = json!({"metadata":{"parentId":self.project,"name":self.name(),
             "labels":{"ion-request":self.request.request_id.to_string()}},
             "spec":{"image":self.image,"containerCommand":"/usr/local/bin/ion-job-worker",
             "args":"--request-file /ion/job-request.json","workingDir":"/ion",
@@ -123,8 +124,14 @@ impl Launch {
             "platform":self.platform,"preset":self.preset,"subnetId":self.subnet,
             "disk":{"type":"NETWORK_SSD","sizeBytes":self.disk_bytes.to_string()},
             "shmSizeBytes":self.shm_bytes.to_string(),"timeout":format!("{}s",self.timeout_seconds),
-            "publicIp":false,"preemptible":false,"restartAttempts":"0","pricingModel":{"onDemand":{}}}}),
-        )
+            "publicIp":false,"preemptible":false,"restartAttempts":"0","pricingModel":{"onDemand":{}}}});
+        if let Some(volume) = &self.result_volume {
+            volume.validate()?;
+            body["spec"]["args"] =
+                json!("--request-file /ion/job-request.json --result-volume /ion/results");
+            body["spec"]["volumes"] = json!([volume.mount()]);
+        }
+        Ok(body)
     }
 }
 pub(super) struct Acknowledged {
@@ -284,18 +291,19 @@ impl Client {
                 "GPU pinned specification changed: {key}"
             );
         }
-        for key in [
-            "registryCredentials",
-            "sshAuthorizedKeys",
-            "ports",
-            "volumes",
-        ] {
+        for key in ["registryCredentials", "sshAuthorizedKeys", "ports"] {
             let extra = &value["spec"][key];
             ensure!(
                 extra.is_null()
                     || extra.as_array().is_some_and(Vec::is_empty)
                     || extra.as_object().is_some_and(serde_json::Map::is_empty),
                 "Unapproved GPU capability appeared"
+            );
+        }
+        if expected["spec"]["volumes"].is_null() {
+            ensure!(
+                value["spec"]["volumes"].is_null() || value["spec"]["volumes"] == json!([]),
+                "Unapproved GPU volume appeared"
             );
         }
         let state = value["status"]["state"]
@@ -404,7 +412,23 @@ fn launch_once_with(
         launch.project == client.project,
         "GPU owner project changed before launch"
     );
+    ensure!(
+        launch.result_volume == policy.result_volume,
+        "GPU output volume differs from the approved policy"
+    );
     let body = launch.body()?;
+    let now = crate::model::unix_time();
+    coordinator.authorize_gpu_launch(lease, policy, now)?;
+    // Exact recovery replays use the saved launch; no provider read/POST is needed.
+    let replay = coordinator
+        .gpu_jobs(lease.attempt_id())?
+        .iter()
+        .any(|r| r.request_id == launch.request.request_id);
+    if !replay {
+        if let Some(volume) = &launch.result_volume {
+            client.verify_result_bucket(volume)?;
+        }
+    }
     if coordinator.reserve_gpu_launch(
         lease,
         &launch.request,
@@ -425,6 +449,22 @@ fn launch_once_with(
         .into_iter()
         .find(|v| v.request_id == launch.request.request_id)
         .context("Saved GPU launch missing")
+}
+/// Collect approved GPU receipts on an owner background worker, independent of Stop.
+pub(crate) fn collect_results_attempt(
+    coordinator: &TeamCoordinator,
+    attempt: uuid::Uuid,
+) -> Result<bool> {
+    results::collect_attempt(coordinator, attempt)
+}
+pub(crate) fn read_gpu_output(
+    coordinator: &TeamCoordinator,
+    lease: &AssignmentLease,
+    request: uuid::Uuid,
+    path: &str,
+    offset: usize,
+) -> Result<String> {
+    results::read_output(coordinator, lease, request, path, offset)
 }
 /// Stop/restart observes and cancels bound jobs. No create POST or Local execution.
 /// Terminal states retain resource reservations until cleanup is independently verified.
@@ -575,6 +615,7 @@ mod tests {
             disk_bytes: 16 * 1024 * 1024 * 1024,
             shm_bytes: 0,
             timeout_seconds: 60,
+            result_volume: None,
         }
     }
     pub(super) struct Fixture {
@@ -698,6 +739,7 @@ mod tests {
                     run_budget_micros: 10000,
                     max_jobs: 4,
                     max_parallel: 2,
+                    result_volume: None,
                 },
             }
         }

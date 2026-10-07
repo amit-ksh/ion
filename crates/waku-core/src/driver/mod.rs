@@ -24,7 +24,7 @@ pub(crate) mod team_fx;
 mod team_gate;
 #[expect(
     dead_code,
-    reason = "GPU lifecycle is not exposed until durable waits, accounting and output receipts are integrated"
+    reason = "GPU lifecycle is not exposed until durable waits, accounting and resource policies are integrated"
 )]
 pub(crate) mod team_gpu;
 pub(crate) mod team_grok;

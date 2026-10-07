@@ -3,7 +3,9 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 mod resources;
+mod results;
 pub(crate) use resources::{GpuCleanupRecord, GpuComputeInventory, GpuDiskInventory};
+pub(crate) use results::GpuResultVolume;
 
 /// Owner-approved, immutable spending allowance. These are reservations, not invoice totals.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,6 +20,8 @@ pub(crate) struct GpuBudgetPolicy {
     pub run_budget_micros: u64,
     pub max_jobs: u16,
     pub max_parallel: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_volume: Option<GpuResultVolume>,
 }
 impl GpuBudgetPolicy {
     fn validate(&self, now: u64) -> Result<()> {
@@ -45,6 +49,9 @@ impl GpuBudgetPolicy {
                 && (1..=16).contains(&self.max_parallel),
             "GPU spending policy expired or exceeds its bound"
         );
+        if let Some(volume) = &self.result_volume {
+            volume.validate()?;
+        }
         Ok(())
     }
 }
@@ -61,6 +68,9 @@ pub(crate) struct GpuJobRecord {
     pub compute_ids: Vec<String>,
     pub deadline_at: u64,
     pub cleanup: Option<GpuCleanupRecord>,
+    pub result_volume: Option<GpuResultVolume>,
+    pub result_receipt: Option<jobs::JobResponse>,
+    pub result_artifact: Option<Uuid>,
 }
 pub(crate) fn resource_id(value: &str) -> Result<()> {
     ensure!(
@@ -74,6 +84,35 @@ pub(crate) fn resource_id(value: &str) -> Result<()> {
     Ok(())
 }
 impl TeamCoordinator {
+    pub(crate) fn authorize_gpu_launch(
+        &self,
+        lease: &AssignmentLease,
+        policy: &GpuBudgetPolicy,
+        now: u64,
+    ) -> Result<()> {
+        policy.validate(now)?;
+        let db = self.connect()?;
+        let run = load(&db, lease.run_id)?;
+        active(&run, now)?;
+        let work = checked_lease(&run, lease, now, false)?;
+        let profile = run
+            .profiles
+            .iter()
+            .find(|p| p.id == work.agent_id)
+            .context("GPU profile missing")?;
+        ensure!(
+            work.access.shell
+                && work.access.workspace_read
+                && work.access.network
+                && work
+                    .attempts
+                    .last()
+                    .is_some_and(|a| a.environment == ExecutionEnvironment::NebiusSandbox)
+                && profile.execution.sandbox_target.as_deref() == Some(&policy.target),
+            "GPU launch requires its original Nebius target and command/read/network grants"
+        );
+        Ok(())
+    }
     /// Returns false for the exact existing request; the caller must return its saved
     /// state, never POST again. Uncertain acknowledgements retain the whole reservation.
     pub(crate) fn reserve_gpu_launch(
@@ -89,6 +128,22 @@ impl TeamCoordinator {
             .as_str()
             .context("GPU project missing")?;
         resource_id(project)?;
+        if let Some(volume) = &policy.result_volume {
+            ensure!(
+                body["spec"]["volumes"] == json!([volume.mount()]),
+                "GPU result volume differs from its owner policy"
+            );
+            ensure!(
+                body["spec"]["args"]
+                    == "--request-file /ion/job-request.json --result-volume /ion/results",
+                "GPU result collector changed"
+            );
+        } else {
+            ensure!(
+                body["spec"]["volumes"].is_null() || body["spec"]["volumes"] == json!([]),
+                "Unapproved GPU result volume"
+            );
+        }
         let signature = json!({"request":request,"body":body,"policy":policy}).to_string();
         ensure!(
             signature.len() <= 256 * 1024
@@ -205,9 +260,9 @@ impl TeamCoordinator {
     }
     pub(crate) fn gpu_jobs(&self, attempt: Uuid) -> Result<Vec<GpuJobRecord>> {
         let db = self.connect()?;
-        let rows:Vec<(String,String,String,Option<String>,Option<String>,Option<String>,bool,String,String,u64,Option<String>)> = db.prepare(
-            "SELECT j.request_id,j.project,j.body,j.creation_operation,j.job_id,j.cancellation_operation,j.cancel_requested,j.state,j.compute_ids,j.deadline_at,c.body FROM ion_team_gpu_jobs j LEFT JOIN ion_team_gpu_cleanup c ON c.request_id=j.request_id WHERE j.attempt_id=? ORDER BY j.rowid LIMIT 129")?
-            .query_map([attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?,r.get(10)?)))?.collect::<rusqlite::Result<_>>()?;
+        let rows:Vec<(String,String,String,Option<String>,Option<String>,Option<String>,bool,String,String,u64,Option<String>,String,Option<String>,Option<String>)> = db.prepare(
+            "SELECT j.request_id,j.project,j.body,j.creation_operation,j.job_id,j.cancellation_operation,j.cancel_requested,j.state,j.compute_ids,j.deadline_at,c.body,j.policy,g.receipt,g.artifact_id FROM ion_team_gpu_jobs j LEFT JOIN ion_team_gpu_cleanup c ON c.request_id=j.request_id LEFT JOIN ion_team_gpu_results g ON g.request_id=j.request_id WHERE j.attempt_id=? ORDER BY j.rowid LIMIT 129")?
+            .query_map([attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?,r.get(10)?,r.get(11)?,r.get(12)?,r.get(13)?)))?.collect::<rusqlite::Result<_>>()?;
         ensure!(rows.len() <= 128, "GPU recovery count exceeded");
         rows.into_iter()
             .map(|r| {
@@ -223,6 +278,9 @@ impl TeamCoordinator {
                     compute_ids: serde_json::from_str(&r.8)?,
                     deadline_at: r.9,
                     cleanup: r.10.map(|s| serde_json::from_str(&s)).transpose()?,
+                    result_volume: serde_json::from_str::<GpuBudgetPolicy>(&r.11)?.result_volume,
+                    result_receipt: r.12.map(|s| serde_json::from_str(&s)).transpose()?,
+                    result_artifact: r.13.map(|s| Uuid::parse_str(&s)).transpose()?,
                 })
             })
             .collect()

@@ -1,6 +1,8 @@
 //! Durable command jobs are separate from model-call budgets and receipts.
 use super::*;
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,6 +56,60 @@ pub(crate) struct JobResponse {
     pub output_errors: Vec<JobOutputError>,
 }
 impl JobResponse {
+    pub(crate) fn validate_against(&self, request: &JobRequest) -> Result<()> {
+        ensure!(
+            self.version == 1
+                && self.request_id == request.request_id
+                && self.elapsed_milliseconds <= u64::from(request.timeout_seconds + 10) * 1000
+                && self.outputs.len() + self.output_errors.len() == request.output_paths.len(),
+            "Remote command receipt identity or output contract changed"
+        );
+        for stream in [&self.stdout, &self.stderr] {
+            ensure!(
+                stream.content_base64.len() <= 12 * 1024,
+                "Job stream exceeds its bound"
+            );
+            let bytes = STANDARD.decode(&stream.content_base64)?;
+            ensure!(
+                bytes.len() <= 8192
+                    && stream.bytes >= bytes.len() as u64
+                    && stream.truncated == (stream.bytes > 8192)
+                    && (stream.truncated || stream.bytes == bytes.len() as u64),
+                "Job stream receipt is inconsistent"
+            );
+        }
+        let mut seen = HashSet::new();
+        let mut total = 0;
+        for output in &self.outputs {
+            path(&output.path)?;
+            ensure!(
+                request.output_paths.contains(&output.path)
+                    && seen.insert(&output.path)
+                    && output.content_base64.len() <= 88 * 1024
+                    && output.sha256.len() == 64
+                    && output.sha256.bytes().all(|b| b.is_ascii_hexdigit()),
+                "Unexpected job output"
+            );
+            let bytes = STANDARD.decode(&output.content_base64)?;
+            ensure!(
+                bytes.len() <= 64 * 1024
+                    && bytes.len() as u64 == output.bytes
+                    && format!("{:x}", Sha256::digest(&bytes)) == output.sha256,
+                "Job file receipt is inconsistent"
+            );
+            total += bytes.len();
+        }
+        ensure!(total <= 256 * 1024, "Job output transfer limit exceeded");
+        for error in &self.output_errors {
+            ensure!(
+                request.output_paths.contains(&error.path)
+                    && seen.insert(&error.path)
+                    && error.reason.len() <= 256,
+                "Unexpected output failure"
+            );
+        }
+        Ok(())
+    }
     fn preview(stream: &JobStream) -> Result<serde_json::Value> {
         use base64::{Engine, engine::general_purpose::STANDARD};
         let bytes = STANDARD.decode(&stream.content_base64)?;
@@ -443,4 +499,44 @@ pub(crate) fn recover_receipt(
                     "note":"The original worker stopped without a usable command receipt, or launch was rejected. Recovery did not repeat the command."}).to_string()));
     }
     Ok(None)
+}
+
+pub(crate) fn path(value: &str) -> Result<()> {
+    ensure!(
+        !value.is_empty() && value.len() <= 512,
+        "Job path is invalid"
+    );
+    for p in value.split('/') {
+        let lower = p.to_ascii_lowercase();
+        ensure!(
+            !p.is_empty()
+                && !matches!(p, "." | "..")
+                && !p.contains(['\\', ':'])
+                && !p.ends_with(['.', ' '])
+                && !p.chars().any(char::is_control)
+                && !matches!(
+                    lower.as_str(),
+                    ".git"
+                        | ".ssh"
+                        | ".aws"
+                        | ".codex"
+                        | ".agents"
+                        | ".env"
+                        | ".npmrc"
+                        | ".pypirc"
+                        | "credentials.json"
+                        | "secrets.json"
+                        | "node_modules"
+                        | "target"
+                        | ".waku-cache"
+                )
+                && !lower.starts_with(".env.")
+                && !lower.starts_with(".ion-edit-")
+                && !lower.ends_with(".pem")
+                && !lower.ends_with(".p12")
+                && !lower.ends_with(".pfx"),
+            "Job path is private or non-relative"
+        );
+    }
+    Ok(())
 }

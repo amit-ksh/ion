@@ -6,7 +6,7 @@ use anyhow::{Context, Result, ensure};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
+
 use std::{
     collections::HashSet,
     io::Read,
@@ -40,44 +40,9 @@ pub(crate) struct CommandArgs {
     pub timeout_seconds: u32,
 }
 pub(super) fn path(value: &str) -> Result<()> {
-    ensure!(
-        !value.is_empty() && value.len() <= 512,
-        "Job path is invalid"
-    );
-    for p in value.split('/') {
-        let lower = p.to_ascii_lowercase();
-        ensure!(
-            !p.is_empty()
-                && !matches!(p, "." | "..")
-                && !p.contains(['\\', ':'])
-                && !p.ends_with(['.', ' '])
-                && !p.chars().any(char::is_control)
-                && !matches!(
-                    lower.as_str(),
-                    ".git"
-                        | ".ssh"
-                        | ".aws"
-                        | ".codex"
-                        | ".agents"
-                        | ".env"
-                        | ".npmrc"
-                        | ".pypirc"
-                        | "credentials.json"
-                        | "secrets.json"
-                        | "node_modules"
-                        | "target"
-                        | ".waku-cache"
-                )
-                && !lower.starts_with(".env.")
-                && !lower.starts_with(".ion-edit-")
-                && !lower.ends_with(".pem")
-                && !lower.ends_with(".p12")
-                && !lower.ends_with(".pfx"),
-            "Job path is private or non-relative"
-        );
-    }
-    Ok(())
+    crate::teams::jobs::path(value)
 }
+
 fn policy(target: Uuid) -> Result<Policy> {
     let file = std::env::var_os("ION_TEAM_COMMAND_IMAGES")
         .context("Register credential-free command images in ION_TEAM_COMMAND_IMAGES first")?;
@@ -249,59 +214,9 @@ fn receipt(value: &Value, request: &JobRequest) -> Result<JobResponse> {
     Ok(response)
 }
 fn validate_receipt(r: &JobResponse, request: &JobRequest) -> Result<()> {
-    ensure!(
-        r.version == 1
-            && r.request_id == request.request_id
-            && r.elapsed_milliseconds <= u64::from(request.timeout_seconds + 10) * 1000
-            && r.outputs.len() + r.output_errors.len() == request.output_paths.len(),
-        "Remote command receipt identity or output contract changed"
-    );
-    for stream in [&r.stdout, &r.stderr] {
-        ensure!(
-            stream.content_base64.len() <= 12 * 1024,
-            "Job stream exceeds its bound"
-        );
-        let bytes = STANDARD.decode(&stream.content_base64)?;
-        ensure!(
-            bytes.len() <= 8192
-                && stream.bytes >= bytes.len() as u64
-                && stream.truncated == (stream.bytes > 8192)
-                && (stream.truncated || stream.bytes == bytes.len() as u64),
-            "Job stream receipt is inconsistent"
-        );
-    }
-    let mut seen = HashSet::new();
-    let mut total = 0;
-    for output in &r.outputs {
-        path(&output.path)?;
-        ensure!(
-            request.output_paths.contains(&output.path)
-                && seen.insert(&output.path)
-                && output.content_base64.len() <= 88 * 1024
-                && output.sha256.len() == 64
-                && output.sha256.bytes().all(|b| b.is_ascii_hexdigit()),
-            "Unexpected job output"
-        );
-        let bytes = STANDARD.decode(&output.content_base64)?;
-        ensure!(
-            bytes.len() <= 64 * 1024
-                && bytes.len() as u64 == output.bytes
-                && format!("{:x}", Sha256::digest(&bytes)) == output.sha256,
-            "Job file receipt is inconsistent"
-        );
-        total += bytes.len();
-    }
-    ensure!(total <= 256 * 1024, "Job output transfer limit exceeded");
-    for error in &r.output_errors {
-        ensure!(
-            request.output_paths.contains(&error.path)
-                && seen.insert(&error.path)
-                && error.reason.len() <= 256,
-            "Unexpected output failure"
-        );
-    }
-    Ok(())
+    r.validate_against(request)
 }
+
 fn execute_with(
     client: &Client,
     coordinator: &TeamCoordinator,
@@ -637,6 +552,7 @@ mod tests {
         control::ControlStore,
         teams::{DispatchHost, PrepareRun},
     };
+    use sha2::{Digest, Sha256};
     use waku_protocol::{control::*, model::ProviderKind, teams::*};
     struct Fixture {
         dir: std::path::PathBuf,

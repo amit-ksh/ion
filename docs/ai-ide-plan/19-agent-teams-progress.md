@@ -1,6 +1,6 @@
 # Agent teams: implementation progress and review checklist
 
-Updated 2026-10-06. Development branch: `codex/ion-agent-teams`, based on
+Updated 2026-10-07. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
@@ -1650,3 +1650,51 @@ app visual test or second watcher was used. GPU output/volume/wait/price/egress 
 operator recovery integration, Amp/Cursor Teams contracts, Fx native acceptance,
 executed-check gates and full remote project/large transfers remain development.
 The full goal remains active.
+
+## 2026-10-07 — authentic GPU result transport
+
+- Added an immutable optional result-volume policy to the private GPU launch
+  allowance. It pins bucket ID/name, region and prefix. Before create, the owner
+  verifies the same project, regular bucket type, active/unsuspended state and
+  absence of anonymous access. Exact launch replay performs no bucket read/POST.
+  Unsupported or changed volume policy fails before submission. Older no-volume
+  reservations preserve their original signature and cannot acquire a result
+  volume during replay.
+- The isolated root supervisor keeps `/ion` private from its nonroot command,
+  creates a fresh request UUID directory on the mount before execution, then
+  exclusively writes/flushed-syncs the real receipt after descendants stop.
+  Repeated/partial writes never rerun commands or overwrite an earlier receipt.
+  The CPU JSON stdin/stdout contract remains unchanged. GPU collector success
+  does not conceal the command's real nonzero exit.
+- Added a fixed-origin HTTPS S3 GetObject reader with owner-only access/secret and
+  optional session credentials. Secrets are not supplied to commands, images,
+  artifacts or upstream-error diagnostics. Redirects and arbitrary URLs are
+  unavailable. The signer matches independent AWS botocore 1.40.0 S3SigV4Auth
+  vectors, including session tokens. JSON is capped at 512 KiB and every requested
+  output's exact size/hash and the original request contract are verified.
+- Result receipt and generated summary artifact commit atomically. Exact replay
+  retains the artifact and revision; altered receipts cannot replace it. Results
+  survive owner restart and support assignment/attempt-scoped 4 KiB binary pages.
+  Collection is independent of Stop/resource cleanup and never releases money or
+  task continuation. A missing object, malformed receipt or denied read remains
+  unresolved. Agent GPU launch stays gated until the remaining integrations.
+- Updated the worker/setup/review guides and corrected the older command
+  lost-acknowledgement note to match its implemented verified operator binding.
+
+Verification: **52 focused core tests passed** (21 GPU, 10 command jobs, 15 remote
+lifecycle/recovery and 6 owner recovery), plus **6 Python worker checks** with real
+child execution. The result tests cover authentic failed-command artifacts,
+binary hashes/readback, restart/exact replay, altered contracts, another
+assignment, early/unapproved receipts, missing/auth/redirect/partial/malformed/
+oversized storage reads, and changed bucket/privacy/grant policy. HMAC was already
+locked transitively; only the waku-core direct dependency was added to Cargo.lock.
+Desktop/daemon compilation, Rust formatting and Git whitespace checks passed;
+existing compiler warnings were unchanged.
+
+No live GPU/account/billing/cloud deployment, app visual test or second watcher
+was performed. Linux/FUSE result isolation/exclusive-write/flush semantics, GPU
+image acceptance and bucket IAM/retention policy still need acceptance. Durable
+waits and agent integration, verified billing/resource/egress enforcement, GPU
+operator recovery, large project/dataset transfers, Amp/Cursor Teams contracts,
+Fx native acceptance and executed-check gates remain development. The full goal
+remains active.

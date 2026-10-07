@@ -115,8 +115,11 @@ behavior only. The implementation still needs:
 - [ ] Verified price snapshots and billing reconciliation for compute, startup,
   disk/storage and unknown cost. Aggregate reservations exist; unknown and
   terminal-job costs retain the full approved allowance until reconciliation.
-- [ ] Approved dataset/checkpoint volumes, bounded download/readback, real worker
-  receipt/log retrieval and artifacts with actual command evidence.
+- [x] Owner-approved result bucket/prefix, fixed-origin signed object reads, real
+  worker receipt/log/file validation, atomic artifacts and scoped binary pages.
+  This is an owner transport; agent async integration remains gated.
+- [ ] Approved large dataset/checkpoint volumes, retention/storage cost policy and
+  full project/large-file transfer. Small receipt-contained outputs remain bounded.
 - [ ] GPU-compatible image validation and resource/quota/readiness checks.
 - [ ] Enforced egress/resource grants. `publicIp=false` is not a network-deny rule;
   registered subnet policy and access authorization are needed.
@@ -148,7 +151,8 @@ or produce a user artifact. Those gates remain pending until output/accounting
 integration is complete. Startup failures without complete inventory, resources
 already removed before capture and lost deletion acknowledgements require the
 remaining operator recovery work. Existing disks may be preserved by the provider;
-the current no-volume policy never authorizes deleting them separately.
+the result-volume policy never authorizes deleting them separately or deleting
+objects from the result bucket.
 
 Later live review, after the GPU integrations and your resources are available:
 
@@ -162,24 +166,54 @@ Later live review, after the GPU integrations and your resources are available:
   claim stays unresolved, with no retry, replacement job or Local fallback.
 - [ ] Test missing permissions/inventory and check that Stop attempts other jobs.
 
-### Result retrieval contract investigation
+### GPU result retrieval
 
-The official job API does not return command stdout or output files. Nebius
-provides job logs through its console and the
-[resource-specific CLI reader](https://docs.nebius.com/cli/reference/ai/logs).
-The [official installer](https://docs.nebius.com/cli/install) currently supports
-Linux/macOS. A production Windows result reader still needs an authenticated transport with verified resource selection and
-bounded complete receipts; the current transport does not invent a job-logs REST
-route or accept model text as an execution receipt. Native waits must capture
-inventory while resources still exist and retrieve outputs before job deletion.
+The official job API does not contain stdout or output files. Job logs are exposed
+through the [console/CLI reader](https://docs.nebius.com/cli/reference/ai/logs);
+the [CLI installer](https://docs.nebius.com/cli/install) currently supports
+Linux/macOS. The owner result transport works on Windows without inventing a
+job-log endpoint. It uses the
+[documented native volume mount](https://github.com/nebius/api/blob/main/nebius/ai/v1/job.proto)
+and [regional S3 endpoint](https://docs.nebius.com/object-storage/overview).
 
-The GPU transport is deliberately separate from the command path; registering a
-ConTree image or an inference key does not configure GPU execution. Full remote
-project files, large transfers, remote checks and spending enforcement remain in
-[the release checklist](20-agent-teams-release-checklist.md).
+A private owner policy pins a regular bucket ID/name/project, region and prefix.
+The owner verifies readiness and privacy before create. The worker's root
+supervisor keeps `/ion` private from its nonroot child, then exclusively writes a
+versioned execution receipt at `<prefix>/<request UUID>/receipt.json` after child
+descendants stop. It preserves nonzero exit, timeout, bounded logs, requested
+files and their hashes. Command success is determined from that receipt; the
+job's terminal state and collector exit do not replace it.
 
-## Verification
+Owner-only S3 credentials sign a fixed-origin HTTPS GetObject. Redirects, agent
+URLs, unapproved buckets, malformed/oversized JSON, unexpected files and changed
+SHA256 hashes are rejected. A 404 means no receipt yet, never cleanup proof.
+Ion checks the original terminal job and input/output contract, then commits the
+receipt and AI-generated summary artifact together. Exact replay reuses the
+artifact without revision churn. Readback is restricted to the original
+assignment attempt and returns 4 KiB binary pages without source-checkout writes.
+The signing implementation matches independent
+[AWS botocore S3SigV4Auth vectors](https://github.com/boto/botocore/blob/1.40.0/botocore/auth.py),
+including a session-token header. Provider error bodies and raw secrets do not
+enter receipt diagnostics.
 
-Final fixture and compile evidence is recorded in
-[implementation progress](19-agent-teams-progress.md). No live cloud submission,
-provider billing, deployment, app visual test or second watcher was performed.
+This is an internal owner transport, not a newly enabled GPU agent tool. Durable
+waits, billing, egress/resource validation, large datasets/checkpoints and GPU
+operator recovery remain development. The result collector can operate separately
+from resource cleanup: missing result credentials cannot prevent Stop/cancel
+attempts. Saved objects persist after job deletion; retention, trusted Linux
+mount semantics and associated storage costs need explicit integration/acceptance.
+Native waits must capture inventory while compute resources still exist.
+
+Later setup/review is detailed in [the worker guide](../../packages/job-worker/README.md):
+
+- [ ] Prepare a private regular result bucket/prefix in the same approved project.
+- [ ] Configure distinct owner S3 read credentials; restrict IAM and bucket policy.
+- [ ] Validate the pinned GPU image, root-owned private `/ion`, nonroot child,
+  mount/exclusive-create/flush behavior and denied command access to the receipt.
+- [ ] Verify authentic failed-command logs/files and the generated artifact.
+- [ ] Try missing/invalid/oversized receipts, permissions and mismatched bucket or
+  file hashes; verify no successful command/cleanup/cost evidence is manufactured.
+- [ ] Restart and collect the original result once; confirm no create replay or
+  duplicate artifact. Attempt reads from another task/attempt and verify denial.
+- [ ] Delete the compute job and verify results remain accessible under the
+  reviewed retention policy, independently of cleanup and unknown billing.
