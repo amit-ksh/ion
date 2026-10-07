@@ -1948,3 +1948,43 @@ Cursor contracts and other adapter transport/bridge contracts remain development
 Fx native Linux binary acceptance is now feasible locally and remains pending.
 No live provider/GPU/deployment, app bundle, visual test or second watcher was run.
 The full goal stays active.
+
+## Fx official Linux fixture and native worker build (2026-10-07)
+
+- Reverified the cached official Fx 0.0.13 Linux x86_64 executable against GitHub's
+  release archive and asset SHA256. The native binary reports the exact accepted
+  version. It ran Ion's existing Rust adapter fixture with a private home/work
+  directory, fake key and localhost provider, without external networking.
+- The fixture verifies the actual launch/profile plus bounded gate, one canonical
+  Chat request, exact model/task, no native tools and the 32,768 output clamp.
+  Three Fx tests, twelve transport-gate regressions and one worker protocol test
+  passed on Linux (**16 distinct Rust tests**). Transport cases reject native
+  effects, changed identities, excess usage and auxiliary/retry billing.
+- Built the actual Linux `ion-harness-worker` debug executable offline, with the
+  unchanged lockfile and tracked source `7106c17`. Three actual-binary checks
+  rejected arguments, malformed input and oversized stdin with expected exit
+  codes, no stdout/input echo and bounded sanitized diagnostics. This does not
+  claim authenticated inference or a production release/deployment image.
+- Twelve catalog adapters now have native transport/CLI fixture evidence. Fx's
+  former missing-Linux-binary gate is closed; Windows Local remains unavailable,
+  and macOS/live selected-account/registered-image acceptance is separate.
+
+Pinned build base: `rust@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3`
+(Rust 1.97.1, Linux x86_64). Fx archive SHA256:
+`53a3b30ce1541048f8fa4b42b7bc68161466bb2e3708db104449a58af3807430`;
+executable SHA256: `00def23f9c68ef538d7d967394c3491910793461884fad0b983cb74011b9120c`.
+The fixture image compiled the actual core test library with `--locked`, without
+manifest edits or alternative dependency resolution. Public release/build assets
+remain in ignored caches; disposable test containers were removed. One local
+Docker base-reference syntax error was corrected before the offline worker build.
+Existing ts-rs/dead-code/proc-macro diagnostics and an existing Linux-only test
+unused import remain. Formatting and whitespace checks passed.
+
+Remaining development includes Amp/Cursor Teams contracts, additional native
+account transports/bridges, full project/dataset/large-file transfers, enabled GPU
+submission, verified price/account/billing, complete GPU device/IPC/egress and
+image/CUDA acceptance, historical missing inventory and checkpoint retention.
+No user credential, live provider/GPU/cloud deployment, app bundle, visual test or
+second watcher was used. The full goal remains active. See the
+[adapter guide](22-harness-adapters-remote-execution.md#fx-native-linux-acceptance-2026-10-07)
+and [release checklist](20-agent-teams-release-checklist.md).

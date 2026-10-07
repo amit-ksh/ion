@@ -164,8 +164,11 @@ second development watcher was performed during these checkpoints.
   slug; verify thinking tokens are included in usage and output reservation.
 - [ ] OpenCode 2 beta-17823: verify standalone execution preserves the original
   service and native selected direct account; test conflicting/OAuth profiles.
-- [ ] Fx 0.0.13: verify the official native binary on Linux/macOS, exact configured
-  model limits and account, one provider call and no native effects.
+- [x] Fx 0.0.13: official Linux x86_64 binary verified against the release digest;
+  actual Rust adapter fixture and twelve gate regressions passed with a fake key,
+  localhost provider and external networking disabled.
+- [ ] Fx: accept the actual native account/model limits and immutable registered
+  host; verify live usage and macOS separately before claiming those targets.
 - [ ] With live access, verify all three adapters through delegation, review, stop,
   checkpoints, registered worker and pre-execution Local fallback.
 - [ ] Amp/Cursor: finish the outstanding development contracts in the adapter guide
@@ -240,3 +243,17 @@ second development watcher was performed during these checkpoints.
 - [ ] Review account/billing, complete egress/runtime enforcement and remaining
   GPU agent submit integrations before enabling the target. Local Docker tests
   do not establish cloud/GPU acceptance.
+
+## 2026-10-07 — Fx and native Linux worker acceptance
+
+- [x] Official Fx Linux x86_64 0.0.13 binary digest/provenance and actual Rust
+  launch/profile fixture, with exact model/task, one metered request, no native
+  tools and output clamp. Three Fx and twelve gate tests passed without external
+  networking; all twelve catalog adapters now have native transport/CLI fixtures.
+- [x] Actual Linux debug harness worker built offline from the unchanged lockfile.
+  Existing protocol regression and three actual-binary argument/input-boundary
+  checks passed, without request echo or unsanitized diagnostics.
+- [ ] Build the production release/registered image, configure its selected native
+  account/bootstrap and accept actual inference/stop/restart with your resources.
+- [ ] Amp/Cursor Teams contracts and other account transports remain development.
+  Fx's Linux fixture does not establish Windows Local or macOS support acceptance.

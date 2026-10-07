@@ -19,15 +19,15 @@ acceptance is implied by this checkpoint.
 | Grok Build | Private native CLI plus prompt-bound one-use Responses transport | Yes | Native host XAI_API_KEY; verified 1.0.46 runtime |
 | Antigravity | Private native Gemini completion, canonical one-use gate | Yes | Native Gemini profile and host GEMINI_API_KEY; 1.3.0/1.3.1 |
 | OpenCode 2 | Private standalone CLI, canonical one-use Responses gate | Yes | Native direct OpenAI key; beta-17823 |
-| Fx | Configured direct-provider ask adapter; Linux/macOS native acceptance pending | Wired, Linux/macOS required | Native selected configured OpenAI or Nebius bearer slot; 0.0.13 |
+| Fx | Configured direct-provider ask with bounded one-use Chat gate; Linux fixture passed | Yes, Linux/macOS required | Native selected configured OpenAI or Nebius bearer slot; 0.0.13 |
 | Amp, Cursor | Verified Teams contract still required | Not enabled | Selection remains pinned |
 
-Twelve catalog harnesses have Teams adapter implementations. Eleven have native
-transport/CLI fixture evidence; Fx's new implementation has source/profile/transport tests
-but still needs its official Linux/macOS executable acceptance. Docker's Linux
-engine is now available on this Windows host and has run the fixed command guard
-tests. The installed Ubuntu WSL entry still has a missing disk. Fx native binary
-acceptance remains an outstanding verification gate.
+Twelve catalog harnesses have Teams adapter implementations and native transport/
+CLI fixture evidence. Fx 0.0.13's official Linux x86_64 binary passed its real Rust
+adapter fixture with a fake key and a localhost provider; all twelve transport-
+gate regressions also passed on Linux. Docker's Linux engine is now available on
+this Windows host. This closes the Fx binary fixture gate, not live account,
+macOS, registered cloud image or additional account-route acceptance.
 
 Unsupported native account types, custom endpoints and releases block readiness.
 They remain selectable for normal solo use. A saved Teams harness is preserved
@@ -192,8 +192,10 @@ Later acceptance checklist:
   keep keys out of chat and committed configuration.
 - [ ] Run a Local lead/specialist task for each new adapter. Check exact harness,
   model, grants, one-use request, usage, document handoff and review.
-- [ ] Run the official Fx binary fixture on Linux/macOS with a fake key and localhost
-  provider before marking Fx native acceptance complete.
+- [x] Run the official Fx 0.0.13 binary fixture on Linux x86_64 with a fake key and
+  localhost provider; one upstream request, exact input/model and bounded output.
+- [ ] Verify Fx's actual selected account/model metadata and registered execution
+  image with your resources; macOS and additional account routes need acceptance.
 - [ ] Configure/register the same native profiles in immutable sandbox worker images;
   verify Local fallback before execution and no fallback after uncertain submission.
 - [ ] Review cancellation, changed profile/model/limits, over-budget replies and
@@ -245,9 +247,12 @@ key or native control event enters the team transcript.
 
 ## Prepare a registered sandbox host later
 
-Protocol is **29**; rebuild desktop, daemon and client bundles together.
-No deployment target has been supplied. Build/provisioning and live acceptance
-remain your setup steps; this implementation sends no real sandbox requests.
+Protocol is **31**; rebuild desktop, daemon and client bundles together.
+No deployment target has been supplied. A Linux debug harness worker has now
+built offline with the unchanged lockfile, and its actual binary rejects malformed/
+oversized input and invalid arguments. Production release image preparation,
+provider runtime/bootstrap, registration and live acceptance remain setup/review
+steps; this implementation sends no real sandbox requests.
 
 - [ ] Build the worker **on Linux for the execution image**, from this same source:
 
@@ -449,3 +454,39 @@ The completion image remains a model-only worker. Separate credential-free comma
 images now provide bounded actual command/file execution for a Nebius attempt.
 See [remote commands and GPU jobs](23-remote-command-gpu-jobs.md) for setup,
 recovery behavior, real receipt evidence and outstanding GPU/spending integration.
+
+## Fx native Linux acceptance (2026-10-07)
+
+The existing `team_fx_installed_ask_one_request_is_bounded` Rust test passed against
+the official [v0.0.13 release](https://github.com/vercel-labs/fx/releases/tag/v0.0.13).
+The cached executable was reverified byte-for-byte against the release archive,
+whose SHA256 matches GitHub's asset digest:
+`53a3b30ce1541048f8fa4b42b7bc68161466bb2e3708db104449a58af3807430`.
+Executable SHA256: `00def23f9c68ef538d7d967394c3491910793461884fad0b983cb74011b9120c`.
+
+Three Fx tests and twelve transport-gate tests passed in disposable Linux x86_64
+containers with external networking disabled. The fixture used a private home,
+empty working directory, fake key and localhost provider. It exercised the actual
+adapter launch/profile and gate, verifying one canonical metered Chat request,
+exact model/task, no native tools and the 32,768 output clamp. Gate regressions
+also reject native effects, changed identity, excess usage and auxiliary/retry
+billing. No user account, credential or source configuration was changed.
+
+On Linux with that exact executable, the reproducible source test is:
+
+```sh
+ION_TEST_FX_BINARY=/absolute/path/to/fx cargo test -p waku-core team_fx --lib --locked -- --include-ignored --test-threads=1
+cargo test -p waku-core team_gate --lib --locked
+```
+
+This verifies the direct-provider adapter contract. Windows Local Fx remains
+unsupported; a saved Nebius choice still requires an approved registered host.
+Amp/Cursor Teams contracts, other native account routes, live provider/cloud
+acceptance and the remote project/GPU development gates remain open.
+
+The same tracked source checkpoint (`7106c17`) also built the actual Linux
+`ion-harness-worker` debug binary offline with `--locked`. Its existing worker
+protocol test passed; three actual-binary checks rejected command-line arguments,
+malformed JSON and oversized stdin with the expected exit codes, empty stdout
+and bounded sanitized diagnostics. This is build/transport evidence; it does not
+establish authenticated inference or a production release/cloud image.
