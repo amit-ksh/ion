@@ -135,3 +135,7 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Teams harness adapters and registered remote execution](22-harness-adapters-remote-execution.md)
     records exact coverage, host setup, lifecycle behavior and pending live review.
+
+- [Remote commands and GPU jobs](23-remote-command-gpu-jobs.md): bounded command/file
+  execution, recovery and worker setup; separate GPU lifecycle transport and
+  remaining durable waits, resource, output and monetary integration.

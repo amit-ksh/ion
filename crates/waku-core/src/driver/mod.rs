@@ -22,7 +22,13 @@ mod team_completion;
 pub(crate) mod team_deepseek;
 pub(crate) mod team_fx;
 mod team_gate;
+#[expect(
+    dead_code,
+    reason = "GPU lifecycle is not exposed until durable waits, accounting and output receipts are integrated"
+)]
+mod team_gpu;
 pub(crate) mod team_grok;
+pub(crate) mod team_jobs;
 pub(crate) mod team_kimi;
 pub(crate) mod team_omp;
 pub(crate) mod team_opencode;

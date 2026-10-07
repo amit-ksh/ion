@@ -272,7 +272,9 @@ impl Executor for NativeExecutor {
         local_host(profile)
     }
     fn remote_stopped(&self, coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
-        if coordinator.remote_attempt_stopped(attempt)? {
+        if coordinator.remote_attempt_stopped(attempt)?
+            && coordinator.unfinished_jobs(attempt)?.is_empty()
+        {
             return Ok(true);
         }
         {
@@ -288,7 +290,9 @@ impl Executor for NativeExecutor {
             }
             checks.insert(attempt, Instant::now());
         }
-        driver::team_remote::reconcile(coordinator, attempt)
+        let models_stopped = driver::team_remote::reconcile(coordinator, attempt)?;
+        let jobs_stopped = driver::team_jobs::reconcile_attempt(coordinator, attempt)?;
+        Ok(models_stopped && jobs_stopped)
     }
     fn run(
         &self,

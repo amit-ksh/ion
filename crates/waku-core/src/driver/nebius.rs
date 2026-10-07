@@ -837,7 +837,7 @@ fn required_str<'a>(args: &'a Value, field: &str) -> Result<&'a str> {
         .ok_or_else(|| anyhow!("missing {field}"))
 }
 
-fn checked_path(root: &Path, relative: &str) -> Result<PathBuf> {
+pub(super) fn checked_path(root: &Path, relative: &str) -> Result<PathBuf> {
     let relative = Path::new(relative);
     if relative.as_os_str().is_empty()
         || relative.is_absolute()

@@ -21,6 +21,7 @@ mod dispatch;
 mod documents;
 mod followups;
 mod inputs;
+pub(crate) mod jobs;
 mod materialize;
 mod projections;
 mod recovery;

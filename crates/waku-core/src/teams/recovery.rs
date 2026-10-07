@@ -6,7 +6,7 @@ mod receipts;
 
 pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending')",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling'))",
         [run.id.to_string()], |r| r.get(0),
     )?;
     let points: Vec<(String,String,u32)> = db.prepare(
@@ -17,7 +17,7 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
         .map(|(work, attempt, generation)| (work, (attempt, generation)))
         .collect();
     let unfinished: HashSet<String> = db.prepare(
-        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending'",
+        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')",
     )?.query_map([run.id.to_string()], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
     let checkpoints: std::collections::HashMap<String,(String,u32)> = db.prepare(
         "SELECT c.work_id,c.attempt_id,c.generation FROM ion_team_continuations c JOIN ion_team_work w ON w.id=c.work_id WHERE w.run_id=? AND w.status='blocked' AND c.dependencies='[]' AND json_extract(c.checkpoint,'$.version')=1 AND json_extract(c.checkpoint,'$.steps')<16 LIMIT 257",
@@ -263,7 +263,7 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
     let value: Value = serde_json::from_str(&checkpoint)?;
     Ok(id==attempt.id.to_string() && generation==attempt.generation && dependencies=="[]"
         && value["version"]==1 && value["steps"].as_u64().is_some_and(|n|n<16)
-        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending')",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
+        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling'))",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
 }
 fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamRecoveryReview> {
     let work = assignment(run, work)?;

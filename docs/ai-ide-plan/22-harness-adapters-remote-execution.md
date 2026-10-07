@@ -420,3 +420,10 @@ uses the actual 1.0.46 Windows binary (`2765805b9442`), with npm SHA512 integrit
 verified and executable SHA256
 `47ad7fbc51767b8b301714111a1e452acc2c89912c08be260e1779a383302a4c`.
 The source/archive and native fixture runtime remain in ignored cache storage.
+
+## Bounded command jobs and GPU development
+
+The completion image remains a model-only worker. Separate credential-free command
+images now provide bounded actual command/file execution for a Nebius attempt.
+See [remote commands and GPU jobs](23-remote-command-gpu-jobs.md) for setup,
+recovery behavior, real receipt evidence and outstanding GPU/spending integration.

@@ -10,6 +10,13 @@ pub(super) fn tool(
     args: &Value,
 ) -> Result<String> {
     match name {
+        "run_remote_command" => {
+            if let Some(receipt) =
+                super::super::jobs::recover_receipt(db, run, work, attempt, request, args)?
+            {
+                return Ok(receipt);
+            }
+        }
         "write_file" | "create_directory" | "delete_file" => {
             let row:Option<(String,String,Option<String>)>=db.query_row(
                 "SELECT signature,state,receipt FROM ion_team_workspace_edits WHERE run_id=? AND work_id=? AND attempt_id=? AND request_id=?",
@@ -161,6 +168,7 @@ pub(super) fn tool(
         | "list_files"
         | "list_inputs"
         | "read_input"
+        | "read_remote_output"
         | "read_document"
         | "describe_app_action" => {}
         _ => anyhow::bail!("Unknown native tool cannot be safely recovered: {name}"),

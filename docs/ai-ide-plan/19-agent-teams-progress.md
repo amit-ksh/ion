@@ -1516,3 +1516,51 @@ compatible Linux/macOS host. These counts overlap the earlier 166-test regressio
 run and are not an additional count of unique regression tests. Final desktop,
 daemon and worker binary checking, formatting and Git whitespace checks passed.
 No live account acceptance, cloud operation or visual test was performed.
+
+## 2026-10-07 — bounded command/file execution and GPU lifecycle transport
+
+- Added a separate credential-free Linux command worker and operator image
+  registry. Actual Nebius attempts require command/read grants; Local/fallback
+  attempts cannot submit cloud commands. Explicit file bundles, executable/time/
+  count/layer limits, nonroot command execution under a separate trusted supervisor and disabled instance network are enforced.
+- Commands execute with literal argv and a private home/environment. Real exit,
+  timeout, bounded logs and selected binary output bytes return in versioned
+  receipts; owner-side SHA256 verification rejects mismatched files.
+- Added durable request reservation before POST, original operation binding,
+  cancellation/terminal observation and restart GET/DELETE reconciliation. Unknown
+  acknowledgements remain reserved and block continuation; no repeat or fallback.
+- Receipt and generated JSON artifact commit together, including late/recovered
+  outcomes. Native run/read tools and argument/provenance-bound journal recovery
+  reuse those exact receipts. Output reads are assignment-scoped, 4 KiB pages;
+  no source checkout write or implicit repository upload occurs.
+- Added Linux child subreaping and bounded descendant collection for detached
+  process groups. The Windows worker fixtures do not verify that Linux behavior;
+  imported-image/native acceptance remains in the checklist.
+- Started the separate Nebius Serverless AI Jobs transport: pinned image digest,
+  explicit resource fields and injected request, create operation vs job identity,
+  provenance verification, status and cancellation. It is not exposed for agent
+  launch until durable waits, outputs and monetary/resource authorization exist.
+
+Final verification: **31 Rust fixture/regression tests passed** (8 command jobs,
+2 GPU API contracts, 15 sandbox/recovery checks and 6 owner recovery checks), plus
+**4 Python worker tests passed** with real private Windows child execution. Desktop
+and daemon checking, locked dependency resolution, formatting and whitespace checks
+passed. Test code generation used a command-local core optimization override;
+repository/app build profiles were not changed. An initial restart fixture used a
+nonexistent ConTree `RUNNING` state; it was corrected to the verified `EXECUTING`
+contract before final acceptance. No live provider billing, cloud submission,
+resource deployment, account modification, app visual test or second watcher ran.
+
+Remaining development: command lost-acknowledgement operator binding/recovery
+projection; enforced executed-check output gates; full remote project/large file
+support; GPU durable waits, output/volume handling, spending/egress/resource and
+cleanup integration. Amp/Cursor Teams contracts and Fx native Linux/macOS fixture
+acceptance remain outstanding. See [the remote job guide](23-remote-command-gpu-jobs.md)
+and [release checklist](20-agent-teams-release-checklist.md). These are development
+items, not merely later user review.
+
+The final worker hardening uses a separate trusted supervisor and nonroot command
+UID/GID, no supplementary groups and inherited no-new-privileges, protecting the
+receipt collector from command-side signalling or native privilege elevation.
+Command/GPU fixtures and desktop/daemon checking were repeated after the contract
+change; Linux native acceptance remains outstanding.

@@ -75,7 +75,8 @@ assert live account acceptance, visual validation or production release readines
   process verification and explicit remote checkpoint continuation. Exact input
   witnesses are required; legacy requests and live setup remain review items.
 - [ ] Full remote project/command execution, remote checks, resource/egress controls
-  and GPU/ML job provisioning; current worker returns model actions to the owner.
+  and GPU/ML job provisioning. Separate bounded command jobs are implemented;
+  the selected-harness completion worker still returns model actions to the owner.
 - [ ] Executed test/check receipts and enforceable command isolation. Declared check
   labels and model-written test claims are not executed validation.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
@@ -166,3 +167,19 @@ second development watcher was performed during these checkpoints.
   checkpoints, registered worker and pre-execution Local fallback.
 - [ ] Amp/Cursor: finish the outstanding development contracts in the adapter guide
   before enabling Teams. Credentials alone do not complete those adapters.
+
+## 2026-10-07 — command jobs and GPU lifecycle transport
+
+- [x] Bounded credential-free remote command/file worker, real exit/log/file/hash
+  receipts, generated summary artifact, explicit grants and pinned policies.
+- [x] Durable command reservation and bound operation cancellation/restart; no
+  repeated submission or Local retry after an uncertain outcome.
+- [x] Native command/output tools and recovery of exact argument-bound receipts.
+- [x] Separate Serverless AI Jobs lifecycle transport and localhost contract tests.
+  Agent GPU launch remains disabled pending the integrations below.
+- [ ] Linux/image/live command acceptance from the
+  [command and GPU review guide](23-remote-command-gpu-jobs.md).
+- [ ] Command lost-acknowledgement operator binding and richer recovery projection.
+- [ ] GPU durable waits, monetary/resource/egress enforcement, dataset/checkpoint
+  volumes, real output retrieval, cleanup verification and live acceptance.
+- [ ] Enforce executed command receipts in required output-contract check gates.

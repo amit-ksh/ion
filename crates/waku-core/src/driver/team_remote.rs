@@ -57,15 +57,15 @@ pub(crate) struct WorkerResponse {
     pub content: String,
     pub usage: ModelTokenUsage,
 }
-struct Client {
+pub(super) struct Client {
     http: reqwest::blocking::Client,
     token: String,
-    project: String,
+    pub(super) project: String,
     #[cfg(test)]
     base: String,
 }
 impl Client {
-    fn configured() -> Result<Self> {
+    pub(super) fn configured() -> Result<Self> {
         let token=std::env::var("ION_NEBIUS_SANDBOX_IAM_TOKEN").context("Configure the sandbox IAM token on this owner; the inference key is a separate credential")?;
         let project = std::env::var("ION_NEBIUS_SANDBOX_PROJECT")
             .context("Configure the sandbox's Nebius project on this owner")?;
@@ -85,6 +85,19 @@ impl Client {
             base: BASE.into(),
         })
     }
+    #[cfg(test)]
+    pub(super) fn fixture(base: &str, project: &str) -> Self {
+        Self {
+            http: reqwest::blocking::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(Duration::from_secs(3))
+                .build()
+                .unwrap(),
+            token: "fixture-not-real".into(),
+            project: project.into(),
+            base: base.into(),
+        }
+    }
     fn base(&self) -> &str {
         #[cfg(test)]
         {
@@ -95,13 +108,20 @@ impl Client {
             BASE
         }
     }
-    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::blocking::RequestBuilder {
+    pub(super) fn request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+    ) -> reqwest::blocking::RequestBuilder {
         self.http
             .request(method, format!("{}{path}", self.base()))
             .bearer_auth(&self.token)
             .header("Project", &self.project)
     }
     fn operation(&self, id: Uuid, image: Uuid) -> Result<Value> {
+        self.operation_bounded(id, image, 512 * 1024)
+    }
+    pub(super) fn operation_bounded(&self, id: Uuid, image: Uuid, limit: usize) -> Result<Value> {
         let response = self
             .request(reqwest::Method::GET, &format!("/operations/{id}"))
             .send()
@@ -111,7 +131,7 @@ impl Client {
             "Sandbox operation is unresolved (HTTP {})",
             response.status()
         );
-        let value = read_json(response, 512 * 1024)?;
+        let value = read_json(response, limit)?;
         ensure!(
             value["uuid"].as_str() == Some(&id.to_string())
                 && value["kind"] == "instance"
@@ -127,7 +147,7 @@ impl Client {
         );
         Ok(value)
     }
-    fn cancel(&self, id: Uuid) -> Result<()> {
+    pub(super) fn cancel(&self, id: Uuid) -> Result<()> {
         let response = self
             .request(reqwest::Method::DELETE, &format!("/operations/{id}"))
             .send()?;
@@ -138,7 +158,7 @@ impl Client {
         Ok(())
     }
 }
-fn read_json(response: reqwest::blocking::Response, limit: usize) -> Result<Value> {
+pub(super) fn read_json(response: reqwest::blocking::Response, limit: usize) -> Result<Value> {
     let mut bytes = Vec::new();
     response.take(limit as u64 + 1).read_to_end(&mut bytes)?;
     ensure!(bytes.len() <= limit, "Sandbox response exceeded its limit");
