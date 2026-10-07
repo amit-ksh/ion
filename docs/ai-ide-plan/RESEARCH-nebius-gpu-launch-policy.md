@@ -25,11 +25,15 @@ keeps reservations through unknown acknowledgements and terminal states, and
 verifies original result/cleanup independently. This is implementation evidence,
 not proof of provider prices or an egress boundary.
 
-`GpuBudgetPolicy` currently has a target, currency, owner quote identifier,
-expiry, reservation amount, run budget, job/concurrency limits and result volume.
-It does **not** bind a tenant, billing contract/account, provider estimate,
-resolved preset quantities, quota snapshot or enforced egress mechanism.
-`publicIp=false` is not an egress restriction. See sections 5–7.
+At the initial research checkpoint, `GpuBudgetPolicy` had a target, currency,
+owner quote identifier, expiry, reservation amount, run budget, job/concurrency
+limits and result volume. The subsequent implementation adds exact tenant/project/
+region/network/preset quantities and quota identities, fresh quota/capacity reads,
+a durable sanitized receipt and atomic project/tenant resource reservations.
+See [the implementation/review guide](23-remote-command-gpu-jobs.md#exact-gpu-resource-approval-and-fresh-readiness).
+It still does **not** bind a billing contract/account, trusted provider price
+estimate or enforced child egress mechanism. `publicIp=false` is not an egress
+restriction. Resource availability remains advisory; see sections 5–7.
 
 ## 2. What is charged and in which units
 

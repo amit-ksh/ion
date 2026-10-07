@@ -1867,3 +1867,44 @@ Amp/Cursor Teams adapters and the other adapter transport/bridge contracts.
 Native Linux/macOS and live provider/cloud acceptance remain review gates.
 The full goal stays active. See [maintenance and later review](23-remote-command-gpu-jobs.md#persistent-gpu-maintenance-after-task-cancellation)
 and [GPU launch policy research](RESEARCH-nebius-gpu-launch-policy.md).
+
+
+## Exact GPU resource policy and readiness (2026-10-07)
+
+- New production owner launches require exact immutable tenant/project/region,
+  network/subnet, image, platform/preset and GPU/vCPU/RAM/disk/shared-memory
+  approval, with separate cumulative project and tenant quantity limits.
+- Fixed-origin bounded native reads verify active project identity, exact preset,
+  ready subnet/network, both applicable quota scopes/units/known usage and fresh
+  generic capacity advice. Ambiguous, fabric-specific, stale or incomplete advice
+  is rejected. Provider availability remains a snapshot, not a guaranteed allocation.
+- A sealed request/body/policy receipt saves sanitized read queries/hashes,
+  quota headroom and capacity identity/time in the same launch transaction before
+  the single POST. It cannot be reconstructed from model input. Reservation checks
+  a 30-second freshness window; all provider reads must complete within two minutes.
+- Atomic cross-run reservations enforce the stricter outstanding project/tenant
+  quantity limits and conservatively reduce fresh headroom by all uncleaned owner
+  allocations. Matching capacity-advice headroom is also reserved atomically, with
+  measurement age checked again at reservation. Unknown historical quantities
+  block new allocation. Terminal/cancel states and restart retain capacity; verified original VM/disk
+  cleanup releases quantities while money and missing outputs remain independent.
+- Eligible original launch replay needs no new readiness reads or POST, preserving
+  saved resource identities and original recovery/maintenance. Legacy policy
+  signatures omit the new optional field; existing recovery remains compatible.
+- Updated the launch research, adapter guide and release/live-review checklists.
+  No additional cloud grants, model routing or environment selection were added.
+
+Verification: **195 distinct core regressions** passed (51 GPU, 130 coordinator,
+19 runtime, with 5 overlaps), including eight new resource/preflight test groups.
+Tests cover request fidelity, changed approvals/native fields, missing/stale/
+ambiguous/paginated advice, concurrent cross-run caps, tenant/quota headroom,
+legacy uncertainty, restart, original cleanup releasing capacity and retained money.
+Desktop/daemon checking passed. A new unused test-only re-export warning was
+removed; final desktop/daemon compilation, formatting and whitespace checks passed. Existing ts-rs/dead-code/proc-macro warnings remain.
+
+No live account/cloud request, credentials, deployment, bundle, second watcher
+or visual test was used. GPU agent submission, provider prices/account/billing,
+child egress and GPU image enforcement, missing historical inventory, large
+project/dataset/checkpoint volumes, retention policy and live acceptance remain
+development. Amp/Cursor and the remaining adapter account/transport/bridge contracts
+remain open. The full goal stays active.

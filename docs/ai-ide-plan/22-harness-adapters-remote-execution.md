@@ -76,7 +76,10 @@ bound jobs. See [remote commands and GPU jobs](23-remote-command-gpu-jobs.md) fo
 current coverage. Full remote project/large-file transfers and enabled GPU agent
 submission remain development. Pinned required-command gates now verify original
 successful receipts and current source witnesses. Saved GPU maintenance continues
-through task cancellation and owner restart. ConTree's
+through task cancellation and owner restart. New trusted GPU launches additionally
+require exact owner project/network/preset/resource approval, fresh quota/capacity
+reads and atomic cross-run resource reservations; live acceptance, prices/billing,
+image/egress policy and the agent submit contract remain open. ConTree's
 verified instance request has a layer-size limit but no verified GPU/CPU resource
 fields. Do not describe this checkpoint as an ML execution service.
 

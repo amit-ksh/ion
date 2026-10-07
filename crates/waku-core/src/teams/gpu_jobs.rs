@@ -3,6 +3,10 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 mod maintenance;
+mod resource_policy;
+pub(crate) use resource_policy::{GpuQuotaKind, GpuResourcePolicy};
+#[cfg(test)]
+pub(crate) use resource_policy::{GpuQuotaPolicy, GpuQuotaScope, GpuResourceVector};
 pub(in crate::teams) mod recovery;
 mod resources;
 mod results;
@@ -26,6 +30,8 @@ pub(crate) struct GpuBudgetPolicy {
     pub max_parallel: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result_volume: Option<GpuResultVolume>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resources: Option<GpuResourcePolicy>,
 }
 impl GpuBudgetPolicy {
     fn validate(&self, now: u64) -> Result<()> {
@@ -53,6 +59,9 @@ impl GpuBudgetPolicy {
                 && (1..=16).contains(&self.max_parallel),
             "GPU spending policy expired or exceeds its bound"
         );
+        if let Some(resources) = &self.resources {
+            resources.validate()?;
+        }
         if let Some(volume) = &self.result_volume {
             volume.validate()?;
         }
@@ -117,14 +126,59 @@ impl TeamCoordinator {
         );
         Ok(())
     }
+    pub(crate) fn verify_gpu_launch_replay(
+        &self,
+        lease: &AssignmentLease,
+        request: &jobs::JobRequest,
+        body: &Value,
+        policy: &GpuBudgetPolicy,
+        now: u64,
+    ) -> Result<()> {
+        policy.validate(now)?;
+        let db = self.connect()?;
+        let run = load(&db, lease.run_id)?;
+        active(&run, now)?;
+        checked_lease(&run, lease, now, false)?;
+        let signature = json!({"request":request,"body":body,"policy":policy}).to_string();
+        let old:String=db.query_row("SELECT signature FROM ion_team_gpu_jobs WHERE request_id=? AND run_id=? AND work_id=? AND attempt_id=?",
+            params![request.request_id.to_string(),lease.run_id.to_string(),lease.work_id.to_string(),lease.attempt_id.to_string()],|r|r.get(0)).context("GPU saved replay missing")?;
+        ensure!(
+            old == signature,
+            "GPU replay request, resource policy or spending allowance changed"
+        );
+        Ok(())
+    }
     /// Returns false for the exact existing request; the caller must return its saved
     /// state, never POST again. Uncertain acknowledgements retain the whole reservation.
+    #[cfg(test)]
     pub(crate) fn reserve_gpu_launch(
         &self,
         lease: &AssignmentLease,
         request: &jobs::JobRequest,
         body: &Value,
         policy: &GpuBudgetPolicy,
+        now: u64,
+    ) -> Result<bool> {
+        self.reserve_gpu_launch_inner(lease, request, body, policy, None, now)
+    }
+    pub(crate) fn reserve_verified_gpu_launch(
+        &self,
+        lease: &AssignmentLease,
+        request: &jobs::JobRequest,
+        body: &Value,
+        policy: &GpuBudgetPolicy,
+        receipt: &crate::driver::team_gpu::GpuPreflight,
+        now: u64,
+    ) -> Result<bool> {
+        self.reserve_gpu_launch_inner(lease, request, body, policy, Some(receipt), now)
+    }
+    fn reserve_gpu_launch_inner(
+        &self,
+        lease: &AssignmentLease,
+        request: &jobs::JobRequest,
+        body: &Value,
+        policy: &GpuBudgetPolicy,
+        receipt: Option<&crate::driver::team_gpu::GpuPreflight>,
         now: u64,
     ) -> Result<bool> {
         policy.validate(now)?;
@@ -230,6 +284,17 @@ impl TeamCoordinator {
             active_policies.len() < usize::from(parallel),
             "GPU project concurrency is still reserved by an unfinished job"
         );
+        if let Some(resources) = &policy.resources {
+            let checked =
+                receipt.context("New GPU resources require a fresh native preflight receipt")?;
+            checked.validate(body, request, resources, now)?;
+            resource_policy::reserve_resources(&tx, resources, checked)?;
+        } else {
+            ensure!(
+                cfg!(test) && receipt.is_none(),
+                "New GPU launch requires exact owner resource approval"
+            );
+        }
         workspace::require_settled_effects(&tx, run.id)?;
         let seconds: u64 = body["spec"]["timeout"]
             .as_str()
@@ -250,6 +315,12 @@ impl TeamCoordinator {
         );
         tx.execute("INSERT INTO ion_team_gpu_jobs(request_id,run_id,work_id,attempt_id,project,signature,body,policy,reserved_micros,currency,deadline_at,state,compute_ids) VALUES(?,?,?,?,?,?,?,?,?,?,?,'submitting','[]')",
             params![request.request_id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),project,signature,body.to_string(),serde_json::to_string(policy)?,policy.reservation_micros,policy.currency,deadline])?;
+        if let Some(checked) = receipt {
+            tx.execute(
+                "INSERT INTO ion_team_gpu_preflight(request_id,body) VALUES(?,?)",
+                params![request.request_id.to_string(), checked.persisted()?],
+            )?;
+        }
         audit(
             &tx,
             run.id,

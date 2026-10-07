@@ -199,7 +199,14 @@ second development watcher was performed during these checkpoints.
 - [x] GPU durable waits for approved bound jobs, owner background polling, Stop/
   deadline uncertainty and native same-attempt continuation with real receipts and
   verified cleanup. Monetary reservations remain held independently.
-- [ ] GPU agent submission, verified monetary/resource/egress enforcement, large
+- [x] Exact owner GPU tenant/project/network/preset/resource approval, fresh native
+  identity/quota/capacity reads and durable sanitized preflight receipts.
+- [x] Atomic cumulative GPU/vCPU/RAM/disk resource limits across runs, stricter
+  outstanding approvals and conservative provider quota/capacity headroom. Unknown legacy
+  quantities/terminal states stay reserved until original cleanup is verified.
+- [ ] Live GPU resource-policy/readiness/cleanup-capacity review from the command
+  guide, including actual native omissions, capacity units and quota identities.
+- [ ] GPU agent submission, verified monetary/egress enforcement, large
   dataset/checkpoint volumes, retention policy and live acceptance.
 - [x] Persistent post-cancellation result collection and cleanup maintenance with
   saved backoff, fenced expiring claims and the shared four-worker GPU pool.

@@ -12,6 +12,8 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{io::Read, time::Duration};
 const BASE: &str = "https://api.nebius.cloud";
+mod preflight;
+pub(crate) use preflight::GpuPreflight;
 mod recovery;
 mod resources;
 mod results;
@@ -430,16 +432,27 @@ fn launch_once_with(
         .gpu_jobs(lease.attempt_id())?
         .iter()
         .any(|r| r.request_id == launch.request.request_id);
-    if !replay {
-        if let Some(volume) = &launch.result_volume {
-            client.verify_result_bucket(volume)?;
-        }
+    if replay {
+        // An exact original request cannot need fresh availability or another POST.
+        // Coordinator replay still checks the immutable policy/body signature.
+        let saved = coordinator
+            .gpu_jobs(lease.attempt_id())?
+            .into_iter()
+            .find(|r| r.request_id == launch.request.request_id)
+            .context("Saved GPU launch missing")?;
+        coordinator.verify_gpu_launch_replay(lease, &launch.request, &body, policy, now)?;
+        return Ok(saved);
     }
-    if coordinator.reserve_gpu_launch(
+    let preflight = client.verify_preflight(launch, policy)?;
+    if let Some(volume) = &launch.result_volume {
+        client.verify_result_bucket(volume)?;
+    }
+    if coordinator.reserve_verified_gpu_launch(
         lease,
         &launch.request,
         &body,
         policy,
+        &preflight,
         crate::model::unix_time(),
     )? {
         let ack = client.submit(launch)?;
@@ -840,6 +853,7 @@ pub(crate) mod tests {
                     max_jobs: 4,
                     max_parallel: 2,
                     result_volume: None,
+                    resources: None,
                 },
             }
         }
@@ -979,8 +993,9 @@ pub(crate) mod tests {
     }
     #[test]
     fn team_gpu_durable_launch_replay_stop_and_terminal_keep_original_reservations() {
-        let f = Fixture::new(true, true);
+        let mut f = Fixture::new(true, true);
         let l = launch();
+        f.policy.resources = Some(preflight::tests::policy(&l));
         let mut running = job(&l, "RUNNING");
         running["status"]["instances"] =
             json!([{"computeInstanceId":"compute-fixture","state":"RUNNING"}]);
@@ -989,7 +1004,8 @@ pub(crate) mod tests {
             "spec":{"resources":{"platform":l.platform,"preset":l.preset},"bootDisk":{"managedDisk":{"name":"gpu-main","spec":{}}}},
             "status":{"diskAttachments":[{"id":"disk-fixture","name":"gpu-main","isManaged":true}]}});
         let disk = json!({"metadata":{"id":"disk-fixture","parentId":"project-fixture"}});
-        let server = Server::new(vec![
+        let mut replies = preflight::tests::responses(&l, f.policy.resources.as_ref().unwrap());
+        replies.extend(vec![
             (
                 200,
                 bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
@@ -1008,6 +1024,7 @@ pub(crate) mod tests {
                 bytes(json!({"id":"operation-delete","resourceId":"aijob-fixture"})),
             ),
         ]);
+        let server = Server::new(replies);
         let c = client(&server);
         let record = launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
         assert_eq!(record.job_id.as_deref(), Some("aijob-fixture"));
@@ -1061,7 +1078,7 @@ pub(crate) mod tests {
             .unwrap_err();
         assert!(error.to_string().contains("reservation budget reached"));
         let requests = server.finish();
-        assert_eq!(requests.len(), 8);
+        assert_eq!(requests.len(), 21);
         assert_eq!(
             requests
                 .iter()
@@ -1079,9 +1096,12 @@ pub(crate) mod tests {
     }
     #[test]
     fn team_gpu_lost_create_ack_replays_saved_state_without_second_submission_or_fallback() {
-        let f = Fixture::new(true, true);
+        let mut f = Fixture::new(true, true);
         let l = launch();
-        let server = Server::new(vec![(500, bytes(json!({})))]);
+        f.policy.resources = Some(preflight::tests::policy(&l));
+        let mut replies = preflight::tests::responses(&l, f.policy.resources.as_ref().unwrap());
+        replies.push((500, bytes(json!({}))));
+        let server = Server::new(replies);
         let c = client(&server);
         assert!(launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).is_err());
         let record = launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
@@ -1098,13 +1118,15 @@ pub(crate) mod tests {
                 .unwrap()
         );
         assert!(f.coordinator.has_pending_effect(f.lease.run_id()).unwrap());
-        assert_eq!(server.finish().len(), 1);
+        assert_eq!(server.finish().len(), 14);
     }
     #[test]
     fn team_gpu_lost_cancel_ack_does_not_duplicate_cancellation_or_release_capacity() {
-        let f = Fixture::new(true, true);
+        let mut f = Fixture::new(true, true);
         let l = launch();
-        let server = Server::new(vec![
+        f.policy.resources = Some(preflight::tests::policy(&l));
+        let mut replies = preflight::tests::responses(&l, f.policy.resources.as_ref().unwrap());
+        replies.extend(vec![
             (
                 200,
                 bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
@@ -1113,6 +1135,7 @@ pub(crate) mod tests {
             (500, bytes(json!({}))),
             (200, bytes(job(&l, "RUNNING"))),
         ]);
+        let server = Server::new(replies);
         let c = client(&server);
         launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
         assert!(
@@ -1145,7 +1168,7 @@ pub(crate) mod tests {
         assert!(record.cancel_requested);
         assert!(record.cancellation_operation.is_none());
         let requests = server.finish();
-        assert_eq!(requests.len(), 4);
+        assert_eq!(requests.len(), 17);
         assert_eq!(
             requests
                 .iter()

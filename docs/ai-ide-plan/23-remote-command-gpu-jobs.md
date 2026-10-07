@@ -322,8 +322,8 @@ blocks additional work in its own run; releasing the agent slot allows other
 independent runs to use it. This checkpoint does not enable parallel GPU work
 within one team run. Stop/deadline keeps parked work uncertain until the original
 resources are confirmed stopped. Missing receipts never trigger execution again.
-Collection after a canceled run is available through the owner collector; a
-separate persistent post-cancellation result service remains development.
+Collection after a canceled run continues through persistent owner maintenance;
+see [post-cancellation collection](#persistent-gpu-maintenance-after-task-cancellation).
 
 Later review:
 
@@ -424,3 +424,69 @@ Later live review:
   responsive task dispatch and no duplicate concurrent poll for the same work.
 - [ ] Try a sub-hour GPU job or insufficient original team time; verify rejection
   before reservation/submission. Verify a short command deadline remains unchanged.
+
+
+### Exact GPU resource approval and fresh readiness
+
+New owner GPU launches now require an immutable versioned resource policy. It
+pins tenant, project, region, network/subnet, image digest, platform/preset,
+GPU count and memory in decimal GB, vCPU count, RAM in GiB, the declared disk in
+bytes and shared memory. Separate project and tenant limits bound cumulative
+outstanding jobs, GPUs, vCPUs, RAM and disk bytes. Both project and tenant GPU,
+VM-count, disk-count and disk-byte quota identities/units are approved explicitly.
+The policy cannot be supplied or changed by a model. Legacy reservations without
+this policy remain recoverable; they cannot authorize a new production launch.
+
+Before a new reservation, fixed-origin owner GETs verify the approved active
+project, exact platform/preset quantities, ready subnet/network and applicable
+active quotas with known usage and enough headroom. GPU quota names must match
+the native platform's quota type. Capacity advice must identify the same tenant,
+region and exact generic on-demand shape, have fresh HIGH/MEDIUM availability and
+an observation no older than two minutes. Fabric-specific advice cannot satisfy
+a job that has no approved fabric attachment. Pagination is limited to four
+pages of 64 entries, with repeated/invalid tokens and ambiguous matches rejected.
+See [provider contracts and limitations](RESEARCH-nebius-gpu-launch-policy.md).
+
+The sealed receipt binds the exact request/injected bytes, launch body and policy.
+Reservation requires a receipt checked within 30 seconds; the entire provider
+read sequence is bounded to two minutes. Sanitized read paths/query parameters,
+response hashes, quota IDs/headroom and capacity identity/time are saved in the
+same database transaction as the original launch, before its one create POST.
+IAM credentials and raw provider responses are not retained in that receipt.
+Eligible exact launch replay checks the saved signature without freshness reads
+or another POST; original-job recovery and maintenance retain their saved IDs.
+
+Reservation aggregates approved quantities across runs atomically. The stricter
+limits of the new and outstanding approvals apply. Unknown historical quantities
+block new checked allocation until original cleanup is verified. Terminal/canceled
+states, owner restart and lost acknowledgements do not free quantities. Verified
+original deletion plus complete VM/disk absence releases resource capacity while
+missing output and all monetary reservations remain independent.
+
+Provider quota and matching capacity-advice headroom are conservatively reduced
+by all outstanding owner reservations, even when provider usage may already
+include them. Capacity age is checked again inside the reservation transaction. This can refuse an otherwise
+available job; it does not subtract foreign usage or assume which old requests
+the provider has counted. Readiness is a snapshot, not an allocation guarantee,
+price lock, complete managed-job disk inventory or proof of an egress boundary.
+No additional cloud permission is granted by this policy.
+
+Agent GPU submission remains disabled. Verified pricing/account/billing, child
+network enforcement, GPU-compatible image acceptance, historical missing inventory,
+large dataset/checkpoint volumes and retention policy remain development.
+
+Later live review:
+
+- [ ] Review the exact platform/preset vector, project/tenant quota IDs/units and
+  network/subnet relationships against the chosen account; verify real response
+  default/omission and capacity-unit semantics before enabling the target.
+- [ ] Change project, shape, subnet/network or a quota after approval; verify no
+  new reservation or create POST. Deny individual reads and inspect the failure.
+- [ ] Provide stale/unknown, insufficient, fabric-specific or ambiguous capacity
+  advice; verify rejection. Confirm a valid bounded paginated catalog is accepted.
+- [ ] Hold independent runs near each resource limit; verify aggregate caps,
+  conservative quota headroom and retained reservations after cancellation/restart.
+- [ ] Delay VM/disk absence after deletion, then verify cleanup releases resource
+  capacity while costs and missing command receipts stay pending.
+- [ ] Replay an original eligible launch after availability changes; verify the
+  saved job is returned without new readiness reads, submission or Local fallback.
