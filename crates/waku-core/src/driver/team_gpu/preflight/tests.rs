@@ -79,6 +79,14 @@ pub(in crate::driver::team_gpu) fn responses(
 ) -> Vec<(u16, Vec<u8>)> {
     values(l, p).into_iter().map(|v| (200, bytes(v))).collect()
 }
+pub(in crate::driver::team_gpu) fn launch_responses(
+    l: &Launch,
+    p: &GpuResourcePolicy,
+) -> Vec<(u16, Vec<u8>)> {
+    let mut replies = responses(l, p);
+    replies.push((200, bytes(super::super::pricing::tests::value(l))));
+    replies
+}
 #[test]
 fn team_gpu_preflight_exact_resource_reads_are_persisted_before_single_create_and_replay_needs_no_read()
  {
@@ -86,7 +94,7 @@ fn team_gpu_preflight_exact_resource_reads_are_persisted_before_single_create_an
     let l = launch();
     let p = policy(&l);
     f.policy.resources = Some(p.clone());
-    let mut reply = responses(&l, &p);
+    let mut reply = launch_responses(&l, &p);
     reply.push((
         200,
         bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
@@ -94,7 +102,7 @@ fn team_gpu_preflight_exact_resource_reads_are_persisted_before_single_create_an
     let dbpath = f.dir.join("control.db");
     let request = l.request.request_id;
     let server = Server::with_hook(reply, move |r| {
-        if r.line.starts_with("POST ") {
+        if r.line.starts_with("POST /ai/v1/jobs ") {
             let db = rusqlite::Connection::open(&dbpath).unwrap();
             let body: String = db
                 .query_row(
@@ -121,7 +129,7 @@ fn team_gpu_preflight_exact_resource_reads_are_persisted_before_single_create_an
         saved.creation_operation
     );
     let requests = server.finish();
-    assert_eq!(requests.len(), 14);
+    assert_eq!(requests.len(), 15);
     assert!(requests[..13].iter().all(|r| r.line.starts_with("GET ")));
     assert!(
         requests[1]
@@ -139,7 +147,12 @@ fn team_gpu_preflight_exact_resource_reads_are_persisted_before_single_create_an
             .line
             .contains("parentId=tenant-fixture&pageSize=64")
     );
-    assert!(requests[13].line.starts_with("POST /ai/v1/jobs "));
+    assert!(
+        requests[13]
+            .line
+            .starts_with("POST /billing/v1/calculator/estimate-batch ")
+    );
+    assert!(requests[14].line.starts_with("POST /ai/v1/jobs "));
 }
 #[test]
 fn team_gpu_preflight_missing_or_changed_owner_approval_cannot_read_or_reserve() {
@@ -327,14 +340,16 @@ fn team_gpu_preflight_receipt_cannot_be_reused_for_another_body_policy_or_stale_
     changed["spec"]["disk"]["sizeBytes"] = json!("1");
     assert!(
         f.coordinator
-            .reserve_verified_gpu_launch(&f.lease, &l.request, &changed, &f.policy, &receipt, now)
+            .reserve_resource_gpu_launch_for_test(
+                &f.lease, &l.request, &changed, &f.policy, &receipt, now
+            )
             .is_err()
     );
     let mut expired_capacity = receipt.clone();
     expired_capacity.capacity.effective_at = now.saturating_sub(121);
     assert!(
         f.coordinator
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &f.lease,
                 &l.request,
                 &body,
@@ -348,7 +363,7 @@ fn team_gpu_preflight_receipt_cannot_be_reused_for_another_body_policy_or_stale_
     changed_request.argv.push("--changed-command".into());
     assert!(
         f.coordinator
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &f.lease,
                 &changed_request,
                 &body,
@@ -367,7 +382,7 @@ fn team_gpu_preflight_receipt_cannot_be_reused_for_another_body_policy_or_stale_
         .jobs -= 1;
     assert!(
         f.coordinator
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &f.lease,
                 &l.request,
                 &body,
@@ -379,7 +394,7 @@ fn team_gpu_preflight_receipt_cannot_be_reused_for_another_body_policy_or_stale_
     );
     assert!(
         f.coordinator
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &f.lease,
                 &l.request,
                 &body,
@@ -397,12 +412,14 @@ fn team_gpu_preflight_receipt_cannot_be_reused_for_another_body_policy_or_stale_
     );
     assert!(
         f.coordinator
-            .reserve_verified_gpu_launch(&f.lease, &l.request, &body, &f.policy, &receipt, now)
+            .reserve_resource_gpu_launch_for_test(
+                &f.lease, &l.request, &body, &f.policy, &receipt, now
+            )
             .unwrap()
     );
     assert!(
         !f.coordinator
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &f.lease,
                 &l.request,
                 &body,
@@ -436,7 +453,7 @@ fn team_gpu_preflight_atomic_project_resource_caps_hold_across_runs_terminal_sta
     let results = std::thread::scope(|scope| {
         let aa = scope.spawn(|| {
             barrier.wait();
-            first.coordinator.reserve_verified_gpu_launch(
+            first.coordinator.reserve_resource_gpu_launch_for_test(
                 &first.lease,
                 &a.request,
                 &a.body().unwrap(),
@@ -447,7 +464,7 @@ fn team_gpu_preflight_atomic_project_resource_caps_hold_across_runs_terminal_sta
         });
         let bb = scope.spawn(|| {
             barrier.wait();
-            second.coordinator.reserve_verified_gpu_launch(
+            second.coordinator.reserve_resource_gpu_launch_for_test(
                 &second.lease,
                 &b.request,
                 &b.body().unwrap(),
@@ -484,7 +501,7 @@ fn team_gpu_preflight_atomic_project_resource_caps_hold_across_runs_terminal_sta
     let reopened = TeamCoordinator::new(first.dir.join("control.db"));
     assert!(
         reopened
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &loser.lease,
                 &other.request,
                 &other.body().unwrap(),
@@ -572,7 +589,7 @@ fn team_gpu_preflight_atomic_project_resource_caps_hold_across_runs_terminal_sta
     server.finish();
     assert!(
         reopened
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &loser.lease,
                 &other.request,
                 &other.body().unwrap(),
@@ -631,7 +648,7 @@ fn team_gpu_preflight_tenant_caps_quota_headroom_and_unknown_legacy_resources_bl
             server.finish();
             first
                 .coordinator
-                .reserve_verified_gpu_launch(
+                .reserve_resource_gpu_launch_for_test(
                     &first.lease,
                     &a.request,
                     &a.body().unwrap(),
@@ -652,7 +669,7 @@ fn team_gpu_preflight_tenant_caps_quota_headroom_and_unknown_legacy_resources_bl
         server.finish();
         let error = second
             .coordinator
-            .reserve_verified_gpu_launch(
+            .reserve_resource_gpu_launch_for_test(
                 &second.lease,
                 &b.request,
                 &b.body().unwrap(),
@@ -705,7 +722,7 @@ fn team_gpu_preflight_capacity_headroom_is_reserved_atomically_across_independen
     let results = std::thread::scope(|scope| {
         let aa = scope.spawn(|| {
             barrier.wait();
-            first.coordinator.reserve_verified_gpu_launch(
+            first.coordinator.reserve_resource_gpu_launch_for_test(
                 &first.lease,
                 &a.request,
                 &a.body().unwrap(),
@@ -716,7 +733,7 @@ fn team_gpu_preflight_capacity_headroom_is_reserved_atomically_across_independen
         });
         let bb = scope.spawn(|| {
             barrier.wait();
-            second.coordinator.reserve_verified_gpu_launch(
+            second.coordinator.reserve_resource_gpu_launch_for_test(
                 &second.lease,
                 &b.request,
                 &b.body().unwrap(),
@@ -758,7 +775,7 @@ fn team_gpu_preflight_legacy_socket_policy_replays_original_without_reads_but_ca
     let receipt = client(&server).verify_preflight(&l, &f.policy).unwrap();
     server.finish();
     f.coordinator
-        .reserve_verified_gpu_launch(
+        .reserve_resource_gpu_launch_for_test(
             &f.lease,
             &l.request,
             &l.body().unwrap(),
@@ -770,6 +787,7 @@ fn team_gpu_preflight_legacy_socket_policy_replays_original_without_reads_but_ca
     // Simulate a persisted resource-policy reservation from before the optional
     // socket contract was introduced. Missing extension fields must remain omitted.
     f.policy.resources.as_mut().unwrap().child_network = None;
+    f.policy.pricing = None;
     let policy_value = serde_json::to_value(&f.policy).unwrap();
     assert!(policy_value["resources"].get("child_network").is_none());
     let decoded: GpuBudgetPolicy = serde_json::from_value(policy_value.clone()).unwrap();

@@ -3,6 +3,10 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 mod maintenance;
+mod price_policy;
+pub(crate) use price_policy::GpuPricePolicy;
+#[cfg(test)]
+pub(crate) use price_policy::{GpuEstimateMethod, GpuPriceComponent, GpuPriceSku};
 mod resource_policy;
 #[cfg(test)]
 pub(crate) use resource_policy::{
@@ -34,6 +38,8 @@ pub(crate) struct GpuBudgetPolicy {
     pub result_volume: Option<GpuResultVolume>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resources: Option<GpuResourcePolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing: Option<GpuPricePolicy>,
 }
 impl GpuBudgetPolicy {
     fn validate(&self, now: u64) -> Result<()> {
@@ -61,6 +67,9 @@ impl GpuBudgetPolicy {
                 && (1..=16).contains(&self.max_parallel),
             "GPU spending policy expired or exceeds its bound"
         );
+        if let Some(pricing) = &self.pricing {
+            pricing.validate()?;
+        }
         if let Some(resources) = &self.resources {
             resources.validate()?;
         }
@@ -161,9 +170,10 @@ impl TeamCoordinator {
         policy: &GpuBudgetPolicy,
         now: u64,
     ) -> Result<bool> {
-        self.reserve_gpu_launch_inner(lease, request, body, policy, None, now)
+        self.reserve_gpu_launch_inner(lease, request, body, policy, None, None, now)
     }
-    pub(crate) fn reserve_verified_gpu_launch(
+    #[cfg(test)]
+    pub(crate) fn reserve_resource_gpu_launch_for_test(
         &self,
         lease: &AssignmentLease,
         request: &jobs::JobRequest,
@@ -172,7 +182,27 @@ impl TeamCoordinator {
         receipt: &crate::driver::team_gpu::GpuPreflight,
         now: u64,
     ) -> Result<bool> {
-        self.reserve_gpu_launch_inner(lease, request, body, policy, Some(receipt), now)
+        self.reserve_gpu_launch_inner(lease, request, body, policy, Some(receipt), None, now)
+    }
+    pub(crate) fn reserve_verified_gpu_launch(
+        &self,
+        lease: &AssignmentLease,
+        request: &jobs::JobRequest,
+        body: &Value,
+        policy: &GpuBudgetPolicy,
+        receipt: &crate::driver::team_gpu::GpuPreflight,
+        price: &crate::driver::team_gpu::GpuPriceReceipt,
+        now: u64,
+    ) -> Result<bool> {
+        self.reserve_gpu_launch_inner(
+            lease,
+            request,
+            body,
+            policy,
+            Some(receipt),
+            Some(price),
+            now,
+        )
     }
     fn reserve_gpu_launch_inner(
         &self,
@@ -181,6 +211,7 @@ impl TeamCoordinator {
         body: &Value,
         policy: &GpuBudgetPolicy,
         receipt: Option<&crate::driver::team_gpu::GpuPreflight>,
+        price: Option<&crate::driver::team_gpu::GpuPriceReceipt>,
         now: u64,
     ) -> Result<bool> {
         policy.validate(now)?;
@@ -297,6 +328,14 @@ impl TeamCoordinator {
                 "New GPU launch requires exact owner resource approval"
             );
         }
+        if let Some(price) = price {
+            price.validate(body, request, policy, now)?;
+        } else {
+            ensure!(
+                cfg!(test),
+                "New GPU launch requires a trusted native price receipt"
+            );
+        }
         workspace::require_settled_effects(&tx, run.id)?;
         let seconds: u64 = body["spec"]["timeout"]
             .as_str()
@@ -321,6 +360,12 @@ impl TeamCoordinator {
             tx.execute(
                 "INSERT INTO ion_team_gpu_preflight(request_id,body) VALUES(?,?)",
                 params![request.request_id.to_string(), checked.persisted()?],
+            )?;
+        }
+        if let Some(price) = price {
+            tx.execute(
+                "INSERT INTO ion_team_gpu_prices(request_id,body) VALUES(?,?)",
+                params![request.request_id.to_string(), price.persisted()?],
             )?;
         }
         audit(

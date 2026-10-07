@@ -1988,3 +1988,50 @@ No user credential, live provider/GPU/cloud deployment, app bundle, visual test 
 second watcher was used. The full goal remains active. See the
 [adapter guide](22-harness-adapters-remote-execution.md#fx-native-linux-acceptance-2026-10-07)
 and [release checklist](20-agent-teams-release-checklist.md).
+
+
+## Exact GPU estimates and atomic price receipts (2026-10-07)
+
+- Added immutable owner `nativeJobV1` pricing approval with exact SKU IDs,
+  positive quantities, GPU/vCPU/RAM/disk component coverage, hourly ceiling and
+  explicit startup/cleanup/extra spending allowances. Historical absent fields
+  keep original serialized signatures and eligible original replay/recovery.
+- Native v1 calculator requests use the complete original typed Job body and
+  fixed owner origin/authentication. Estimates must match the project/name,
+  currency, exact SKU set/quantities, hourly unit, per-SKU costs and total sums.
+  Unsupported/denied estimates, ambiguous cost types and changed/missing fields
+  stop before any reservation or job create; no Compute approximation is used.
+- Checked integer decimal arithmetic handles equivalent decimal/scientific
+  formats without floating point, rounds monetary micro-units upward and rejects
+  negative/invalid, unsupported precision or overflowing values. The lifecycle
+  estimate plus extra allowance must fit the approved full reservation.
+- A sealed fresh receipt binds original request/body/policy, native request and
+  response hashes, exact SKU/rate/currency witness and lifecycle calculation.
+  The transaction stores sanitized price and resource witnesses with the launch
+  reservation before one create POST. Replay after restart has no new calculator,
+  readiness or create call. No raw input, IAM or unknown response fields enter
+  the durable price witness. All monetary allowances remain held.
+- Added the primary-source pricing research and updated implementation/release
+  checklists. The public Any contract does not establish Job estimator support
+  or identify the active billing account/contract; these remain unverified.
+  Owner SKU coverage and lifecycle allowances do not establish an invoice cap.
+
+Verification: **61 GPU Rust regressions** passed, including **nine new pricing
+and exact-arithmetic test groups**. Cases cover exact native request fidelity,
+transaction visibility before create, changed/incomplete/ambiguous estimates,
+unsupported status/redirect responses, atomic receipt age/body/policy binding,
+legacy restart replay, bundled SKUs, quantity equivalence, overflow and upward
+reservation. Assertion/fixture errors were corrected before the successful run.
+Desktop/daemon `cargo check`, `cargo fmt --check` and `git diff --check`
+passed. Existing ts-rs/dead-code/proc-macro warnings remain. A Windows default
+encoding error during documentation editing was repaired while preserving
+original UTF-8 content.
+
+Remaining development: native Job pricing/account acceptance, authoritative
+billing reconciliation and retained storage/transfer/tax policy, full GPU agent
+submission and image/device/IPC/egress/CUDA acceptance, historical missing
+inventory, project/dataset/checkpoint transfers and retention, Amp/Cursor Teams
+contracts and other native account transports/bridges. The full goal remains
+active. No live account/cloud/GPU request, credentials, deployment, app bundle,
+second watcher or visual test was used. See
+[pricing evidence and later acceptance](RESEARCH-nebius-gpu-price-receipt.md).

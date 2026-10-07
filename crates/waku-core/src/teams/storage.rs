@@ -97,6 +97,8 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE UNIQUE INDEX IF NOT EXISTS ion_team_gpu_operation ON ion_team_gpu_jobs(project,creation_operation) WHERE creation_operation IS NOT NULL;
         CREATE TABLE IF NOT EXISTS ion_team_gpu_preflight (
             request_id TEXT PRIMARY KEY REFERENCES ion_team_gpu_jobs(request_id),body TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_gpu_prices (
+            request_id TEXT PRIMARY KEY REFERENCES ion_team_gpu_jobs(request_id),body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_gpu_inventory (
             request_id TEXT NOT NULL REFERENCES ion_team_gpu_jobs(request_id),compute_id TEXT NOT NULL,
             body TEXT NOT NULL,PRIMARY KEY(request_id,compute_id));

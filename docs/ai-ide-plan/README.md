@@ -144,3 +144,7 @@ target; see [the deployment checklist](../../services/speech/README.md).
 - [Nebius GPU recovery contracts](RESEARCH-nebius-gpu-recovery.md): official
   operation/key witnesses, immutable SECRET input verification and the limits of
   missing historical VM/disk inventory.
+
+- [Nebius GPU native price receipts](RESEARCH-nebius-gpu-price-receipt.md): pinned
+  calculator schema, exact estimate/reservation arithmetic and atomic witnesses;
+  unverified native Job support, billing-account binding and remaining finality.

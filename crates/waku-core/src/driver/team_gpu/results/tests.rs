@@ -138,7 +138,7 @@ fn team_gpu_result_volume_launch_preflight_and_exact_replay_keep_approved_bucket
     f.policy.result_volume = l.result_volume.clone();
     f.policy.resources = Some(super::super::preflight::tests::policy(&l));
     let mut replies =
-        super::super::preflight::tests::responses(&l, f.policy.resources.as_ref().unwrap());
+        super::super::preflight::tests::launch_responses(&l, f.policy.resources.as_ref().unwrap());
     replies.extend(vec![
         (200, bytes(bucket())),
         (
@@ -151,21 +151,21 @@ fn team_gpu_result_volume_launch_preflight_and_exact_replay_keep_approved_bucket
     launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
     launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
     let requests = server.finish();
-    assert_eq!(requests.len(), 15);
+    assert_eq!(requests.len(), 16);
     assert!(
-        requests[13]
+        requests[14]
             .line
             .starts_with("GET /storage/v1/buckets/storagebucket-fixture ")
     );
     assert_eq!(
-        requests[14].body["spec"]["volumes"],
+        requests[15].body["spec"]["volumes"],
         json!([volume().mount()])
     );
     assert_eq!(
-        requests[14].body["spec"]["args"],
+        requests[15].body["spec"]["args"],
         "--request-file /ion/job-request.json --result-volume /ion/results"
     );
-    assert!(!requests[14].body.to_string().contains("AKIDEXAMPLE"));
+    assert!(!requests[15].body.to_string().contains("AKIDEXAMPLE"));
     let mut changed = l;
     changed.result_volume.as_mut().unwrap().prefix = "other".into();
     assert!(launch_once_with(&c, &f.coordinator, &f.lease, &changed, &f.policy).is_err());

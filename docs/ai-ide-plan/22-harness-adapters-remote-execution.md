@@ -490,3 +490,18 @@ protocol test passed; three actual-binary checks rejected command-line arguments
 malformed JSON and oversized stdin with the expected exit codes, empty stdout
 and bounded sanitized diagnostics. This is build/transport evidence; it does not
 establish authenticated inference or a production release/cloud image.
+
+## GPU native estimate checkpoint (2026-10-07)
+
+The owner GPU transport now requires exact owner SKU/quantity/component approval,
+queries the native v1 calculator with the original typed Job body and uses checked
+integer decimal arithmetic for rate and lifecycle ceilings. A sealed fresh price
+receipt commits with the original resource witness/reservation before one create.
+Original eligible replay performs no new provider reads or submission.
+
+Native Job estimator support is still unverified against an account; unsupported
+estimates stop launch. Billing-account/contract binding, final usage/storage costs
+and full GPU enablement remain development. The full monetary allowance stays
+held. No additional harness/model/environment fallback was added. See
+[price API findings](RESEARCH-nebius-gpu-price-receipt.md) and
+[implementation/review](23-remote-command-gpu-jobs.md#exact-native-gpu-estimates-and-atomic-price-receipts).

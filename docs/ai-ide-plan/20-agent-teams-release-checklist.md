@@ -257,3 +257,23 @@ second development watcher was performed during these checkpoints.
   account/bootstrap and accept actual inference/stop/restart with your resources.
 - [ ] Amp/Cursor Teams contracts and other account transports remain development.
   Fx's Linux fixture does not establish Windows Local or macOS support acceptance.
+
+## 2026-10-07 — native GPU estimate receipts
+
+- [x] Immutable owner SKU/quantity/component approval, explicit hourly ceiling,
+  exact currency and startup/cleanup/extra allowances; absent historical fields
+  preserve original signatures and cannot authorize new production launches.
+- [x] Fixed native v1 calculator request binds the entire original typed Job body.
+  Exact integer decimals, SKU/aggregate equality, metadata/units and upward
+  reservation arithmetic reject incomplete, ambiguous or excessive estimates.
+- [x] Sealed receipt freshness/body/policy verification and sanitized transactional
+  storage before one create; original eligible replay has no new reads or POST.
+- [ ] Live native Job estimation support and exact account SKU/quantity/default
+  semantics. Unsupported estimation prevents launch; Compute approximation is
+  not an implemented alternate contract.
+- [ ] Selected billing-account/contract identity, retained storage/transfer/tax
+  accounting and authoritative usage/finality reconciliation. Estimate/lifecycle
+  assumptions do not establish an invoice cap; all monetary reservations stay held.
+- [ ] Remaining agent GPU submission, image/device/egress/CUDA, historical inventory
+  and dataset/checkpoint/retention integrations. See the
+  [research note](RESEARCH-nebius-gpu-price-receipt.md) and command guide review list.

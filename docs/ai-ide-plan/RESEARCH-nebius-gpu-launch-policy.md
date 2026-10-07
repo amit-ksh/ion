@@ -31,8 +31,12 @@ limits and result volume. The subsequent implementation adds exact tenant/projec
 region/network/preset quantities and quota identities, fresh quota/capacity reads,
 a durable sanitized receipt and atomic project/tenant resource reservations.
 See [the implementation/review guide](23-remote-command-gpu-jobs.md#exact-gpu-resource-approval-and-fresh-readiness).
-It still does **not** bind a billing contract/account, trusted provider price
-estimate or enforced child egress mechanism. `publicIp=false` is not an egress
+The subsequent [price receipt checkpoint](RESEARCH-nebius-gpu-price-receipt.md)
+adds exact native estimator requests, owner SKU expectations and atomic sanitized
+receipts. Generic native Job estimator support remains unverified. A fixed Linux
+[child socket guard](RESEARCH-linux-gpu-child-network.md) is locally kernel-tested.
+Billing contract/account identity, reconciliation and complete provider GPU
+image/device/IPC/egress acceptance remain open. `publicIp=false` is not an egress
 restriction. Resource availability remains advisory; see sections 5–7.
 
 ## 2. What is charged and in which units

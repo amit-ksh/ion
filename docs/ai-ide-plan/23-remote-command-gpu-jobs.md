@@ -474,7 +474,8 @@ price lock, complete managed-job disk inventory or proof of an egress boundary.
 No additional cloud permission is granted by this policy.
 
 Agent GPU submission remains disabled. The fixed child socket boundary is now
-implemented and locally kernel-tested. Verified pricing/account/billing, complete
+implemented and locally kernel-tested. Native estimate receipts are now implemented
+and fixture-tested; live estimator support, account/billing binding and complete
 GPU image/device/IPC/egress acceptance, historical missing inventory, large
 dataset/checkpoint volumes and retention policy remain development.
 
@@ -532,3 +533,52 @@ Later acceptance:
   provider filesystem, including failed commands and duplicate UUID refusal.
 - [ ] Preserve explicit environment/harness/grants and all existing launch, money,
   recovery and live account gates. The agent GPU submit tool remains disabled.
+
+### Exact native GPU estimates and atomic price receipts
+
+New owner launches also require `GpuBudgetPolicy.pricing`: version 1,
+`method: "nativeJobV1"`, the approved hourly ceiling in monetary micro-units,
+startup/cleanup seconds, extra lifecycle/storage allowance, and an exact SKU
+ID/quantity/component plan for the approved GPU/vCPU/RAM/disk vector. Bundled
+compute SKUs are supported. The approval is immutable and cannot be changed by
+the model. Historical missing pricing fields remain omitted from serialization;
+eligible original launch replay/recovery keeps its saved signature.
+
+After resource readiness, the owner queries the fixed native v1 calculator with
+the complete original typed AI Jobs create request, contract offer class, exact
+currency and hourly filter. A single matching resource and aggregate must have
+exact quantities, matching per-SKU costs and exact sums. Changed identities,
+unsupported units/cost types, duplicates, omissions, negative/invalid values,
+overflow, unsupported precision and rate/allowance excess fail before reservation
+or job creation. Display-rounded fields do not authorize spending.
+
+Checked integer decimal arithmetic reserves the upward-rounded hourly amount
+for the approved job lifetime plus startup and cleanup, with the additional
+owner allowance. The private receipt binds request/body/policy hashes, currency,
+SKU/rate witness and calculation. The launch transaction requires a receipt
+checked within 30 seconds and saves it in `ion_team_gpu_prices` alongside the
+resource witness and full original monetary reservation before its one create
+POST. No raw input, IAM credentials or unknown response fields enter that witness.
+Original launch replay needs no new estimate/readiness reads or POST.
+
+**Provider limitation:** the generic native Any schema does not establish that
+AI Jobs requests are supported by the calculator. That path is implemented and
+fixture-tested; a denied/unsupported native estimate stops launch. It never uses
+a Compute approximation. The schema also supplies no billing-account/contract
+identity or price lock. Owner-approved SKU coverage and lifecycle allowances are
+estimation assumptions, not final invoice caps. Result-volume extra allowance
+does not establish a storage/retention cap. All money stays held after estimate,
+terminal state, receipt and cleanup. See [API evidence and remaining work](RESEARCH-nebius-gpu-price-receipt.md).
+Agent GPU submission remains disabled pending those integrations and the existing
+image/device/egress, historical inventory, volume and live acceptance gates.
+
+Later review:
+
+- [ ] Review the actual account's complete native Job estimate, metadata/defaults,
+  currency, SKU IDs/units and GPU/vCPU/RAM/disk coverage before approving pricing.
+- [ ] Test changed/incomplete estimates, rate or allowance excess, unsupported units,
+  denied/unsupported responses and redirects; verify no reservation or job create.
+- [ ] Inspect the saved sanitized price/resource witnesses before the original
+  create; replay after restart and confirm no new estimator/readiness/create call.
+- [ ] Compare approved startup/cleanup/storage assumptions with real lifecycle and
+  billing; retain money until authoritative account/resource charges are reconciled.
