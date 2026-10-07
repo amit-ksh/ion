@@ -122,8 +122,10 @@ The reader uses a fixed HTTPS regional Nebius endpoint and signed S3 GetObject,
 without redirects or an agent-provided URL. Receipt JSON is bounded to 512 KiB;
 logs/files retain the existing worker limits and every output hash is checked.
 Receipt and generated summary artifact commit together. Private owner readback
-supports assignment-scoped 4 KiB pages; the GPU tool/async wait integration remains
-development. Storage reads do not write to the source checkout.
+supports assignment-scoped 4 KiB pages. The native adapter can await an already
+approved, observed job and resume once after the real receipt and verified
+cleanup; full spending reservations remain held. Agent GPU submission is still
+gated on verified launch policy. Storage reads do not write to the source checkout.
 
 Missing objects, malformed receipts, access errors or invalid hashes remain
 unresolved; none becomes successful command, cleanup or billing evidence.

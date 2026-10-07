@@ -1698,3 +1698,55 @@ waits and agent integration, verified billing/resource/egress enforcement, GPU
 operator recovery, large project/dataset transfers, Amp/Cursor Teams contracts,
 Fx native acceptance and executed-check gates remain development. The full goal
 remains active.
+
+## 2026-10-07 — durable GPU waits and native resume
+
+- Added a durable GPU-wait record and native journal continuation for an already
+  approved, bound, observed request. Unknown acknowledgements cannot be parked.
+  The original Nebius attempt and command/read/network grants are required;
+  unrelated unfinished effects remain fenced. No GPU submission tool was enabled.
+- Suspension revokes the lease generation and releases the shared agent slot.
+  The owner observes on independent background threads, with four concurrent
+  polls and a five-second minimum cadence per job. The poll map is bounded to
+  256 entries. Ordinary polling does not cancel; Stop or the original deadline
+  claims cancellation once and retains uncertainty until resources are stopped.
+- Runtime settlement requires both an authentic command receipt and verified
+  cleanup. It clears the runtime effect fence, retaining the complete monetary
+  reservation. The native adapter resumes once with the same task, attempt,
+  host, harness, model, grants and budget history. It receives the actual exit,
+  timeout and artifact context, and can read requested output pages. The tested
+  nonzero command remains failed while the agent completes its failure analysis.
+- The saved-proof path resumes without a new cloud request or environment
+  credentials. Old lease generations remain unusable and exact settlement replay
+  does not churn revisions. An active GPU effect still blocks other work in its
+  own run; the released agent slot is available to independent runs, not parallel
+  GPU work in the same team run.
+- Updated worker, adapter and review guides. A canceled run can still use the
+  owner collector, but persistent automatic post-cancellation collection is not
+  implemented. GPU submission remains gated on verified monetary/resource/egress,
+  image and readiness policy, independently of the completed wait mechanism.
+
+Verification: **196 distinct core tests passed** across overlapping focused runs:
+27 GPU checks (including the owner polling fixture), 105 coordinator checks,
+23 native adapter checks, 18 daemon checks, 10 command checks and 15 sandbox checks.
+The owner fixture holds real saved GPU waits and verifies the dispatcher remains
+available, concurrency is bounded and repeated polling cannot duplicate a held
+request. Desktop/daemon checking, Rust formatting and Git whitespace checks passed.
+Protocol remains **29**; the wait and receipt context are private owner state.
+
+Two new fixture failures were corrected: launch was moved after the original
+model-call reservation rather than bypassing the pending-effect fence, and an
+interrupted workspace row replaced an invalid foreign-key app row. An existing
+decision test asserted obsolete prompt wording; it now verifies the actual tool
+grants after approval, and the complete native suite passed. The final test build
+emitted six existing warnings. Normal checking emitted eleven existing warnings
+plus one unused retained GPU cancellation-identity warning; ts-rs and the existing
+future proc-macro diagnostic remain.
+
+No live GPU/account/billing/cloud deployment, app visual test, second watcher or
+provider credential setup was performed. Remaining development includes GPU
+submission policy/verified pricing and accounting/resource and egress enforcement,
+operator recovery and persistent post-cancellation collection, full remote
+project/dataset/large-file transfers, enforced executed-check receipts,
+Amp/Cursor Teams contracts and Fx native Linux/macOS acceptance. The full goal
+remains active; this is an implementation checkpoint.

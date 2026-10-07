@@ -39,11 +39,18 @@ pub(super) fn projection(db: &Connection, run: Uuid) -> Result<Option<TeamWorksp
         .transpose()
 }
 pub(super) fn require_settled_effects(db: &Connection, run: Uuid) -> Result<()> {
+    require_settled_effects_except_gpu(db, run, None)
+}
+/// Only suspension of its already bound GPU request may omit that one effect.
+/// Unknown acknowledgements and unrelated file/app/command effects stay fenced.
+pub(super) fn require_settled_effects_except_gpu(
+    db: &Connection,
+    run: Uuid,
+    request: Option<Uuid>,
+) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state!='cleaned')",
-        [run.to_string()],
-        |r| r.get(0),
-    )?;
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned') AND (?2 IS NULL OR request_id!=?2))",
+        params![run.to_string(),request.map(|id| id.to_string())], |r| r.get(0))?;
     ensure!(
         !pending,
         "A started effect needs reconciliation before further work"

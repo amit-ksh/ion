@@ -1134,3 +1134,147 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
         assert!(task.team_assignment.is_some());
     }
 }
+
+// A held provider observation exercises the actual owner worker pool without
+// provider credentials or an artificial timing assertion about network latency.
+struct HeldGpuPoll {
+    entered: Sender<Uuid>,
+    release: Receiver<()>,
+}
+impl Executor for HeldGpuPoll {
+    fn ready(&self, _: &AgentProfile) -> Result<DispatchHost> {
+        anyhow::bail!("No model or local fallback may start in this polling fixture")
+    }
+    fn run(
+        &self,
+        _: &TeamCoordinator,
+        _: NativeTeamStart,
+        _: &Path,
+        _: &DriverEventSender,
+        _: &AtomicBool,
+    ) -> Result<NativeTeamExit> {
+        anyhow::bail!("Only the saved GPU request may be observed")
+    }
+    fn gpu_progress(&self, coordinator: &TeamCoordinator, work: Uuid) -> Result<bool> {
+        ensure!(
+            coordinator.gpu_wait_request(work)?.is_some(),
+            "Original wait missing"
+        );
+        self.entered.send(work)?;
+        self.release.recv_timeout(Duration::from_secs(10))?;
+        Ok(false)
+    }
+}
+#[test]
+fn team_gpu_owner_poll_frees_dispatcher_limits_concurrency_and_does_not_duplicate_held_waits() {
+    use crate::teams::gpu_jobs::GpuResultVolume;
+    use driver::team_gpu::tests::{Fixture as GpuFixture, launch, launch_body};
+    let f = Fixture::new(64);
+    let mut gpu = Vec::new();
+    for _ in 0..5 {
+        let mut fixture = GpuFixture::new_in(f.dir.clone(), true, true);
+        fixture.policy.max_parallel = 8;
+        let mut launch = launch();
+        launch.result_volume = Some(GpuResultVolume {
+            version: 1,
+            bucket_id: "storagebucket-fixture".into(),
+            bucket_name: "ion-results".into(),
+            region: "eu-north1".into(),
+            prefix: "ion/results".into(),
+        });
+        fixture.policy.result_volume = launch.result_volume.clone();
+        let now = unix_time();
+        fixture
+            .coordinator
+            .reserve_gpu_launch(
+                &fixture.lease,
+                &launch.request,
+                &launch_body(&launch),
+                &fixture.policy,
+                now,
+            )
+            .unwrap();
+        // Distinct remote identities reflect distinct real jobs in one owner database.
+        let job = format!("aijob-{}", launch.request.request_id);
+        let operation = format!("operation-{}", launch.request.request_id);
+        fixture
+            .coordinator
+            .bind_gpu_acknowledgement(launch.request.request_id, &operation, &job, now)
+            .unwrap();
+        fixture
+            .coordinator
+            .record_gpu_observation(launch.request.request_id, &job, "RUNNING", &[], now)
+            .unwrap();
+        fixture
+            .coordinator
+            .suspend_for_gpu(
+                &fixture.lease,
+                launch.request.request_id,
+                "{\"version\":1}",
+                now,
+            )
+            .unwrap();
+        gpu.push(fixture);
+    }
+    let (entered, observations) = bounded(8);
+    let (releases, release) = bounded(8);
+    let runtime = TeamRuntime::with_executor(
+        f.runtime.coordinator.clone(),
+        f.runtime.store.clone(),
+        f.runtime.state.clone(),
+        f.runtime.settings.clone(),
+        f.runtime.removed.clone(),
+        Arc::new(HeldGpuPoll { entered, release }),
+    );
+    for fixture in &gpu {
+        runtime.poll_gpu_wait(fixture.lease.work_id()).unwrap();
+    }
+    let mut first = HashSet::new();
+    for _ in 0..4 {
+        first.insert(observations.recv_timeout(Duration::from_secs(3)).unwrap());
+    }
+    assert_eq!(first.len(), 4);
+    assert!(!first.contains(&gpu[4].lease.work_id()));
+    // Repeated dispatch while provider calls are held must return and leave state usable.
+    for fixture in &gpu {
+        runtime.poll_gpu_wait(fixture.lease.work_id()).unwrap();
+    }
+    assert!(runtime.state.try_lock().is_some());
+    assert!(observations.try_recv().is_err());
+    for _ in 0..4 {
+        releases.send(()).unwrap();
+    }
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        assert!(Instant::now() < deadline, "GPU observations did not finish");
+        let finished = runtime
+            .gpu_polls
+            .lock()
+            .values()
+            .all(|(_, h)| h.as_ref().is_none_or(JoinHandle::is_finished));
+        if finished {
+            break;
+        }
+        thread::sleep(Duration::from_millis(2));
+    }
+    // A newly available slot can observe the fifth job. The four prior jobs stay
+    // in their cooldown, so none is repeated on this immediate dispatch.
+    for fixture in &gpu {
+        runtime.poll_gpu_wait(fixture.lease.work_id()).unwrap();
+    }
+    assert_eq!(
+        observations.recv_timeout(Duration::from_secs(3)).unwrap(),
+        gpu[4].lease.work_id()
+    );
+    assert!(observations.try_recv().is_err());
+    releases.send(()).unwrap();
+    // Join only in the test after releasing the fixture, then remove test data.
+    for (_, handle) in runtime.gpu_polls.lock().values_mut() {
+        if let Some(handle) = handle.take() {
+            handle.join().unwrap();
+        }
+    }
+    runtime.shutdown();
+    drop(runtime);
+    drop(gpu);
+}

@@ -110,14 +110,15 @@ behavior only. The implementation still needs:
   reserved independently.
 - [ ] GPU recovery UI and verified binding of the original job after lost create/
   cancellation acknowledgement. No automatic create retry or Local fallback.
-- [ ] Native asynchronous waits for long jobs with Stop/restart/deadline handling,
+- [x] Native asynchronous waits for approved bound jobs with Stop/restart/deadline handling,
   retaining the selected harness, environment, grants and task identity.
 - [ ] Verified price snapshots and billing reconciliation for compute, startup,
   disk/storage and unknown cost. Aggregate reservations exist; unknown and
   terminal-job costs retain the full approved allowance until reconciliation.
 - [x] Owner-approved result bucket/prefix, fixed-origin signed object reads, real
   worker receipt/log/file validation, atomic artifacts and scoped binary pages.
-  This is an owner transport; agent async integration remains gated.
+  The native adapter can await an approved bound job and read its retained outputs;
+  agent submission stays gated by the remaining launch requirements.
 - [ ] Approved large dataset/checkpoint volumes, retention/storage cost policy and
   full project/large-file transfer. Small receipt-contained outputs remain bounded.
 - [ ] GPU-compatible image validation and resource/quota/readiness checks.
@@ -146,9 +147,10 @@ The request is defined in the
 [Job service](https://github.com/nebius/api/blob/main/nebius/ai/v1/job_service.proto).
 
 Verified cleanup releases the project compute slot and supplies Stop evidence.
-It does **not** create a command receipt, clear spending, allow task continuation
-or produce a user artifact. Those gates remain pending until output/accounting
-integration is complete. Startup failures without complete inventory, resources
+Cleanup alone does **not** create a command receipt, clear spending, allow task
+continuation or produce a user artifact. Runtime continuation requires both the
+actual validated command receipt and verified cleanup. Monetary reservations
+remain held after runtime settlement until separate billing reconciliation. Startup failures without complete inventory, resources
 already removed before capture and lost deletion acknowledgements require the
 remaining operator recovery work. Existing disks may be preserved by the provider;
 the result-volume policy never authorizes deleting them separately or deleting
@@ -196,9 +198,10 @@ The signing implementation matches independent
 including a session-token header. Provider error bodies and raw secrets do not
 enter receipt diagnostics.
 
-This is an internal owner transport, not a newly enabled GPU agent tool. Durable
-waits, billing, egress/resource validation, large datasets/checkpoints and GPU
-operator recovery remain development. The result collector can operate separately
+GPU submission remains an internal owner transport. The native adapter can await
+an already approved, observed job and read its verified outputs. Billing,
+egress/resource validation, large datasets/checkpoints and GPU operator recovery
+remain development. The result collector can operate separately
 from resource cleanup: missing result credentials cannot prevent Stop/cancel
 attempts. Saved objects persist after job deletion; retention, trusted Linux
 mount semantics and associated storage costs need explicit integration/acceptance.
@@ -217,3 +220,43 @@ Later setup/review is detailed in [the worker guide](../../packages/job-worker/R
   duplicate artifact. Attempt reads from another task/attempt and verify denial.
 - [ ] Delete the compute job and verify results remain accessible under the
   reviewed retention policy, independently of cleanup and unknown billing.
+
+### Durable GPU waits and native continuation
+
+`await_gpu_job` accepts only this assignment attempt's already approved, bound,
+observed GPU request with its original result-volume and command/read/network
+grants. An unknown create acknowledgement cannot be parked. It must be the last
+action in the completion. There is no agent GPU submit tool yet.
+
+Suspension persists the native journal and request before revoking the lease and
+releasing the agent slot. The owner polls on independent background workers, at
+most four at once, with a five-second minimum cadence per job. Ordinary polling
+observes the original job and captures its VM/disk inventory; Stop or the original
+deadline claims cancellation once. Resource cleanup uses the existing original
+job deletion proof. Polling never submits a replacement or falls back to Local.
+
+A real receipt plus verified cleanup settles the **runtime effect**. It does not
+settle billing: the complete monetary reservation remains unchanged. The native
+adapter resumes once with the original task, attempt, host, harness, model,
+grants and budget history, under a fresh lease generation. It receives the real
+exit/timeout/artifact context and can use `read_gpu_output` for the requested
+binary pages. A failed command stays failed; analyzing that failure can complete
+a task, but it cannot claim a passed training run or test.
+
+Other unfinished file/app/CPU/GPU effects remain a fence. The active GPU job still
+blocks additional work in its own run; releasing the agent slot allows other
+independent runs to use it. This checkpoint does not enable parallel GPU work
+within one team run. Stop/deadline keeps parked work uncertain until the original
+resources are confirmed stopped. Missing receipts never trigger execution again.
+Collection after a canceled run is available through the owner collector; a
+separate persistent post-cancellation result service remains development.
+
+Later review:
+
+- [ ] Await an approved bound job; inspect Waiting, retained budget and agent slot.
+- [ ] Restart the owner during the wait; verify original identities and no POST.
+- [ ] Return a nonzero command receipt; confirm its exit/logs/artifact survive resume.
+- [ ] Delay the receipt or cleanup proof independently; confirm no continuation.
+- [ ] Stop or reach the original deadline while waiting; confirm original resources
+  are canceled/verified without a replacement job or Local fallback.
+- [ ] Inspect resumed task/attempt/host/model/grants and retained spending.

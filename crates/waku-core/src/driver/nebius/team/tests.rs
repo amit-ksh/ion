@@ -640,9 +640,16 @@ fn native_team_decision_parks_and_delivers_only_the_pinned_human_receipt() {
         assert_eq!(
             f.worker(
                 NativeTeamStart::Resumed(continuation),
-                |model, system, messages, _| {
+                |model, _, messages, tools| {
                     assert_eq!(model, "model-0");
-                    assert!(system.contains("No general shell"));
+                    // Approval cannot add actual execution tools to this readless,
+                    // shellless assignment. Check the contract, not prompt wording.
+                    for tool in tools.as_array().unwrap() {
+                        assert!(!matches!(
+                            tool["function"]["name"].as_str(),
+                            Some("write_file" | "run_remote_command" | "await_gpu_job")
+                        ));
+                    }
                     let receipt = messages.last().unwrap()["content"].as_str().unwrap();
                     assert!(receipt.contains(&d.id.to_string()));
                     assert!(receipt.contains(&d.proposal));

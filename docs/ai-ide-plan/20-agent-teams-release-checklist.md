@@ -190,6 +190,11 @@ second development watcher was performed during these checkpoints.
   acknowledgements; authenticated original-resource binding, without repeat mutations.
 - [x] GPU result volume and owner signed S3 receipt reader, original command/file
   validation, durable generated artifact, replay and assignment-scoped readback.
-- [ ] GPU durable waits and agent integration, monetary/resource/egress enforcement,
-  large dataset/checkpoint volumes, retention policy and live acceptance.
+- [x] GPU durable waits for approved bound jobs, owner background polling, Stop/
+  deadline uncertainty and native same-attempt continuation with real receipts and
+  verified cleanup. Monetary reservations remain held independently.
+- [ ] GPU agent submission, verified monetary/resource/egress enforcement, large
+  dataset/checkpoint volumes, retention policy and live acceptance.
+- [ ] Persistent post-cancellation result collection; the owner collector remains
+  available, but a canceled run does not imply further automatic receipt polling.
 - [ ] Enforce executed command receipts in required output-contract check gates.

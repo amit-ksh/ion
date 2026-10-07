@@ -77,7 +77,7 @@ impl TeamCoordinator {
             "SELECT run_id,work_id,state,signature FROM ion_team_gpu_jobs WHERE request_id=? AND job_id=?",
             params![request.to_string(),job], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
         ensure!(
-            state == "terminal",
+            matches!(state.as_str(), "terminal" | "settled"),
             "GPU output needs the original terminal job observation"
         );
         let saved: Value = serde_json::from_str(&signature)?;
@@ -127,6 +127,10 @@ impl TeamCoordinator {
             tx.commit()?;
             return Ok(document.id);
         }
+        ensure!(
+            state == "terminal",
+            "A settled GPU result cannot be recreated"
+        );
         let run = load(&tx, Uuid::parse_str(&run_id)?)?;
         let work = run
             .work

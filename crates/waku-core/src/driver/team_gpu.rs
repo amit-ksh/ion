@@ -1,7 +1,6 @@
 //! Nebius Serverless AI Jobs lifecycle transport, separate from ConTree.
-//! This module is not exposed as an agent tool yet. The coordinator must add
-//! durable GPU waits, accounting and resource policy integration before launch
-//! can be enabled. Cleanup proofs are persisted independently. Launch/cancel requests persist their reservations first.
+//! Agent submission is gated until accounting and resource/egress policy
+//! integration is complete. Durable waits are available for approved bound jobs. Cleanup proofs are persisted independently. Launch/cancel requests persist their reservations first.
 //! A job state is not a command/test receipt or cleanup proof.
 use crate::teams::{
     AssignmentLease, TeamCoordinator,
@@ -466,6 +465,34 @@ pub(crate) fn read_gpu_output(
 ) -> Result<String> {
     results::read_output(coordinator, lease, request, path, offset)
 }
+/// One owner/background wait observation. Original identity only; never create/fallback.
+pub(crate) fn progress_wait(coordinator: &TeamCoordinator, work: uuid::Uuid) -> Result<bool> {
+    let Some((run, attempt, request)) = coordinator.gpu_wait_request(work)? else {
+        return Ok(true);
+    };
+    if coordinator.settle_gpu_result(request, crate::model::unix_time())? {
+        return Ok(true);
+    };
+    let record = coordinator
+        .gpu_jobs(attempt)?
+        .into_iter()
+        .find(|r| r.request_id == request)
+        .context("GPU wait request missing")?;
+    let state = coordinator.snapshot(run)?;
+    let cancel = state.status != waku_protocol::teams::TeamRunStatus::Active
+        || crate::model::unix_time() >= record.deadline_at;
+    let client = Client::configured()?;
+    let lifecycle = if resources_closed(&record) {
+        Ok(true)
+    } else {
+        advance_record(&client, coordinator, &record, cancel)
+    };
+    // Try results independently even if lifecycle/cleanup observation is unavailable.
+    let outputs = results::collect_attempt(coordinator, attempt);
+    lifecycle?;
+    outputs?;
+    coordinator.settle_gpu_result(request, crate::model::unix_time())
+}
 /// Stop/restart observes and cancels bound jobs. No create POST or Local execution.
 /// Terminal states retain resource reservations until cleanup is independently verified.
 pub(crate) fn reconcile_attempt(
@@ -510,6 +537,15 @@ fn reconcile_record(
     client: &Client,
     coordinator: &TeamCoordinator,
     record: &GpuJobRecord,
+) -> Result<bool> {
+    advance_record(client, coordinator, record, true)
+}
+/// Active waits observe and capture inventory; Stop/deadline alone requests cancellation.
+fn advance_record(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    record: &GpuJobRecord,
+    cancel: bool,
 ) -> Result<bool> {
     ensure!(
         record.project == client.project,
@@ -562,7 +598,7 @@ fn reconcile_record(
         Ok(())
     })();
     // An unavailable inventory permission must not prevent stopping the original job.
-    if !observed.terminal {
+    if cancel && !observed.terminal {
         if let Some(key) = coordinator.claim_gpu_cancellation(record.request_id, job)? {
             let cancel = client.cancel(&ack, key)?;
             coordinator.bind_gpu_cancellation(record.request_id, job, &cancel)?;
@@ -589,11 +625,14 @@ fn reconcile_record(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::super::team_test_http::Server;
     use super::*;
     use uuid::Uuid;
-    pub(super) fn launch() -> Launch {
+    pub(crate) fn launch_body(launch: &Launch) -> Value {
+        launch.body().unwrap()
+    }
+    pub(crate) fn launch() -> Launch {
         Launch {
             request: JobRequest {
                 version: 1,
@@ -618,21 +657,21 @@ mod tests {
             result_volume: None,
         }
     }
-    pub(super) struct Fixture {
-        pub(super) dir: std::path::PathBuf,
-        pub(super) coordinator: TeamCoordinator,
-        pub(super) lease: AssignmentLease,
-        pub(super) policy: GpuBudgetPolicy,
+    pub(crate) struct Fixture {
+        pub(crate) dir: std::path::PathBuf,
+        pub(crate) coordinator: TeamCoordinator,
+        pub(crate) lease: AssignmentLease,
+        pub(crate) policy: GpuBudgetPolicy,
     }
     impl Fixture {
-        pub(super) fn new(remote: bool, network: bool) -> Self {
+        pub(crate) fn new(remote: bool, network: bool) -> Self {
             Self::new_in(
                 std::env::temp_dir().join(format!("ion-gpu-test-{}", Uuid::new_v4())),
                 remote,
                 network,
             )
         }
-        pub(super) fn new_in(dir: std::path::PathBuf, remote: bool, network: bool) -> Self {
+        pub(crate) fn new_in(dir: std::path::PathBuf, remote: bool, network: bool) -> Self {
             use crate::{
                 control::ControlStore,
                 teams::{DispatchHost, PrepareRun},
@@ -752,7 +791,7 @@ mod tests {
             let _ = std::fs::remove_dir(&self.dir);
         }
     }
-    pub(super) fn bytes(v: Value) -> Vec<u8> {
+    pub(crate) fn bytes(v: Value) -> Vec<u8> {
         serde_json::to_vec(&v).unwrap()
     }
     pub(super) fn client(s: &Server) -> Client {
@@ -767,7 +806,7 @@ mod tests {
             base: s.url.clone(),
         }
     }
-    pub(super) fn job(l: &Launch, state: &str) -> Value {
+    pub(crate) fn job(l: &Launch, state: &str) -> Value {
         let mut v = l.body().unwrap();
         v["metadata"]["id"] = json!("aijob-fixture");
         v["status"] = json!({"state":state});

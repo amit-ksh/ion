@@ -20,10 +20,6 @@ mod decisions;
 mod dispatch;
 mod documents;
 mod followups;
-#[expect(
-    dead_code,
-    reason = "GPU launch is gated until asynchronous waits, output receipts and cleanup are complete"
-)]
 pub(crate) mod gpu_jobs;
 mod inputs;
 pub(crate) mod jobs;
@@ -1134,10 +1130,14 @@ impl TeamCoordinator {
             })
             .cloned()
         {
-            let inactive = matches!(
-                work.status,
-                AssignmentStatus::Queued | AssignmentStatus::Waiting | AssignmentStatus::InReview
-            );
+            let gpu_wait = gpu_jobs::waits::waiting(&tx, work.id)?.is_some();
+            let inactive = !gpu_wait
+                && matches!(
+                    work.status,
+                    AssignmentStatus::Queued
+                        | AssignmentStatus::Waiting
+                        | AssignmentStatus::InReview
+                );
             work.status = if inactive {
                 AssignmentStatus::Blocked
             } else {
@@ -1146,6 +1146,8 @@ impl TeamCoordinator {
             work.reason = Some(
                 if inactive {
                     "Team deadline reached before dispatch or resume"
+                } else if gpu_wait {
+                    "Team deadline reached while waiting for GPU work; confirm original resources stopped"
                 } else {
                     "Worker lease expired; confirm host outcome before retry"
                 }
@@ -1452,7 +1454,11 @@ impl TeamCoordinator {
             })
             .cloned()
         {
-            work.status = if work.status == AssignmentStatus::Running {
+            work.status = if work.status == AssignmentStatus::Waiting
+                && gpu_jobs::waits::waiting(&tx, work.id)?.is_some()
+            {
+                AssignmentStatus::Uncertain
+            } else if work.status == AssignmentStatus::Running {
                 AssignmentStatus::Canceling
             } else {
                 AssignmentStatus::Canceled

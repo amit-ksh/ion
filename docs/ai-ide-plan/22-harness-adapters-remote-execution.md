@@ -70,10 +70,12 @@ content and the available Ion tool descriptions. It receives bounded structured
 output and provider usage. Files are read/edited in the owner's isolated Teams
 workspace; app actions run on the owner after their exact approval.
 
-**This increment does not implement a complete remote project filesystem,
-arbitrary sandbox commands, remote test execution, GPU provisioning or ML
-training.** Those require a remote tool/command host with resource and egress
-limits, input/output transfers, command receipts and spending controls. ConTree's
+Later increments add bounded credential-free command/file jobs with authentic
+receipts, plus GPU owner lifecycle/result transport and durable waits for approved
+bound jobs. See [remote commands and GPU jobs](23-remote-command-gpu-jobs.md) for
+current coverage. Full remote project/large-file transfers and enabled GPU agent
+submission remain development; command receipts are not yet enforced in required
+output-contract checks. ConTree's
 verified instance request has a layer-size limit but no verified GPU/CPU resource
 fields. Do not describe this checkpoint as an ML execution service.
 

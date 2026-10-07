@@ -34,6 +34,9 @@ trait Executor: Send + Sync {
     fn remote_stopped(&self, _coordinator: &TeamCoordinator, _attempt: Uuid) -> Result<bool> {
         Ok(false)
     }
+    fn gpu_progress(&self, _coordinator: &TeamCoordinator, _work: Uuid) -> Result<bool> {
+        Ok(false)
+    }
     fn run(
         &self,
         coordinator: &TeamCoordinator,
@@ -270,6 +273,9 @@ impl Executor for NativeExecutor {
             "Pinned model is unavailable for this Nebius account; stop this run and start a new task after updating the agent model"
         );
         local_host(profile)
+    }
+    fn gpu_progress(&self, coordinator: &TeamCoordinator, work: Uuid) -> Result<bool> {
+        driver::team_gpu::progress_wait(coordinator, work)
     }
     fn remote_stopped(&self, coordinator: &TeamCoordinator, attempt: Uuid) -> Result<bool> {
         if coordinator.remote_attempt_stopped(attempt)?
@@ -508,6 +514,7 @@ pub(crate) struct TeamRuntime {
     wakes: Receiver<()>,
     scheduler: Mutex<Option<JoinHandle<()>>>,
     automation_tick: Mutex<Option<Instant>>,
+    gpu_polls: Mutex<HashMap<Uuid, (Instant, Option<JoinHandle<()>>)>>,
 }
 impl TeamRuntime {
     pub(crate) fn new(
@@ -557,6 +564,7 @@ impl TeamRuntime {
             wakes,
             scheduler: Mutex::new(None),
             automation_tick: Mutex::new(None),
+            gpu_polls: Mutex::new(HashMap::new()),
         })
     }
     pub(crate) fn start(self: &Arc<Self>, publisher: RuntimePublisher) -> Result<()> {
@@ -847,6 +855,46 @@ impl TeamRuntime {
         }
         Ok(())
     }
+    /// Bounded independent workers keep provider waits off the dispatcher/state locks.
+    fn poll_gpu_wait(&self, work: Uuid) -> Result<()> {
+        if self.coordinator.gpu_wait_request(work)?.is_none() {
+            return Ok(());
+        }
+        let mut polls = self.gpu_polls.lock();
+        for (_, handle) in polls.values_mut() {
+            if handle.as_ref().is_some_and(JoinHandle::is_finished) {
+                let _ = handle.take().unwrap().join();
+            }
+        }
+        if polls
+            .get(&work)
+            .is_some_and(|(at, h)| h.is_some() || at.elapsed() < Duration::from_secs(5))
+        {
+            return Ok(());
+        }
+        if polls.values().filter(|(_, h)| h.is_some()).count() >= 4 {
+            return Ok(());
+        }
+        if polls.len() >= 256 {
+            polls.retain(|_, (at, h)| h.is_some() || at.elapsed() < Duration::from_secs(5));
+            if polls.len() >= 256 {
+                return Ok(());
+            }
+        }
+        let coordinator = self.coordinator.clone();
+        let executor = self.executor.clone();
+        let wake = self.wake.clone();
+        let handle = thread::Builder::new()
+            .name("ion-gpu-wait".into())
+            .spawn(move || {
+                if let Err(error) = executor.gpu_progress(&coordinator, work) {
+                    eprintln!("Teams GPU wait: {error:#}");
+                }
+                let _ = wake.try_send(());
+            })?;
+        polls.insert(work, (Instant::now(), Some(handle)));
+        Ok(())
+    }
     fn dispatch_run(self: &Arc<Self>, snapshot: TeamRunSnapshot) -> Result<()> {
         let run = self
             .coordinator
@@ -879,6 +927,12 @@ impl TeamRuntime {
                     job.cancelled.store(true, Ordering::Release);
                 }
                 continue;
+            }
+            if matches!(
+                work.status,
+                AssignmentStatus::Waiting | AssignmentStatus::Uncertain
+            ) {
+                self.poll_gpu_wait(work.id)?;
             }
             if work.status == AssignmentStatus::Waiting
                 && self.stream_capacity_available(work.task_id)

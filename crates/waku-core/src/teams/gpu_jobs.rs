@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 mod resources;
 mod results;
+pub(super) mod waits;
 pub(crate) use resources::{GpuCleanupRecord, GpuComputeInventory, GpuDiskInventory};
 pub(crate) use results::GpuResultVolume;
 
@@ -353,7 +354,7 @@ impl TeamCoordinator {
         let (run,work,old,remote,stored_ids):(String,String,String,Option<String>,String)=tx.query_row("SELECT run_id,work_id,state,remote_state,compute_ids FROM ion_team_gpu_jobs WHERE request_id=? AND job_id=?",
             params![request.to_string(),job],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
         ensure!(
-            old != "cleaned"
+            !matches!(old.as_str(), "cleaned" | "settled")
                 && (old != "terminal" || (terminal && remote.as_deref() == Some(state))),
             "GPU state regressed after terminal observation"
         );

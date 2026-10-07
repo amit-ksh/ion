@@ -8,6 +8,7 @@ pub struct AssignmentContinuation {
     pub children: Vec<AssignmentHandoff>,
     pub decision: Option<TeamDecision>,
     pub recovery_note: Option<String>,
+    pub(crate) gpu_result: Option<String>,
 }
 #[derive(Debug, Serialize)]
 pub struct AssignmentHandoff {
@@ -316,9 +317,19 @@ impl TeamCoordinator {
         let children: Vec<Uuid> = serde_json::from_str(&dependencies)?;
         let decision = super::decisions::waiting_decision(&tx, work.id)?;
         let recovery_note = super::recovery::waiting_note(&tx, &work)?;
+        let gpu_result = gpu_jobs::waits::handoff(&tx, &work)?;
+        if gpu_result.is_some() {
+            ensure!(
+                children.is_empty() && decision.is_none() && recovery_note.is_none(),
+                "GPU wait cannot contain another continuation kind"
+            );
+        }
         ensure!(
             children.len() <= 16
-                && (!children.is_empty() || decision.is_some() || recovery_note.is_some()),
+                && (!children.is_empty()
+                    || decision.is_some()
+                    || recovery_note.is_some()
+                    || gpu_result.is_some()),
             "Invalid continuation dependency count"
         );
         if recovery_note.is_some() {
@@ -409,6 +420,10 @@ impl TeamCoordinator {
             "DELETE FROM ion_team_recovery_waits WHERE work_id=?",
             [work.id.to_string()],
         )?;
+        tx.execute(
+            "DELETE FROM ion_team_gpu_waits WHERE work_id=?",
+            [work.id.to_string()],
+        )?;
         bump(&tx, run.id)?;
         audit(
             &tx,
@@ -417,6 +432,8 @@ impl TeamCoordinator {
             "resumed",
             if recovery_note.is_some() {
                 "User requested continuation from a safe stopped checkpoint"
+            } else if gpu_result.is_some() {
+                "Actual GPU command receipt and verified cleanup delivered under a fresh lease generation; spending retained"
             } else if decision.is_some() {
                 "User decision receipt delivered under a fresh lease generation"
             } else {
@@ -435,6 +452,7 @@ impl TeamCoordinator {
             children: results,
             decision,
             recovery_note,
+            gpu_result,
         })
     }
 }

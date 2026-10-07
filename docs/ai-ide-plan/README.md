@@ -138,4 +138,5 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Remote commands and GPU jobs](23-remote-command-gpu-jobs.md): bounded command/file
   execution, recovery and worker setup; separate GPU lifecycle transport and
-  remaining durable waits, resource, output and monetary integration.
+  durable bound-job waits/results, and remaining GPU launch, resource, recovery
+  and monetary integration.

@@ -2,7 +2,7 @@ use super::super::tests::{Fixture, bytes, client, launch};
 use super::*;
 use crate::driver::team_test_http::Server;
 use crate::teams::jobs::{JobOutput, JobStream};
-fn volume() -> GpuResultVolume {
+pub(super) fn volume() -> GpuResultVolume {
     GpuResultVolume {
         version: 1,
         bucket_id: "storagebucket-fixture".into(),
@@ -28,7 +28,7 @@ fn reader(server: &Server) -> ResultReader {
         base: Some(server.url.clone()),
     }
 }
-fn receipt(request: &JobRequest) -> JobResponse {
+pub(super) fn receipt(request: &JobRequest) -> JobResponse {
     JobResponse {
         version: 1,
         request_id: request.request_id,
@@ -55,7 +55,7 @@ fn receipt(request: &JobRequest) -> JobResponse {
         output_errors: vec![],
     }
 }
-fn setup(terminal: bool) -> (Fixture, Launch) {
+pub(super) fn setup(terminal: bool) -> (Fixture, Launch) {
     let mut f = Fixture::new(true, true);
     let mut l = launch();
     l.request.output_paths = vec!["result.bin".into()];

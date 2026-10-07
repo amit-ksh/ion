@@ -516,10 +516,10 @@ fn run_on_host(
     apps: &dyn TeamApps,
     environment: ExecutionEnvironment,
 ) -> Result<NativeTeamExit> {
-    let (mut claimed, mut journal, children, decision, recovery_note) = match start {
+    let (mut claimed, mut journal, children, decision, recovery_note, gpu_result) = match start {
         NativeTeamStart::Fresh(claimed) => {
             let journal = TeamJournal::new(&claimed.assignment.objective);
-            (claimed, journal, vec![], None, None)
+            (claimed, journal, vec![], None, None, None)
         }
         NativeTeamStart::Resumed(continuation) => {
             let journal: TeamJournal = serde_json::from_str(&continuation.checkpoint)
@@ -534,6 +534,7 @@ fn run_on_host(
                 continuation.children,
                 continuation.decision,
                 continuation.recovery_note,
+                continuation.gpu_result,
             )
         }
     };
@@ -627,6 +628,9 @@ fn run_on_host(
     }
     if !children.is_empty() {
         journal.messages.push(json!({"role":"user","content":format!("Child work has settled. Review these handoffs and read their documents before reporting your result:\n{}", serde_json::to_string(&children)?)}));
+    }
+    if let Some(receipt) = gpu_result {
+        journal.messages.push(json!({"role":"user","content":format!("The original GPU command has returned its verified execution receipt and generated artifact; its original compute resources are confirmed removed. Read this actual outcome, including any nonzero exit or timeout, and use read_gpu_output for requested output bytes. Never interpret resource cleanup as a successful command or test. Monetary usage is still reserved, not reconciled billing. Retain this assignment's harness, model, grants and original budget history. Receipt: {receipt}")}));
     }
     if let Some(decision) = decision {
         journal.messages.push(json!({"role":"user","content":format!("User decision receipt (applies only to this exact proposal on its pinned host): {}. This does not enlarge any tool, filesystem, app or spending grant. If declined, do not carry out this proposal; revise the plan or report a blocker.",serde_json::to_string(&decision)?)}));
@@ -804,6 +808,26 @@ fn run_on_host(
                 let _ = events.send(DriverEvent::TurnParked);
                 return Ok(NativeTeamExit::Yielded);
             }
+            Ok(ToolOutcome::GpuWait(request)) => {
+                let activity = journal.pending[0].activity_id.clone();
+                journal
+                    .receipt(json!({"status":"waiting_gpu","request_id":request}).to_string())?;
+                coordinator.suspend_for_gpu(
+                    &claimed.lease,
+                    request,
+                    &journal.encode()?,
+                    crate::model::unix_time(),
+                )?;
+                let _ = events.send(DriverEvent::Activity {
+                    id: Some(activity),
+                    kind: ActivityKind::Tool,
+                    title: "Waiting for GPU command result".into(),
+                    detail: Some(request.to_string()),
+                    complete: true,
+                });
+                let _ = events.send(DriverEvent::TurnParked);
+                return Ok(NativeTeamExit::Yielded);
+            }
             Ok(ToolOutcome::Yield(children)) => {
                 let activity = journal.pending[0].activity_id.clone();
                 journal.receipt(json!({"status":"waiting","assignments":children}).to_string())?;
@@ -885,6 +909,11 @@ fn tools(access: &AgentAccess) -> Value {
         list.push(json!({"type":"function","function":{"name":"run_remote_command","description":"Execute literal argv in a registered credential-free remote job image for this actual Nebius attempt. Command/read grants, registered executable/time/count limits are enforced. Upload only selected files (32 files, 64 KiB each, 256 KiB total); no implicit repository or secret upload. Network is disabled. Returns an actual command receipt and generated artifact. No automatic local retry after submission. Nonzero exit is a failed check, not a completed validation.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":64},"input_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"output_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120}},"required":["argv","input_paths","output_paths","timeout_seconds"],"additionalProperties":false}}}));
         list.push(json!({"type":"function","function":{"name":"read_remote_output","description":"Read up to 4096 bytes in base64 from one output file returned by this assignment's completed remote command. Uses the exact request ID; never reads another assignment or live host path.","parameters":{"type":"object","properties":{"request_id":{"type":"string"},"path":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["request_id","path"],"additionalProperties":false}}}));
     }
+    if access.shell && access.workspace_read && access.network {
+        let list = tools.as_array_mut().unwrap();
+        list.push(json!({"type":"function","function":{"name":"await_gpu_job","description":"Yield for one already owner-approved, bound and observed GPU job belonging to this exact Nebius assignment attempt. Does not submit a GPU job. Real command receipt and verified compute cleanup are required to resume; unknown spending stays reserved. Must be the last tool in this response.","parameters":{"type":"object","properties":{"request_id":{"type":"string"}},"required":["request_id"],"additionalProperties":false}}}));
+        list.push(json!({"type":"function","function":{"name":"read_gpu_output","description":"Read a 4 KiB binary page from a saved verified GPU command output belonging to this same assignment attempt. Does not read host paths or overwrite the source checkout.","parameters":{"type":"object","properties":{"request_id":{"type":"string"},"path":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["request_id","path"],"additionalProperties":false}}}));
+    }
     if access.workspace_write {
         tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"create_directory","description":"Create one missing directory in the isolated team workspace. Its parent must exist. No recursive creation; each directory has a durable receipt.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}}));
         tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"delete_file","description":"Remove one UTF-8 file up to 16 KiB from the isolated team workspace, requiring its exact old_content. The exact removed bytes remain in the durable edit receipt; unexpected content is preserved for reconciliation. No directory or recursive deletion, and no source checkout change. Use publish_change for review evidence.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":"string"}},"required":["path","old_content"],"additionalProperties":false}}}));
@@ -903,6 +932,7 @@ fn tools(access: &AgentAccess) -> Value {
 enum ToolOutcome {
     Reply(String),
     Yield(Vec<Uuid>),
+    GpuWait(Uuid),
     Decision(String, String),
     AppAction(AppActionGrant, Value),
     Reported(bool),
@@ -1127,6 +1157,37 @@ fn execute_with_cancel(
             Ok(ToolOutcome::Reply(
                 json!({"assignment_id":child.id,"task_id":child.task_id,"status":child.status})
                     .to_string(),
+            ))
+        }
+        "await_gpu_job" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                request_id: Uuid,
+            }
+            anyhow::ensure!(last, "await_gpu_job must be the last tool in this response");
+            let a: Args = serde_json::from_value(args)?;
+            coordinator.authorize_gpu_wait(&claimed.lease, a.request_id, now)?;
+            Ok(ToolOutcome::GpuWait(a.request_id))
+        }
+        "read_gpu_output" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                request_id: Uuid,
+                path: String,
+                #[serde(default)]
+                offset: usize,
+            }
+            let a: Args = serde_json::from_value(args)?;
+            Ok(ToolOutcome::Reply(
+                crate::driver::team_gpu::read_gpu_output(
+                    coordinator,
+                    &claimed.lease,
+                    a.request_id,
+                    &a.path,
+                    a.offset,
+                )?,
             ))
         }
         "await_children" => {
