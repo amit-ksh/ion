@@ -1,7 +1,7 @@
 //! Nebius Serverless AI Jobs lifecycle transport, separate from ConTree.
 //! This module is not exposed as an agent tool yet. The coordinator must add
-//! durable GPU waits, verified cleanup and output retrieval before launch
-//! can be enabled. Launch/cancel requests persist their reservations first.
+//! durable GPU waits, accounting and output retrieval before launch
+//! can be enabled. Cleanup proofs are persisted independently. Launch/cancel requests persist their reservations first.
 //! A job state is not a command/test receipt or cleanup proof.
 use crate::teams::{
     AssignmentLease, TeamCoordinator,
@@ -13,6 +13,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{io::Read, time::Duration};
 const BASE: &str = "https://api.nebius.cloud";
+mod resources;
 
 pub(crate) struct Launch {
     pub request: JobRequest,
@@ -185,7 +186,7 @@ impl Client {
         );
         Ok(serde_json::from_slice(&bytes)?)
     }
-    /// Call exactly once, after the future coordinator has persisted its request.
+    /// Call exactly once, after the coordinator has persisted its request.
     /// Any failure can have an uncertain outcome: never retry this POST or fall back.
     pub(super) fn submit(&self, launch: &Launch) -> Result<Acknowledged> {
         ensure!(
@@ -432,44 +433,119 @@ pub(crate) fn reconcile_attempt(
     attempt: uuid::Uuid,
 ) -> Result<bool> {
     let records = coordinator.gpu_jobs(attempt)?;
-    if records.iter().all(|r| r.state == "cleaned") {
+    if records.iter().all(resources_closed) {
         return Ok(true);
     }
     reconcile_with(&Client::configured()?, coordinator, records)
+}
+fn resources_closed(record: &GpuJobRecord) -> bool {
+    record.state == "cleaned"
+        || record
+            .cleanup
+            .as_ref()
+            .is_some_and(|c| c.state == "verified")
 }
 fn reconcile_with(
     client: &Client,
     coordinator: &TeamCoordinator,
     records: Vec<GpuJobRecord>,
 ) -> Result<bool> {
-    for record in records.iter().filter(|r| r.state != "cleaned") {
-        ensure!(
-            record.project == client.project,
-            "Use the GPU job's original owner project/account"
-        );
-        let (Some(operation), Some(job)) = (&record.creation_operation, &record.job_id) else {
-            continue;
-        };
-        let ack = Acknowledged {
-            operation: operation.clone(),
-            job: job.clone(),
-        };
-        let observed = client.observe_saved(&record.body, &ack)?;
-        coordinator.record_gpu_observation(
-            record.request_id,
-            job,
-            &observed.state,
-            &observed.compute_ids,
-            crate::model::unix_time(),
-        )?;
-        if !observed.terminal {
-            if let Some(key) = coordinator.claim_gpu_cancellation(record.request_id, job)? {
-                let cancel = client.cancel(&ack, key)?;
-                coordinator.bind_gpu_cancellation(record.request_id, job, &cancel)?;
+    let mut closed = true;
+    let mut first_error = None;
+    // A broken witness or missing permission for one job must not skip the others.
+    for record in records.iter().filter(|r| !resources_closed(r)) {
+        match reconcile_record(client, coordinator, record) {
+            Ok(done) => closed &= done,
+            Err(error) => {
+                first_error.get_or_insert(error);
             }
         }
     }
-    Ok(records.iter().all(|r| r.state == "cleaned"))
+    if let Some(error) = first_error {
+        return Err(error);
+    }
+    Ok(closed)
+}
+fn reconcile_record(
+    client: &Client,
+    coordinator: &TeamCoordinator,
+    record: &GpuJobRecord,
+) -> Result<bool> {
+    ensure!(
+        record.project == client.project,
+        "Use the GPU job's original owner project/account"
+    );
+    let (Some(operation), Some(job)) = (&record.creation_operation, &record.job_id) else {
+        return Ok(false);
+    };
+    let ack = Acknowledged {
+        operation: operation.clone(),
+        job: job.clone(),
+    };
+    if let Some(claim) = &record.cleanup {
+        if claim.operation.is_none() || !client.cleanup_proven(&ack, claim)? {
+            return Ok(false);
+        }
+        coordinator.verify_gpu_cleanup(
+            record.request_id,
+            claim.operation.as_deref().unwrap(),
+            claim,
+            crate::model::unix_time(),
+        )?;
+        return Ok(true);
+    }
+    let observed = client.observe_saved(&record.body, &ack)?;
+    coordinator.record_gpu_observation(
+        record.request_id,
+        job,
+        &observed.state,
+        &observed.compute_ids,
+        crate::model::unix_time(),
+    )?;
+    let mut compute = record.compute_ids.clone();
+    for id in observed.compute_ids {
+        if !compute.contains(&id) {
+            compute.push(id);
+        }
+    }
+    let inventory_result = (|| -> Result<()> {
+        for id in &compute {
+            if let Some(inventory) = client.inventory(&record.body, id)? {
+                coordinator.record_gpu_inventory(
+                    record.request_id,
+                    job,
+                    &inventory,
+                    crate::model::unix_time(),
+                )?;
+            }
+        }
+        Ok(())
+    })();
+    // An unavailable inventory permission must not prevent stopping the original job.
+    if !observed.terminal {
+        if let Some(key) = coordinator.claim_gpu_cancellation(record.request_id, job)? {
+            let cancel = client.cancel(&ack, key)?;
+            coordinator.bind_gpu_cancellation(record.request_id, job, &cancel)?;
+        }
+    }
+    inventory_result?;
+    if observed.terminal && !compute.is_empty() {
+        let inventory = coordinator.gpu_inventory(record.request_id)?;
+        if inventory.len() == compute.len() && inventory.iter().all(|i| i.complete) {
+            if let Some(claim) =
+                coordinator.claim_gpu_deletion(record.request_id, job, crate::model::unix_time())?
+            {
+                let operation = client.delete_job(&ack, claim.key)?;
+                coordinator.bind_gpu_deletion(
+                    record.request_id,
+                    job,
+                    &operation,
+                    crate::model::unix_time(),
+                )?;
+            }
+        }
+    }
+    Ok(false)
 }
 
 #[cfg(test)]
@@ -477,7 +553,7 @@ mod tests {
     use super::super::team_test_http::Server;
     use super::*;
     use uuid::Uuid;
-    fn launch() -> Launch {
+    pub(super) fn launch() -> Launch {
         Launch {
             request: JobRequest {
                 version: 1,
@@ -501,20 +577,26 @@ mod tests {
             timeout_seconds: 60,
         }
     }
-    struct Fixture {
-        dir: std::path::PathBuf,
-        coordinator: TeamCoordinator,
-        lease: AssignmentLease,
-        policy: GpuBudgetPolicy,
+    pub(super) struct Fixture {
+        pub(super) dir: std::path::PathBuf,
+        pub(super) coordinator: TeamCoordinator,
+        pub(super) lease: AssignmentLease,
+        pub(super) policy: GpuBudgetPolicy,
     }
     impl Fixture {
-        fn new(remote: bool, network: bool) -> Self {
+        pub(super) fn new(remote: bool, network: bool) -> Self {
+            Self::new_in(
+                std::env::temp_dir().join(format!("ion-gpu-test-{}", Uuid::new_v4())),
+                remote,
+                network,
+            )
+        }
+        pub(super) fn new_in(dir: std::path::PathBuf, remote: bool, network: bool) -> Self {
             use crate::{
                 control::ControlStore,
                 teams::{DispatchHost, PrepareRun},
             };
             use waku_protocol::{control::*, model::ProviderKind, teams::*};
-            let dir = std::env::temp_dir().join(format!("ion-gpu-test-{}", Uuid::new_v4()));
             let path = dir.join("control.db");
             let definitions = ControlStore::new(path.clone());
             let agent = Uuid::new_v4();
@@ -628,10 +710,10 @@ mod tests {
             let _ = std::fs::remove_dir(&self.dir);
         }
     }
-    fn bytes(v: Value) -> Vec<u8> {
+    pub(super) fn bytes(v: Value) -> Vec<u8> {
         serde_json::to_vec(&v).unwrap()
     }
-    fn client(s: &Server) -> Client {
+    pub(super) fn client(s: &Server) -> Client {
         Client {
             http: reqwest::blocking::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -643,7 +725,7 @@ mod tests {
             base: s.url.clone(),
         }
     }
-    fn job(l: &Launch, state: &str) -> Value {
+    pub(super) fn job(l: &Launch, state: &str) -> Value {
         let mut v = l.body().unwrap();
         v["metadata"]["id"] = json!("aijob-fixture");
         v["status"] = json!({"state":state});
@@ -697,17 +779,28 @@ mod tests {
         running["status"]["instances"] =
             json!([{"computeInstanceId":"compute-fixture","state":"RUNNING"}]);
         let terminal = job(&l, "CANCELLED");
+        let vm = json!({"metadata":{"id":"compute-fixture","parentId":"project-fixture"},
+            "spec":{"resources":{"platform":l.platform,"preset":l.preset},"bootDisk":{"managedDisk":{"name":"gpu-main","spec":{}}}},
+            "status":{"diskAttachments":[{"id":"disk-fixture","name":"gpu-main","isManaged":true}]}});
+        let disk = json!({"metadata":{"id":"disk-fixture","parentId":"project-fixture"}});
         let server = Server::new(vec![
             (
                 200,
                 bytes(json!({"id":"operation-create","resourceId":"aijob-fixture"})),
             ),
             (200, bytes(running)),
+            (200, bytes(vm)),
+            (200, bytes(disk)),
             (
                 200,
                 bytes(json!({"id":"operation-cancel","resourceId":"aijob-fixture"})),
             ),
             (200, bytes(terminal)),
+            (404, bytes(json!({"code":5}))),
+            (
+                200,
+                bytes(json!({"id":"operation-delete","resourceId":"aijob-fixture"})),
+            ),
         ]);
         let c = client(&server);
         let record = launch_once_with(&c, &f.coordinator, &f.lease, &l, &f.policy).unwrap();
@@ -762,7 +855,7 @@ mod tests {
             .unwrap_err();
         assert!(error.to_string().contains("reservation budget reached"));
         let requests = server.finish();
-        assert_eq!(requests.len(), 4);
+        assert_eq!(requests.len(), 8);
         assert_eq!(
             requests
                 .iter()

@@ -2,6 +2,8 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+mod resources;
+pub(crate) use resources::{GpuCleanupRecord, GpuComputeInventory, GpuDiskInventory};
 
 /// Owner-approved, immutable spending allowance. These are reservations, not invoice totals.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +60,7 @@ pub(crate) struct GpuJobRecord {
     pub state: String,
     pub compute_ids: Vec<String>,
     pub deadline_at: u64,
+    pub cleanup: Option<GpuCleanupRecord>,
 }
 pub(crate) fn resource_id(value: &str) -> Result<()> {
     ensure!(
@@ -158,7 +161,7 @@ impl TeamCoordinator {
                 .is_some_and(|v| v <= budget),
             "GPU run reservation budget reached; unknown and terminal costs remain reserved"
         );
-        let active_policies: Vec<String> = tx.prepare("SELECT policy FROM ion_team_gpu_jobs WHERE project=? AND state!='cleaned' LIMIT 129")?
+        let active_policies: Vec<String> = tx.prepare("SELECT policy FROM ion_team_gpu_jobs j WHERE project=? AND state!='cleaned' AND NOT EXISTS(SELECT 1 FROM ion_team_gpu_cleanup c WHERE c.request_id=j.request_id AND c.state='verified') LIMIT 129")?
             .query_map([project],|r|r.get(0))?.collect::<rusqlite::Result<_>>()?;
         let mut parallel = policy.max_parallel;
         for old in &active_policies {
@@ -202,9 +205,9 @@ impl TeamCoordinator {
     }
     pub(crate) fn gpu_jobs(&self, attempt: Uuid) -> Result<Vec<GpuJobRecord>> {
         let db = self.connect()?;
-        let rows:Vec<(String,String,String,Option<String>,Option<String>,Option<String>,bool,String,String,u64)> = db.prepare(
-            "SELECT request_id,project,body,creation_operation,job_id,cancellation_operation,cancel_requested,state,compute_ids,deadline_at FROM ion_team_gpu_jobs WHERE attempt_id=? ORDER BY rowid LIMIT 129")?
-            .query_map([attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?)))?.collect::<rusqlite::Result<_>>()?;
+        let rows:Vec<(String,String,String,Option<String>,Option<String>,Option<String>,bool,String,String,u64,Option<String>)> = db.prepare(
+            "SELECT j.request_id,j.project,j.body,j.creation_operation,j.job_id,j.cancellation_operation,j.cancel_requested,j.state,j.compute_ids,j.deadline_at,c.body FROM ion_team_gpu_jobs j LEFT JOIN ion_team_gpu_cleanup c ON c.request_id=j.request_id WHERE j.attempt_id=? ORDER BY j.rowid LIMIT 129")?
+            .query_map([attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?,r.get(10)?)))?.collect::<rusqlite::Result<_>>()?;
         ensure!(rows.len() <= 128, "GPU recovery count exceeded");
         rows.into_iter()
             .map(|r| {
@@ -219,6 +222,7 @@ impl TeamCoordinator {
                     state: r.7,
                     compute_ids: serde_json::from_str(&r.8)?,
                     deadline_at: r.9,
+                    cleanup: r.10.map(|s| serde_json::from_str(&s)).transpose()?,
                 })
             })
             .collect()

@@ -184,6 +184,10 @@ second development watcher was performed during these checkpoints.
 - [x] GPU durable launch/cancel claims, immutable owner spending allowances,
   count/concurrency/deadline checks and saved resource identities. Unknown or
   terminal outcomes do not release reservations. Agent GPU launch remains gated.
+- [x] GPU VM/disk inventory and one-time deletion claim; typed completed deletion
+  plus absence proofs release compute capacity while output/unknown cost remain held.
+- [ ] GPU recovery for missing inventory and lost creation/cancellation/deletion
+  acknowledgements; authenticated original-resource binding, without repeat mutations.
 - [ ] GPU durable waits, monetary/resource/egress enforcement, dataset/checkpoint
-  volumes, real output retrieval, cleanup verification and live acceptance.
+  volumes, real output retrieval and live acceptance.
 - [ ] Enforce executed command receipts in required output-contract check gates.

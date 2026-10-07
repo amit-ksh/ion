@@ -1611,3 +1611,42 @@ No live account, provider billing, cloud submission/deployment, app visual test 
 second watcher was used. Amp/Cursor contracts, Fx native acceptance, executed-check
 gates and full remote project/large transfers also remain development. The full
 goal is active; this checkpoint does not mark it complete.
+
+
+## 2026-10-07 — GPU resource inventory and cleanup proofs
+
+- Added durable VM/disk inventory and an immutable cleanup snapshot. The owner
+  verifies project/platform/preset, desired disk attachments and observed disk IDs.
+  Complete inventories cannot silently change. Missing startup/disk witnesses and
+  unexpected filesystem attachments keep the resource reservation pending.
+- Deletion is claimed before its single DELETE of the original AI job. Creation,
+  job, cancellation and deletion identities remain separate. The transport never
+  directly deletes a VM/disk and never repeats a lost deletion acknowledgement.
+- Recovery checks the typed successful DeleteJobRequest and structured absence of
+  the job, every captured VM and every disk before committing cleanup. Pending/
+  failed operations, HTML 404s, permission failures and remaining resources retain
+  the reservation. Verified cleanup releases the project compute slot and supplies
+  host Stop evidence; command outputs, money and continuation remain independently
+  fenced. Cleanup never manufactures a result artifact or billing receipt.
+- Stop attempts all provided job records before reporting one observation failure.
+  An inventory permission failure still allows cancellation of the original bound
+  job. Resource checks execute on the existing owner worker path, not in rendering.
+- The release checklist and remote-job guide include later live cleanup review and
+  the remaining missing-inventory/lost-delete recovery work. Authentic GPU output
+  retrieval and native waits remain development; job state does not contain a
+  command receipt, and no speculative job-logs REST endpoint was added.
+
+Verification: **45 focused core tests passed** (14 GPU, 10 command jobs, 15 sandbox
+lifecycle/recovery and 6 owner recovery). Desktop/daemon checking, formatting and
+Git whitespace checks passed. Test compilation used the same command-local core/
+protocol/client optimization settings as the previous checkpoint. The first new
+capacity fixtures tried to launch another effect within an unresolved run; they
+were corrected to independent authorized runs in the shared project, preserving
+Ion's pending-effect fence. One HTTP-fixture assertion was corrected to use the
+already parsed JSON body. Existing warnings remain unchanged.
+
+No live account, provider billing, GPU/cloud submission, resource deployment,
+app visual test or second watcher was used. GPU output/volume/wait/price/egress and
+operator recovery integration, Amp/Cursor Teams contracts, Fx native acceptance,
+executed-check gates and full remote project/large transfers remain development.
+The full goal remains active.

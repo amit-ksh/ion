@@ -104,6 +104,10 @@ behavior only. The implementation still needs:
   separately persisted cancellation identity. Lost acknowledgement remains held;
   observed compute IDs accumulate, even if terminal responses omit them. Job
   terminal/cancel acknowledgement cannot release money, resources or continuation.
+- [x] Durable VM/disk inventory, single deletion claim and typed completed deletion
+  plus structured absence checks for the original job, every captured VM and disk.
+  Verified cleanup releases compute capacity only; outputs and unknown costs stay
+  reserved independently.
 - [ ] GPU recovery UI and verified binding of the original job after lost create/
   cancellation acknowledgement. No automatic create retry or Local fallback.
 - [ ] Native asynchronous waits for long jobs with Stop/restart/deadline handling,
@@ -116,9 +120,58 @@ behavior only. The implementation still needs:
 - [ ] GPU-compatible image validation and resource/quota/readiness checks.
 - [ ] Enforced egress/resource grants. `publicIp=false` is not a network-deny rule;
   registered subnet policy and access authorization are needed.
-- [ ] Compute cleanup confirmation. A terminal job or cancellation acknowledgement
-  alone does not prove every underlying resource has been deleted.
+- [ ] Recovery of jobs whose VM/disk inventory was never captured, and verified
+  operator binding after a lost deletion acknowledgement. These remain unresolved;
+  no missing witness is promoted into proof and no DELETE is automatically repeated.
 - [ ] Live GPU acceptance with your configured project/quota/resources.
+
+### GPU resource cleanup behavior
+
+Stop/restart retains VM IDs returned by the job, matches each VM's approved project,
+platform and preset, and records the IDs from its disk attachment status before
+requesting deletion. Missing IDs, incomplete attachments, changed complete
+inventories and unexpected filesystems keep the cleanup pending. This follows the
+[compute attachment contract](https://github.com/nebius/api/blob/main/nebius/compute/v1/instance.proto).
+
+Ion deletes only the original AI job. It never directly deletes a VM or disk. The
+claim and inventory snapshot commit before the single DELETE. The acknowledgement
+is a third operation identity, separate from creation and cancellation. Recovery
+requires a successful operation carrying the exact typed DeleteJobRequest, then
+structured resource-not-found responses for the job and every captured VM/disk.
+HTTP errors, an HTML 404, a pending operation or a remaining disk cannot close it.
+The request is defined in the
+[Job service](https://github.com/nebius/api/blob/main/nebius/ai/v1/job_service.proto).
+
+Verified cleanup releases the project compute slot and supplies Stop evidence.
+It does **not** create a command receipt, clear spending, allow task continuation
+or produce a user artifact. Those gates remain pending until output/accounting
+integration is complete. Startup failures without complete inventory, resources
+already removed before capture and lost deletion acknowledgements require the
+remaining operator recovery work. Existing disks may be preserved by the provider;
+the current no-volume policy never authorizes deleting them separately.
+
+Later live review, after the GPU integrations and your resources are available:
+
+- [ ] Capture the original VM and complete disk inventory while the job is active.
+- [ ] Stop the job and inspect its creation, cancellation and deletion identities.
+- [ ] Leave a captured disk present; verify cleanup and compute capacity stay held.
+- [ ] Verify cleanup after the job, VM and captured disks are absent. Confirm money
+  and output reservations remain pending independently.
+- [ ] Restart during deletion; confirm GET checks only, with no second DELETE.
+- [ ] Lose the deletion acknowledgement in a disposable run; confirm the saved
+  claim stays unresolved, with no retry, replacement job or Local fallback.
+- [ ] Test missing permissions/inventory and check that Stop attempts other jobs.
+
+### Result retrieval contract investigation
+
+The official job API does not return command stdout or output files. Nebius
+provides job logs through its console and the
+[resource-specific CLI reader](https://docs.nebius.com/cli/reference/ai/logs).
+The [official installer](https://docs.nebius.com/cli/install) currently supports
+Linux/macOS. A production Windows result reader still needs an authenticated transport with verified resource selection and
+bounded complete receipts; the current transport does not invent a job-logs REST
+route or accept model text as an execution receipt. Native waits must capture
+inventory while resources still exist and retrieve outputs before job deletion.
 
 The GPU transport is deliberately separate from the command path; registering a
 ConTree image or an inference key does not configure GPU execution. Full remote
