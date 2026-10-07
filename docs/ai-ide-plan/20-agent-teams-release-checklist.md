@@ -292,7 +292,10 @@ second development watcher was performed during these checkpoints.
   and removes inherited setuid/setgid bits. The release ABI check has no request.
 - [x] 21 remote/worker Rust tests and desktop/daemon compile gates passed, including
   identity/version errors, durable submission and exact recovery restrictions.
-- [ ] Run actual updated release-image boundary tests and record its source/digest.
+- [x] Actual Linux release image built from `ad21a87`; ten executable test groups
+  passed offline under UID/GID 1000, read-only root, dropped capabilities and
+  no-new-privileges. Correct identity reaches only fake help; mismatches block
+  native lookup. Source/digest/ELF evidence recorded in the worker package guide.
 - [ ] Install/accept each exact native CLI/runtime/catalog privately, add version-2
   `/ion/host.json`, configure host-native authentication and register immutable UUID.
 - [ ] Live complete worker/usage/stop/restart/lost-acknowledgement acceptance remains

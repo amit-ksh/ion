@@ -2,6 +2,7 @@
 """Acceptance of the actual native executable's private JSON boundary."""
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +10,9 @@ import tempfile
 import unittest
 
 BINARY = Path(sys.argv.pop(1)).resolve(strict=True) if len(sys.argv) > 1 else Path("/usr/local/bin/ion-harness-worker")
+REGISTERED_RUNTIME = "--registered-runtime" in sys.argv
+if REGISTERED_RUNTIME:
+    sys.argv.remove("--registered-runtime")
 MARKER = "fixture-private-input-must-never-be-echoed"
 
 
@@ -73,6 +77,48 @@ class WorkerContract(unittest.TestCase):
                 # Even the valid registered identity must reject this isolated
                 # temporary HOME/cwd before discovering a native account.
                 self.invoke(json.dumps(value).encode())
+
+    @unittest.skipUnless(REGISTERED_RUNTIME, "Needs the isolated registered Linux runtime")
+    def test_registered_process_reaches_native_probe_only_with_exact_identity(self):
+        self.assertEqual((os.geteuid(), os.getegid()), (1000, 1000))
+        self.assertEqual(Path.cwd(), Path("/ion/work"))
+        self.assertEqual(os.environ.get("HOME"), "/home/ion")
+        with tempfile.TemporaryDirectory(prefix="ion-identity-probe-") as root:
+            private = Path(root)
+            marker = private / "native-probe-calls"
+            binary = private / "codex"
+            binary.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + shlex.quote(str(marker)) + "\nexit 2\n", encoding="utf-8")
+            binary.chmod(0o700)
+            catalog = private / "catalog"
+            catalog.mkdir(mode=0o700)
+            (catalog / "models_cache.json").write_text(json.dumps({"models": [{"slug": "fixture-model", "context_window": 1000}]}), encoding="utf-8")
+            env = {"PATH": str(private) + ":/usr/local/bin:/usr/bin:/bin", "HOME": "/home/ion",
+                   "CODEX_HOME": str(catalog), "TMPDIR": root, "TEMP": root, "TMP": root}
+            value = self.request()
+            value["capability"].update(provider="codex", output_cap=1000)
+            value["execution"] = {"uid": 1000, "gid": 1000, "home": "/home/ion"}
+            for change in ("uid", "gid", "home", "cwd", "valid"):
+                with self.subTest(change=change):
+                    request = json.loads(json.dumps(value))
+                    context = dict(env)
+                    cwd = "/ion/work"
+                    if change in {"uid", "gid"}:
+                        request["execution"][change] = 0
+                    elif change == "home":
+                        context["HOME"] = root
+                    elif change == "cwd":
+                        cwd = root
+                    result = subprocess.run([str(BINARY)], input=json.dumps(request).encode(),
+                                            capture_output=True, cwd=cwd, env=context, timeout=15, check=False)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertEqual(result.stdout, b"")
+                    self.assertNotIn(MARKER.encode(), result.stderr)
+                    if change == "valid":
+                        # Only fake help is reached. It deliberately fails before
+                        # native login or inference; no real CLI/account is used.
+                        self.assertEqual(marker.read_text(encoding="utf-8"), "exec --help\n")
+                    else:
+                        self.assertFalse(marker.exists(), "Native lookup ran before identity verification")
 
     def test_unrecognized_input_cannot_return_private_payload(self):
         value = self.request()

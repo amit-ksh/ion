@@ -71,7 +71,12 @@ available remotely.
 - Run `python3 test_contract.py /usr/local/bin/ion-harness-worker` against the
   release image. These actual-binary boundary checks use isolated empty homes,
   no credentials and no live inference; errors must have empty stdout and bounded
-  sanitized diagnostics.
+  sanitized diagnostics. In a disposable, offline Linux container with user
+  1000:1000, HOME `/home/ion`, cwd `/ion/work` and writable private `/tmp`, add
+  `--registered-runtime`. This also checks that wrong UID/GID/HOME/cwd cannot reach
+  native discovery and the valid context reaches only a temporary fake Codex
+  help probe. Its catalog, executable and marker are private fixture files; no
+  installed native CLI, authentication or model request is used.
 - Configure a supported exact harness/model privately, inspect `/ion/host.json`,
   and run a complete native worker request with usage and action validation.
 - Test stop/restart/lost acknowledgement against the registered host. Retain the
@@ -81,3 +86,21 @@ available remotely.
 
 See [registered execution](../../docs/ai-ide-plan/22-harness-adapters-remote-execution.md)
 and [release checklist](../../docs/ai-ide-plan/20-agent-teams-release-checklist.md).
+
+## Recorded Linux release acceptance (2026-10-07)
+
+Source `ad21a87178555ef52cf6a6e5074a97039becee29` built offline with the
+unchanged locked release profile. **Ten actual-executable test groups passed**
+in a network-disabled, read-only container with all capabilities dropped and
+no-new-privileges. UID/GID, HOME/cwd, 0700 owner directories, root-owned 0555 ELF,
+absence of build/source caches and removed `/usr` setuid/setgid bits were checked.
+
+- Local release image ID: `sha256:d65a15825be163e9b86757090d3ff9d601525c9b5183d9a75dc90a6eb49f4170`.
+- Worker ELF SHA256: `6d404557a22f03e719b16d112a4269175ba5550003572e82448a36aee27c5d5c` (7,565,808 bytes).
+- Pinned test runtime: `python@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f`.
+- Verified local release builder: `sha256:7e2b81307b90c7dd13e8f3d293fb23af558bed6e3a4fd63b9f3264ca45a8d57b`.
+
+The test runtime contains no supported provider installation/login/host manifest
+and is not registered as a cloud execution target. Install and accept the exact
+native runtime/account privately before producing a deployment image; its digest
+will differ. Local image IDs are recorded evidence, not a published registry URL.

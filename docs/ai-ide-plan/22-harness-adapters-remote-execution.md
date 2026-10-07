@@ -248,11 +248,14 @@ key or native control event enters the team transcript.
 ## Prepare a registered sandbox host later
 
 Protocol is **31**; rebuild desktop, daemon and client bundles together.
-No deployment target has been supplied. A Linux debug harness worker has now
-built offline with the unchanged lockfile, and its actual binary rejects malformed/
-oversized input and invalid arguments. Production release image preparation,
-provider runtime/bootstrap, registration and live acceptance remain setup/review
-steps; this implementation sends no real sandbox requests.
+No deployment target has been supplied. The Linux **production release** harness
+worker now builds offline with the unchanged release profile/lockfile and tracked
+source. Ten checks against the actual ELF passed, including private malformed/
+oversized input and explicit process identity. The
+[release recipe and recorded evidence](../../packages/harness-worker/README.md)
+keep source/build caches and native credentials out of runtime. Exact provider
+runtime/bootstrap, host manifest, cloud registration and live account acceptance
+remain setup/review steps; this implementation sends no real sandbox requests.
 
 - [ ] Build the worker **on Linux for the execution image**, from this same source:
 

@@ -2067,3 +2067,38 @@ second watcher or visual test was used. The full goal remains active; Amp/Cursor
 other native account transports/bridges, full project/dataset/checkpoint transfer,
 GPU agent launch, complete GPU image/device/IPC/egress/CUDA, billing/finality and
 historical missing inventory/retention remain development.
+
+### Updated native release image acceptance
+
+The committed updated Linux worker (`ad21a87178555ef52cf6a6e5074a97039becee29`)
+built successfully with the production release profile and unchanged lockfile,
+offline from an exported tracked archive. Archive SHA256:
+`8dd408103bcd9e5102c1b0323593133f8710fda948a01c03cf74d6c69d9ee57b`;
+1,230 tracked members, with ignored source/build/user caches excluded.
+
+**Ten actual-executable test groups passed** in an offline, read-only disposable
+Linux container under user 1000:1000, all capabilities dropped and
+no-new-privileges. A new context fixture proves wrong UID/GID/HOME/cwd prevents
+native lookup, while the correct registered context reaches exactly the fake
+`exec --help` probe and then fails before real login/inference. Input/argument/
+cap/version/unsupported-harness errors produce empty stdout and bounded diagnostics
+without private input echo. Runtime checks establish the intended HOME/cwd,
+0700 owner directories, root-owned 0555 ELF, absent builder/source caches and
+zero `/usr` setuid/setgid bits.
+
+Local image ID:
+`sha256:d65a15825be163e9b86757090d3ff9d601525c9b5183d9a75dc90a6eb49f4170`.
+ELF SHA256: `6d404557a22f03e719b16d112a4269175ba5550003572e82448a36aee27c5d5c`
+(7,565,808 bytes). Source, pinned runtime and verified builder are recorded in
+[the package guide](../../packages/harness-worker/README.md). Docker's two
+empty-default base-argument warnings are expected: bases must be supplied by the
+builder. Existing Rust warnings remain; source formatting and whitespace gates
+passed. Test containers were removed, verified local image/cache retained.
+
+This closes the actual production release-build/boundary gate. The test image
+has no native provider installation/login/host manifest and is not registered
+as a cloud target. Live complete inference/usage and deployment image acceptance
+remain separate, along with the broader development scope above. No user key,
+live provider/cloud/GPU request, deployment, app bundle, second watcher or visual
+test was used. The primary `ion-prod` checkout and its pre-existing edits were
+preserved. The full goal remains active.
