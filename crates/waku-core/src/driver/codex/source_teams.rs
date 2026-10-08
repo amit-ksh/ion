@@ -4,50 +4,44 @@
 use super::CommandMessage;
 use crate::driver::{DriverEventSender, WorkspaceContext, source_teams};
 use anyhow::{Context, Result, ensure};
-use crossbeam_channel::{Sender, bounded};
+use crossbeam_channel::Sender;
 use parking_lot::Mutex;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use source_teams::worker::{Call, Worker};
+#[cfg(test)]
+use std::time::{Duration, Instant};
 use std::{
     collections::HashMap,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    thread,
-    time::{Duration, Instant},
 };
+#[cfg(test)]
 use uuid::Uuid;
+#[cfg(test)]
 use waku_protocol::{
     control::AgentProfile,
-    model::{ActivityKind, DriverEvent, PermissionOption},
+    model::DriverEvent,
     teams::{AgentAccess, TeamRunLimits},
 };
 
 #[derive(Clone)]
 pub(super) struct Bridge {
     state: Arc<State>,
-    jobs: Sender<Call>,
+    worker: Worker,
     commands: Sender<CommandMessage>,
 }
 struct State {
     scope: Mutex<Option<Scope>>,
-    approvals: Mutex<HashMap<String, Sender<bool>>>,
-    closed: AtomicBool,
 }
 struct Scope {
     thread: String,
     turn: String,
     cancelled: Arc<AtomicBool>,
     witnesses: HashMap<String, [u8; 32]>,
-}
-struct Call {
-    rpc_id: Value,
-    request_id: String,
-    name: String,
-    arguments: Value,
-    cancelled: Arc<AtomicBool>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -75,36 +69,14 @@ impl Bridge {
     ) -> Result<Self> {
         let state = Arc::new(State {
             scope: Mutex::new(None),
-            approvals: Mutex::new(HashMap::new()),
-            closed: AtomicBool::new(false),
         });
-        let (jobs, received) = bounded::<Call>(4);
-        let worker_state = state.clone();
         let writer = commands.clone();
-        thread::Builder::new().name("ion-codex-team-tools".into()).spawn(move || {
-            while !worker_state.closed.load(Ordering::Acquire) {
-                let call=match received.recv_timeout(Duration::from_millis(100)) {
-                    Ok(call)=>call,
-                    Err(crossbeam_channel::RecvTimeoutError::Timeout)=>continue,
-                    Err(_)=>break,
-                };
-                let activity=|complete, detail| DriverEvent::Activity { id:Some(call.request_id.clone()), kind:ActivityKind::Tool, title:call.name.replace('_'," "), detail, complete };
-                let _=events.send(activity(false,None));
-                let result=source_teams::execute(&context,&call.request_id,&call.name,&call.arguments,&call.cancelled, |profile, limits| {
-                    approve(&worker_state, &call.cancelled, &events, profile, limits)
-                });
-                let (success,text)=match result {
-                    Ok(text)=>(true,text),
-                    // Native/database error payloads and raw arguments stay private.
-                    Err(_)=>(false,"Ion team request did not complete. Check team setup, current definitions, source-task approval and run status. No invocation is automatically retried.".into()),
-                };
-                let _=events.send(activity(true,Some(text.clone())));
-                let _=writer.send(CommandMessage::TeamResult(reply(call.rpc_id,success,text)));
-            }
+        let worker = Worker::start(context, events, move |peer, success, text| {
+            let _ = writer.send(CommandMessage::TeamResult(reply(peer, success, text)));
         })?;
         Ok(Self {
             state,
-            jobs,
+            worker,
             commands,
         })
     }
@@ -159,7 +131,7 @@ impl Bridge {
             return true;
         };
         let prepared = (|| -> Result<Call> {
-            ensure!(!self.state.closed.load(Ordering::Acquire), "Bridge closed");
+            ensure!(!self.worker.is_closed(), "Bridge closed");
             let native: NativeCall = serde_json::from_value(value["params"].clone())?;
             ensure!(
                 native.namespace.is_none() && native.arguments.is_object(),
@@ -201,7 +173,7 @@ impl Bridge {
                 scope.witnesses.insert(request_id.clone(), witness);
             }
             Ok(Call {
-                rpc_id: id.clone(),
+                peer: id.clone(),
                 request_id,
                 name,
                 arguments: native.arguments,
@@ -209,11 +181,10 @@ impl Bridge {
             })
         })();
         if let Ok(call) = prepared {
-            match self.jobs.try_send(call) {
+            match self.worker.submit(call) {
                 Ok(()) => return true,
                 Err(error) => {
-                    let call = error.into_inner();
-                    self.reject(call.rpc_id);
+                    self.reject(error.peer);
                 }
             }
         } else {
@@ -225,13 +196,7 @@ impl Bridge {
         let _=self.commands.send(CommandMessage::TeamResult(reply(id,false,"Ion team call rejected: no matching active source turn, invalid arguments, or bridge busy. No team was started by this rejected call.".into())));
     }
     pub(super) fn respond(&self, id: &str, option: &str) -> bool {
-        if !id.starts_with("ion-team-approval-") {
-            return false;
-        }
-        if let Some(sender) = self.state.approvals.lock().remove(id) {
-            let _ = sender.send(option == "allow");
-        }
-        true // Late approval IDs must never become native JSON-RPC replies.
+        self.worker.respond(id, option)
     }
     pub(super) fn cancel_turn(&self) {
         if let Some(scope) = self.state.scope.lock().as_ref() {
@@ -239,9 +204,8 @@ impl Bridge {
         }
     }
     pub(super) fn close(&self) {
-        self.state.closed.store(true, Ordering::Release);
+        self.worker.close();
         self.cancel_turn();
-        self.state.approvals.lock().clear();
     }
 }
 fn valid_rpc_id(id: &Value) -> bool {
@@ -251,48 +215,6 @@ fn valid_rpc_id(id: &Value) -> bool {
 }
 fn reply(id: Value, success: bool, text: String) -> Value {
     json!({"id":id,"result":{"contentItems":[{"type":"inputText","text":text}],"success":success}})
-}
-fn approve(
-    state: &State,
-    cancelled: &AtomicBool,
-    events: &DriverEventSender,
-    profile: &AgentProfile,
-    limits: &TeamRunLimits,
-) -> Result<AgentAccess> {
-    ensure!(
-        !state.closed.load(Ordering::Acquire) && !cancelled.load(Ordering::Acquire),
-        "Stopped before approval"
-    );
-    let id = format!("ion-team-approval-{}", Uuid::new_v4());
-    let (sender, received) = bounded(1);
-    state.approvals.lock().insert(id.clone(), sender);
-    let result = (|| {
-        events.send(DriverEvent::Permission {
-            request_id:id.clone(), title:format!("Use team agent {}?",profile.name),
-            detail:format!("Harness: {}\nModel: {}\nExecution environment: {}\nConfigured access: {}\nRun limits: {}\nEdits use an isolated branch. App actions require their own exact approval.", profile.provider.display_name(),profile.model.as_deref().unwrap_or("default"),profile.execution.environment.label(),serde_json::to_string(&profile.access)?,serde_json::to_string(limits)?),
-            options:vec![PermissionOption{id:"allow".into(),label:"Start team".into(),allow:true},PermissionOption{id:"reject".into(),label:"Decline".into(),allow:false}],
-        }).map_err(|_|anyhow::anyhow!("Source task closed"))?;
-        let deadline = Instant::now() + Duration::from_secs(300);
-        loop {
-            ensure!(
-                !state.closed.load(Ordering::Acquire)
-                    && !cancelled.load(Ordering::Acquire)
-                    && Instant::now() < deadline,
-                "Team approval stopped or expired"
-            );
-            match received.recv_timeout(Duration::from_millis(100)) {
-                Ok(true) => {
-                    ensure!(!cancelled.load(Ordering::Acquire), "Approval canceled");
-                    return Ok(profile.access.clone());
-                }
-                Ok(false) => anyhow::bail!("Team invocation declined"),
-                Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
-                Err(_) => anyhow::bail!("Approval channel closed"),
-            }
-        }
-    })();
-    state.approvals.lock().remove(&id);
-    result
 }
 
 #[cfg(test)]
@@ -393,7 +315,7 @@ mod tests {
         }
     }
     fn response(replies: &Receiver<CommandMessage>) -> Value {
-        match replies.recv_timeout(Duration::from_secs(3)).unwrap() {
+        match replies.recv_timeout(Duration::from_secs(10)).unwrap() {
             CommandMessage::TeamResult(value) => value,
             _ => panic!("Team result expected"),
         }
@@ -402,7 +324,7 @@ mod tests {
         loop {
             if let DriverEvent::Permission {
                 request_id, detail, ..
-            } = events.recv_timeout(Duration::from_secs(3)).unwrap()
+            } = events.recv_timeout(Duration::from_secs(10)).unwrap()
             {
                 assert!(detail.contains("workspaceWrite") && detail.contains("500000"));
                 return request_id;

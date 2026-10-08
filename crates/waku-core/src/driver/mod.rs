@@ -291,7 +291,9 @@ pub(crate) fn start_local_with_workspace(
         // Claude serves a realtime stream of user messages on stdin â€” the same
         // transport the Agent SDK drives â€” which is what lets its Supervised
         // mode ask rather than decide alone.
-        ProviderKind::Claude => Arc::new(claude::ClaudeDriver::start(options, events)?),
+        ProviderKind::Claude => Arc::new(claude::ClaudeDriver::start_with_workspace(
+            options, events, workspace,
+        )?),
         // Amp reads newline-delimited user messages on stdin and stays alive
         // until stdin closes, so it too serves the whole conversation.
         ProviderKind::Amp => Arc::new(amp::AmpDriver::start(options, events)?),

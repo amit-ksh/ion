@@ -115,6 +115,47 @@ pub fn spawn(command: &mut Command) -> io::Result<Child> {
     with_sigchld_unblocked(|| command.spawn())
 }
 
+/// Owns a Windows Job that terminates this native child and its descendants on close.
+#[cfg(windows)]
+pub(crate) struct ProcessTree(windows_sys::Win32::Foundation::HANDLE);
+#[cfg(windows)]
+impl ProcessTree {
+    pub(crate) fn attach(child: &std::process::Child) -> anyhow::Result<Self> {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::{Foundation::CloseHandle, System::JobObjects::*};
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            anyhow::ensure!(!job.is_null(), "Could not contain the native process tree");
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let configured = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &limits as *const _ as *const _,
+                std::mem::size_of_val(&limits) as u32,
+            ) != 0;
+            if !configured || AssignProcessToJobObject(job, child.as_raw_handle()) == 0 {
+                CloseHandle(job);
+                anyhow::bail!("Could not contain the native process tree");
+            }
+            Ok(Self(job))
+        }
+    }
+}
+#[cfg(windows)]
+impl Drop for ProcessTree {
+    fn drop(&mut self) {
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
+
+// SAFETY: this uniquely owned Job handle may be closed from any thread.
+// It is never shared or used after close, and transferring it does not touch the child handle.
+#[cfg(windows)]
+unsafe impl Send for ProcessTree {}
+
 /// Spawn `command` through [`spawn`] and collect its output.
 ///
 /// `Command::spawn` inherits standard streams by default, unlike

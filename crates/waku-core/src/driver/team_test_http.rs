@@ -23,7 +23,7 @@ impl Server {
         Self::with_hook(responses, |_| {})
     }
     pub fn with_timeout(responses: Vec<(u16, Vec<u8>)>, timeout: Duration) -> Self {
-        Self::build(responses, |_, body| body, timeout)
+        Self::build(responses, |_, body| body, timeout, None)
     }
     pub fn with_hook(
         responses: Vec<(u16, Vec<u8>)>,
@@ -36,18 +36,27 @@ impl Server {
                 body
             },
             Duration::from_secs(20),
+            None,
         )
     }
     pub fn with_response_handler(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
     ) -> Self {
-        Self::build(responses, hook, Duration::from_secs(20))
+        Self::build(responses, hook, Duration::from_secs(20), None)
+    }
+    pub fn with_optional_preflight(
+        responses: Vec<(u16, Vec<u8>)>,
+        hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
+        preflight: &'static str,
+    ) -> Self {
+        Self::build(responses, hook, Duration::from_secs(20), Some(preflight))
     }
     fn build(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
         timeout: Duration,
+        preflight: Option<&'static str>,
     ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
@@ -55,61 +64,73 @@ impl Server {
         let requests = Arc::new(Mutex::new(Vec::new()));
         let captured = requests.clone();
         let worker = thread::spawn(move || {
+            let mut preflight_count = 0;
             for (status, body) in responses {
                 let deadline = Instant::now() + timeout;
-                let mut stream = loop {
-                    match listener.accept() {
-                        Ok((s, _)) => break s,
-                        Err(e)
-                            if e.kind() == std::io::ErrorKind::WouldBlock
-                                && Instant::now() < deadline =>
-                        {
-                            thread::sleep(Duration::from_millis(10))
+                loop {
+                    let mut stream = loop {
+                        match listener.accept() {
+                            Ok((s, _)) => break s,
+                            Err(e)
+                                if e.kind() == std::io::ErrorKind::WouldBlock
+                                    && Instant::now() < deadline =>
+                            {
+                                thread::sleep(Duration::from_millis(10))
+                            }
+                            Err(e) => panic!("Fixture request did not arrive: {e}"),
                         }
-                        Err(e) => panic!("Fixture request did not arrive: {e}"),
+                    };
+                    stream.set_nonblocking(false).unwrap();
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    let mut data = Vec::new();
+                    let mut buf = [0; 4096];
+                    let offset = loop {
+                        let n = stream.read(&mut buf).unwrap();
+                        assert!(n > 0);
+                        data.extend_from_slice(&buf[..n]);
+                        if let Some(i) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+                            break i + 4;
+                        }
+                        assert!(data.len() < 16 * 1024);
+                    };
+                    let headers = String::from_utf8(data[..offset].to_vec()).unwrap();
+                    let len = headers
+                        .lines()
+                        .filter_map(|l| l.split_once(':'))
+                        .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+                        .map(|(_, v)| v.trim().parse::<usize>().unwrap())
+                        .unwrap_or(0);
+                    assert!(len <= 256 * 1024);
+                    while data.len() < offset + len {
+                        let n = stream.read(&mut buf).unwrap();
+                        assert!(n > 0);
+                        data.extend_from_slice(&buf[..n]);
                     }
-                };
-                stream.set_nonblocking(false).unwrap();
-                stream
-                    .set_read_timeout(Some(Duration::from_secs(5)))
-                    .unwrap();
-                let mut data = Vec::new();
-                let mut buf = [0; 4096];
-                let offset = loop {
-                    let n = stream.read(&mut buf).unwrap();
-                    assert!(n > 0);
-                    data.extend_from_slice(&buf[..n]);
-                    if let Some(i) = data.windows(4).position(|w| w == b"\r\n\r\n") {
-                        break i + 4;
+                    let request = Request {
+                        line: headers.lines().next().unwrap().into(),
+                        headers,
+                        body: if len == 0 {
+                            Value::Null
+                        } else {
+                            serde_json::from_slice(&data[offset..offset + len]).unwrap()
+                        },
+                    };
+                    if preflight == Some(request.line.as_str()) {
+                        preflight_count += 1;
+                        assert!(preflight_count <= 1, "Unexpected repeated native preflight");
+                        assert_eq!(request.body, Value::Null);
+                        captured.lock().unwrap().push(request);
+                        stream.write_all(b"HTTP/1.1 200 Fixture\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                        continue;
                     }
-                    assert!(data.len() < 16 * 1024);
-                };
-                let headers = String::from_utf8(data[..offset].to_vec()).unwrap();
-                let len = headers
-                    .lines()
-                    .filter_map(|l| l.split_once(':'))
-                    .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
-                    .map(|(_, v)| v.trim().parse::<usize>().unwrap())
-                    .unwrap_or(0);
-                assert!(len <= 256 * 1024);
-                while data.len() < offset + len {
-                    let n = stream.read(&mut buf).unwrap();
-                    assert!(n > 0);
-                    data.extend_from_slice(&buf[..n]);
+                    let body = hook(&request, body);
+                    captured.lock().unwrap().push(request);
+                    write!(stream,"HTTP/1.1 {status} Fixture\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",body.len()).unwrap();
+                    stream.write_all(&body).unwrap();
+                    break;
                 }
-                let request = Request {
-                    line: headers.lines().next().unwrap().into(),
-                    headers,
-                    body: if len == 0 {
-                        Value::Null
-                    } else {
-                        serde_json::from_slice(&data[offset..offset + len]).unwrap()
-                    },
-                };
-                let body = hook(&request, body);
-                captured.lock().unwrap().push(request);
-                write!(stream,"HTTP/1.1 {status} Fixture\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",body.len()).unwrap();
-                stream.write_all(&body).unwrap();
             }
         });
         Self {

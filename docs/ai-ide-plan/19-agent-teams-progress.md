@@ -2147,3 +2147,60 @@ transfer, GPU agent submission/image/device/IPC/egress/CUDA acceptance, billing
 finality and historical inventory/retention. The full goal remains active. No live
 provider/cloud/GPU request, user credential, deployment, app bundle, second watcher
 or visual test was used. The primary checkout's existing changes are preserved.
+
+## Native normal-task Claude team bridge (2026-10-08)
+
+Normal Ion Claude tasks now register five SDK MCP functions and route them through
+shared saved-team discovery, invocation, source-scoped status/waits and accepted
+document reads. The native main-session assistant must first emit the exact tool
+identity and arguments. A subsequent MCP call must match its native
+`claudecode/toolUseId`; peer control UUID/JSON-RPC IDs only address replies. The
+session/tool-use identity supplies durable replay across bridge restart. Foreign
+sessions, subagents, unobserved/changed identities, extra arguments/metadata and
+canceled calls cannot enqueue work. A changed observation also revokes a grant
+already waiting for the user.
+
+Codex and Claude now use one bounded background approval worker. The existing
+shared owner behavior still supplies authoritative task/project, saved lead
+harness/model/environment, access and limits. Independent Ion approval IDs, a
+five-minute approval deadline, four queued calls and cancellation cleanup preserve
+native read/interrupt responsiveness. No render path performs these operations.
+
+Native shutdown now has an asynchronous owner with a two-second stdin EOF grace,
+then process termination/reaping. An owned Windows Job closes descendants;
+Unix uses a private process group. The existing bounded Teams process helper
+reuses the same Windows Job implementation. Drop signals shutdown and does not
+wait. Native user Stop retains its interrupt control request.
+
+**Actual Claude 2.1.289 passed** through Ion's production process/reader/writer
+path with a private fake account and localhost Messages service. It found a team,
+requested the exact lead grant, queued one durable run and returned its ID.
+After confirmed process exit, reopening the native session read the same run
+without another grant/invocation. A third real process closed while owner approval
+was outstanding and exited without creating another run. Seven synthetic Messages
+responses plus optional startup `HEAD /api/hello` preflights were served locally.
+Native executable SHA256:
+`bcc6d9117aec30ad9414490302a25414359c871f5647e32e49b055c92bf84e0b`.
+
+The first native fixture exposed the startup HEAD route, which the fixture now
+handles exactly without consuming its model responses; it also exposed a stalled
+EOF shutdown, fixed by the process owner. Short three-second behavioral deadlines
+were unreliable under concurrent compilation. They were raised to ten seconds;
+all tests passed with sequential database fixtures. These changes do not loosen
+production approval, model-call or process deadlines.
+
+Verification: **ten source bridge regression groups**, **two actual native
+Claude/Codex start/resume fixtures**, **19 existing Claude driver tests** and
+**six bounded Claude Teams adapter/process tests** passed (**37** total).
+The actual Codex fixture was rerun after the worker extraction. Desktop/daemon
+`cargo check`, formatting and whitespace gates passed; existing Rust/ts-rs and
+proc-macro warnings remain. Two authenticated Claude driver tests require the
+user's account and were excluded. See the adapter guide/release checklist for
+reproduction commands and live review.
+
+Other solo bridges, Amp/Cursor, unverified native account routes and broader
+remote project/command/GPU resources, transfers, device/egress/CUDA acceptance,
+billing finality and historical inventory/retention remain development. The full
+goal remains active. No live provider/cloud/GPU request, user credential,
+deployment, app bundle, second watcher or visual test was used. The primary
+checkout's pre-existing changes are preserved.

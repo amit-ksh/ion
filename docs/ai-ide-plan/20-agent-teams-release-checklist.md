@@ -13,7 +13,7 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
   sandbox can fall back locally with the same selected harness/model/grants.
 - [x] Preserve normal New task; invoke a team with `@teamname`, `@{Team Name}`
   or the qualified picker address. Ambiguous names require explicit selection.
-- [x] Normal native Nebius and Codex agents can invoke saved teams with source
+- [x] Normal native Nebius, Codex and Claude agents can invoke saved teams with source
   permissions, wait for their actual outcome and read accepted generated documents.
   New Codex threads register native dynamic tools; reopening retains those tools.
 - [x] Durable task creation, pinned definitions, nested delegation, bounded private
@@ -71,6 +71,8 @@ assert live account acceptance, visual validation or production release readines
   harnesses; preserving solo availability does not establish a Teams contract.
 - [x] Native Codex normal-task bridge, exact source-turn scope, durable invocation
   replay, bounded approval/wait work and actual app-server start/resume fixture.
+- [x] Native Claude SDK MCP normal-task bridge, observed main-session tool identity,
+  exact grants/replay/cancellation and actual native start/resume/pending-approval fixture.
 - [ ] Normal-task team invocation bridges for the other external solo harnesses.
   Imported Codex threads created without dynamic tools cannot retrofit them through
   the verified native resume interface; start a new Ion Codex task for team tools.
@@ -328,3 +330,32 @@ second development watcher was performed during these checkpoints.
   an approval/wait and verify its own team runs stop without affecting other tasks.
 - [ ] Accept additional native app-server releases/account routes with your setup.
   Other external solo bridges, Amp/Cursor and broader remote/GPU work remain open.
+
+## 2026-10-08 — normal Claude tasks invoking teams
+
+- [x] SDK MCP server with exactly five shared source-task functions. The daemon
+  supplies the task/project; saved lead harness/model/environment, grants and
+  budget remain authoritative.
+- [x] Main native assistant tool-use observation plus exact `claudecode/toolUseId`
+  correlation. Reject foreign/subagent/unobserved/changed calls and unknown
+  arguments/metadata. Changed observations cancel outstanding grants.
+- [x] One shared bounded Codex/Claude approval worker; separate Ion approval IDs,
+  native invocation identity across peer RPC changes and restart, interrupted
+  approvals and native `control_cancel_request` handling.
+- [x] Background native shutdown with two-second EOF grace and owned process-tree
+  termination. No blocking wait or process I/O is introduced into render or Drop.
+- [x] Actual Claude **2.1.289** through Ion's production driver with an isolated
+  fake account/localhost provider: start, one approved invocation, confirmed process
+  exit, resume/read the same run, and close during outstanding approval without
+  another run. Production user configuration is retained outside the private fixture.
+- [ ] With your Claude account, start a normal Ion Claude task and ask it to use
+  a saved team. Approve/decline the exact lead grant, inspect the durable queue
+  and resulting document, reopen and read the same run. Stop during approval
+  and verify a late approval cannot start work.
+- [ ] Run an actual mixed-harness team to completion with your selected models and
+  configured app accounts; the source bridge's synthetic responses only establish
+  correct native transport, authorization, durable queue and readback.
+
+The native fixture and behavioral proof are documented in the adapter guide.
+Other solo bridges, Amp/Cursor, live native accounts and the broader remote/GPU
+implementation remain open. The full goal remains active.

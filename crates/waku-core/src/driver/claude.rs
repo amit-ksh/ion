@@ -13,6 +13,8 @@
 //! invocation, not guessed. `--permission-prompt-tool` in particular is absent
 //! from `claude --help`.
 
+mod source_teams;
+
 use std::collections::{HashMap, HashSet};
 #[cfg(unix)]
 use std::fs::File;
@@ -25,7 +27,7 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, anyhow};
 use crossbeam_channel::{Sender, unbounded};
@@ -61,6 +63,7 @@ enum CommandMessage {
         key: BackgroundWorkKey,
         control_id: String,
     },
+    TeamResult(Value),
     Shutdown,
 }
 
@@ -85,6 +88,8 @@ fn stop_task_request(request_id: u64, task_id: &str) -> Value {
 }
 
 pub struct ClaudeDriver {
+    team_bridge: Option<source_teams::Bridge>,
+    shutdown: Arc<AtomicBool>,
     commands: Sender<CommandMessage>,
     pending_user_inputs: Arc<Mutex<HashMap<String, Value>>>,
     mode: RuntimeMode,
@@ -167,7 +172,24 @@ fn configure_stream_command(command: &mut Command, mode: RuntimeMode) {
 }
 
 impl ClaudeDriver {
+    #[cfg(test)]
     pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
+        Self::start_with_workspace(options, events, None)
+    }
+    pub(super) fn start_with_workspace(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
+        Self::start_configured(options, events, workspace, |_| {}, true)
+    }
+    fn start_configured(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+        configure: impl FnOnce(&mut Command),
+        native_metadata: bool,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
             cwd,
@@ -215,12 +237,31 @@ impl ClaudeDriver {
             command.args(["--session-id", &session_id]);
         }
 
+        if workspace.is_some() {
+            source_teams::configure(&mut command);
+        }
+        configure(&mut command);
         let command = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
         let mut child = crate::command_env::spawn(command)
             .context("failed to start `claude` in streaming-input mode")?;
+        #[cfg(windows)]
+        let process_tree = match crate::command_env::ProcessTree::attach(&child) {
+            Ok(tree) => tree,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error);
+            }
+        };
+        let shutdown = Arc::new(AtomicBool::new(false));
         let stdin = child
             .stdin
             .take()
@@ -255,12 +296,26 @@ impl ClaudeDriver {
         let reader_session = session_id.clone();
         let reader_pending_task_stops = pending_task_stops.clone();
         let reader_pending_user_inputs = pending_user_inputs.clone();
+        let team_bridge = workspace
+            .map(|context| {
+                source_teams::Bridge::start(
+                    context,
+                    session_id.clone(),
+                    commands.clone(),
+                    events.clone(),
+                )
+            })
+            .transpose()?;
+        let reader_team_bridge = team_bridge.clone();
+        let reader_shutdown = shutdown.clone();
         let reader_thread = thread::Builder::new()
             .name("waku-claude-reader".into())
             .spawn(move || {
+                let _shutdown_on_eof = ShutdownSignal(reader_shutdown);
                 let mut state = ClaudeStreamState {
                     pending_task_stops: reader_pending_task_stops,
                     pending_user_inputs: reader_pending_user_inputs,
+                    skip_native_metadata: !native_metadata,
                     ..ClaudeStreamState::default()
                 };
                 for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -270,6 +325,12 @@ impl ClaudeDriver {
                     let Ok(value) = serde_json::from_str::<Value>(&line) else {
                         continue;
                     };
+                    if let Some(bridge) = &reader_team_bridge {
+                        bridge.observe(&value);
+                        if bridge.dispatch(&value) {
+                            continue;
+                        }
+                    }
                     handle_message(
                         &value,
                         &reader_session,
@@ -280,6 +341,9 @@ impl ClaudeDriver {
                         &mut state,
                     );
                 }
+                if let Some(bridge) = &reader_team_bridge {
+                    bridge.close();
+                }
             })?;
 
         let writer_events = events.clone();
@@ -287,21 +351,27 @@ impl ClaudeDriver {
         let writer_pending_task_stops = pending_task_stops;
         let writer_title_refresh = super::title_refresh::NativeTitleRefresh::default();
         let title_session_id = session_id;
+        let writer_team_bridge = team_bridge.clone();
+        let writer_shutdown = shutdown.clone();
         thread::Builder::new()
             .name("waku-claude-writer".into())
             .spawn(move || {
+                let _shutdown_on_close = ShutdownSignal(writer_shutdown);
                 let mut stdin = stdin;
                 let mut next_request_id = 0_u64;
                 let mut current_model = launch_model;
+                if writer_team_bridge.is_some() && write_line(&mut stdin,&source_teams::initialize()).is_err() {
+                    let _=writer_events.send(DriverEvent::Error("Could not initialize Ion team tools in Claude".into()));
+                    return;
+                }
                 while let Ok(message) = command_rx.recv() {
                     let written = match message {
                         CommandMessage::Prompt(text) => {
                             *writer_turn.lock() = true;
-                            start_claude_title_refresh(
-                                &writer_title_refresh,
-                                &title_session_id,
-                                &writer_events,
-                            );
+                            if let Some(bridge)=&writer_team_bridge {bridge.allow_turn();}
+                            if native_metadata {
+                                start_claude_title_refresh(&writer_title_refresh,&title_session_id,&writer_events);
+                            }
                             let _ = writer_events.send(DriverEvent::TurnStarted);
                             write_line(&mut stdin, &user_message_payload(&text))
                         }
@@ -460,6 +530,7 @@ impl ClaudeDriver {
                                 .insert(request_id, key.clone());
                             write_line(&mut stdin, &stop_task_request(next_request_id, &control_id))
                         }
+                        CommandMessage::TeamResult(value) => write_line(&mut stdin,&value),
                         CommandMessage::Shutdown => break,
                     };
                     if let Err(error) = written {
@@ -501,13 +572,41 @@ impl ClaudeDriver {
                 }
             })?;
 
+        let monitor_shutdown = shutdown.clone();
         thread::Builder::new()
             .name("waku-claude-process".into())
             .spawn(move || {
-                let status = child.wait();
+                // EOF may not stop a native retry or blocked SDK tool. Drop only signals;
+                // this background owner gives stdin closure two seconds before reaping.
+                let mut deadline = None;
+                let (status, forced) = loop {
+                    match child.try_wait() {
+                        Ok(Some(status)) => break (Ok(status), false),
+                        Err(error) => break (Err(error), false),
+                        Ok(None) => {}
+                    }
+                    if monitor_shutdown.load(Ordering::Acquire) {
+                        let end =
+                            deadline.get_or_insert_with(|| Instant::now() + Duration::from_secs(2));
+                        if Instant::now() >= *end {
+                            break (child.kill().and_then(|_| child.wait()), true);
+                        }
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                };
+                // Children can retain stream handles after the main CLI exits.
+                #[cfg(unix)]
+                unsafe {
+                    libc::kill(-(child.id() as i32), libc::SIGKILL);
+                }
+                #[cfg(windows)]
+                drop(process_tree);
+                let _ = child.kill();
+                let _ = child.wait();
                 let _ = reader_thread.join();
                 let _ = stderr_thread.join();
                 if let Ok(status) = status
+                    && !forced
                     && !status.success()
                     && last_visible_stderr.lock().is_none()
                 {
@@ -521,6 +620,8 @@ impl ClaudeDriver {
             })?;
 
         Ok(Self {
+            shutdown,
+            team_bridge,
             commands,
             pending_user_inputs,
             mode,
@@ -542,6 +643,9 @@ impl DriverControl for ClaudeDriver {
     }
 
     fn cancel(&self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.cancel();
+        }
         let _ = self.commands.send(CommandMessage::Cancel);
     }
 
@@ -552,6 +656,13 @@ impl DriverControl for ClaudeDriver {
     }
 
     fn respond(&self, request_id: String, option_id: String) {
+        if self
+            .team_bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.respond(&request_id, &option_id))
+        {
+            return;
+        }
         let _ = self.commands.send(CommandMessage::Respond {
             request_id,
             option_id,
@@ -587,7 +698,18 @@ impl DriverControl for ClaudeDriver {
 
 impl Drop for ClaudeDriver {
     fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Release);
+        if let Some(bridge) = &self.team_bridge {
+            bridge.close();
+        }
         let _ = self.commands.send(CommandMessage::Shutdown);
+    }
+}
+
+struct ShutdownSignal(Arc<AtomicBool>);
+impl Drop for ShutdownSignal {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Release);
     }
 }
 
@@ -599,6 +721,7 @@ fn write_line(writer: &mut impl Write, value: &Value) -> std::io::Result<()> {
 
 #[derive(Default)]
 struct ClaudeStreamState {
+    skip_native_metadata: bool,
     saw_text_delta: bool,
     saw_reasoning_delta: bool,
     /// Tool-use id → transcript presentation plus the full shell command.
@@ -1578,7 +1701,9 @@ fn handle_message(
             // Claude writes its generated title and rewind checkpoint to the
             // same native transcript as the turn settles. Read it once, ahead
             // of TurnFinished, so that event's forced save includes both.
-            if let Ok(metadata) = crate::claude_session::session_metadata(session_id) {
+            if !state.skip_native_metadata
+                && let Ok(metadata) = crate::claude_session::session_metadata(session_id)
+            {
                 if let Some(title) = metadata.title
                     && state.last_auto_title.as_deref() != Some(title.as_str())
                 {
@@ -2025,6 +2150,8 @@ mod tests {
     fn steering_is_advertised_and_rides_the_command_channel() {
         let (commands, command_rx) = unbounded();
         let driver = ClaudeDriver {
+            shutdown: Arc::new(AtomicBool::new(false)),
+            team_bridge: None,
             commands,
             pending_user_inputs: Arc::new(Mutex::new(HashMap::new())),
             mode: RuntimeMode::FullAccess,

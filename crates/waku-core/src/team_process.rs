@@ -70,7 +70,7 @@ fn process(
     let mut child =
         crate::command_env::spawn(command).context("Could not launch the selected executable")?;
     #[cfg(windows)]
-    let process_tree = match ProcessTree::attach(&child) {
+    let process_tree = match crate::command_env::ProcessTree::attach(&child) {
         Ok(tree) => tree,
         Err(error) => {
             let _ = child.kill();
@@ -197,41 +197,6 @@ fn process(
         output.extend_from_slice(&stderr);
     }
     Ok(output)
-}
-
-#[cfg(windows)]
-struct ProcessTree(windows_sys::Win32::Foundation::HANDLE);
-#[cfg(windows)]
-impl ProcessTree {
-    fn attach(child: &std::process::Child) -> Result<Self> {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::{Foundation::CloseHandle, System::JobObjects::*};
-        unsafe {
-            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            ensure!(!job.is_null(), "Could not contain the Teams process tree");
-            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let configured = SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &limits as *const _ as *const _,
-                std::mem::size_of_val(&limits) as u32,
-            ) != 0;
-            if !configured || AssignProcessToJobObject(job, child.as_raw_handle()) == 0 {
-                CloseHandle(job);
-                anyhow::bail!("Could not contain the Teams process tree");
-            }
-            Ok(Self(job))
-        }
-    }
-}
-#[cfg(windows)]
-impl Drop for ProcessTree {
-    fn drop(&mut self) {
-        unsafe {
-            windows_sys::Win32::Foundation::CloseHandle(self.0);
-        }
-    }
 }
 
 fn process_error(error: anyhow::Error, _stdout: &[u8], _stderr: &[u8]) -> anyhow::Error {

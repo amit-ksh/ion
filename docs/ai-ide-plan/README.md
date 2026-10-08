@@ -134,7 +134,7 @@ target; see [the deployment checklist](../../services/speech/README.md).
   sequential stages, assigned teams, human gates and restart-safe interval schedules.
 
 - [Teams harness adapters and registered remote execution](22-harness-adapters-remote-execution.md)
-    records exact coverage, native Nebius/Codex solo-to-team tools, host setup,
+    records exact coverage, native Nebius/Codex/Claude solo-to-team tools, host setup,
     lifecycle behavior and pending live review.
 
 - [Remote commands and GPU jobs](23-remote-command-gpu-jobs.md): bounded command/file

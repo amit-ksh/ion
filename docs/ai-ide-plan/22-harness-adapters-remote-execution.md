@@ -61,16 +61,16 @@ Teams adapters remain unchecked in the release checklist.
 ## Normal tasks invoking saved teams
 
 Normal New task continues to use the selected solo harness. The separate Teams
-completion adapters above govern each delegated assignment. Native Nebius and
-Codex solo tasks now share these owner-scoped capabilities:
+completion adapters above govern each delegated assignment. Native Nebius, Codex
+and Claude solo tasks now share these owner-scoped capabilities:
 
-| Capability | Native Nebius | Native Codex |
-| --- | --- | --- |
-| Find saved teams | `list_teams` | `ion_list_teams` |
-| Queue a saved team | `invoke_team` | `ion_invoke_team` |
-| Read source task's run status | `get_team_runs` | `ion_get_team_runs` |
-| Wait up to 30 seconds | `await_team` | `ion_await_team` |
-| Read an accepted generated document | `read_team_document` | `ion_read_team_document` |
+| Capability | Native Nebius | Native Codex | Native Claude |
+| --- | --- | --- | --- |
+| Find saved teams | `list_teams` | `ion_list_teams` | `mcp__ion_teams__list_teams` |
+| Queue a saved team | `invoke_team` | `ion_invoke_team` | `mcp__ion_teams__invoke_team` |
+| Read source task's run status | `get_team_runs` | `ion_get_team_runs` | `mcp__ion_teams__get_team_runs` |
+| Wait up to 30 seconds | `await_team` | `ion_await_team` | `mcp__ion_teams__await_team` |
+| Read an accepted generated document | `read_team_document` | `ion_read_team_document` | `mcp__ion_teams__read_team_document` |
 
 The daemon supplies the source task and project. Function arguments cannot choose
 an owner, project, grant, execution host or replacement harness. A team keeps its
@@ -97,6 +97,45 @@ empty private profile and fake key; this does not establish live account/billing
 acceptance. Five behavioral test groups cover denial, queue pressure, cancellation
 at approval/commit, restart replay and source limits; existing Nebius/Codex tests
 remain the regression gate.
+
+**Claude native SDK MCP bridge — verified version 2.1.289.** Ion adds an SDK
+MCP server with these five allowed functions, initializes the native control
+protocol and answers `mcp_message` requests through stdin/stdout. The actual
+main-session assistant message must first expose the exact tool-use ID, name
+and arguments. Its subsequent `_meta["claudecode/toolUseId"]` must match that
+observation; foreign sessions, subagents, missing identity, changed arguments,
+unknown metadata and stopped calls cannot create work. The durable invocation
+key uses native session/tool-use identity, independent of both control UUID and
+JSON-RPC reply ID. Altering an observed call also cancels its outstanding approval.
+
+Claude and Codex use one four-entry background worker and the same source-scoped
+owner behavior. Approval has a five-minute deadline and independent Ion IDs;
+closing the bridge revokes its pending approvals. Closing the native Claude
+session signals a background process owner, with two seconds for graceful EOF
+before termination/reaping. Windows uses a kill-on-close Job for descendants;
+Unix uses a private process group. Normal user Stop still sends native interrupt.
+
+The actual Claude start/resume fixture uses a private HOME/config/work/temp,
+fake API key and localhost Messages responses. It disables native tools,
+hooks/plugins/account discovery and title/session metadata reads for the fixture.
+Normal production Claude keeps its native configuration and features. The fixture
+finds a saved team, approves/queues one durable run, confirms process exit and
+reopens the native session to read the same run without another invocation or
+grant. A third native process closes while Ion approval is pending and must exit
+without queuing another run. Seven synthetic Messages requests and optional
+`HEAD /api/hello` startup preflights remain local; no live account/billing or full
+team-completion acceptance is implied. Reproduce with the exact native executable:
+
+```powershell
+$env:ION_NATIVE_CLAUDE_BINARY = '<absolute path to the native Claude executable>'
+$env:ION_NATIVE_CLAUDE_GIT_BASH = '<absolute path to Git Bash on Windows>'
+cargo test -p waku-core claude_source_team_native_sdk_start_and_resume_through_actual_ion_driver --lib --locked -- --ignored --nocapture --test-threads=1
+```
+
+The bridge follows the [official SDK custom tools contract](https://code.claude.com/docs/en/agent-sdk/custom-tools)
+and [native control request transport](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py).
+Native metadata correlation and request ordering were observed in the actual
+2.1.289 executable, rather than inferred solely from those SDK wrappers.
 
 The verified native resume schema has no `dynamicTools` field. Imported/older
 Codex threads created without these tools keep their existing normal behavior;
