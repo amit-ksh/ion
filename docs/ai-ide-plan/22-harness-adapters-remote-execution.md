@@ -1,6 +1,6 @@
 # Teams harness adapters and Nebius execution
 
-Updated 2026-10-07. Implementation: `codex/ion-agent-teams` in the managed
+Updated 2026-10-08. Implementation: `codex/ion-agent-teams` in the managed
 worktree. No integration into `ion-prod`, cloud deployment or live provider
 acceptance is implied by this checkpoint.
 
@@ -57,6 +57,62 @@ Research was checked against current official docs and public native releases on
 
 Readiness reports the specific gap before an attempt/model call starts. Those two
 Teams adapters remain unchecked in the release checklist.
+
+## Normal tasks invoking saved teams
+
+Normal New task continues to use the selected solo harness. The separate Teams
+completion adapters above govern each delegated assignment. Native Nebius and
+Codex solo tasks now share these owner-scoped capabilities:
+
+| Capability | Native Nebius | Native Codex |
+| --- | --- | --- |
+| Find saved teams | `list_teams` | `ion_list_teams` |
+| Queue a saved team | `invoke_team` | `ion_invoke_team` |
+| Read source task's run status | `get_team_runs` | `ion_get_team_runs` |
+| Wait up to 30 seconds | `await_team` | `ion_await_team` |
+| Read an accepted generated document | `read_team_document` | `ion_read_team_document` |
+
+The daemon supplies the source task and project. Function arguments cannot choose
+an owner, project, grant, execution host or replacement harness. A team keeps its
+saved lead, explicit Local/Nebius selection, model, limits and intersected access.
+Ask mode requests approval for privileged lead access. Exact app actions keep
+their separate Decisions approval. At most four runs can be created per source
+task; exact invocation replay returns its original run and grant.
+
+Codex registers five native dynamic function specs at `thread/start`, and handles
+`item/tool/call` only for the live main thread/turn. The installed native schema
+was generated with `app-server generate-json-schema --experimental`. Native
+thread/turn/call identity creates the durable invocation key; transport RPC IDs
+are only reply addresses. A four-entry background queue keeps provider reads and
+interrupts responsive while an approval or bounded wait runs. Changed replays,
+foreign turns/subagents, tool namespaces and unexpected arguments are rejected.
+Late Ion approval replies cannot become native permission replies.
+
+**Verified native version: 0.162.0-alpha.2.** The actual Ion driver successfully
+started the app-server, found a saved team, requested its exact grant, queued one
+run and returned its durable ID through native tool output. After confirmed native
+process exit, `thread/resume` retained the saved tools and read the same run
+without another approval or invocation. Six localhost model requests used an
+empty private profile and fake key; this does not establish live account/billing
+acceptance. Five behavioral test groups cover denial, queue pressure, cancellation
+at approval/commit, restart replay and source limits; existing Nebius/Codex tests
+remain the regression gate.
+
+The verified native resume schema has no `dynamicTools` field. Imported/older
+Codex threads created without these tools keep their existing normal behavior;
+start a new Ion Codex task to make team tools available. Other external solo
+harness bridges remain development. This bridge neither replaces their normal
+transport nor enables the unfinished Amp/Cursor Teams completion contracts.
+
+Reproduce the private native fixture from this worktree:
+
+```powershell
+$env:ION_NATIVE_CODEX_BINARY = '<absolute path to the native Codex executable>'
+cargo test -p waku-core codex_source_team_native_app_server_invokes_through_actual_ion_driver --lib --locked -- --ignored --nocapture --test-threads=1
+```
+
+Choose the actual native app-server executable; an unrelated npm package named
+`codex` is not compatible. No user account/key is needed for this fixture.
 
 ## What executes where
 

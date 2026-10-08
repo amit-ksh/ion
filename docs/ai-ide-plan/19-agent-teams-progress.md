@@ -2102,3 +2102,48 @@ remain separate, along with the broader development scope above. No user key,
 live provider/cloud/GPU request, deployment, app bundle, second watcher or visual
 test was used. The primary `ion-prod` checkout and its pre-existing edits were
 preserved. The full goal remains active.
+
+## Native normal-task Codex team bridge (2026-10-08)
+
+Extracted the existing Nebius source-task team behavior into one shared module:
+catalog, saved-team invocation with exact lead authorization, durable replay,
+source/project status and document scope, bounded waits and cancellation cleanup.
+Normal Codex New task now registers five native dynamic functions and translates
+only current main-thread/turn calls into that same owner behavior. The normal
+selected Codex transport remains intact; delegated assignments retain the saved
+team's selected harness/model/environment and grants.
+
+A bounded background worker isolates approval/database/wait work from native
+provider reads. Separate Ion approval IDs prevent late replies from approving
+native requests. Exact native thread/turn/call identity survives peer RPC changes;
+changed replay, foreign calls, extra arguments and queue overflow cannot create
+new work. Cancellation cleanup covers both successful and failed calls, including
+approval/queue transaction races. No UI/render path performs this work.
+
+The actual native Codex 0.162.0-alpha.2 fixture passed through Ion's real
+process/reader/writer path with an empty private profile, fake key and localhost
+Responses provider. It advertised the tools, approved/queued one run, returned the
+actual durable run ID, confirmed process exit and reopened the native thread.
+Persisted tools then read the same run without a new grant or invocation. Six
+fixture model requests were served locally; native shell/subagent/app/plugin
+capabilities were disabled in this isolated test. Initial fixture errors (event
+variant and identical HOME/temporary paths) were corrected before the successful
+run. Production normal Codex features are not replaced by fixture settings.
+
+Verification: **five bridge regression groups**, **one actual native start/resume
+fixture**, **three Nebius workspace tests**, **39 Codex driver tests**, **nine
+source/workspace tests** and **one concurrent invocation test** passed. Two
+existing authenticated Codex tests were intentionally excluded. Desktop/daemon
+`cargo check`, `cargo fmt --check` and `git diff --check` passed; existing
+Rust/ts-rs/proc-macro warnings remain. The native executable SHA256 was
+`3553cd6e7df5a093d8cb8301cd8088a57e0971aba71ddbe0e67f7f44a15cdf68`.
+See the adapter guide and release checklist for the exact reproduction command,
+version, review items and native resume limitation: threads originally created
+without dynamic tools cannot retrofit them through the verified resume interface.
+
+Remaining development includes other external solo bridges, Amp/Cursor contracts,
+unverified native account transports, full remote project/dataset/checkpoint
+transfer, GPU agent submission/image/device/IPC/egress/CUDA acceptance, billing
+finality and historical inventory/retention. The full goal remains active. No live
+provider/cloud/GPU request, user credential, deployment, app bundle, second watcher
+or visual test was used. The primary checkout's existing changes are preserved.

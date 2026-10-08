@@ -1,4 +1,5 @@
 //! Codex app-server transport.
+mod source_teams;
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -70,6 +71,7 @@ enum CommandMessage {
         control_id: String,
     },
     GeneratedTitle(String),
+    TeamResult(Value),
     Shutdown,
 }
 
@@ -132,6 +134,7 @@ impl BackgroundRpcState {
 
 pub struct CodexDriver {
     commands: Sender<CommandMessage>,
+    team_bridge: Option<source_teams::Bridge>,
     binary: PathBuf,
     cwd: PathBuf,
     mode: RuntimeMode,
@@ -210,7 +213,26 @@ fn configure_computer_use_command(command: &mut Command, config: Option<&CodexCo
 }
 
 impl CodexDriver {
+    #[cfg(test)]
     pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
+        Self::start_with_workspace(options, events, None)
+    }
+    pub(super) fn start_with_workspace(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
+        Self::start_configured(options, events, workspace, |_| {}, true)
+    }
+    // The same native process/reader/writer path is exercised by the private,
+    // fake-account integration fixture. Production passes no process overrides.
+    fn start_configured(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+        configure: impl FnOnce(&mut Command),
+        generate_titles: bool,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
             cwd,
@@ -250,6 +272,7 @@ impl CodexDriver {
         let mut command = crate::command_env::command(&binary);
         command.args(["app-server", "--stdio"]);
         configure_computer_use_command(&mut command, computer_use.as_ref());
+        configure(&mut command);
         let command = command
             .current_dir(&cwd)
             .stdin(Stdio::piped())
@@ -280,6 +303,10 @@ impl CodexDriver {
             })
             .transpose()?;
         let (commands, command_rx) = unbounded();
+        let team_bridge = workspace
+            .map(|context| source_teams::Bridge::start(context, commands.clone(), events.clone()))
+            .transpose()?;
+        let writer_team_tools = team_bridge.is_some();
         let thread_id = Arc::new(Mutex::new(None::<String>));
         let turn_id = Arc::new(Mutex::new(None::<String>));
         let turn_ids = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -291,7 +318,7 @@ impl CodexDriver {
         let background_rpcs = Arc::new(Mutex::new(BackgroundRpcState::default()));
         let goal_rpcs = Arc::new(Mutex::new(GoalRpcState::default()));
         let title_generation = Arc::new(Mutex::new(CodexTitleGeneration {
-            enabled: provider_session_id.is_none(),
+            enabled: generate_titles && provider_session_id.is_none(),
             launched: false,
             pending: None,
         }));
@@ -403,6 +430,9 @@ impl CodexDriver {
                     }
                     if let Some(service_tier) = service_tier.as_deref() {
                         params["serviceTier"] = json!(service_tier);
+                    }
+                    if writer_team_tools {
+                        params["dynamicTools"] = source_teams::tools();
                     }
                     json!({
                         "method": "thread/start",
@@ -717,6 +747,7 @@ impl CodexDriver {
                                 "params": {"threadId": thread_id, "name": title}
                             })
                         }
+                        CommandMessage::TeamResult(response) => response,
                         CommandMessage::Shutdown => break,
                     };
                     if let Err(error) = write_json_line(&mut stdin, &message) {
@@ -739,6 +770,7 @@ impl CodexDriver {
         let reader_goal_rpcs = goal_rpcs.clone();
         let reader_title_generation = title_generation;
         let reader_commands = commands.clone();
+        let reader_team_bridge = team_bridge.clone();
         let reader_events = events.clone();
         let reader_thread = thread::Builder::new()
             .name("waku-codex-reader".into())
@@ -749,6 +781,15 @@ impl CodexDriver {
                         Ok(line) if !line.trim().is_empty() => {
                             match serde_json::from_str::<Value>(&line) {
                                 Ok(value) => {
+                                    if let Some(bridge) = &reader_team_bridge {
+                                        bridge.observe(&value, reader_thread_id.lock().as_deref());
+                                        if bridge.dispatch(&value) { continue; }
+                                    } else if value["method"] == "item/tool/call" {
+                                        if let Some(id) = value.get("id") {
+                                            let _ = reader_commands.send(CommandMessage::TeamResult(json!({"id":id,"result":{"success":false,"contentItems":[{"type":"inputText","text":"This Ion task has no source project; team tools are unavailable."}]}})));
+                                        }
+                                        continue;
+                                    }
                                     let main_turn_started = is_codex_turn_started(
                                         &value,
                                         reader_thread_id.lock().as_deref(),
@@ -817,6 +858,7 @@ impl CodexDriver {
                         }
                     }
                 }
+                if let Some(bridge) = &reader_team_bridge { bridge.close(); }
             })?;
 
         let last_visible_stderr = Arc::new(Mutex::new(None::<String>));
@@ -862,6 +904,7 @@ impl CodexDriver {
 
         Ok(Self {
             commands,
+            team_bridge,
             binary,
             cwd,
             mode,
@@ -1001,6 +1044,9 @@ impl DriverControl for CodexDriver {
     }
 
     fn cancel(&self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.cancel_turn();
+        }
         let _ = self.commands.send(CommandMessage::Cancel);
     }
 
@@ -1024,6 +1070,13 @@ impl DriverControl for CodexDriver {
     }
 
     fn respond(&self, request_id: String, option_id: String) {
+        if self
+            .team_bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.respond(&request_id, &option_id))
+        {
+            return;
+        }
         let _ = self.commands.send(CommandMessage::Respond {
             request_id,
             option_id,
@@ -1096,6 +1149,9 @@ impl DriverControl for CodexDriver {
 
 impl Drop for CodexDriver {
     fn drop(&mut self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.close();
+        }
         self.cancel_computer_use();
         drop(self.computer_use_preview_monitor.take());
         if let Some(directory) = self.computer_use_process_directory.as_deref() {
@@ -2967,6 +3023,7 @@ mod tests {
     fn model_changes_reach_the_running_thread_but_mode_changes_ask_for_a_restart() {
         let (commands, command_rx) = unbounded();
         let driver = CodexDriver {
+            team_bridge: None,
             commands,
             binary: PathBuf::from("codex"),
             cwd: std::env::temp_dir(),

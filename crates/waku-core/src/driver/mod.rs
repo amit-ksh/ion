@@ -13,6 +13,7 @@ mod opencode;
 mod opencode2;
 mod opencode2_computer_use;
 mod pi;
+mod source_teams;
 mod support;
 pub(crate) mod team_antigravity;
 pub(crate) mod team_apps;
@@ -226,7 +227,7 @@ pub struct DriverStartOptions {
     pub computer_use_enabled: bool,
     pub provider_cursor: Option<ProviderResumeCursor>,
 }
-pub(crate) use nebius::WorkspaceContext;
+pub(crate) use source_teams::WorkspaceContext;
 
 /// The subset of `DriverStartOptions` a user can change without starting a new
 /// task. Transports that carry these per turn can absorb a change in place;
@@ -251,7 +252,7 @@ pub(crate) fn start_local_with_workspace(
     provider: ProviderKind,
     mut options: DriverStartOptions,
     events: DriverEventSender,
-    workspace: Option<nebius::WorkspaceContext>,
+    workspace: Option<WorkspaceContext>,
 ) -> anyhow::Result<DriverHandle> {
     // Computer Use is experimental, so release builds never start its helper
     // whatever a client, a migrated state file, or an environment variable
@@ -266,7 +267,9 @@ pub(crate) fn start_local_with_workspace(
         ProviderKind::Nebius => Arc::new(nebius::NebiusDriver::start_with_workspace(
             options, events, workspace,
         )?),
-        ProviderKind::Codex => Arc::new(codex::CodexDriver::start(options, events)?),
+        ProviderKind::Codex => Arc::new(codex::CodexDriver::start_with_workspace(
+            options, events, workspace,
+        )?),
         ProviderKind::Pi => Arc::new(pi::PiDriver::start(pi::PiFlavor::Pi, options, events)?),
         ProviderKind::OhMyPi => {
             Arc::new(pi::PiDriver::start(pi::PiFlavor::OhMyPi, options, events)?)

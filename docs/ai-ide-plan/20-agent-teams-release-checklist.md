@@ -1,6 +1,6 @@
 # Agent Teams release checklist
 
-Updated 2026-10-07. Implementation branch: `codex/ion-agent-teams` in the managed
+Updated 2026-10-08. Implementation branch: `codex/ion-agent-teams` in the managed
 worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
@@ -13,8 +13,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
   sandbox can fall back locally with the same selected harness/model/grants.
 - [x] Preserve normal New task; invoke a team with `@teamname`, `@{Team Name}`
   or the qualified picker address. Ambiguous names require explicit selection.
-- [x] Normal native Nebius agents can invoke saved teams with source permissions,
-  wait for their actual outcome and read accepted generated documents.
+- [x] Normal native Nebius and Codex agents can invoke saved teams with source
+  permissions, wait for their actual outcome and read accepted generated documents.
+  New Codex threads register native dynamic tools; reopening retains those tools.
 - [x] Durable task creation, pinned definitions, nested delegation, bounded private
   handoffs, transactional capacity and lease fencing across restart.
 - [x] Actual local Teams execution for native Nebius, restricted Claude, Codex,
@@ -68,7 +69,11 @@ assert live account acceptance, visual validation or production release readines
   auxiliary-call boundary and complete per-call usage. These remain development.
 - [ ] Unverified OAuth/subscription/custom provider transports for the additional
   harnesses; preserving solo availability does not establish a Teams contract.
-- [ ] Normal-task team invocation bridges for external solo harnesses.
+- [x] Native Codex normal-task bridge, exact source-turn scope, durable invocation
+  replay, bounded approval/wait work and actual app-server start/resume fixture.
+- [ ] Normal-task team invocation bridges for the other external solo harnesses.
+  Imported Codex threads created without dynamic tools cannot retrofit them through
+  the verified native resume interface; start a new Ion Codex task for team tools.
 - [x] Registered immutable ConTree worker: actual selected-harness completion,
   readiness, bounded transfer, durable operation identity, cancellation, restart
   reconciliation, usage and pre-execution Local fallback. Live setup/review pending.
@@ -303,3 +308,23 @@ second development watcher was performed during these checkpoints.
 - [x] Current Amp native catalog/plugin fixtures and Cursor 1.0.36 SDK/bridge
   research saved. Amp's complete bounded actor usage and Cursor's hard completion
   cap/unexpected effects/native-account acceptance remain unimplemented.
+
+## 2026-10-08 — normal Codex tasks invoking teams
+
+- [x] Shared source-task catalog/invoke/status/wait/document module used by native
+  Nebius and Codex; authoritative task/project, saved lead grants and pinned limits.
+- [x] Five Codex dynamic functions; only the live main thread/turn can call them.
+  Native peer RPC IDs never grant access or become Ion approval IDs.
+- [x] Bounded background queue, interruptible approvals, exact durable replay,
+  changed-call rejection, foreign/late call rejection and cancellation races.
+- [x] Actual native Codex 0.162.0-alpha.2 app-server through Ion's driver, private
+  fake account and localhost Responses fixture: one approved run, correct result
+  ID and saved tools/readback after native process exit and thread resume.
+- [ ] With your native Codex account, start a new Ion Codex task and ask it to use
+  a saved team. Inspect the exact lead/model/Local-or-Nebius grant before approving.
+- [ ] Decline once, then approve; verify only the approved invocation queues work,
+  actual assignment status is shown and queue acknowledgement is not completion.
+- [ ] Reopen that task; ask for status and a completed accepted document. Stop during
+  an approval/wait and verify its own team runs stop without affecting other tasks.
+- [ ] Accept additional native app-server releases/account routes with your setup.
+  Other external solo bridges, Amp/Cursor and broader remote/GPU work remain open.

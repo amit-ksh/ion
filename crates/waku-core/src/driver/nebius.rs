@@ -24,7 +24,7 @@ mod nemoclaw;
 pub(super) mod team;
 mod workflow;
 mod workspace;
-pub(crate) use workspace::WorkspaceContext;
+pub(crate) use super::source_teams::WorkspaceContext;
 
 use nemoclaw::NemoClawAdapter;
 
