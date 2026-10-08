@@ -625,6 +625,9 @@ impl Backend for WakuBackend {
                 self.team_runtime.cancel_run(run_id);
                 Ok(ResponsePayload::TeamRun { snapshot })
             }
+            Command::LoadUsageLedger { query } => Ok(ResponsePayload::UsageLedger {
+                page: self.control.usage_ledger(query)?,
+            }),
             Command::ListInboxHistory { query } => {
                 let syncing = self.control.sync_task_inbox(&self.task_store)?;
                 let mut page = self.control.inbox_history(query)?;
@@ -2540,6 +2543,7 @@ fn handle_driver_command(
         | Command::SetSkillsEnabled { .. }
         | Command::TrashSkills { .. }
         | Command::LoadTaskState
+        | Command::LoadUsageLedger { .. }
         | Command::ListInboxHistory { .. }
         | Command::LoadInbox
         | Command::UpdateInboxItem { .. }

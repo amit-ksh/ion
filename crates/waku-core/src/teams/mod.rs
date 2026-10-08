@@ -255,6 +255,7 @@ impl TeamCoordinator {
         schema(&db)?;
         automation::schema(&db)?;
         crate::control::inbox_history::install_teams(&db)?;
+        crate::usage_ledger::install_teams(&db)?;
         Ok(db)
     }
 

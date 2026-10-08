@@ -18,7 +18,7 @@ completion/background notifications; Issues only retains failed completion
 notifications. They do not mute pending work in Inbox or Decisions. Preferences
 load before system task notifications are sent and survive owner/app restart.
 
-Current builds use protocol **34**. The owner now keeps a paged historical
+Current builds use protocol **35**. The owner now keeps a paged historical
 journal of observed persisted task lifecycle changes, proposals, team assignments,
 team planning decisions, workflow/routine states and agent document publication.
 Each source write and its journal fact share a transaction. A resolved or removed

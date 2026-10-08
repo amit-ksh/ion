@@ -2521,3 +2521,35 @@ Historical transition reconstruction before this upgrade and Push notifications
 are not delivered. The full goal remains active: global usage accounting, bounded
 workflow retries/code integration and broader remote/GPU, gateway and speech
 integrations still require development. New harness adapters remain deferred.
+
+
+## Usage ledger checkpoint — 2026-10-08
+
+Implemented in the isolated Teams worktree, protocol **35**:
+
+- Durable owner facts for existing Teams harness model reservations/receipts,
+  ordinary Nebius and specialist calls, remote commands and GPU allowances/results.
+  Original run/agent/model/actual host identity is pinned; accounting survives Stop.
+- Metadata-only indexed project/task/agent/harness/model/environment/type/time
+  paging. Filter totals are independent of page; currencies and estimate/finality
+  classes stay separate. Missing prices/receipts are unknown, never fabricated zero.
+- Local/remote Claude SDK cost totals are labeled estimated/provisional. The
+  optional native worker estimate preserves legacy response bytes when absent.
+  Remote terminal/process/token/cost evidence commits atomically; invalid metadata
+  cannot partially release allowances. Late retries match the stored receipt.
+- Background cached desktop Usage and foreground phone Usage with filters, source
+  task links, paging and owner/filter generation fences. Existing desktop provider
+  history remains independently available. Filters do not enable new adapters.
+
+Verification: all **10 accounting cases** passed; **40 Nebius transport** and
+**21 remote lifecycle** regressions passed, with two exact reservation/Stop tests
+and two native worker contract checks. Desktop/daemon/native worker compilation,
+exact shared protocol binding equality, shared/full phone TypeScript, formatting
+and whitespace passed. No visual/device/live account/deployment or second watcher.
+See [usage coverage and review](25-global-usage-review.md).
+
+Ordinary non-Nebius CLI calls are not yet imported into the owner ledger; external
+provider history has overlapping scope and must not be added to its totals.
+Invoice/cloud billing reconciliation, bounded workflow retries/code integration,
+registered-owner/gateway/cloud speech and broader GPU/resource integrations remain
+implementation. The full goal stays active; new harness adapters remain deferred.

@@ -738,6 +738,9 @@ fn run_on_host(
             if let Some(usage) = reply.usage {
                 coordinator.record_model_usage(&reservation, usage, crate::model::unix_time())?;
             }
+            if let Some(cost) = &reply.cost {
+                coordinator.record_model_cost(&reservation, cost, crate::model::unix_time())?;
+            }
             journal.stage(reply.text, reply.calls)?;
             journal.save(coordinator, &claimed.lease)?;
             if journal.pending.is_empty() {

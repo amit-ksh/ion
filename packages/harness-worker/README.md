@@ -104,3 +104,19 @@ The test runtime contains no supported provider installation/login/host manifest
 and is not registered as a cloud execution target. Install and accept the exact
 native runtime/account privately before producing a deployment image; its digest
 will differ. Local image IDs are recorded evidence, not a published registry URL.
+
+
+## Optional SDK estimate receipts
+
+Matching Ion protocol 35 owners accept an optional `estimated_cost_usd_micros`
+field in the version 1 worker response. The native Claude adapter supplies it
+only for a validated single-query SDK estimate. It is a nonnegative integer USD
+price-table estimate, never an authoritative invoice. Other harnesses and legacy
+workers omit it. Omission preserves the original serialized response contract.
+
+The owner pins the request/harness/model and records terminal process evidence,
+tokens and this estimate atomically, including after Stop. Wrong identities or
+invalid estimates retain unknown accounting allowances while still recording a
+confirmed process stop. Rebuild and register the immutable worker image with the
+matching owner before checking estimates. Existing older owners do not accept
+this additional response field; keep their original image pinned until upgraded.

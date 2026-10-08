@@ -65,6 +65,7 @@ pub mod terminal;
 pub mod theme;
 pub mod usage;
 pub mod usage_history;
+pub(crate) mod usage_ledger;
 pub mod workspace;
 pub mod worktree;
 

@@ -37,9 +37,26 @@ impl TeamCoordinator {
         now: u64,
     ) -> Result<()> {
         let db = self.connect()?;
-        let (run,work,pinned,input,output):(String,String,String,u64,u64)=db.query_row(
-            "SELECT c.run_id,c.work_id,c.model,b.input_cap,b.output_cap FROM ion_team_model_calls c JOIN ion_team_call_budgets b ON b.call_id=c.id JOIN ion_team_remote_calls r ON r.call_id=c.id WHERE c.id=? AND r.state='SUCCESS' AND r.receipt IS NOT NULL",
-            [id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
+        let (run,work,pinned,input,output,body):(String,String,String,u64,u64,String)=db.query_row(
+            "SELECT c.run_id,c.work_id,c.model,b.input_cap,b.output_cap,r.receipt FROM ion_team_model_calls c JOIN ion_team_call_budgets b ON b.call_id=c.id JOIN ion_team_remote_calls r ON r.call_id=c.id WHERE c.id=? AND r.state='SUCCESS' AND r.receipt IS NOT NULL",
+            [id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?;
+        let evidence: RemoteUsageReceipt = serde_json::from_str(&body)?;
+        ensure!(
+            evidence.version == 1
+                && evidence.request_id == id
+                && evidence.provider == provider
+                && evidence.model == model
+                && evidence.usage == usage,
+            "Remote usage differs from the saved receipt"
+        );
+        ensure!(
+            evidence
+                .estimated_cost_usd_micros
+                .is_none_or(|micros| evidence.provider
+                    == waku_protocol::model::ProviderKind::Claude
+                    && micros <= 1_000_000_000_000),
+            "Remote SDK estimate contract changed"
+        );
         ensure!(pinned == model, "Remote usage model changed");
         let snapshot = load(&db, Uuid::parse_str(&run)?)?;
         let assignment = snapshot
@@ -67,6 +84,26 @@ impl TeamCoordinator {
         )
     }
 
+    pub(crate) fn record_model_cost(
+        &self,
+        call: &ModelCallReservation,
+        cost: &waku_protocol::usage_ledger::UsageCost,
+        now: u64,
+    ) -> Result<()> {
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let present:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_model_calls WHERE id=? AND run_id=? AND work_id=?)",params![call.id.to_string(),call.run_id.to_string(),call.work_id.to_string()],|r|r.get(0))?;
+        ensure!(present, "Model cost reservation identity changed");
+        crate::usage_ledger::settle_cost(
+            &tx,
+            waku_protocol::usage_ledger::UsageLedgerKind::ModelCall,
+            call.id,
+            cost,
+            now,
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
     pub fn reserve_model_call(
         &self,
         lease: &AssignmentLease,
@@ -169,57 +206,10 @@ impl TeamCoordinator {
         receipt: ModelTokenUsage,
         now: u64,
     ) -> Result<()> {
-        ensure!(
-            receipt.input_tokens <= 1_000_000_000_000 && receipt.output_tokens <= 1_000_000_000_000,
-            "Invalid provider token receipt"
-        );
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (input_cap,output_cap,input,output):(u64,u64,Option<u64>,Option<u64>) = tx.query_row(
-            "SELECT b.input_cap,b.output_cap,b.input_tokens,b.output_tokens FROM ion_team_call_budgets b JOIN ion_team_model_calls c ON c.id=b.call_id WHERE c.id=? AND c.run_id=? AND c.work_id=?",
-            params![call.id.to_string(),call.run_id.to_string(),call.work_id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
-        ensure!(
-            input_cap == call.max_input_tokens && output_cap == call.max_output_tokens,
-            "Token reservation changed"
-        );
-        if let (Some(input), Some(output)) = (input, output) {
-            ensure!(
-                input == receipt.input_tokens && output == receipt.output_tokens,
-                "Provider token receipt changed; cannot release another reservation"
-            );
-            ensure!(
-                input <= input_cap && output <= output_cap,
-                "Provider exceeded its token allowance; stop and review the run"
-            );
-            return Ok(());
-        }
-        tx.execute(
-            "UPDATE ion_team_call_budgets SET input_tokens=?,output_tokens=? WHERE call_id=?",
-            params![
-                receipt.input_tokens,
-                receipt.output_tokens,
-                call.id.to_string()
-            ],
-        )?;
-        let exceeded = receipt.input_tokens > input_cap || receipt.output_tokens > output_cap;
-        audit(
-            &tx,
-            call.run_id,
-            Some(call.work_id),
-            if exceeded {
-                "token_allowance_exceeded"
-            } else {
-                "model_usage"
-            },
-            &format!(
-                "Call {} provider receipt: {} input + {} output tokens",
-                call.id, receipt.input_tokens, receipt.output_tokens
-            ),
-            now,
-        )?;
-        bump(&tx, call.run_id)?;
+        let exceeded = settle_usage(&tx, call, receipt, now)?;
         tx.commit()?;
-        // Persist the true receipt even if a provider violated its advertised cap.
         ensure!(
             !exceeded,
             "Provider exceeded its token allowance; stop and review the run"
@@ -231,4 +221,120 @@ impl TeamCoordinator {
 pub(super) fn usage(db: &Connection, run: Uuid) -> Result<TeamTokenUsage> {
     Ok(db.query_row("SELECT count(*),COALESCE(sum(CASE WHEN b.input_tokens IS NOT NULL THEN b.input_tokens+b.output_tokens ELSE 0 END),0),COALESCE(sum(CASE WHEN b.input_tokens IS NULL THEN b.input_cap+b.output_cap ELSE 0 END),0),COALESCE(sum(CASE WHEN b.input_tokens IS NULL THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN b.call_id IS NULL THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN b.input_tokens>b.input_cap OR b.output_tokens>b.output_cap THEN 1 ELSE 0 END),0) FROM ion_team_model_calls c LEFT JOIN ion_team_call_budgets b ON b.call_id=c.id WHERE c.run_id=?",
         [run.to_string()],|r|Ok(TeamTokenUsage{model_calls:r.get(0)?,consumed_tokens:r.get(1)?,reserved_tokens:r.get(2)?,unknown_calls:r.get(3)?,unmetered_calls:r.get(4)?,allowance_violations:r.get(5)?}))?)
+}
+
+/// Shared by ordinary settlement and the remote process receipt transaction.
+fn settle_usage(
+    db: &Transaction<'_>,
+    call: &ModelCallReservation,
+    receipt: ModelTokenUsage,
+    now: u64,
+) -> Result<bool> {
+    ensure!(
+        receipt.input_tokens <= 1_000_000_000_000 && receipt.output_tokens <= 1_000_000_000_000,
+        "Invalid provider token receipt"
+    );
+    let (input_cap,output_cap,input,output):(u64,u64,Option<u64>,Option<u64>) = db.query_row(
+            "SELECT b.input_cap,b.output_cap,b.input_tokens,b.output_tokens FROM ion_team_call_budgets b JOIN ion_team_model_calls c ON c.id=b.call_id WHERE c.id=? AND c.run_id=? AND c.work_id=?",
+            params![call.id.to_string(),call.run_id.to_string(),call.work_id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
+    ensure!(
+        input_cap == call.max_input_tokens && output_cap == call.max_output_tokens,
+        "Token reservation changed"
+    );
+    if let (Some(input), Some(output)) = (input, output) {
+        ensure!(
+            input == receipt.input_tokens && output == receipt.output_tokens,
+            "Provider token receipt changed; cannot release another reservation"
+        );
+        return Ok(input > input_cap || output > output_cap);
+    }
+    db.execute(
+        "UPDATE ion_team_call_budgets SET input_tokens=?,output_tokens=? WHERE call_id=?",
+        params![
+            receipt.input_tokens,
+            receipt.output_tokens,
+            call.id.to_string()
+        ],
+    )?;
+    let exceeded = receipt.input_tokens > input_cap || receipt.output_tokens > output_cap;
+    audit(
+        db,
+        call.run_id,
+        Some(call.work_id),
+        if exceeded {
+            "token_allowance_exceeded"
+        } else {
+            "model_usage"
+        },
+        &format!(
+            "Call {} provider receipt: {} input + {} output tokens",
+            call.id, receipt.input_tokens, receipt.output_tokens
+        ),
+        now,
+    )?;
+    bump(db, call.run_id)?;
+    Ok(exceeded)
+}
+#[derive(Deserialize)]
+struct RemoteUsageReceipt {
+    version: u16,
+    request_id: Uuid,
+    provider: waku_protocol::model::ProviderKind,
+    model: String,
+    usage: ModelTokenUsage,
+    #[serde(default)]
+    estimated_cost_usd_micros: Option<u64>,
+}
+/// A stored process-verified receipt settles usage in the terminal transaction.
+pub(super) fn settle_remote_receipt(db: &Transaction<'_>, id: Uuid, now: u64) -> Result<()> {
+    let (body,run,work,model,input,output):(String,String,String,String,u64,u64)=db.query_row(
+        "SELECT r.receipt,c.run_id,c.work_id,c.model,b.input_cap,b.output_cap FROM ion_team_remote_calls r JOIN ion_team_model_calls c ON c.id=r.call_id JOIN ion_team_call_budgets b ON b.call_id=c.id WHERE r.call_id=? AND r.state='SUCCESS' AND r.receipt IS NOT NULL",
+        [id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?;
+    let receipt: RemoteUsageReceipt = serde_json::from_str(&body)?;
+    ensure!(
+        receipt.version == 1 && receipt.request_id == id && receipt.model == model,
+        "Remote usage identity changed"
+    );
+    let run_id = Uuid::parse_str(&run)?;
+    let work_id = Uuid::parse_str(&work)?;
+    let snapshot = load(db, run_id)?;
+    let assignment = snapshot
+        .work
+        .iter()
+        .find(|w| w.id == work_id)
+        .context("Remote assignment missing")?;
+    ensure!(
+        snapshot
+            .profiles
+            .iter()
+            .any(|p| p.id == assignment.agent_id && p.provider == receipt.provider),
+        "Remote usage harness changed"
+    );
+    ensure!(
+        receipt
+            .estimated_cost_usd_micros
+            .is_none_or(
+                |micros| receipt.provider == waku_protocol::model::ProviderKind::Claude
+                    && micros <= 1_000_000_000_000
+            ),
+        "Remote SDK estimate contract changed"
+    );
+    let call = ModelCallReservation {
+        id,
+        run_id,
+        work_id,
+        max_input_tokens: input,
+        max_output_tokens: output,
+    };
+    settle_usage(db, &call, receipt.usage, now)?;
+    if let Some(micros) = receipt.estimated_cost_usd_micros {
+        crate::usage_ledger::settle_cost(
+            db,
+            waku_protocol::usage_ledger::UsageLedgerKind::ModelCall,
+            id,
+            &crate::usage_ledger::claude_sdk_estimate(micros),
+            now,
+        )?;
+    }
+    Ok(())
 }

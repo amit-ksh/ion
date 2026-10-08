@@ -1270,6 +1270,77 @@ mod tests {
         assert!(body["env"].get("ION_NEBIUS_SANDBOX_IAM_TOKEN").is_none());
     }
     #[test]
+    fn global_usage_remote_command_receipt_survives_replay_and_unknown_costs() {
+        let f = Fixture::new(true, true);
+        let control = ControlStore::new(f.dir.join("control.db"));
+        f.reserve().unwrap();
+        let page = control
+            .usage_ledger(crate::usage_ledger::all_query())
+            .unwrap();
+        assert_eq!(page.summary.records, 1);
+        assert_eq!(
+            page.entries[0].kind,
+            waku_protocol::usage_ledger::UsageLedgerKind::RemoteCommand
+        );
+        assert_eq!(
+            page.entries[0].environment,
+            Some(ExecutionEnvironment::NebiusSandbox)
+        );
+        assert_eq!(page.entries[0].host, "fixture-project");
+        assert_eq!(page.entries[0].agent_name.as_deref(), Some("Job fixture"));
+        assert!(page.entries[0].cost.is_none() && page.entries[0].elapsed_milliseconds.is_none());
+        let response = response(&f.request, 7);
+        f.store
+            .bind_job_operation(f.request.request_id, Uuid::new_v4())
+            .unwrap();
+        f.store
+            .finish_job(f.request.request_id, Some(&response))
+            .unwrap();
+        let page = control
+            .usage_ledger(crate::usage_ledger::all_query())
+            .unwrap();
+        assert_eq!(page.summary.records, 1);
+        assert_eq!(page.summary.model_calls, 0);
+        assert_eq!(page.summary.elapsed_milliseconds, 100);
+        assert_eq!(page.summary.unknown_cost_records, 1);
+        assert!(page.summary.costs.is_empty());
+        let revision = page.revision;
+        f.reserve().unwrap();
+        let reopened = ControlStore::new(f.dir.join("control.db"));
+        assert_eq!(
+            reopened
+                .usage_ledger(crate::usage_ledger::all_query())
+                .unwrap()
+                .revision,
+            revision
+        );
+        let mut changed = response.clone();
+        changed.elapsed_milliseconds += 1;
+        assert!(
+            f.store
+                .finish_job(f.request.request_id, Some(&changed))
+                .is_err()
+        );
+        assert_eq!(
+            reopened
+                .usage_ledger(crate::usage_ledger::all_query())
+                .unwrap()
+                .revision,
+            revision
+        );
+        let rejected = Fixture::new(false, true);
+        assert!(rejected.reserve().is_err());
+        assert_eq!(
+            ControlStore::new(rejected.dir.join("control.db"))
+                .usage_ledger(crate::usage_ledger::all_query())
+                .unwrap()
+                .summary
+                .records,
+            0
+        );
+    }
+
+    #[test]
     fn team_job_denies_local_ungranted_and_changed_replay_or_lost_acknowledgement() {
         assert!(Fixture::new(false, true).reserve().is_err());
         assert!(Fixture::new(true, false).reserve().is_err());

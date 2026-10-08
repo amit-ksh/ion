@@ -177,6 +177,7 @@ impl Fixture {
                     text,
                     calls,
                     usage: None,
+                    cost: None,
                 })
             },
             apps,

@@ -259,6 +259,13 @@ fn parse_completion(output: &[u8], model: &str, tools: &Value) -> Result<StreamC
         text: actions.text,
         calls,
         usage: Some(usage),
+        // SDK totals are local price-table estimates, never billing receipts.
+        cost: value["total_cost_usd"]
+            .as_f64()
+            .filter(|v| v.is_finite() && *v >= 0.0 && *v <= 1_000_000.0)
+            .map(
+                |usd| crate::usage_ledger::claude_sdk_estimate((usd * 1_000_000.0).round() as u64),
+            ),
     })
 }
 

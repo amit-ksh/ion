@@ -324,3 +324,39 @@ $content = @{text='';calls=@($action)} | ConvertTo-Json -Depth 12 -Compress
         }
     }
 }
+
+#[test]
+fn global_usage_claude_costs_are_provisional_sdk_estimates_and_invalid_costs_stay_unknown() {
+    let mut packet = result();
+    packet["total_cost_usd"] = json!(0.012345);
+    let response = parse_completion(
+        &serde_json::to_vec(&packet).unwrap(),
+        "claude-sonnet-4-6",
+        &tools(),
+    )
+    .unwrap();
+    let cost = response.cost.unwrap();
+    assert_eq!(cost.amount.micros, 12345);
+    assert_eq!(cost.amount.currency, "USD");
+    assert_eq!(
+        cost.quality,
+        waku_protocol::usage_ledger::UsageCostQuality::Estimated
+    );
+    assert_eq!(
+        cost.finality,
+        waku_protocol::usage_ledger::UsageCostFinality::Provisional
+    );
+    for bad in [json!(-1), json!("0.1"), json!(null), json!(1000001)] {
+        packet["total_cost_usd"] = bad;
+        assert!(
+            parse_completion(
+                &serde_json::to_vec(&packet).unwrap(),
+                "claude-sonnet-4-6",
+                &tools()
+            )
+            .unwrap()
+            .cost
+            .is_none()
+        );
+    }
+}

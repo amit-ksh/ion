@@ -657,3 +657,69 @@ fn team_gpu_maintenance_missing_result_credentials_do_not_undo_cleanup_or_claim_
     assert!(f.coordinator.has_pending_effect(f.lease.run_id()).unwrap());
     assert!(api.finish().is_empty());
 }
+
+#[test]
+fn global_usage_gpu_allowance_and_exact_result_stay_separate_from_costs_after_stop() {
+    let (f, l) = setup(true);
+    let control = crate::control::ControlStore::new(f.dir.join("control.db"));
+    let page = control
+        .usage_ledger(crate::usage_ledger::all_query())
+        .unwrap();
+    assert_eq!(page.summary.records, 1);
+    let e = &page.entries[0];
+    assert_eq!(e.kind, waku_protocol::usage_ledger::UsageLedgerKind::GpuJob);
+    assert_eq!(
+        e.environment,
+        Some(waku_protocol::teams::ExecutionEnvironment::NebiusSandbox)
+    );
+    assert_eq!(e.host, "project-fixture");
+    assert!(e.cost.is_none() && e.elapsed_milliseconds.is_none());
+    let allowance = e.spending_allowance.clone().unwrap();
+    assert_eq!(allowance.currency, f.policy.currency);
+    assert_eq!(allowance.micros, f.policy.reservation_micros);
+    let run = f.coordinator.snapshot(f.lease.run_id()).unwrap();
+    f.coordinator
+        .stop(run.id, run.revision, crate::model::unix_time())
+        .unwrap();
+    let result = receipt(&l.request);
+    f.coordinator
+        .record_gpu_result(
+            l.request.request_id,
+            "aijob-fixture",
+            &result,
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    let page = control
+        .usage_ledger(crate::usage_ledger::all_query())
+        .unwrap();
+    assert_eq!(page.summary.elapsed_milliseconds, 500);
+    assert_eq!(page.summary.unknown_cost_records, 1);
+    assert!(page.summary.costs.is_empty());
+    assert_eq!(
+        page.entries[0].spending_allowance.as_ref().unwrap().micros,
+        allowance.micros
+    );
+    let revision = page.revision;
+    f.coordinator
+        .record_gpu_result(
+            l.request.request_id,
+            "aijob-fixture",
+            &result,
+            crate::model::unix_time(),
+        )
+        .unwrap();
+    assert_eq!(
+        control
+            .usage_ledger(crate::usage_ledger::all_query())
+            .unwrap()
+            .revision,
+        revision
+    );
+    let wire = serde_json::to_string(&page).unwrap();
+    assert!(
+        !wire.contains("actual training output")
+            && !wire.contains("checkpoint")
+            && !wire.contains("content_base64")
+    );
+}

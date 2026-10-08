@@ -47,6 +47,7 @@ pub mod skills;
 pub mod theme;
 pub mod usage;
 pub mod usage_history;
+pub mod usage_ledger;
 pub mod workspace;
 
 mod protocol;

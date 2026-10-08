@@ -63,5 +63,6 @@ pub(super) fn actions(
         text: actions.text,
         calls,
         usage: Some(usage),
+        cost: None,
     })
 }

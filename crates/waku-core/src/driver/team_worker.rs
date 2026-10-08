@@ -180,6 +180,16 @@ pub fn execute(input: &[u8]) -> Result<Value> {
         model: model.clone(),
         content,
         usage: reply.usage.context("Worker usage receipt missing")?,
+        estimated_cost_usd_micros: reply
+            .cost
+            .as_ref()
+            .filter(|cost| {
+                cap.provider == ProviderKind::Claude
+                    && cost.amount.currency == "USD"
+                    && cost.quality == waku_protocol::usage_ledger::UsageCostQuality::Estimated
+                    && cost.finality == waku_protocol::usage_ledger::UsageCostFinality::Provisional
+            })
+            .map(|cost| cost.amount.micros),
     })?)
 }
 

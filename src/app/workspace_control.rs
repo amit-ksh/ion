@@ -14,6 +14,7 @@ mod team_apps;
 mod team_integration;
 mod team_limits;
 mod team_recovery;
+mod usage_ui;
 mod workflow_ui;
 use waku_client::{Command as Rpc, ResponsePayload};
 
@@ -109,6 +110,7 @@ pub(super) struct ControlUi {
     pub(super) duplicate_team_names: HashSet<String>,
     pub busy: bool,
     inbox: inbox::InboxUi,
+    usage: usage_ui::UsageUi,
     generation: u64,
     editor_generation: u64,
     error: Option<String>,
@@ -207,6 +209,7 @@ pub(super) struct ControlUi {
 enum Row {
     Inbox(Rc<inbox::InboxRow>),
     InboxEvent(Rc<waku_client::inbox::InboxEntry>),
+    Usage(Rc<usage_ui::UsageRow>),
     Task(Uuid),
     Project(Uuid),
     Record(ControlRecord),
@@ -294,6 +297,7 @@ impl ControlUi {
             duplicate_team_names: HashSet::new(),
             busy: false,
             inbox: inbox::InboxUi::default(),
+            usage: usage_ui::UsageUi::new(window, cx),
             generation: 0,
             editor_generation: 0,
             error: None,
@@ -949,7 +953,8 @@ impl Waku {
             self.refresh_composio_apps(cx);
         }
         if page == Page::Usage {
-            self.ensure_usage_history(false, cx);
+            self.reset_usage_ledger(cx);
+            self.start_usage_poll(cx);
         }
         if page == Page::Harnesses {
             self.refresh_provider_detection(None);
@@ -1508,6 +1513,7 @@ impl Waku {
         actions = actions.child(
             self.control_button("workspace-refresh", "", cx, |this, _, cx| {
                 this.refresh_workspace_control(cx);
+                this.refresh_usage_ledger(cx);
                 if this.control_ui.page == Some(Page::Apps) {
                     this.refresh_composio_apps(cx);
                 }
@@ -1579,6 +1585,14 @@ impl Waku {
             .child(actions)
     }
     fn control_rows(&self, page: Page, cx: &App) -> Vec<Row> {
+        if page == Page::Usage {
+            let rows = self.usage_rows();
+            return if rows.is_empty() {
+                vec![Row::Empty("No usage matches these filters")]
+            } else {
+                rows
+            };
+        }
         if page == Page::Inbox {
             let mut rows = self.inbox_history_rows();
             if rows.is_empty() {
@@ -1827,15 +1841,6 @@ impl Waku {
                 .child(self.render_models_speech_settings(cx))
                 .into_any_element();
         }
-        if page == Page::Usage {
-            return div()
-                .id("workspace-usage")
-                .flex_1()
-                .overflow_y_scroll()
-                .p(px(24.0))
-                .child(self.render_usage_settings(cx))
-                .into_any_element();
-        }
         if let Some(stages) = self.control_ui.pending_stages.take() {
             for stage in stages {
                 let team_id = stage.team_id;
@@ -1919,6 +1924,9 @@ impl Waku {
             .flex_col()
             .gap(px(14.0))
             .p(px(24.0));
+        if page == Page::Usage {
+            content = content.child(self.usage_toolbar(cx));
+        }
         if page == Page::Inbox {
             content = content.child(self.render_inbox_toolbar(cx));
             if let Some(error) = &self.control_ui.inbox.error {
@@ -2136,6 +2144,7 @@ impl Waku {
         let (title, detail, icon_path) = match row {
             Row::Inbox(row) => return self.render_inbox_row(row, index, cx),
             Row::InboxEvent(entry) => return self.render_inbox_history_row(entry, cx),
+            Row::Usage(entry) => return self.render_usage_row(entry, cx),
             Row::Automation(run) => return self.render_automation_row(run, None, cx),
             Row::AutomationStage(run, index) => {
                 return self.render_automation_row(run, Some(index), cx);

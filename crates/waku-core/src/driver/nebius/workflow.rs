@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{
-    Command, Journal, ToolCall, completion_with_context, execute_tool, persist,
+    Command, Journal, ToolCall, WorkspaceContext, completion_with_context, execute_tool, persist,
     read_tool_definitions, required_str,
 };
 use crate::driver::DriverEventSender;
@@ -155,6 +155,7 @@ pub(super) fn execute(
     journal: &mut Journal,
     call: &ToolCall,
     args: &Value,
+    workspace: Option<&WorkspaceContext>,
 ) -> Result<String> {
     match call.name.as_str() {
         "delegate_specialist" => delegate_specialist(
@@ -170,6 +171,7 @@ pub(super) fn execute(
             call,
             args,
             Vec::new(),
+            workspace,
         ),
         "repeat_specialist" => repeat_specialist(
             receiver,
@@ -183,6 +185,7 @@ pub(super) fn execute(
             journal,
             call,
             args,
+            workspace,
         ),
         "github_issue_read" => read_issue(events, cwd, call, args),
         "github_create_pr" => create_pull_request(
@@ -213,6 +216,7 @@ fn delegate_specialist(
     call: &ToolCall,
     args: &Value,
     depends_on: Vec<String>,
+    workspace: Option<&WorkspaceContext>,
 ) -> Result<String> {
     let role = SpecialistRole::parse(required_str(args, "role")?)?;
     let objective = required_str(args, "objective")?.trim();
@@ -257,6 +261,7 @@ fn delegate_specialist(
         journal_path,
         journal,
         index,
+        workspace,
     );
     if let Err(error) = &outcome {
         journal.team_runs[index].status = if cancelled.load(Ordering::Relaxed) {
@@ -297,6 +302,7 @@ fn repeat_specialist(
     journal: &mut Journal,
     call: &ToolCall,
     args: &Value,
+    workspace: Option<&WorkspaceContext>,
 ) -> Result<String> {
     let prior_id = required_str(args, "task_id")?;
     let prior = journal
@@ -321,6 +327,7 @@ fn repeat_specialist(
         call,
         &repeated,
         vec![prior_id.to_owned()],
+        workspace,
     )
 }
 
@@ -336,6 +343,7 @@ fn run_specialist(
     journal_path: &Path,
     journal: &mut Journal,
     index: usize,
+    workspace: Option<&WorkspaceContext>,
 ) -> Result<String> {
     let role = journal.team_runs[index].contract.role;
     let system = format!(
@@ -347,7 +355,7 @@ fn run_specialist(
             bail!("specialist task stopped")
         }
         let messages = journal.team_runs[index].messages.clone();
-        let (text, calls) = completion_with_context(
+        let super::StreamCompletion { text, calls, .. } = completion_with_context(
             client,
             key,
             model,
@@ -357,6 +365,7 @@ fn run_specialist(
             &system,
             read_tool_definitions(),
             true,
+            workspace,
         )?;
         if calls.len() > MAX_CHILD_CALLS_PER_STEP {
             bail!("specialist requested too many tools in one step")

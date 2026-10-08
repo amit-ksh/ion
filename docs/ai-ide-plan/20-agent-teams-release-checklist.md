@@ -483,3 +483,18 @@ adapters remain deferred by user instruction.
 - [ ] Complete the expanded [desktop and phone review](24-inbox-artifact-review.md).
 - [ ] Global usage, embedded previews, retries/code integration and broader
   remote/GPU/gateway/cloud speech gates remain open. New adapters stay deferred.
+
+
+## Usage ledger implementation checkpoint (2026-10-08)
+
+- [x] Owner ledger with pinned existing Teams/local Nebius/remote command/GPU facts,
+  bounded indexed filters/pages and separate unknown/reserved/currency/cost classes.
+- [x] Local and remote Claude provisional SDK estimates, exact replay and atomic
+  remote stop/usage/cost settlement without renewed execution authority.
+- [x] Cached desktop and foreground phone Usage; source links, shared protocol 35,
+  owner/accounting/transport tests and desktop/daemon/worker/shared/phone checks.
+- [ ] Complete [the usage review](25-global-usage-review.md#your-review-checklist).
+- [ ] Import ordinary non-Nebius CLI usage and integrate authoritative provider/cloud
+  billing. Existing provider history has overlapping scope; do not sum both views.
+- [ ] Complete bounded retries/code integration, registered-owner/gateway/cloud
+  speech and broader GPU execution/resource gates. New adapters remain out of scope.

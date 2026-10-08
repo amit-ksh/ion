@@ -390,7 +390,7 @@ fn completion(
     } else {
         system.to_owned()
     };
-    completion_with_context(
+    let completion = completion_with_context(
         client,
         key,
         model,
@@ -400,7 +400,9 @@ fn completion(
         &system,
         workspace::tools(tool_definitions(nemoclaw.is_some()), workspace),
         false,
-    )
+        workspace,
+    )?;
+    Ok((completion.text, completion.calls))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -414,7 +416,21 @@ fn completion_with_context(
     system: &str,
     tools: Value,
     specialist: bool,
-) -> Result<(String, Vec<ToolCall>)> {
+    workspace: Option<&WorkspaceContext>,
+) -> Result<StreamCompletion> {
+    let usage_scope = workspace
+        .map(|context| {
+            let store = crate::control::ControlStore::new(context.control_path.clone());
+            let id = store.begin_solo_usage(
+                context.project_id,
+                context.task_id,
+                crate::model::ProviderKind::Nebius,
+                model,
+                crate::model::unix_time(),
+            )?;
+            Ok::<_, anyhow::Error>((store, id))
+        })
+        .transpose()?;
     let mut request_messages = vec![json!({
         "role": "system",
         "content": system
@@ -425,14 +441,18 @@ fn completion_with_context(
         .bearer_auth(key)
         .json(&json!({
             "model": model, "messages": request_messages, "tools": tools,
-            "tool_choice": "auto", "stream": true
+            "tool_choice": "auto", "stream": true, "stream_options":{"include_usage":true}
         }))
         .send()
         .context("Nebius completion request failed")?;
     if !response.status().is_success() {
         bail!("Nebius completion failed (HTTP {})", response.status());
     }
-    parse_stream_scoped(BufReader::new(response), events, cancelled, specialist)
+    let completion = parse_stream_metered(BufReader::new(response), events, cancelled, specialist)?;
+    if let (Some((store, id)), Some(usage)) = (usage_scope, completion.usage) {
+        store.settle_solo_usage(id, usage, crate::model::unix_time())?;
+    }
+    Ok(completion)
 }
 
 #[cfg(test)]
@@ -444,6 +464,7 @@ fn parse_stream(
     parse_stream_scoped(reader, events, cancelled, false)
 }
 
+#[cfg(test)]
 fn parse_stream_scoped(
     reader: impl BufRead,
     events: &DriverEventSender,
@@ -458,6 +479,7 @@ pub(super) struct StreamCompletion {
     pub(super) text: String,
     pub(super) calls: Vec<ToolCall>,
     pub(super) usage: Option<crate::teams::ModelTokenUsage>,
+    pub(super) cost: Option<waku_protocol::usage_ledger::UsageCost>,
 }
 fn parse_stream_metered(
     reader: impl BufRead,
@@ -586,6 +608,7 @@ fn parse_stream_metered(
         text,
         calls,
         usage: if invalid_usage { None } else { usage_receipt },
+        cost: None,
     })
 }
 
@@ -668,6 +691,7 @@ fn execute_tool(
             journal,
             call,
             &args,
+            workspace,
         );
     }
     let kind = ActivityKind::from_tool_name(&call.name);

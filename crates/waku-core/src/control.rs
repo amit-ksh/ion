@@ -188,6 +188,7 @@ impl ControlStore {
         db.busy_timeout(Duration::from_secs(5))?;
         db.execute_batch("CREATE TABLE IF NOT EXISTS ion_control_records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ion_control_kind ON ion_control_records(kind); CREATE TABLE IF NOT EXISTS ion_control_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL); INSERT OR IGNORE INTO ion_control_revision VALUES(1,0);")?;
         inbox_history::install_control(&db)?;
+        crate::usage_ledger::schema(&db)?;
         Ok(db)
     }
     pub(crate) fn read(db: &Connection) -> Result<ControlSnapshot> {

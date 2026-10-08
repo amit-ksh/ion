@@ -180,10 +180,22 @@ impl TeamCoordinator {
             receipt.is_none_or(|r| r.len() <= 64 * 1024),
             "Remote receipt exceeded its limit"
         );
-        let db = self.connect()?;
-        ensure!(db.execute("UPDATE ion_team_remote_calls SET state=?,receipt=? WHERE call_id=? AND (operation=? OR (operation IS NULL AND ? IS NULL)) AND state IN ('submitting','running')",params![state,receipt,call.to_string(),operation.map(|id|id.to_string()),operation.map(|id|id.to_string())])?==1,"Remote receipt identity changed or already settled");
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure!(tx.execute("UPDATE ion_team_remote_calls SET state=?,receipt=? WHERE call_id=? AND (operation=? OR (operation IS NULL AND ? IS NULL)) AND state IN ('submitting','running')",params![state,receipt,call.to_string(),operation.map(|id|id.to_string()),operation.map(|id|id.to_string())])?==1,"Remote receipt identity changed or already settled");
+        if state == "SUCCESS" && receipt.is_some() {
+            // Process stop remains true when accounting metadata is invalid.
+            // Roll back only that metadata; retain the original full allowance.
+            tx.execute_batch("SAVEPOINT remote_accounting")?;
+            if budget::settle_remote_receipt(&tx, call, crate::model::unix_time()).is_err() {
+                tx.execute_batch("ROLLBACK TO remote_accounting")?;
+            }
+            tx.execute_batch("RELEASE remote_accounting")?;
+        }
+        tx.commit()?;
         Ok(())
     }
+
     pub(crate) fn remote_calls(&self, attempt: Uuid) -> Result<Vec<RemoteCall>> {
         let db = self.connect()?;
         let rows:Vec<(String,String,String,Option<String>,String)>=db.prepare("SELECT call_id,image,project,operation,state FROM ion_team_remote_calls WHERE attempt_id=? ORDER BY started_at,call_id LIMIT 33")?.query_map([attempt.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?.collect::<rusqlite::Result<_>>()?;

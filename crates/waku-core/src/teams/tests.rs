@@ -4407,3 +4407,6 @@ fn team_local_assignment_cannot_acquire_remote_transport() {
             .is_err()
     );
 }
+
+#[path = "usage_ledger_tests.rs"]
+mod usage_accounting;
