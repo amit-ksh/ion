@@ -14,6 +14,7 @@ fn workflow(f: &Fixture, gates: &[bool]) -> Workflow {
                 instructions: "Create a report and review its evidence".into(),
                 requires_decision: *gate,
                 team_id: Some(f.team),
+                required_formats: vec![],
             })
             .collect(),
     }
@@ -546,4 +547,191 @@ fn automation_late_owner_tick_retains_completed_final_stage_but_cannot_start_ano
             assert!(f.store.snapshot(after.stages[1].team_run_id).is_err());
         }
     }
+}
+
+#[test]
+fn workflow_documents_pin_each_stage_and_reject_missing_formats_before_completion() {
+    let f = Fixture::new();
+    let mut definition = workflow(&f, &[false, false]);
+    definition.stages[0].required_formats = vec!["html".into(), "md".into()];
+    definition.stages[1].required_formats = vec!["json".into()];
+    let run = start(&f, definition.clone());
+    assert_eq!(run.stages[0].required_formats, vec!["html", "md"]);
+    for stage in &mut definition.stages {
+        stage.required_formats.clear();
+    }
+    save(&f, ControlRecord::Workflow(definition));
+    tick(&f, 100);
+    f.materialize();
+    let team = f.store.snapshot(run.stages[0].team_run_id).unwrap();
+    assert_eq!(team.work[0].output_contract.minimum_documents, 2);
+    assert_eq!(
+        team.work[0].output_contract.required_formats,
+        vec!["html", "md"]
+    );
+    let claim = f.claim(team.id, team.work[0].id);
+    assert!(
+        f.store
+            .report(&claim.lease, AssignmentOutcome::Completed(result()), 102)
+            .is_err()
+    );
+    let md = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "report.md",
+            "md",
+            "Reviewed report",
+            102,
+        )
+        .unwrap();
+    let txt = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "report.txt",
+            "txt",
+            "Text alone cannot satisfy HTML",
+            102,
+        )
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![md.id, txt.id];
+    assert!(
+        f.store
+            .report(
+                &claim.lease,
+                AssignmentOutcome::Completed(output.clone()),
+                103
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("formats")
+    );
+    assert!(f.store.snapshot(run.stages[1].team_run_id).is_err());
+    let html = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "report.html",
+            "html",
+            "<h1>Reviewed report</h1>",
+            103,
+        )
+        .unwrap();
+    output.artifact_ids = vec![md.id, html.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 103)
+        .unwrap();
+    tick(&f, 104);
+    f.materialize();
+    let team = f.store.snapshot(run.stages[1].team_run_id).unwrap();
+    assert_eq!(team.work[0].output_contract.required_formats, vec!["json"]);
+    let claim = f
+        .store
+        .claim(team.id, team.work[0].id, DispatchHost::Local, 105, 100)
+        .unwrap();
+    assert!(
+        f.store
+            .report(&claim.lease, AssignmentOutcome::Completed(result()), 106)
+            .is_err()
+    );
+    assert_eq!(
+        f.store.automation_run(run.id).unwrap().status,
+        AutomationStatus::Running
+    );
+    let json = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "result.json",
+            "json",
+            "{\"ready\":true}",
+            106,
+        )
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![json.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 107)
+        .unwrap();
+    tick(&f, 108);
+    assert_eq!(
+        f.store.automation_run(run.id).unwrap().status,
+        AutomationStatus::Completed
+    );
+}
+#[test]
+fn workflow_documents_validate_before_save_and_legacy_empty_requirements_are_compatible() {
+    let f = Fixture::new();
+    let mut definition = workflow(&f, &[false]);
+    let legacy = serde_json::to_value(&definition).unwrap();
+    assert!(legacy["stages"][0].get("requiredFormats").is_none());
+    let restored: Workflow = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(restored.stages[0].required_formats.is_empty());
+    assert_eq!(serde_json::to_value(restored).unwrap(), legacy);
+    let revision = f.definitions.load().unwrap().revision;
+    for formats in [
+        vec!["html", "html"],
+        vec!["pdf"],
+        vec!["exe"],
+        vec!["HTML"],
+        vec!["md", "txt", "html", "csv", "json", "md"],
+    ] {
+        definition.stages[0].required_formats = formats.into_iter().map(str::to_owned).collect();
+        assert!(
+            f.definitions
+                .save(revision, ControlRecord::Workflow(definition.clone()))
+                .is_err()
+        );
+        assert_eq!(f.definitions.load().unwrap().revision, revision);
+    }
+    definition.stages[0].required_formats = vec!["html".into()];
+    let run = start(&f, definition);
+    tick(&f, 100);
+    f.materialize();
+    let team = f.store.snapshot(run.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    let doc = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "report.html",
+            "html",
+            "<h1>Original report</h1>",
+            102,
+        )
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![doc.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 103)
+        .unwrap();
+    let db = f.store.connect().unwrap();
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+        params![b"Changed report".as_slice(), doc.id.to_string()],
+    )
+    .unwrap();
+    tick(&f, 104);
+    assert_eq!(
+        f.store.automation_run(run.id).unwrap().status,
+        AutomationStatus::Blocked
+    );
+    assert!(!f.store.automation_run(run.id).unwrap().stages[0].completed);
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+        params![b"<h1>Original report</h1>".as_slice(), doc.id.to_string()],
+    )
+    .unwrap();
+    tick(&f, 105);
+    assert_eq!(
+        f.store.automation_run(run.id).unwrap().status,
+        AutomationStatus::Completed
+    );
 }

@@ -4,4 +4,8 @@ export type WorkflowStage = { title: string, instructions: string, requiresDecis
 /**
  * Explicit team per stage. Legacy drafts remain editable but cannot run until assigned.
  */
-teamId: string | null, };
+teamId: string | null,
+/**
+ * One generated document of each selected format before this stage can complete.
+ */
+requiredFormats?: Array<string>, };

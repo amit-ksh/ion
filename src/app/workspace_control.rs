@@ -127,7 +127,13 @@ pub(super) struct ControlUi {
     members: Vec<TeamMember>,
     limit_inputs: Vec<(team_limits::LimitField, Entity<TextInput>)>,
     child_review: bool,
-    stages: Vec<(Entity<TextInput>, Entity<TextInput>, bool, Option<Uuid>)>,
+    stages: Vec<(
+        Entity<TextInput>,
+        Entity<TextInput>,
+        bool,
+        Option<Uuid>,
+        Vec<String>,
+    )>,
     pending_stages: Option<Vec<WorkflowStage>>,
     routine_team: Option<Uuid>,
     routine_workflow: Option<Uuid>,
@@ -1076,7 +1082,7 @@ impl Waku {
         instructions_input.update(cx, |input, cx| input.set_content(instructions, cx));
         self.control_ui
             .stages
-            .push((title_input, instructions_input, gate, None));
+            .push((title_input, instructions_input, gate, None, vec![]));
         cx.notify();
     }
     fn edit_control_record(&mut self, record: ControlRecord, cx: &mut Context<Self>) {
@@ -1247,11 +1253,12 @@ impl Waku {
                         .control_ui
                         .stages
                         .iter()
-                        .map(|(title, instructions, gate, team)| WorkflowStage {
+                        .map(|(title, instructions, gate, team, formats)| WorkflowStage {
                             title: title.read(cx).content().to_owned(),
                             instructions: instructions.read(cx).content().to_owned(),
                             requires_decision: *gate,
                             team_id: *team,
+                            required_formats: formats.clone(),
                         })
                         .collect(),
                 })
@@ -1796,6 +1803,7 @@ impl Waku {
         if let Some(stages) = self.control_ui.pending_stages.take() {
             for stage in stages {
                 let team_id = stage.team_id;
+                let formats = stage.required_formats;
                 self.add_control_stage(
                     stage.title,
                     stage.instructions,
@@ -1805,6 +1813,7 @@ impl Waku {
                 );
                 if let Some(stage) = self.control_ui.stages.last_mut() {
                     stage.3 = team_id;
+                    stage.4 = formats;
                 }
             }
         }
@@ -2954,7 +2963,8 @@ impl Waku {
                 },
             ));
             form = form.child(self.render_team_limit_inputs(cx));
-            for (i, (title, instructions, gate, _team)) in self.control_ui.stages.iter().enumerate()
+            for (i, (title, instructions, gate, _team, _formats)) in
+                self.control_ui.stages.iter().enumerate()
             {
                 let gate = *gate;
                 form = form.child(
@@ -2963,6 +2973,7 @@ impl Waku {
                         .flex_col()
                         .gap(px(8.0))
                         .child(self.render_stage_team(i, cx))
+                        .child(self.render_stage_documents(i, cx))
                         .child(control_field(
                             "Stage",
                             title.clone(),

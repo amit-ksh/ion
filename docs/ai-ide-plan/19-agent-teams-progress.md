@@ -2406,3 +2406,33 @@ notification history/global unread/mobile Inbox, rich embedded artifact previews
 and global usage accounting remain development. Other current-scope release gates
 are still open; this checkpoint does not mark the full Ion implementation complete.
 Unfinished adapters remain deferred under the user's current scope correction.
+
+## 2026-10-08 — pinned workflow document requirements
+
+Implemented per-stage required HTML/Markdown/text/CSV/JSON artifacts in the
+workflow draft model, prompt generator, native editor and desktop/phone run
+details. The owner pins an actual lead output contract when creating each stage's
+Teams run. Submission uses the existing scoped document and contract validator;
+missing formats or summary-only output cannot complete the stage. Preparation
+replay rejects a changed root contract, and owner progression revalidates original
+evidence even for the final stage. Saved edits do not alter existing runs.
+
+Supported format lists are bounded, unique and validated before storage; empty
+legacy lists retain original serialization. Existing execution grants, review,
+budgets, deadlines, gates, outbox/restart and Stop behavior are preserved. This
+increment does not add automatic retry, code integration, binary team publication
+or semantic quality/deployment assertions.
+
+Verification: **16 owner/workflow/routine tests passed**, including two new pinned
+contract/invalid-format/legacy/final-stage cases and the actual native dispatcher
+fixture now requiring Markdown from both stages. Desktop/daemon checking, exact
+generated binding equality, shared/full phone TypeScript, formatting and whitespace
+passed. An invalid optional Vec derive annotation was corrected to the existing
+serde-driven binding pattern before final gates. No live account, visual/device
+acceptance, cloud provision or second watcher. See the expanded
+[workflow review](21-workflows-routines.md#required-stage-documents-2026-10-08).
+
+The full planned release remains incomplete; deferred adapters stay out of scope.
+Calendar/conditional/retry/code integration, historical/mobile Inbox and global
+usage, registered owner/gateway and cloud speech, and broader execution/resource/
+billing/GPU integrations remain the remaining implementation families.

@@ -74,6 +74,67 @@ impl Waku {
         )
         .into_any_element()
     }
+    pub(super) fn render_stage_documents(
+        &self,
+        index: usize,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let selected = self.control_ui.stages[index].4.clone();
+        let label = if selected.is_empty() {
+            "No required documents".to_owned()
+        } else {
+            format!(
+                "Required: {}",
+                selected
+                    .iter()
+                    .map(|f| f.to_uppercase())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
+        let weak = cx.entity().downgrade();
+        let menu_id = SharedString::from(format!("stage-documents-menu-{index}"));
+        let menu = self.menu_handle(menu_id.clone(), cx);
+        dropdown_menu(
+            self.control_button(format!("stage-documents-{index}"), label, cx, |_, _, _| {}),
+            menu_id,
+            &menu,
+            MenuAlign::BelowLeft,
+            move |_| {
+                WORKFLOW_DOCUMENT_FORMATS
+                    .iter()
+                    .map(|format| {
+                        let weak = weak.clone();
+                        let format = *format;
+                        MenuItem::new(
+                            match format {
+                                "md" => "Markdown",
+                                "txt" => "Text",
+                                "html" => "HTML",
+                                "csv" => "CSV",
+                                _ => "JSON",
+                            },
+                            move |_, cx| {
+                                let _ = weak.update(cx, |this, cx| {
+                                    if let Some(stage) = this.control_ui.stages.get_mut(index) {
+                                        if stage.4.iter().any(|f| f == format) {
+                                            stage.4.retain(|f| f != format);
+                                        } else {
+                                            stage.4.push(format.to_owned());
+                                        }
+                                        stage.4.sort();
+                                    }
+                                    cx.notify();
+                                });
+                            },
+                        )
+                        .selected(selected.iter().any(|f| f == format))
+                    })
+                    .collect()
+            },
+        )
+        .into_any_element()
+    }
     pub(super) fn render_routine_target(&self, cx: &mut Context<Self>) -> AnyElement {
         let selected = self
             .control_ui
@@ -265,7 +326,18 @@ impl Waku {
                 .unwrap_or_else(|| stage.team_id.to_string());
             (
                 format!("{}. {}", index + 1, stage.title),
-                format!("{label} · {team}\n{}", stage.instructions),
+                format!(
+                    "{label} · {team}{}\n{}",
+                    if stage.required_formats.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            " · Required: {}",
+                            stage.required_formats.join(", ").to_uppercase()
+                        )
+                    },
+                    stage.instructions
+                ),
                 "icons/git-branch.svg",
             )
         } else {

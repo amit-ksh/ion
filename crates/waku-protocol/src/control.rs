@@ -109,6 +109,38 @@ pub struct WorkflowStage {
     /// Explicit team per stage. Legacy drafts remain editable but cannot run until assigned.
     #[serde(default)]
     pub team_id: Option<Uuid>,
+    /// One generated document of each selected format before this stage can complete.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_formats: Vec<String>,
+}
+pub const WORKFLOW_DOCUMENT_FORMATS: &[&str] = &["html", "md", "txt", "csv", "json"];
+impl WorkflowStage {
+    pub fn document_contract(&self) -> Result<crate::teams::OutputContract, &'static str> {
+        if self.required_formats.len() > WORKFLOW_DOCUMENT_FORMATS.len()
+            || self
+                .required_formats
+                .iter()
+                .any(|f| !WORKFLOW_DOCUMENT_FORMATS.contains(&f.as_str()))
+        {
+            return Err(
+                "Workflow document requirements support HTML, Markdown, text, CSV and JSON",
+            );
+        }
+        if self
+            .required_formats
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+            != self.required_formats.len()
+        {
+            return Err("Duplicate required workflow document format");
+        }
+        Ok(crate::teams::OutputContract {
+            minimum_documents: self.required_formats.len() as u16,
+            required_formats: self.required_formats.clone(),
+            ..Default::default()
+        })
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -234,6 +266,8 @@ pub enum AutomationStatus {
 pub struct AutomationStage {
     pub title: String,
     pub instructions: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_formats: Vec<String>,
     pub team_id: Uuid,
     pub team_run_id: Uuid,
     pub task_id: Uuid,

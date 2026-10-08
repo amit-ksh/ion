@@ -99,6 +99,7 @@ fn target(definitions: &ControlSnapshot, definition_id: Uuid) -> Result<(Workflo
                             instructions: r.instructions.clone(),
                             requires_decision: false,
                             team_id: r.team_id,
+                            required_formats: vec![],
                         }],
                     },
                     Some(r.id),
@@ -215,6 +216,7 @@ fn pin(mut definitions: ControlSnapshot, definition_id: Uuid) -> Result<Pinned> 
         "Workflow team no longer exists"
     );
     for stage in &workflow.stages {
+        stage.document_contract().map_err(anyhow::Error::msg)?;
         ensure!(
             stage.instructions.len() <= 12_000,
             "Stage instructions must fit in 12 KiB"
@@ -275,6 +277,7 @@ fn create(
         .map(|s| AutomationStage {
             title: s.title.clone(),
             instructions: s.instructions.clone(),
+            required_formats: s.required_formats.clone(),
             team_id: s.team_id.unwrap(),
             team_run_id: Uuid::new_v4(),
             task_id: Uuid::new_v4(),
@@ -337,6 +340,21 @@ fn advance(tx: &Transaction<'_>, run: &mut AutomationRun, now: u64) -> Result<()
     if run.stages[current].started {
         let team = load(tx, run.stages[current].team_run_id)?;
         if team.status == TeamRunStatus::Completed {
+            let root = team
+                .work
+                .iter()
+                .find(|w| w.parent_id.is_none())
+                .context("Stage lead missing")?;
+            ensure!(
+                root.output_contract
+                    == pinned.workflow.stages[current]
+                        .document_contract()
+                        .map_err(anyhow::Error::msg)?,
+                "Stage output contract changed"
+            );
+            let result = root.result.as_ref().context("Stage result missing")?;
+            validate_result(tx, &team, root, result)?;
+            reviews::validate_output(tx, &team, root, result)?;
             run.stages[current].completed = true;
             run.current_stage += 1;
             if usize::from(run.current_stage) == run.stages.len() {
@@ -527,6 +545,7 @@ fn advance(tx: &Transaction<'_>, run: &mut AutomationRun, now: u64) -> Result<()
         now,
         false,
         Some(pinned.definitions),
+        definition.document_contract().map_err(anyhow::Error::msg)?,
     )?;
     run.stages[current].started = true;
     run.status = AutomationStatus::Running;

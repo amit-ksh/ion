@@ -1056,12 +1056,14 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
                 instructions: "Create reviewed preparation evidence".into(),
                 requires_decision: false,
                 team_id: Some(f.run.team.id),
+                required_formats: vec!["md".into()],
             },
             WorkflowStage {
                 title: "Release review".into(),
                 instructions: "Review the prior report inputs and create a final document".into(),
                 requires_decision: true,
                 team_id: Some(f.run.team.id),
+                required_formats: vec!["md".into()],
             },
         ],
     };

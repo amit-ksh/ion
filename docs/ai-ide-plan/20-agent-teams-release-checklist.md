@@ -72,6 +72,9 @@ assert live account acceptance, visual validation or production release readines
 
 - [x] Durable sequential workflow stages, per-stage teams, exact human gates,
   aggregate limits, immutable prior report handoffs and interval routine firing.
+- [x] Pinned per-stage required HTML/Markdown/text/CSV/JSON output documents,
+  real lead output contracts and final-stage evidence revalidation; requirements
+  remain visible on desktop/phone and immutable for existing runs.
 - [x] Phone workflow/routine history and instructions, saved-definition Run now,
   schedule enable/pause, exact stage gates and Stop, with persisted submission
   identity and fresh-owner/focus fences. Desktop retains definition editing.
@@ -122,7 +125,7 @@ assert live account acceptance, visual validation or production release readines
 
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
-Calendar schedules, conditional stage graphs, retries, document-format gates and
+Calendar schedules, conditional stage graphs, retries, binary document publication and
 code integration across stages remain development work. Full release completion
 also requires the unchecked execution and accounting items above.
 
@@ -446,3 +449,14 @@ Live native account acceptance and broader remote/GPU development remain open.
 - [ ] Historical notification index/global unread/mobile UI, embedded rich document
   previews and global usage ledger remain development, alongside the execution,
   accounting, calendar/graph and gateway/speech work listed above.
+
+## 2026-10-08 — required workflow documents
+
+- [x] Manual/generated editable requirements using current team publication formats.
+- [x] Original root output contract at creation/replay, actual document submission
+  enforcement and revalidation before next-stage or final completion.
+- [x] Pinned desktop/phone projection, legacy compatibility, real dispatcher and
+  focused owner integration acceptance; build and shared/phone type checks pass.
+- [ ] Complete [the workflow document review](21-workflows-routines.md#your-review).
+- [ ] Calendar/graph/retry/code integration, binary document publication and the
+  other current-scope execution/accounting/Inbox/gateway/speech gates remain open.

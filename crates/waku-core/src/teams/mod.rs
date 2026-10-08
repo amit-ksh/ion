@@ -406,7 +406,14 @@ impl TeamCoordinator {
     ) -> Result<TeamRunSnapshot> {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let run = Self::prepare_in_transaction(&tx, request, now, root_materialized, None)?;
+        let run = Self::prepare_in_transaction(
+            &tx,
+            request,
+            now,
+            root_materialized,
+            None,
+            OutputContract::default(),
+        )?;
         tx.commit()?;
         Ok(run)
     }
@@ -416,7 +423,9 @@ impl TeamCoordinator {
         now: u64,
         root_materialized: bool,
         pinned: Option<ControlSnapshot>,
+        root_contract: OutputContract,
     ) -> Result<TeamRunSnapshot> {
+        reviews::validate_contract(&root_contract)?;
         ensure!(
             !request.id.is_nil() && !request.root_task_id.is_nil() && !request.project_id.is_nil(),
             "Run and task identities are required"
@@ -442,7 +451,10 @@ impl TeamCoordinator {
             )?;
             if let Some((id,existing)) = tx.query_row("SELECT run_id,signature FROM ion_team_invocations WHERE task_id=? AND request_id=?",params![origin.task_id.to_string(),origin.request_id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional()? {
                 ensure!(same_request(&existing,&signature)?,"Invocation ID reused with changed arguments");
-                return load(&tx,Uuid::parse_str(&id)?);
+                let run = load(&tx,Uuid::parse_str(&id)?)?;
+                ensure!(run.work.iter().find(|w| w.parent_id.is_none()).is_some_and(|w| w.output_contract == root_contract),
+                    "This root task already has a different output contract");
+                return Ok(run);
             }
             let count: u16 = tx.query_row(
                 "SELECT count(*) FROM ion_team_invocations WHERE task_id=?",
@@ -469,7 +481,15 @@ impl TeamCoordinator {
                 same_request(&original, &body)?,
                 "This root task already has a different team run"
             );
-            return load(&tx, Uuid::parse_str(&id)?);
+            let run = load(&tx, Uuid::parse_str(&id)?)?;
+            ensure!(
+                run.work
+                    .iter()
+                    .find(|w| w.parent_id.is_none())
+                    .is_some_and(|w| w.output_contract == root_contract),
+                "This root task already has a different output contract"
+            );
+            return Ok(run);
         }
         let definitions = pinned.unwrap_or(crate::control::ControlStore::read(tx)?);
         ensure!(
@@ -541,7 +561,7 @@ impl TeamCoordinator {
             agent_id: lead_id,
             objective: request.objective.clone(),
             expected_output: lead.expected_output.clone(),
-            output_contract: OutputContract::default(),
+            output_contract: root_contract,
             requires_review: false,
             rework_of: None,
             review: None,

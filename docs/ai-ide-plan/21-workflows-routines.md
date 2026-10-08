@@ -1,7 +1,7 @@
 # Workflow and routine execution
 
-Updated 2026-10-06. Development is on `codex/ion-agent-teams`; integration into
-`ion-prod` and live acceptance remain separate. Protocol **27** requires matching
+Updated 2026-10-08. Development is on `codex/ion-agent-teams`; integration into
+`ion-prod` and live acceptance remain separate. Protocol **31** requires matching
 desktop, daemon and clients.
 
 ## Available behavior
@@ -9,6 +9,9 @@ desktop, daemon and clients.
 - Generate editable workflow stages from a prompt with the existing Nebius
   generator, or create them manually. Assign a saved team to every stage. Each
   team retains its per-agent harness, model, environment and grants.
+- Each stage can require HTML, Markdown, text, CSV and/or JSON output. These
+  requirements are edited on desktop, pinned for the run and visible on desktop
+  and phone. A missing format prevents its team lead from submitting completion.
 - **Run now** creates a durable automation run. Stages launch real Teams tasks
   sequentially. The run pins the workflow, teams and profiles; editing a saved
   definition affects later runs. The normal New task flow stays unchanged.
@@ -86,8 +89,8 @@ desktop, daemon and clients.
 ## Remaining development
 
 Calendar/timezone schedules, explicit catch-up/overlap policy choices, conditional
-workflow graphs, bounded stage retries, required document-format gates, safe code
-integration across stages, additional app binding controls, notification policies
+workflow graphs, bounded stage retries, binary document publication, safe code
+integration across stages, additional app binding controls, complete historical/mobile notification delivery
 and phone definition editing remain subsequent increments. Additional Teams
 harnesses and a registered remote execution host are tracked in
 [the release checklist](20-agent-teams-release-checklist.md). Executed test receipts
@@ -99,3 +102,57 @@ claim those capabilities or a finished Ion release.
 Automated evidence is recorded in [implementation progress](19-agent-teams-progress.md)
 when the checkpoint is committed. No live provider billing, app mutation, cloud
 provisioning, visual test, device acceptance or second watcher is performed here.
+
+## Required stage documents (2026-10-08)
+
+In the desktop workflow editor, use each stage's required-document menu. Select
+one or more formats; an empty selection keeps the existing evidence behavior.
+The prompt generator may suggest those same formats in an editable draft. It
+cannot activate the workflow or claim connected-app access.
+
+Run now copies every stage's requirement into the immutable automation run and
+its actual lead assignment output contract, in the same transaction that creates
+the task. At least one original generated artifact of every selected format must
+be referenced in its completed result. A text summary or declared check cannot
+replace a required document. Accepted specialist documents can satisfy the lead's
+contract under the existing assignment scope and parent review rules.
+
+Requirements are rechecked when the owner advances the workflow, including its
+final stage. Original hashes, source/task ownership and stored metadata must
+remain valid. Missing/changed bytes block progression; they do not start another
+attempt or repeat a side effect. Restore original accepted evidence when possible,
+or stop the run and begin a corrected workflow. Existing call/token/time limits
+and human/app approvals remain authoritative.
+
+Editing a saved stage changes future runs only. Empty/missing requiredFormats
+retains the original legacy serialization and behavior. Duplicate, unsupported
+or oversized format lists fail before the definition revision changes. Supported
+formats match current team text publication; PDF/Word/binary publication and rich
+preview/interpretation remain separate work. A format/hash gate proves original
+stored output, not semantic document quality or successful deployment. Review
+content and any required executed checks separately.
+
+### Your review
+
+- [ ] Create a two-stage workflow, with HTML and Markdown required from stage one
+  and JSON required from the final stage. Choose a saved team for each stage.
+- [ ] Run it and inspect the required formats in the actual lead task and desktop
+  run detail. Verify the phone shows the same pinned requirements before approving.
+- [ ] Ask for only a summary or the wrong format. Confirm completion is rejected
+  and the next stage stays absent. Supply original documents of all required
+  formats and confirm the run advances within the same limits and approvals.
+- [ ] Edit or clear saved requirements during the run. Confirm its existing stages
+  retain the original contract and a newly started run receives the edit.
+- [ ] Remove/change a generated document in a disposable run after its team completes
+  but before the owner observes it. Confirm the workflow blocks, including when
+  it is the final stage. Restoring original bytes must not create another team.
+- [ ] Open an older workflow with no requirements, then save/restart it. Confirm
+  it retains its existing behavior; selected formats and human gates survive restart.
+- [ ] Verify keyboard operation and both themes on desktop, then the actual phone
+  screen. No visual/device acceptance was performed during implementation.
+
+Verification: sixteen owner/workflow/routine tests passed, including two new
+contract/legacy/final-stage tests and an actual two-stage dispatcher run requiring
+Markdown from both leads. Desktop/daemon compilation, regenerated binding equality,
+shared/full phone TypeScript, formatting and whitespace passed. No live model key,
+app account effect, deployment, visual test or second watcher was used.

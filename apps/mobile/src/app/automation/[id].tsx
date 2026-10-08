@@ -70,6 +70,7 @@ export default function AutomationScreen() {
         <Text style={[styles.stageTitle, { color: theme.text }]}>{index + 1}. {stage.title}</Text>
         <Text style={[styles.body, { color: theme.textSecondary }]}>{stage.completed ? 'Completed' : stage.started ? 'Started · open task for progress' : run?.status === 'waitingDecision' && index === run.currentStage ? 'Awaiting your decision' : 'Not started'}</Text>
         <Text selectable style={[styles.body, { color: theme.text }]}>{stage.instructions}</Text>
+        {!!stage.requiredFormats?.length && <Text style={[styles.body, { color: theme.textSecondary }]}>Required documents: {stage.requiredFormats.join(', ').toUpperCase()}</Text>}
         <View style={styles.actions}>
           {stage.started && <AutomationButton label="Open task" onPress={() => router.push({ pathname: '/session/[id]', params: { id: stage.taskId } })} />}
           {run?.status === 'waitingDecision' && index === run.currentStage && <>
