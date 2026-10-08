@@ -1,6 +1,6 @@
 # Agent teams: implementation progress and review checklist
 
-Updated 2026-10-07. Development branch: `codex/ion-agent-teams`, based on
+Updated 2026-10-08. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
@@ -2204,3 +2204,22 @@ billing finality and historical inventory/retention remain development. The full
 goal remains active. No live provider/cloud/GPU request, user credential,
 deployment, app bundle, second watcher or visual test was used. The primary
 checkout's pre-existing changes are preserved.
+
+## Native command/owner integration increment (2026-10-08)
+
+- Fixed actual shipped command-image preflight: the exact child socket-boundary
+  field is required. A missing or changed manifest rejects before reservation.
+- Linux root supervisor permissions are checked before user code starts; missing
+  collection, identity or stop permissions cannot produce an uncollectable effect.
+  Packaged script line endings remain LF when checked out on Windows.
+- Eight actual installed CLI groups passed in a pinned local Linux image, covering
+  binary transfers, hashes, private environment/result isolation, socket denial,
+  nonzero exits, timeout, orphan cleanup, rejected outputs/requests and permission
+  failure before effects. Seven host worker tests passed.
+- Thirteen Rust command tests passed, including native exported receipt acceptance
+  through the production owner run path: file bundle, preflight, reservation,
+  one create/observe, atomic artifact, scoped paged readback and exact replay.
+  Desktop and daemon compile checks, formatting and diff checks passed.
+- Live ConTree/GPU/FUSE acceptance, broader project/resources, Amp/Cursor contracts
+  and final cloud/account accounting remain development. See the
+  [command integration evidence](23-remote-command-gpu-jobs.md#production-command-entrypoint-and-owner-acceptance-2026-10-08).

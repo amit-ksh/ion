@@ -582,3 +582,41 @@ Later review:
   create; replay after restart and confirm no new estimator/readiness/create call.
 - [ ] Compare approved startup/cleanup/storage assumptions with real lifecycle and
   billing; retain money until authoritative account/resource charges are reconciled.
+
+## Production command entrypoint and owner acceptance (2026-10-08)
+
+A regression test found that owner command preflight expected the older six-field
+manifest and rejected the shipped seven-field `job-host.json`. It now requires
+the exact `linux-seccomp-socket-deny/v1` witness. Missing/changed boundary, enabled
+network, changed supervisor and extra fields still reject before reservation or
+create. Existing request/policy signatures and original-operation recovery are
+unchanged; old images cannot authorize a new command with an unverified boundary.
+
+The worker now checks its real effective Linux supervisor permissions before user
+code. CHOWN, KILL, SETUID, SETGID and a DAC bypass are necessary for provisioning,
+nonroot execution, stopping descendants and collecting child-owned private files.
+Dropping any required permission rejects the CLI request before a test child can
+write its effect marker. This grants no permission to the child; its capabilities
+remain empty. Package attributes also preserve LF script endings on Windows,
+preventing an invalid Linux entrypoint shebang in a Windows-built image.
+
+Verification: **13 Rust command tests**, **7 host worker tests**, and **8 actual
+Linux CLI groups** passed. The updated immutable local image ID is
+`sha256:29b2c1b39932042eac48051397eb8a3471007212bacba3265b2b5a768829b93e`,
+derived from the prior reviewed image using the updated installed worker. The
+local kernel remains `6.18.40.1-microsoft-standard-WSL2`, libseccomp `2.6.0-2`.
+No provider/GPU job was submitted and no live account credential was used.
+
+The CLI exported an authentic request, receipt and image manifest only after all
+its groups passed. Owner acceptance uses those exports through the same production
+run function, with only host configuration replaced by a localhost transport.
+It verifies the exact 51,200-byte binary input, original arguments/request ID,
+actual exit 7 and output bytes/hash, atomic receipt/summary artifact, assignment
+scope and 4 KiB readback. Replaying returns the same artifact and outcome after
+one create POST total; a failed command is never successful check evidence.
+
+Reproduction and required local container permissions are in the
+[worker guide](../../packages/job-worker/README.md#production-cli-and-owner-path-acceptance-2026-10-08).
+These checks close local entrypoint/owner integration gaps. Full project transfers,
+resource/egress controls, GPU devices/FUSE, pricing/account/billing and imported
+runtime acceptance remain open; agent GPU submission stays disabled.

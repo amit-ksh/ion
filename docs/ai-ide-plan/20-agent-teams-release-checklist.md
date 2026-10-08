@@ -88,8 +88,9 @@ assert live account acceptance, visual validation or production release readines
 - [x] Pinned bounded remote command check gates use original successful receipts
   and current source witnesses at submission and parent acceptance. Descriptive
   check labels do not prove execution.
-- [ ] Local/fallback/general project checks and Linux/live command isolation
-  acceptance; bounded remote gates do not establish these broader capabilities.
+- [ ] Local/fallback/general project checks and live command isolation acceptance;
+  bounded remote gates do not establish these broader capabilities. Local Linux
+  installed-entrypoint and owner-path acceptance now passes.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
 - [ ] Additional resource/egress grants and host enforcement for general commands.
 - [ ] Image/PDF input interpretation through a verified selected harness.
@@ -359,3 +360,18 @@ second development watcher was performed during these checkpoints.
 The native fixture and behavioral proof are documented in the adapter guide.
 Other solo bridges, Amp/Cursor, live native accounts and the broader remote/GPU
 implementation remain open. The full goal remains active.
+
+## 2026-10-08 — installed command worker and owner path
+
+- [x] Exact shipped manifest/socket boundary accepted by owner preflight; invalid
+  manifests reject before a command reservation or create POST.
+- [x] Actual Linux CLI binary transfer, identity/socket/environment, failed outcome,
+  timeout/log, orphan, unsafe-output and private exclusive collector acceptance.
+- [x] Missing supervisor capabilities reject before child code; Windows checkouts
+  preserve valid LF Linux scripts.
+- [x] Native exported receipt through production owner bundling, durable reserve,
+  one create/observe, atomic generated artifact, scoped paged output and replay.
+- [ ] Review the imported live image/kernel/library, supervisor capabilities and
+  real operation/receipt contract. Repeat after runtime/image changes.
+- [ ] Complete broader project/resource/egress, GPU device/FUSE and billing gates
+  listed in the [command/GPU guide](23-remote-command-gpu-jobs.md).

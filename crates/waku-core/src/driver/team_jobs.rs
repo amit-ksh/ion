@@ -136,7 +136,7 @@ fn manifest(client: &Client, p: &Policy) -> Result<()> {
     );
     let host = read_json(response, 16 * 1024)?;
     ensure!(
-        host == json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot"}),
+        host == json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot","network_boundary":"linux-seccomp-socket-deny/v1"}),
         "Command worker/image contract changed"
     );
     Ok(())
@@ -297,6 +297,29 @@ pub(crate) fn run(
     args: CommandArgs,
     cancelled: &AtomicBool,
 ) -> Result<String> {
+    run_with_host(
+        coordinator,
+        claimed,
+        workspace,
+        request_id,
+        args,
+        cancelled,
+        |target| Ok((policy(target)?, Client::configured()?)),
+    )
+}
+
+// Only host configuration is injectable; authorization, file transfer, preflight,
+// reservation, operation observation and artifact publication share this path.
+#[allow(clippy::too_many_arguments)]
+fn run_with_host(
+    coordinator: &TeamCoordinator,
+    claimed: &ClaimedAssignment,
+    workspace: &Path,
+    request_id: Uuid,
+    args: CommandArgs,
+    cancelled: &AtomicBool,
+    configure: impl FnOnce(Uuid) -> Result<(Policy, Client)>,
+) -> Result<String> {
     let profile = coordinator.authorize_remote_job(&claimed.lease, crate::model::unix_time())?;
     let target = profile
         .execution
@@ -304,14 +327,18 @@ pub(crate) fn run(
         .as_deref()
         .context("Pinned sandbox target missing")?;
     let target = Uuid::parse_str(target.rsplit('@').next().unwrap_or(target))?;
-    let policy = policy(target)?;
+    let (policy, client) = configure(target)?;
+    validate_policy(&policy)?;
+    ensure!(
+        policy.target == target,
+        "Command host differs from the pinned sandbox target"
+    );
     validate_args(&policy, &args)?;
     let check_context =
         coordinator.command_check_context(&claimed.lease, workspace, crate::model::unix_time())?;
     let request = bundle(request_id, &args, workspace)?;
     // Validate the full wire request before creating a durable submitting record.
     body(&policy, &request)?;
-    let client = Client::configured()?;
     manifest(&client, &policy)?;
     let output = match coordinator.reserve_remote_job_with_context(
         &claimed.lease,
@@ -700,6 +727,7 @@ mod tests {
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
+            let _ = std::fs::remove_file(self.dir.join("input.bin"));
             let _ = std::fs::remove_file(self.dir.join("control.db"));
             let _ = std::fs::remove_dir(&self.dir);
         }
@@ -732,6 +760,300 @@ mod tests {
     fn bytes(value: Value) -> Vec<u8> {
         serde_json::to_vec(&value).unwrap()
     }
+    #[test]
+    fn team_job_shipped_image_manifest_accepts_exact_child_network_boundary() {
+        let f = Fixture::new(true, true);
+        // Serve the production Docker COPY asset, rather than a hand-built
+        // fixture that can accidentally agree with the owner's wrong schema.
+        let shipped: Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/job-worker/job-host.json"
+        )))
+        .unwrap();
+        let server = Server::new(vec![(200, bytes(shipped.clone()))]);
+        let client = Client::fixture(&server.url, "fixture-project");
+        manifest(&client, &f.policy).expect("The shipped command image must pass owner preflight");
+        let requests = server.finish();
+        assert_eq!(requests.len(), 1);
+        assert!(
+            requests[0]
+                .line
+                .starts_with(&format!("GET /inspect/{}/download?", f.policy.image))
+        );
+        assert!(requests[0].line.contains("path=%2Fion%2Fjob-host.json"));
+        assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
+
+        for change in ["missing", "changed", "network", "supervisor", "extra"] {
+            let mut invalid = shipped.clone();
+            match change {
+                "missing" => {
+                    invalid.as_object_mut().unwrap().remove("network_boundary");
+                }
+                "changed" => invalid["network_boundary"] = json!("unverified/v1"),
+                "network" => invalid["network"] = json!("enabled"),
+                "supervisor" => invalid["supervisor"] = json!("user"),
+                "extra" => invalid["native_credentials"] = json!(true),
+                _ => unreachable!(),
+            }
+            let server = Server::new(vec![(200, bytes(invalid))]);
+            let client = Client::fixture(&server.url, "fixture-project");
+            assert!(
+                manifest(&client, &f.policy).is_err(),
+                "Accepted unapproved manifest change: {change}"
+            );
+            let requests = server.finish();
+            assert_eq!(requests.len(), 1);
+            assert!(requests[0].line.starts_with("GET "));
+            assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
+        }
+    }
+    #[test]
+    fn team_job_run_rejects_changed_manifest_before_reservation() {
+        let f = Fixture::new(true, true);
+        let server = Server::new(vec![(
+            200,
+            bytes(json!({
+                "version":1,"worker":"ion-job-worker/1","credential_free":true,
+                "network":"disabled","supervisor":"root","child":"nonroot"
+            })),
+        )]);
+        let result = run_with_host(
+            &f.store,
+            &f.claim,
+            &f.dir,
+            f.request.request_id,
+            CommandArgs {
+                argv: f.request.argv.clone(),
+                input_paths: vec![],
+                output_paths: vec![],
+                timeout_seconds: f.request.timeout_seconds,
+            },
+            &AtomicBool::new(false),
+            |target| {
+                assert_eq!(target, f.policy.target);
+                Ok((
+                    f.policy.clone(),
+                    Client::fixture(&server.url, "fixture-project"),
+                ))
+            },
+        );
+        assert!(result.unwrap_err().to_string().contains("contract changed"));
+        assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
+        assert!(
+            f.store
+                .unfinished_jobs(f.claim.lease.attempt_id())
+                .unwrap()
+                .is_empty()
+        );
+        let requests = server.finish();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].line.starts_with("GET /inspect/"));
+    }
+
+    #[test]
+    #[ignore = "requires fixtures exported by the actual pinned Linux job-worker CLI"]
+    fn team_job_native_linux_receipt_full_run_transfer_replay_and_artifact() {
+        let root = std::env::var_os("ION_NATIVE_JOB_WORKER_FIXTURE")
+            .expect("Export native CLI fixtures with packages/job-worker/test_linux_cli.py first");
+        let root = std::path::PathBuf::from(root);
+        let read = |name: &str, limit: u64| {
+            let mut data = Vec::new();
+            std::fs::File::open(root.join(name))
+                .unwrap()
+                .take(limit + 1)
+                .read_to_end(&mut data)
+                .unwrap();
+            assert!(data.len() as u64 <= limit);
+            data
+        };
+        let native_request: JobRequest =
+            serde_json::from_slice(&read("request.json", 512 * 1024)).unwrap();
+        let native_response: JobResponse =
+            serde_json::from_slice(&read("receipt.json", 512 * 1024)).unwrap();
+        let native_manifest: Value =
+            serde_json::from_slice(&read("manifest.json", 16 * 1024)).unwrap();
+        let shipped_manifest: Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/job-worker/job-host.json"
+        )))
+        .unwrap();
+        assert_eq!(native_manifest, shipped_manifest);
+        native_response.validate_against(&native_request).unwrap();
+        assert_eq!(native_request.argv[0], "/usr/local/bin/python3");
+        assert_eq!(native_request.inputs.len(), 1);
+        assert_eq!(native_request.inputs[0].path, "input.bin");
+        assert_eq!(native_request.output_paths, ["output.bin"]);
+        assert_eq!(
+            native_response.exit_code, 7,
+            "Native nonzero command outcome must be preserved"
+        );
+        assert!(!native_response.timed_out && !native_response.canceled);
+        let payload: Vec<u8> = (0..256).map(|v| v as u8).collect::<Vec<_>>().repeat(200);
+        assert_eq!(
+            STANDARD
+                .decode(&native_request.inputs[0].content_base64)
+                .unwrap(),
+            payload
+        );
+        let mut expected_output = payload.clone();
+        expected_output.extend_from_slice(b"\x00\xffresult");
+        assert_eq!(
+            STANDARD
+                .decode(&native_response.outputs[0].content_base64)
+                .unwrap(),
+            expected_output
+        );
+
+        let mut f = Fixture::new(true, true);
+        f.request = native_request;
+        f.policy.executables = vec![f.request.argv[0].clone()];
+        let mut input = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(f.dir.join("input.bin"))
+            .unwrap();
+        std::io::Write::write_all(&mut input, &payload).unwrap();
+        drop(input);
+        let operation = Uuid::new_v4();
+        let server = Server::new(vec![
+            (200, bytes(native_manifest.clone())),
+            (201, bytes(json!({"uuid":operation}))),
+            (200, bytes(terminal(&f, operation, &native_response))),
+            (200, bytes(native_manifest)),
+        ]);
+        let invoke = || {
+            run_with_host(
+                &f.store,
+                &f.claim,
+                &f.dir,
+                f.request.request_id,
+                CommandArgs {
+                    argv: f.request.argv.clone(),
+                    input_paths: vec!["input.bin".into()],
+                    output_paths: f.request.output_paths.clone(),
+                    timeout_seconds: f.request.timeout_seconds,
+                },
+                &AtomicBool::new(false),
+                |target| {
+                    assert_eq!(target, f.policy.target);
+                    Ok((
+                        f.policy.clone(),
+                        Client::fixture(&server.url, "fixture-project"),
+                    ))
+                },
+            )
+        };
+        let first: Value = serde_json::from_str(
+            &invoke().expect("Actual Linux receipt must pass the complete owner run path"),
+        )
+        .unwrap();
+        assert_eq!(first["exit_code"], 7);
+        assert_eq!(first["request_id"], f.request.request_id.to_string());
+        assert_eq!(first["output_count"], 1);
+        let replay: Value = serde_json::from_str(&invoke().unwrap()).unwrap();
+        assert_eq!(first, replay);
+        assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
+        assert!(
+            f.store
+                .unfinished_jobs(f.claim.lease.attempt_id())
+                .unwrap()
+                .is_empty()
+        );
+        let artifact = Uuid::parse_str(first["artifact_id"].as_str().unwrap()).unwrap();
+        assert!(!artifact.is_nil());
+        let document: Value = serde_json::from_slice(
+            &f.store
+                .read_assignment_document(&f.claim.lease, artifact, crate::model::unix_time())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(document, native_response.summary().unwrap());
+        assert!(document["outputs"][0].get("content_base64").is_none());
+        let stored = f
+            .store
+            .job_receipt(
+                &f.claim.lease,
+                f.request.request_id,
+                crate::model::unix_time(),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&stored).unwrap(),
+            serde_json::to_value(&native_response).unwrap()
+        );
+        let mut received = Vec::new();
+        loop {
+            let page: Value = serde_json::from_str(
+                &read_output(
+                    &f.store,
+                    &f.claim.lease,
+                    f.request.request_id,
+                    "output.bin",
+                    received.len(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(page["offset"], received.len());
+            assert_eq!(page["total_bytes"], expected_output.len());
+            assert_eq!(
+                page["sha256"],
+                format!("{:x}", Sha256::digest(&expected_output))
+            );
+            let data = STANDARD
+                .decode(page["content_base64"].as_str().unwrap())
+                .unwrap();
+            assert!(data.len() <= 4096);
+            received.extend_from_slice(&data);
+            assert_eq!(page["next_offset"], received.len());
+            if received.len() == expected_output.len() {
+                break;
+            }
+            assert!(!data.is_empty());
+        }
+        assert_eq!(received, expected_output);
+        assert!(read_output(&f.store, &f.claim.lease, f.request.request_id, "missing", 0).is_err());
+        let foreign = Fixture::new(true, true);
+        assert!(
+            read_output(
+                &f.store,
+                &foreign.claim.lease,
+                f.request.request_id,
+                "output.bin",
+                0
+            )
+            .is_err()
+        );
+        let requests = server.finish();
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.line.starts_with("POST "))
+                .count(),
+            1
+        );
+        assert!(requests[0].line.starts_with("GET /inspect/"));
+        assert!(requests[1].line.starts_with("POST /instances "));
+        assert!(
+            requests[2]
+                .line
+                .starts_with(&format!("GET /operations/{operation} "))
+        );
+        assert!(requests[3].line.starts_with("GET /inspect/"));
+        let sent: JobRequest = serde_json::from_slice(
+            &STANDARD
+                .decode(requests[1].body["stdin"]["value"].as_str().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&sent).unwrap(),
+            serde_json::to_value(&f.request).unwrap()
+        );
+        assert_eq!(requests[1].body, body(&f.policy, &f.request).unwrap());
+    }
+
     #[test]
     fn team_job_pins_command_files_and_real_nonzero_receipt_without_a_second_post() {
         let f = Fixture::new(true, true);

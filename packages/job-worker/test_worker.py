@@ -28,6 +28,16 @@ class JobTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='ion-worker-test-') as folder:
             return worker.run(value, Path(folder) / 'work')
 
+    def test_supervisor_caps_reject_missing_permissions_before_execution(self):
+        required = sum(1 << bit for bit in (0, 5, 6, 7))
+        worker.require_supervisor_capabilities(required | (1 << 1))
+        worker.require_supervisor_capabilities(required | (1 << 2))
+        for mask in [0, required, -1, True, 1 << 64, None] + [
+            (required | (1 << 1)) & ~(1 << bit) for bit in (0, 5, 6, 7)
+        ]:
+            with self.subTest(mask=mask), self.assertRaises(ValueError):
+                worker.require_supervisor_capabilities(mask)
+
     def test_actual_command_files_exit_environment_and_output_receipt(self):
         value = self.request("import os,pathlib; assert 'ION_TEST_SECRET' not in os.environ; pathlib.Path('output.txt').write_bytes(pathlib.Path('input.txt').read_bytes()+b' result'); print('done')")
         os.environ['ION_TEST_SECRET'] = 'not-for-child'

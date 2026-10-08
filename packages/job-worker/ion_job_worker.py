@@ -100,6 +100,25 @@ def safe_file(root, name):
     return current
 
 
+def require_supervisor_capabilities(mask):
+    # CHOWN, KILL, SETGID and SETUID are needed to provision/demote/reap the
+    # command. A DAC bypass is also needed to collect and remove child-owned
+    # private files. Refuse before user code rather than lose its receipt later.
+    required = sum(1 << bit for bit in (0, 5, 6, 7))
+    if (type(mask) is not int or not 0 <= mask < (1 << 64)
+        or mask & required != required or not mask & ((1 << 1) | (1 << 2))):
+        raise ValueError('Linux supervisor permissions unavailable')
+
+
+def validate_supervisor():
+    with open('/proc/self/status', 'rb') as source:
+        data = source.read(16 * 1024 + 1)
+    if len(data) > 16 * 1024:
+        raise ValueError('Linux supervisor status exceeds its bound')
+    fields = dict(line.split(':', 1) for line in data.decode('ascii').splitlines() if ':' in line)
+    require_supervisor_capabilities(int(fields['CapEff'].strip(), 16))
+
+
 def enable_subreaper():
     # Linux adopts orphaned grandchildren even when a command calls setsid().
     # Only the isolated CLI entrypoint enables this; host fixture callers do not.
@@ -321,6 +340,7 @@ def main():
         return 2
     stream = None
     try:
+        validate_supervisor()
         enable_subreaper()
         stream = open('/ion/job-request.json', 'rb') if len(sys.argv) > 1 else sys.stdin.buffer
         data = stream.read(MAX_INPUT+1)

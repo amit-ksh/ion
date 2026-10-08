@@ -100,6 +100,37 @@ closure, missing library/unapproved kernel, actual failures and private exclusiv
 result receipts. The Windows suite does not prove Linux isolation. Imported
 ConTree/GPU images and live resources still need separate acceptance.
 
+### Production CLI and owner-path acceptance (2026-10-08)
+
+`test_linux_cli.py` invokes the **installed entrypoint**, including its real root
+supervision and fixed nonroot guard. Eight groups cover binary input/output and
+hashes, real nonzero exits, private environment/collector isolation, socket denial,
+timeout/log bounds, detached descendants, unsafe outputs, invalid requests,
+exclusive result creation/replay, CLI flags and missing supervisor capabilities.
+The root collector requires CHOWN, KILL, SETUID, SETGID and either DAC_OVERRIDE or
+DAC_READ_SEARCH. It checks effective permissions before user code; the child
+still receives no capabilities. Linux script line endings are pinned by the
+package's `.gitattributes`, including Windows checkouts.
+
+Run the suite in a fresh disposable **reviewed** image. The image root must be
+writable for the private result collector; use no account/model credentials.
+For example, on Linux with `ION_REVIEWED_JOB_IMAGE` set to its verified image ID:
+
+```sh
+fixture_dir=$(mktemp -d)
+docker run --rm --pull=never --network=none --cap-drop=ALL --cap-add=CHOWN --cap-add=KILL --cap-add=SETUID --cap-add=SETGID --cap-add=DAC_OVERRIDE --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --tmpfs=/tmp:rw,nosuid,nodev,size=64m --env=ION_JOB_CLI_ACCEPTANCE=1 --mount "type=bind,source=$PWD/packages/job-worker,target=/acceptance,readonly" --mount "type=bind,source=$fixture_dir,target=/out" --entrypoint=/usr/local/bin/python3 "$ION_REVIEWED_JOB_IMAGE" -I -B -S /acceptance/test_linux_cli.py --fixture-dir /out
+ION_NATIVE_JOB_WORKER_FIXTURE="$fixture_dir" cargo test -p waku-core team_job_native_linux_receipt_full_run_transfer_replay_and_artifact --lib --locked -- --include-ignored --test-threads=1
+```
+
+The output directory must permit only the trusted root fixture to write. Exports
+use exclusive creation and happen only after every CLI group passes. The Rust
+acceptance test feeds that actual receipt and manifest through the production
+owner path with a localhost ConTree transport: exact file bundle, preflight,
+durable reservation, single create/observe, generated summary artifact, full
+paged readback and identical replay without another POST. No owner input files
+or user credentials are discovered automatically. This is local Linux/owner
+integration evidence; imported ConTree/GPU/FUSE images still need live acceptance.
+
 ## GPU result volume (owner integration)
 
 The same version 1 worker can run in a reviewed GPU-compatible Linux image.
