@@ -2283,3 +2283,51 @@ readiness claim. Amp/Cursor native limits/usage, additional solo-harness bridges
 broader local/remote checks, aggregate host/cloud accounting and GPU runtime
 contracts remain development. The broader Ion release checklist additionally
 tracks Inbox, artifact/usage, gateway and cloud speech work.
+
+
+## 2026-10-08 — native OpenCode normal-task Teams checkpoint
+
+Normal OpenCode tasks now discover and invoke saved teams, inspect their durable
+run status, await results and read accepted generated documents through the
+shared owner runtime. The managed native server receives a private import-free
+plugin; existing native coding tools, account/model selection and user plugins
+stay available. JSONC content is preserved. The daemon supplies source/project
+identity and keeps the saved lead's harness, model, environment, limits and
+permissions; privileged access still requests an exact source grant.
+
+A callback must match the live native assistant message and running tool part
+observed on that task's SSE stream. A private loopback credential alone cannot
+queue work. Complete arguments and session/message/call IDs bind durable replay.
+Changed, foreign, browser and stopped calls are rejected. Source Stop cancels
+pending approvals and delivery; a queued prompt cannot reopen a later Stop.
+Canceled observed identities remain tombstones. A closed driver's session can
+be attached again immediately, and nested message/part session IDs now filter
+traffic from other tasks on the shared workspace server. The event subscription
+is ready before accepting a first prompt. HTTP handlers/queues are bounded across
+the owner and never run on rendering.
+
+Actual **OpenCode 1.18.15** passed through Ion's real server and driver: discovery,
+source grant, one durable team invocation, status, immediate same-session resume,
+shared-server isolation and Stop on another source's pending approval. The first
+source remained attached while the other task emitted native tool events. Seven
+localhost Responses requests used a private empty profile and fake key. The
+fixture preserves native built-in tool registration while disabling external
+model/package/account discovery and metadata agents. This is native transport
+and owner acceptance, not a live account, billing or team-completion claim.
+
+Verification: **10 OpenCode bridge checks** (including actual native acceptance),
+**19 existing OpenCode driver checks** and **10 existing Claude/Codex source
+checks** passed (**39 total**). Two authenticated OpenCode checks and the two
+separate native Claude/Codex fixtures were excluded from those regression runs;
+the preceding checkpoints retain their native fixture evidence. Desktop/daemon compile,
+formatting and whitespace gates passed; existing unrelated Rust warnings remain.
+The [OpenCode setup and review checklist](22-harness-adapters-remote-execution.md#opencode-normal-task-teams-bridge-2026-10-08)
+records the native version, reproduction command and real configuration review.
+
+The rough implementation estimate remains **about 75% for Teams/harnesses/remote
+execution**, with **about 25% development remaining**. Remaining development is
+Amp/Cursor completion limits and native usage, other normal-harness Teams bridges,
+broader local/remote command and dataset handling, aggregate cloud accounting and
+GPU runtime/device/network/volume contracts. Live native account and Nebius
+resource acceptance is tracked separately. This is not a coverage percentage or
+full Ion release-readiness claim.

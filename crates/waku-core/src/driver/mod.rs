@@ -13,7 +13,7 @@ mod opencode;
 mod opencode2;
 mod opencode2_computer_use;
 mod pi;
-mod source_teams;
+pub(crate) mod source_teams;
 mod support;
 pub(crate) mod team_antigravity;
 pub(crate) mod team_apps;
@@ -283,7 +283,9 @@ pub(crate) fn start_local_with_workspace(
         ProviderKind::DeepSeek => Arc::new(deepseek::DeepSeekDriver::start(options, events)?),
         // OpenCode's own server is its real API, and it is what exposes
         // interactive permission requests.
-        ProviderKind::OpenCode => Arc::new(opencode::OpenCodeDriver::start(options, events)?),
+        ProviderKind::OpenCode => Arc::new(opencode::OpenCodeDriver::start_with_workspace(
+            options, events, workspace,
+        )?),
         // OpenCode 2 is not a per-workspace server: one adopted background
         // service carries every workspace, and every Waku task rides its one
         // event stream.

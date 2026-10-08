@@ -178,10 +178,27 @@ pub struct OpenCodeDriver {
     event_stream: Arc<StreamControl>,
     mode: RuntimeMode,
     computer_use: Option<super::support::HeadlessComputerUseRuntime>,
+    teams: Option<super::source_teams::opencode::Bridge>,
 }
 
 impl OpenCodeDriver {
+    #[cfg(test)]
     pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
+        Self::start_with_workspace(options, events, None)
+    }
+    pub(crate) fn start_with_workspace(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
+        Self::start_with_server(options, events, workspace, None)
+    }
+    pub(crate) fn start_with_server(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+        configured: Option<PooledServer>,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
             cwd,
@@ -226,7 +243,9 @@ impl OpenCodeDriver {
         // shares the workspace's one resident server — OpenCode hosts many
         // sessions per process, and a second `opencode serve` in the same
         // workspace contends with the live one.
-        let server = if computer_use.is_some() {
+        let server = if let Some(server) = configured {
+            server
+        } else if computer_use.is_some() {
             PooledServer::dedicated(OpenCodeServer::start_with_env(&binary, &cwd, &environment)?)
         } else {
             crate::opencode_pool::acquire(&binary, &cwd)?
@@ -249,6 +268,32 @@ impl OpenCodeDriver {
                     .ok_or_else(|| anyhow!("OpenCode returned no session ID"))?
             }
         };
+
+        if workspace.is_some() {
+            let ids = server
+                .request("GET", "/experimental/tool/ids", None)
+                .context("Could not load native OpenCode Teams plugin")?;
+            anyhow::ensure!(
+                super::source_teams::tools()
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|tool| {
+                        let expected =
+                            format!("ion_teams_{}", tool["function"]["name"].as_str().unwrap());
+                        ids.as_array()
+                            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&expected)))
+                    }),
+                "Native OpenCode Teams plugin is unavailable; update OpenCode and check native plugin setup"
+            );
+        }
+        let teams = workspace
+            .map(|context| {
+                server
+                    .teams
+                    .attach(context, session_id.clone(), events.clone())
+            })
+            .transpose()?;
 
         // OpenCode's build agent allows ordinary shell commands by default.
         // Waku must therefore install the selected access policy on this
@@ -381,6 +426,8 @@ impl OpenCodeDriver {
         let stream_usage_metadata = usage_metadata;
         let stream_permissions = Arc::clone(&permissions);
         let stream_control = Arc::clone(&event_stream);
+        let stream_teams = teams.clone();
+        let (stream_ready, ready) = crossbeam_channel::bounded(1);
         thread::Builder::new()
             .name("waku-opencode-events".into())
             .spawn(move || {
@@ -416,6 +463,7 @@ impl OpenCodeDriver {
                                 &state.permissions,
                             );
                         }
+                        let _ = stream_ready.try_send(());
                         for line in BufReader::new(stream).lines().map_while(Result::ok) {
                             if stream_control.is_cancelled() {
                                 break;
@@ -428,11 +476,12 @@ impl OpenCodeDriver {
                             };
                             // Another session's traffic must not reach this
                             // task's transcript.
-                            let session = value
-                                .pointer("/properties/sessionID")
-                                .and_then(Value::as_str);
+                            let session = event_session(&value);
                             if session.is_some_and(|session| session != stream_session) {
                                 continue;
+                            }
+                            if let Some(teams) = &stream_teams {
+                                teams.observe(&value);
                             }
                             handle_event(
                                 &value,
@@ -455,11 +504,18 @@ impl OpenCodeDriver {
                         }
                     }
                 }
+                if let Some(teams) = &stream_teams {
+                    teams.close();
+                }
                 stream_control.clear();
                 if !stream_control.is_cancelled() {
                     let _ = stream_events.send(DriverEvent::ProcessExited);
                 }
             })?;
+
+        ready
+            .recv_timeout(Duration::from_secs(6))
+            .context("OpenCode event stream did not become ready")?;
 
         let worker_server = server.clone();
         let worker_session = session_id.clone();
@@ -467,6 +523,7 @@ impl OpenCodeDriver {
         let worker_events = events;
         let worker_turn = turn_active;
         let worker_commands = commands.clone();
+        let worker_teams = teams.clone();
         thread::Builder::new()
             .name("waku-opencode-driver".into())
             .spawn(move || {
@@ -648,7 +705,12 @@ impl OpenCodeDriver {
                                 )));
                             }
                         }
-                        CommandMessage::Shutdown => break,
+                        CommandMessage::Shutdown => {
+                            if let Some(teams) = &worker_teams {
+                                teams.close();
+                            }
+                            break;
+                        }
                     }
                 }
             })
@@ -664,12 +726,18 @@ impl OpenCodeDriver {
             event_stream,
             mode,
             computer_use,
+            teams,
         })
     }
 }
 
 impl DriverControl for OpenCodeDriver {
     fn prompt(&self, prompt: String) {
+        // Open the source generation before enqueueing. A later Stop must not
+        // be undone when an already queued prompt reaches the worker.
+        if let Some(teams) = &self.teams {
+            teams.allow_turn();
+        }
         let _ = self.commands.send(CommandMessage::Prompt(prompt));
     }
 
@@ -682,6 +750,9 @@ impl DriverControl for OpenCodeDriver {
     }
 
     fn cancel(&self) {
+        if let Some(teams) = &self.teams {
+            teams.cancel();
+        }
         let _ = self.commands.send(CommandMessage::Cancel);
     }
 
@@ -692,6 +763,13 @@ impl DriverControl for OpenCodeDriver {
     }
 
     fn respond(&self, request_id: String, option_id: String) {
+        if self
+            .teams
+            .as_ref()
+            .is_some_and(|teams| teams.respond(&request_id, &option_id))
+        {
+            return;
+        }
         for (request_id, option_id) in
             permission_responses(&self.permissions, &request_id, &option_id)
         {
@@ -734,12 +812,35 @@ impl DriverControl for OpenCodeDriver {
 impl Drop for OpenCodeDriver {
     fn drop(&mut self) {
         self.cancel_computer_use();
+        if let Some(teams) = &self.teams {
+            teams.close();
+        }
         self.event_stream.cancel();
         // The worker owns the other server lease. Release the UI-owned lease
         // first, then wake the worker so any final terminate/wait happens there.
         drop(self.server.take());
         let _ = self.commands.send(CommandMessage::Shutdown);
     }
+}
+
+/// Native message and part events carry session identity inside their payload.
+/// A shared workspace server must filter those as strictly as session events.
+fn event_session(value: &Value) -> Option<&str> {
+    [
+        "/properties/sessionID",
+        "/properties/info/sessionID",
+        "/properties/part/sessionID",
+        "/properties/info/id",
+    ]
+    .into_iter()
+    .filter(|path| {
+        *path != "/properties/info/id"
+            || matches!(
+                value["type"].as_str(),
+                Some("session.updated" | "session.created" | "session.deleted")
+            )
+    })
+    .find_map(|path| value.pointer(path).and_then(Value::as_str))
 }
 
 /// Reads the human-readable text out of a `session.error` event.

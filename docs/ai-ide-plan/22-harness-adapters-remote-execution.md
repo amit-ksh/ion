@@ -61,16 +61,16 @@ Teams adapters remain unchecked in the release checklist.
 ## Normal tasks invoking saved teams
 
 Normal New task continues to use the selected solo harness. The separate Teams
-completion adapters above govern each delegated assignment. Native Nebius, Codex
-and Claude solo tasks now share these owner-scoped capabilities:
+completion adapters above govern each delegated assignment. Native Nebius, Codex,
+Claude and OpenCode solo tasks now share these owner-scoped capabilities:
 
-| Capability | Native Nebius | Native Codex | Native Claude |
-| --- | --- | --- | --- |
-| Find saved teams | `list_teams` | `ion_list_teams` | `mcp__ion_teams__list_teams` |
-| Queue a saved team | `invoke_team` | `ion_invoke_team` | `mcp__ion_teams__invoke_team` |
-| Read source task's run status | `get_team_runs` | `ion_get_team_runs` | `mcp__ion_teams__get_team_runs` |
-| Wait up to 30 seconds | `await_team` | `ion_await_team` | `mcp__ion_teams__await_team` |
-| Read an accepted generated document | `read_team_document` | `ion_read_team_document` | `mcp__ion_teams__read_team_document` |
+| Capability | Native Nebius | Native Codex | Native Claude | Native OpenCode |
+| --- | --- | --- | --- | --- |
+| Find saved teams | `list_teams` | `ion_list_teams` | `mcp__ion_teams__list_teams` | `ion_teams_list_teams` |
+| Queue a saved team | `invoke_team` | `ion_invoke_team` | `mcp__ion_teams__invoke_team` | `ion_teams_invoke_team` |
+| Read source task's run status | `get_team_runs` | `ion_get_team_runs` | `mcp__ion_teams__get_team_runs` | `ion_teams_get_team_runs` |
+| Wait up to 30 seconds | `await_team` | `ion_await_team` | `mcp__ion_teams__await_team` | `ion_teams_await_team` |
+| Read an accepted generated document | `read_team_document` | `ion_read_team_document` | `mcp__ion_teams__read_team_document` | `ion_teams_read_team_document` |
 
 The daemon supplies the source task and project. Function arguments cannot choose
 an owner, project, grant, execution host or replacement harness. A team keeps its
@@ -136,6 +136,70 @@ The bridge follows the [official SDK custom tools contract](https://code.claude.
 and [native control request transport](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py).
 Native metadata correlation and request ordering were observed in the actual
 2.1.289 executable, rather than inferred solely from those SDK wrappers.
+
+### OpenCode normal-task Teams bridge (2026-10-08)
+
+**Verified native version: 1.18.15.** Ion adds an import-free native JavaScript
+plugin to its managed server configuration. Its five tools use the same owner
+source/project scope, grant approval, four-run limit, durable replay, status,
+wait and document behavior. Normal New task, the native selected model/account,
+built-in tools, user plugins and Composio/Computer Use configuration remain
+available. Ion appends only its local plugin to inherited JSON or JSONC content;
+it does not write project or global configuration. Invalid configuration is
+reported before launching a server.
+
+A workspace server hosts multiple tasks. Its private loopback credential is
+insufficient to queue work: the owner must first observe a native assistant
+message and running tool part for the attached session, message, call ID, tool
+and complete arguments. The invocation key uses those native IDs; callers cannot
+supply task/project identity or grants. Foreign messages/subagents, missing or
+changed witnesses, browser requests and stopped calls are rejected. Stop revokes
+approval and delivery immediately; canceled call IDs remain tombstones for that
+attachment. A closed driver can be replaced for the same native session while
+its reader tears down. Source scopes are distinct even on the same server.
+
+The HTTP handlers are bounded to four for the entire owner with a sixteen-entry
+connection queue. Each source retains the shared four-entry execution queue.
+All network/database work stays off rendering. Driver startup waits for the
+native event subscription before accepting a prompt; it also verifies the native
+`/experimental/tool/ids` catalog. This prevents a first tool call from racing
+past its observation. `list_teams` lists the bounded catalog without an optional
+query and `await_team` uses the owner's default 30-second wait in this native
+plugin. The common owner tools still support their optional arguments.
+
+The native fixture uses a private HOME/XDG/config/data/work/temp, a fake OpenAI
+key, a localhost Responses endpoint and a predeclared private dependency lock.
+The plugin imports no npm implementation. It preserves native built-in tool
+registration; model/account discovery, metadata agents, language-server downloads
+and external package resolution are disabled only for the fixture. Seven local
+model responses cover discovery, exact approval, one durable invocation, status,
+immediate same-session resume and Stop during a second source's approval. The
+native shared-server check keeps the first task attached while the second runs.
+This proves the transport and owner boundary, not real account billing or a
+completed delegated assignment.
+
+```powershell
+$env:ION_NATIVE_OPENCODE_BINARY = '<absolute path to native OpenCode 1.18.15 executable>'
+cargo test -p waku-core opencode_source_team --lib --locked -- --include-ignored --test-threads=1
+```
+
+Review with your normal native account when available:
+
+- [ ] Start a normal OpenCode task and ask it to discover and invoke a saved team.
+- [ ] Confirm that privileged lead access asks in Supervised mode and decline
+  leaves no queued run; allow keeps the saved harness/model/Local or Nebius host.
+- [ ] Ask for run status, await the actual completion, and read its generated
+  document. A queue receipt must be shown as queued work.
+- [ ] Reopen the same native task and inspect the original run without another
+  invocation or grant. Open another task in the same project and verify their
+  tool activity, approvals and run/document scopes remain separate.
+- [ ] Stop during pending team approval and verify late approval cannot enqueue.
+- [ ] Check your existing native plugins, normal coding tools, Computer Use and
+  Composio connections with your real configuration.
+
+Contract evidence: [official native plugin interface](https://opencode.ai/docs/plugins/),
+[1.18.15 tool registry/context forwarding](https://github.com/anomalyco/opencode/blob/v1.18.15/packages/opencode/src/tool/registry.ts)
+and [native tool catalog route](https://github.com/anomalyco/opencode/blob/v1.18.15/packages/sdk/js/src/v2/gen/sdk.gen.ts).
 
 The verified native resume schema has no `dynamicTools` field. Imported/older
 Codex threads created without these tools keep their existing normal behavior;

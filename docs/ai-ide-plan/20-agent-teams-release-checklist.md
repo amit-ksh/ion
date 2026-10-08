@@ -13,9 +13,11 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
   sandbox can fall back locally with the same selected harness/model/grants.
 - [x] Preserve normal New task; invoke a team with `@teamname`, `@{Team Name}`
   or the qualified picker address. Ambiguous names require explicit selection.
-- [x] Normal native Nebius, Codex and Claude agents can invoke saved teams with source
+- [x] Normal native Nebius, Codex, Claude and OpenCode agents can invoke saved teams with source
   permissions, wait for their actual outcome and read accepted generated documents.
   New Codex threads register native dynamic tools; reopening retains those tools.
+  OpenCode uses a native plugin with source identities observed on its shared
+  server; its real account/plugin review is listed in the adapter setup doc.
 - [x] Durable task creation, pinned definitions, nested delegation, bounded private
   handoffs, transactional capacity and lease fencing across restart.
 - [x] Actual local Teams execution for native Nebius, restricted Claude, Codex,

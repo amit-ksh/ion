@@ -193,6 +193,7 @@ fn fork_message_id(message_ids: &[String], retained_turns: usize) -> anyhow::Res
 pub(crate) struct OpenCodeServer {
     child: Mutex<Child>,
     pub(crate) port: u16,
+    pub(crate) teams: crate::driver::source_teams::opencode::Hub,
 }
 
 impl OpenCodeServer {
@@ -207,15 +208,26 @@ impl OpenCodeServer {
         cwd: &Path,
         environment: &[(String, String)],
     ) -> anyhow::Result<Self> {
+        Self::start_configured(binary, cwd, environment, |_| {})
+    }
+    pub(crate) fn start_configured(
+        binary: &Path,
+        cwd: &Path,
+        environment: &[(String, String)],
+        configure: impl FnOnce(&mut std::process::Command),
+    ) -> anyhow::Result<Self> {
         let listener = TcpListener::bind(("127.0.0.1", 0))
             .context("could not reserve a local port for OpenCode")?;
         let port = listener.local_addr()?.port();
         drop(listener);
 
+        let teams = crate::driver::source_teams::opencode::Hub::start()?;
         let mut command = crate::command_env::command(binary);
+        configure(&mut command);
         for (name, value) in environment {
             command.env(name, value);
         }
+        teams.configure(&mut command, environment)?;
         let command = command
             .args([
                 "serve",
@@ -235,6 +247,7 @@ impl OpenCodeServer {
         let server = Self {
             child: Mutex::new(child),
             port,
+            teams,
         };
         let started_at = Instant::now();
         loop {
@@ -301,6 +314,7 @@ impl OpenCodeServer {
     /// Terminates and reaps the owned child. The timeout is a graceful-exit
     /// budget; a server that ignores TERM is killed afterward.
     pub(crate) fn shutdown(&self, timeout: Duration) {
+        self.teams.close();
         let mut child = self.child.lock();
         if child.try_wait().is_ok_and(|status| status.is_some()) {
             return;
@@ -331,6 +345,7 @@ impl OpenCodeServer {
 
 impl Drop for OpenCodeServer {
     fn drop(&mut self) {
+        self.teams.close();
         let child = self.child.get_mut();
         if child.try_wait().is_ok_and(|status| status.is_some()) {
             return;
@@ -419,6 +434,7 @@ mod tests {
         let server = OpenCodeServer {
             child: Mutex::new(child),
             port: 0,
+            teams: crate::driver::source_teams::opencode::Hub::start().unwrap(),
         };
         let deadline = Instant::now() + Duration::from_secs(2);
         while Instant::now() < deadline && server.is_alive() {
@@ -437,6 +453,7 @@ mod tests {
         let server = OpenCodeServer {
             child: Mutex::new(child),
             port: 0,
+            teams: crate::driver::source_teams::opencode::Hub::start().unwrap(),
         };
         let started = Instant::now();
         server.shutdown(Duration::from_secs(3));
