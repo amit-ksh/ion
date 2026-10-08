@@ -5,6 +5,23 @@ worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
+## Current scope correction (2026-10-08)
+
+The user deferred adapters that have not been added yet. Keep all implemented
+adapters and native Nebius/Codex/Claude/OpenCode normal-task Teams connections.
+
+The following additions are **out of scope for the current implementation**:
+
+- Amp and Cursor Teams completion adapters.
+- Remaining normal-task Teams bridges, including Pi and Oh My Pi.
+- Additional unsupported OAuth/subscription/custom provider/account routes.
+
+These are deferred work, not completed capabilities or current release gates.
+Existing adapter setup, supported-account review and live acceptance still apply.
+Remote filesystem/commands/GPU development remains in the plan. Historical
+checkpoint sections below describe the scope at their date; this correction
+supersedes references there to unfinished adapters as required development.
+
 ## Implemented and covered by local regression tests
 
 - [x] Reusable teams, direct reporting hierarchy and per-agent harness/model,
@@ -67,17 +84,12 @@ assert live account acceptance, visual validation or production release readines
 - [x] Fx official native Linux x86_64 fixture acceptance with the actual 0.0.13
   binary, fake key and localhost provider; twelve Linux transport regressions.
 - [ ] Fx macOS and live selected-account/registered-host acceptance.
-- [ ] Amp and Cursor Teams adapters: verified native account/request caps, effects,
-  auxiliary-call boundary and complete per-call usage. These remain development.
-- [ ] Unverified OAuth/subscription/custom provider transports for the additional
-  harnesses; preserving solo availability does not establish a Teams contract.
 - [x] Native Codex normal-task bridge, exact source-turn scope, durable invocation
   replay, bounded approval/wait work and actual app-server start/resume fixture.
-- [x] Native Claude SDK MCP normal-task bridge, observed main-session tool identity,
-  exact grants/replay/cancellation and actual native start/resume/pending-approval fixture.
-- [ ] Normal-task team invocation bridges for the other external solo harnesses.
   Imported Codex threads created without dynamic tools cannot retrofit them through
   the verified native resume interface; start a new Ion Codex task for team tools.
+- [x] Native Claude SDK MCP normal-task bridge, observed main-session tool identity,
+  exact grants/replay/cancellation and actual native start/resume/pending-approval fixture.
 - [x] Registered immutable ConTree worker: actual selected-harness completion,
   readiness, bounded transfer, durable operation identity, cancellation, restart
   reconciliation, usage and pre-execution Local fallback. Live setup/review pending.
@@ -268,7 +280,7 @@ second development watcher was performed during these checkpoints.
   checks passed, without request echo or unsanitized diagnostics.
 - [ ] Build the production release/registered image, configure its selected native
   account/bootstrap and accept actual inference/stop/restart with your resources.
-- [ ] Amp/Cursor Teams contracts and other account transports remain development.
+- Deferred: Amp/Cursor Teams contracts and additional unsupported account routes.
   Fx's Linux fixture does not establish Windows Local or macOS support acceptance.
 
 ## 2026-10-07 — native GPU estimate receipts
@@ -334,7 +346,8 @@ second development watcher was performed during these checkpoints.
 - [ ] Reopen that task; ask for status and a completed accepted document. Stop during
   an approval/wait and verify its own team runs stop without affecting other tasks.
 - [ ] Accept additional native app-server releases/account routes with your setup.
-  Other external solo bridges, Amp/Cursor and broader remote/GPU work remain open.
+  Other external solo bridges and Amp/Cursor are deferred. Broader remote/GPU work
+  remains in scope.
 
 ## 2026-10-08 — normal Claude tasks invoking teams
 
@@ -362,8 +375,8 @@ second development watcher was performed during these checkpoints.
   correct native transport, authorization, durable queue and readback.
 
 The native fixture and behavioral proof are documented in the adapter guide.
-Other solo bridges, Amp/Cursor, live native accounts and the broader remote/GPU
-implementation remain open. The full goal remains active.
+Other solo bridges and Amp/Cursor are deferred by the current scope correction.
+Live native account acceptance and broader remote/GPU development remain open.
 
 ## 2026-10-08 — installed command worker and owner path
 

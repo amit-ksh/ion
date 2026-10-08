@@ -19,6 +19,15 @@ headless personal cloud task execution. Its live review remains open.
 
 ## Locked decisions
 
+- **2026-10-08 adapter scope correction:** adapters not implemented yet are
+  deferred at the user's request. Amp/Cursor Teams completion, remaining normal-task
+  Teams bridges (including Pi/Oh My Pi), and additional unsupported account/provider
+  routes are outside the current implementation scope. Retain the twelve existing
+  Teams adapters and the existing Nebius/Codex/Claude/OpenCode normal-task Teams
+  connections. Deferred adapters do not block current completion and require a new
+  user request to resume. Remote filesystem/commands/GPU work remains in the plan;
+  existing adapter setup and live review remain separate acceptance tasks.
+
 - Extend Waku directly. Customer-facing identity is **ion** (lowercase). Keep
   internal `waku-*` crates, storage paths, environment variables, database
   schema, and wire identifiers stable through the hackathon.
@@ -125,7 +134,8 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Agent teams implementation progress and review checklist](19-agent-teams-progress.md):
   durable coordination, native dispatch, parent review/rework and token budgets;
-  remaining adapters and live acceptance.
+  implemented adapters, remote execution work and live acceptance; unfinished
+  adapter additions are deferred.
 
 - [Agent Teams release checklist](20-agent-teams-release-checklist.md): implemented
   coverage, remaining development and your live setup/review tasks in one place.
@@ -151,8 +161,8 @@ target; see [the deployment checklist](../../services/speech/README.md).
   unverified native Job support, billing-account binding and remaining finality.
 
 - [Amp native Teams contract](RESEARCH-amp-teams-contract.md): actual native
-  catalog/plugin fixtures, checksum provenance and remaining actor usage controls.
+  catalog/plugin fixtures, checksum provenance and deferred actor usage contracts.
 - [Cursor native Teams contract](RESEARCH-cursor-teams-contract.md): released Local
-  SDK/bridge options, account identity, output cap and effects/usage acceptance gaps.
+  SDK/bridge options, account identity and deferred output/effects/usage contracts.
 - [Linux harness worker release recipe](../../packages/harness-worker/README.md):
   reviewed tracked source, pinned bases, nonroot identity and actual-binary checks.

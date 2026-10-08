@@ -4,6 +4,23 @@ Updated 2026-10-08. Implementation: `codex/ion-agent-teams` in the managed
 worktree. No integration into `ion-prod`, cloud deployment or live provider
 acceptance is implied by this checkpoint.
 
+## Current scope correction (2026-10-08)
+
+The user deferred adapters that have not been added yet. Keep all implemented
+adapters and native Nebius/Codex/Claude/OpenCode normal-task Teams connections.
+
+The following additions are **out of scope for the current implementation**:
+
+- Amp and Cursor Teams completion adapters.
+- Remaining normal-task Teams bridges, including Pi and Oh My Pi.
+- Additional unsupported OAuth/subscription/custom provider/account routes.
+
+These are deferred work, not completed capabilities or current release gates.
+Existing adapter setup, supported-account review and live acceptance still apply.
+Remote filesystem/commands/GPU development remains in the plan. Historical
+checkpoint sections below describe the scope at their date; this correction
+supersedes references there to unfinished adapters as required development.
+
 ## Current execution coverage
 
 | Selected harness | Local Teams completion | Registered sandbox worker | Authentication |
@@ -20,7 +37,7 @@ acceptance is implied by this checkpoint.
 | Antigravity | Private native Gemini completion, canonical one-use gate | Yes | Native Gemini profile and host GEMINI_API_KEY; 1.3.0/1.3.1 |
 | OpenCode 2 | Private standalone CLI, canonical one-use Responses gate | Yes | Native direct OpenAI key; beta-17823 |
 | Fx | Configured direct-provider ask with bounded one-use Chat gate; Linux fixture passed | Yes, Linux/macOS required | Native selected configured OpenAI or Nebius bearer slot; 0.0.13 |
-| Amp, Cursor | Verified Teams contract still required | Not enabled | Selection remains pinned |
+| Amp, Cursor | Deferred; outside current implementation scope | Not enabled | Selection remains pinned |
 
 Twelve catalog harnesses have Teams adapter implementations and native transport/
 CLI fixture evidence. Fx 0.0.13's official Linux x86_64 binary passed its real Rust
@@ -33,7 +50,7 @@ Unsupported native account types, custom endpoints and releases block readiness.
 They remain selectable for normal solo use. A saved Teams harness is preserved
 when readiness fails; another CLI or Nebius account is never substituted.
 
-### Amp and Cursor: remaining development contracts
+### Amp and Cursor: deferred contract research
 
 Research was checked against current official docs and public native releases on
 2026-10-07. These are contract gaps, not completed adapters or just missing keys.
@@ -55,8 +72,8 @@ Research was checked against current official docs and public native releases on
   path. Use a supported native SDK seam without switching the selected account.
   See [the SDK contract evidence](RESEARCH-cursor-teams-contract.md).
 
-Readiness reports the specific gap before an attempt/model call starts. Those two
-Teams adapters remain unchecked in the release checklist.
+Readiness reports the specific gap before an attempt/model call starts. These two
+Teams adapters are deferred and are not gates for current implementation completion.
 
 ## Normal tasks invoking saved teams
 
@@ -204,8 +221,8 @@ and [native tool catalog route](https://github.com/anomalyco/opencode/blob/v1.18
 The verified native resume schema has no `dynamicTools` field. Imported/older
 Codex threads created without these tools keep their existing normal behavior;
 start a new Ion Codex task to make team tools available. Other external solo
-harness bridges remain development. This bridge neither replaces their normal
-transport nor enables the unfinished Amp/Cursor Teams completion contracts.
+harness Teams bridges are deferred. Existing solo transports remain available;
+Amp/Cursor Teams completion stays disabled until its deferred contracts are added.
 
 Reproduce the private native fixture from this worktree:
 
@@ -654,8 +671,9 @@ cargo test -p waku-core team_gate --lib --locked
 
 This verifies the direct-provider adapter contract. Windows Local Fx remains
 unsupported; a saved Nebius choice still requires an approved registered host.
-Amp/Cursor Teams contracts, other native account routes, live provider/cloud
-acceptance and the remote project/GPU development gates remain open.
+Amp/Cursor Teams contracts and additional unsupported native account routes are
+deferred. Existing live provider/cloud acceptance and remote project/GPU development
+gates remain open.
 
 The same tracked source checkpoint (`7106c17`) also built the actual Linux
 `ion-harness-worker` debug binary offline with `--locked`. Its existing worker

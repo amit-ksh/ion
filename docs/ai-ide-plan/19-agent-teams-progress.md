@@ -9,6 +9,27 @@ For the current implementation scope, remaining development and live setup, use 
 record historical increments and their verification, not a claim that every
 planned Teams capability is complete.
 
+## Current scope correction (2026-10-08)
+
+The user deferred adapters that have not been added yet. Keep all implemented
+adapters and native Nebius/Codex/Claude/OpenCode normal-task Teams connections.
+
+The following additions are **out of scope for the current implementation**:
+
+- Amp and Cursor Teams completion adapters.
+- Remaining normal-task Teams bridges, including Pi and Oh My Pi.
+- Additional unsupported OAuth/subscription/custom provider/account routes.
+
+These are deferred work, not completed capabilities or current release gates.
+Existing adapter setup, supported-account review and live acceptance still apply.
+Remote filesystem/commands/GPU development remains in the plan. Historical
+checkpoint sections below describe the scope at their date; this correction
+supersedes references there to unfinished adapters as required development.
+
+The earlier ~75% implementation / ~25% remaining estimate included the now
+deferred adapter work. It is a historical estimate, not a current percentage for
+the reduced scope. Deferring work does not mark it implemented.
+
 ## Foundation implementation
 
 - Agent definitions retain their own harness/model and add an explicit Local or
@@ -2277,7 +2298,7 @@ checks and nine Linux guard checks passed: **63 checks**. Desktop/daemon compile
 formatting and diff checks passed. Fixtures use synthetic data and loopback
 provider responses; live import/account/retention acceptance remains required.
 
-Current **implementation estimate for Teams/harnesses/remote execution: ~75%**.
+Historical **implementation estimate before the adapter scope correction: ~75%**.
 This is a scope-based estimate, not a measured test-coverage percentage or release
 readiness claim. Amp/Cursor native limits/usage, additional solo-harness bridges,
 broader local/remote checks, aggregate host/cloud accounting and GPU runtime
@@ -2324,10 +2345,11 @@ formatting and whitespace gates passed; existing unrelated Rust warnings remain.
 The [OpenCode setup and review checklist](22-harness-adapters-remote-execution.md#opencode-normal-task-teams-bridge-2026-10-08)
 records the native version, reproduction command and real configuration review.
 
-The rough implementation estimate remains **about 75% for Teams/harnesses/remote
-execution**, with **about 25% development remaining**. Remaining development is
-Amp/Cursor completion limits and native usage, other normal-harness Teams bridges,
-broader local/remote command and dataset handling, aggregate cloud accounting and
-GPU runtime/device/network/volume contracts. Live native account and Nebius
-resource acceptance is tracked separately. This is not a coverage percentage or
-full Ion release-readiness claim.
+Before the adapter scope correction, the rough implementation estimate was
+**about 75% for Teams/harnesses/remote execution**, with **about 25% development
+remaining**. Amp/Cursor completion and other unfinished normal-harness Teams
+bridges are now deferred. Broader local/remote command and dataset handling,
+aggregate cloud accounting and GPU runtime/device/network/volume contracts remain
+in the plan. Live native account and Nebius resource acceptance is tracked
+separately. The historical estimate is not a percentage for the reduced scope,
+measured coverage or full Ion release readiness.
