@@ -30,6 +30,19 @@ struct Policy {
     uid: u32,
     gid: u32,
     executables: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    resources: Option<ResourceLimits>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResourceLimits {
+    version: u16,
+    cpu_seconds: u32,
+    address_space_bytes: u64,
+    max_file_bytes: u64,
+    processes: u32,
+    open_files: u32,
 }
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -83,6 +96,17 @@ fn validate_policy(p: &Policy) -> Result<()> {
             && p.executables.len() <= 64,
         "Invalid or credential-bearing command image policy"
     );
+    if let Some(r) = &p.resources {
+        ensure!(
+            r.version == 1
+                && (1..=p.max_seconds).contains(&r.cpu_seconds)
+                && (64 * 1024 * 1024..=8 * 1024 * 1024 * 1024).contains(&r.address_space_bytes)
+                && (64 * 1024..=p.max_layer_bytes).contains(&r.max_file_bytes)
+                && (1..=256).contains(&r.processes)
+                && (16..=256).contains(&r.open_files),
+            "Command child resource policy exceeds its bound"
+        );
+    }
     let mut seen = HashSet::new();
     for executable in &p.executables {
         ensure!(
@@ -136,7 +160,7 @@ fn manifest(client: &Client, p: &Policy) -> Result<()> {
     );
     let host = read_json(response, 16 * 1024)?;
     ensure!(
-        host == json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot","network_boundary":"linux-seccomp-socket-deny/v1"}),
+        host == json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot","network_boundary":"linux-seccomp-socket-deny/v1","resource_boundary":"linux-rlimit/v1"}),
         "Command worker/image contract changed"
     );
     Ok(())
@@ -179,13 +203,15 @@ fn bundle(request: Uuid, a: &CommandArgs, workspace: &Path) -> Result<JobRequest
 fn body(policy: &Policy, request: &JobRequest) -> Result<Value> {
     let input = serde_json::to_vec(request)?;
     ensure!(input.len() <= 512 * 1024, "Job input exceeds its bound");
-    Ok(
-        json!({"command":"/usr/local/bin/ion-job-worker","args":[],"image":policy.image,"shell":false,
+    let mut body = json!({"command":"/usr/local/bin/ion-job-worker","args":[],"image":policy.image,"shell":false,
         "hostname":format!("ion-job-{}",request.request_id),"env":{"PATH":"/usr/local/bin:/usr/bin:/bin","ION_JOB_ISOLATED":"1","ION_JOB_CHILD_UID":policy.uid.to_string(),"ION_JOB_CHILD_GID":policy.gid.to_string()},
         "cwd":"/ion","uid":0,"gid":0,"stdin":{"value":STANDARD.encode(input),"encoding":"base64","close":true},
         "timeout":request.timeout_seconds+10,"truncate_output_at":512*1024,"disposable":true,"preserve_env":false,
-        "resources_limits":{"max_layer_bytes":policy.max_layer_bytes},"networking":{"enabled":false}}),
-    )
+        "resources_limits":{"max_layer_bytes":policy.max_layer_bytes},"networking":{"enabled":false}});
+    if let Some(resources) = &policy.resources {
+        body["env"]["ION_JOB_RESOURCE_LIMITS"] = json!(serde_json::to_string(resources)?);
+    }
+    Ok(body)
 }
 fn receipt(value: &Value, request: &JobRequest) -> Result<JobResponse> {
     let result = &value["metadata"]["result"];
@@ -329,6 +355,10 @@ fn run_with_host(
     let target = Uuid::parse_str(target.rsplit('@').next().unwrap_or(target))?;
     let (policy, client) = configure(target)?;
     validate_policy(&policy)?;
+    ensure!(
+        policy.resources.is_some(),
+        "Approve child resource limits in the command image registry before new commands"
+    );
     ensure!(
         policy.target == target,
         "Command host differs from the pinned sandbox target"
@@ -696,6 +726,7 @@ mod tests {
                 uid: 1000,
                 gid: 1000,
                 executables: vec!["/usr/bin/python3".into()],
+                resources: None,
             };
             let request = JobRequest {
                 version: 1,
@@ -731,6 +762,114 @@ mod tests {
             let _ = std::fs::remove_file(self.dir.join("control.db"));
             let _ = std::fs::remove_dir(&self.dir);
         }
+    }
+    fn child_limits() -> ResourceLimits {
+        ResourceLimits {
+            version: 1,
+            cpu_seconds: 5,
+            address_space_bytes: 256 * 1024 * 1024,
+            max_file_bytes: 16 * 1024 * 1024,
+            processes: 256,
+            open_files: 64,
+        }
+    }
+    #[test]
+    fn team_job_child_resources_are_pinned_and_legacy_bodies_remain_unchanged() {
+        let mut f = Fixture::new(true, true);
+        let original_policy = serde_json::to_value(&f.policy).unwrap();
+        assert!(original_policy.get("resources").is_none());
+        let original_body = body(&f.policy, &f.request).unwrap();
+        assert!(
+            original_body["env"]
+                .get("ION_JOB_RESOURCE_LIMITS")
+                .is_none()
+        );
+        f.policy.resources = Some(child_limits());
+        validate_policy(&f.policy).unwrap();
+        let restricted = body(&f.policy, &f.request).unwrap();
+        let limits: Value = serde_json::from_str(
+            restricted["env"]["ION_JOB_RESOURCE_LIMITS"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            limits,
+            serde_json::to_value(f.policy.resources.as_ref().unwrap()).unwrap()
+        );
+        let mut witness = restricted.clone();
+        witness["env"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ION_JOB_RESOURCE_LIMITS");
+        assert_eq!(witness, original_body);
+        let observed = json!({"metadata": restricted});
+        verify_original_command(&observed, &restricted).unwrap();
+        let mut changed = observed.clone();
+        changed["metadata"]["env"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ION_JOB_RESOURCE_LIMITS");
+        assert!(verify_original_command(&changed, &restricted).is_err());
+        for field in [
+            "version",
+            "cpu_seconds",
+            "address_space_bytes",
+            "max_file_bytes",
+            "processes",
+            "open_files",
+        ] {
+            let mut invalid = serde_json::to_value(&f.policy).unwrap();
+            invalid["resources"][field] = json!(0);
+            let policy: Policy = serde_json::from_value(invalid).unwrap();
+            assert!(
+                validate_policy(&policy).is_err(),
+                "Accepted invalid child limit {field}"
+            );
+        }
+        for (field, value) in [
+            ("cpu_seconds", 31_u64),
+            ("address_space_bytes", 8 * 1024 * 1024 * 1024 + 1),
+            ("max_file_bytes", 256 * 1024 * 1024 + 1),
+            ("processes", 257),
+            ("open_files", 257),
+        ] {
+            let mut invalid = serde_json::to_value(&f.policy).unwrap();
+            invalid["resources"][field] = json!(value);
+            assert!(validate_policy(&serde_json::from_value(invalid).unwrap()).is_err());
+        }
+    }
+    #[test]
+    fn team_job_new_run_requires_explicit_child_resource_approval_before_reads() {
+        let f = Fixture::new(true, true);
+        let server = Server::new(vec![]);
+        let result = run_with_host(
+            &f.store,
+            &f.claim,
+            &f.dir,
+            f.request.request_id,
+            CommandArgs {
+                argv: f.request.argv.clone(),
+                input_paths: vec![],
+                output_paths: vec![],
+                timeout_seconds: 10,
+            },
+            &AtomicBool::new(false),
+            |_| {
+                Ok((
+                    f.policy.clone(),
+                    Client::fixture(&server.url, "fixture-project"),
+                ))
+            },
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Approve child resource limits")
+        );
+        assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
+        assert!(server.finish().is_empty());
     }
     fn response(request: &JobRequest, exit: i32) -> JobResponse {
         JobResponse {
@@ -809,7 +948,8 @@ mod tests {
     }
     #[test]
     fn team_job_run_rejects_changed_manifest_before_reservation() {
-        let f = Fixture::new(true, true);
+        let mut f = Fixture::new(true, true);
+        f.policy.resources = Some(child_limits());
         let server = Server::new(vec![(
             200,
             bytes(json!({
@@ -906,6 +1046,7 @@ mod tests {
 
         let mut f = Fixture::new(true, true);
         f.request = native_request;
+        f.policy.resources = Some(child_limits());
         f.policy.executables = vec![f.request.argv[0].clone()];
         let mut input = std::fs::OpenOptions::new()
             .write(true)

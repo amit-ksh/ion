@@ -208,6 +208,7 @@ impl Fixture {
             uid: 1000,
             gid: 1000,
             executables: vec!["/usr/bin/python3".into()],
+            resources: None,
         };
         Self {
             dir,

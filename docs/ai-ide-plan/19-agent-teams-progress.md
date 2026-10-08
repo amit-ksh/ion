@@ -2223,3 +2223,21 @@ checkout's pre-existing changes are preserved.
 - Live ConTree/GPU/FUSE acceptance, broader project/resources, Amp/Cursor contracts
   and final cloud/account accounting remain development. See the
   [command integration evidence](23-remote-command-gpu-jobs.md#production-command-entrypoint-and-owner-acceptance-2026-10-08).
+
+## Approved command child resources increment (2026-10-08)
+
+- New commands require a versioned private owner resource policy and the shipped
+  `linux-rlimit/v1` image marker. Missing approval stops before remote reads/reservation.
+- The fixed nonroot guard lowers hard CPU/address-space/file/process/descriptor
+  limits, disables core dumps, retains stricter inherited ceilings and removes
+  setup data before exec. Native model arguments cannot alter these limits.
+- Historical policy/body omission remains stable; original environment witnesses
+  protect lost-acknowledgement binding and replay. CPU/memory limits are per
+  process and process counts per real UID, not aggregate VM or billing ceilings.
+- Fifteen command tests (including the actual native exported receipt), thirteen
+  executed check-gate regressions, seven host worker tests, eleven installed Linux
+  CLI groups and nine guard groups passed: 55 checks total. Desktop/daemon compile,
+  formatting and diff checks passed.
+- Large project/dataset transfers, aggregate host resources, GPU devices/volumes,
+  final price/account billing and Amp/Cursor native contracts remain open. See
+  [policy, runtime semantics and review](23-remote-command-gpu-jobs.md#pinned-linux-command-resource-limits-2026-10-08).

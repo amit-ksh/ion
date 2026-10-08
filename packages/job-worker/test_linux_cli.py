@@ -13,6 +13,8 @@ import uuid
 
 BINARY = "/usr/local/bin/ion-job-worker"
 EXPORTED = None
+DEFAULT_LIMITS = {'version':1,'cpu_seconds':5,'address_space_bytes':256*1024*1024,
+                  'max_file_bytes':16*1024*1024,'processes':256,'open_files':64}
 
 
 def request(script, **changes):
@@ -24,11 +26,12 @@ def request(script, **changes):
 
 
 class NativeCliTests(unittest.TestCase):
-    def invoke(self, value, args=(), exit_code=0, missing_cap=None):
+    def invoke(self, value, args=(), exit_code=0, missing_cap=None, resources=None):
         data = json.dumps(value).encode() if not isinstance(value, bytes) else value
         env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "ION_JOB_ISOLATED": "1",
                "ION_JOB_CHILD_UID": "1000", "ION_JOB_CHILD_GID": "1000",
-               "ION_JOB_TEST_SECRET": "private-fixture-not-for-command"}
+               "ION_JOB_TEST_SECRET": "private-fixture-not-for-command",
+               "ION_JOB_RESOURCE_LIMITS": json.dumps(DEFAULT_LIMITS if resources is None else resources,separators=(',',':'))}
         command = [BINARY, *args]
         if missing_cap is not None:
             # A fixed private launcher changes only the supervisor's capabilities.
@@ -61,7 +64,15 @@ os.execve(sys.argv[2],sys.argv[2:],dict(os.environ))
     def test_binary_transfer_native_identity_socket_boundary_and_nonzero_receipt(self):
         global EXPORTED
         payload = bytes(range(256)) * 200
-        script = r"""import errno,os,pathlib,socket,sys
+        script = r"""import errno,os,pathlib,resource,socket,sys
+assert 'ION_JOB_RESOURCE_LIMITS' not in os.environ
+for kind,value in [(resource.RLIMIT_CPU,5),(resource.RLIMIT_AS,256*1024*1024),
+                   (resource.RLIMIT_FSIZE,16*1024*1024),(resource.RLIMIT_NPROC,256),(resource.RLIMIT_NOFILE,64)]:
+    assert resource.getrlimit(kind)==(value,value)
+    try: resource.setrlimit(kind,(value+1,value+1))
+    except ValueError: pass
+    else: raise AssertionError('Child raised approved hard resource limit')
+assert resource.getrlimit(resource.RLIMIT_CORE)==(0,0)
 assert os.geteuid()==1000 and os.getegid()==1000 and os.getgroups()==[]
 assert 'ION_JOB_TEST_SECRET' not in os.environ and 'ION_JOB_ISOLATED' not in os.environ
 status=pathlib.Path('/proc/self/status').read_text()
@@ -100,6 +111,59 @@ sys.exit(7)
                 self.assertEqual(result['error'],'Job contract or execution failed')
                 self.assertFalse(marker.exists(),'Command started without supervisor permissions')
 
+    def test_native_cli_cpu_limit_stops_before_wall_timeout(self):
+        limits={**DEFAULT_LIMITS,'cpu_seconds':1}
+        receipt=self.invoke(request('while True: pass'),resources=limits)
+        self.assertLess(receipt['exit_code'],0)
+        self.assertFalse(receipt['timed_out'])
+        self.assertLess(receipt['elapsed_milliseconds'],4500)
+
+    def test_native_cli_memory_file_descriptor_and_process_limits(self):
+        script=r"""import errno,os,pathlib,resource
+try: bytearray(96*1024*1024)
+except MemoryError: pass
+else: raise AssertionError('Address-space cap was not enforced')
+try: pathlib.Path('large.bin').write_bytes(b'x'*65537)
+except OSError as error: assert error.errno==errno.EFBIG
+else: raise AssertionError('File-size cap was not enforced')
+files=[]
+try:
+    for _ in range(100): files.append(open('/dev/null'))
+except OSError as error: assert error.errno==errno.EMFILE
+else: raise AssertionError('Descriptor cap was not enforced')
+for handle in files: handle.close()
+children=[]
+try:
+    for _ in range(40):
+        pid=os.fork()
+        if pid==0:
+            import time; time.sleep(30); os._exit(0)
+        children.append(pid)
+except OSError as error: assert error.errno==errno.EAGAIN
+else: raise AssertionError('Process cap was not enforced')
+assert len(children)<16
+import json; print('resources checked',flush=True); print(json.dumps(children),flush=True)
+"""
+        # RLIMIT_NPROC counts the real UID across namespaces. Use the tight limit
+        # only in this denial case; unrelated fixture commands use a larger ceiling.
+        limits={**DEFAULT_LIMITS,'address_space_bytes':64*1024*1024,'max_file_bytes':65536,'open_files':32,'processes':16}
+        receipt=self.invoke(request(script),resources=limits)
+        self.assertEqual(receipt['exit_code'],0,base64.b64decode(receipt['stderr']['content_base64']))
+        self.assertFalse(receipt['timed_out'])
+        lines=base64.b64decode(receipt['stdout']['content_base64']).splitlines()
+        self.assertEqual(lines[0],b'resources checked')
+        children=json.loads(lines[1])
+        self.assertFalse([pid for pid in children if Path('/proc',str(pid)).exists()], 'Command descendants, including zombies, must be gone before its receipt')
+
+    def test_native_cli_invalid_resource_policy_stops_before_user_code(self):
+        for limits in [{**DEFAULT_LIMITS,'cpu_seconds':0},{**DEFAULT_LIMITS,'version':2},
+                       {**DEFAULT_LIMITS,'processes':True},{**DEFAULT_LIMITS,'unapproved':1}]:
+            with self.subTest(policy=limits):
+                receipt=self.invoke(request("import pathlib; pathlib.Path('effect').write_bytes(b'ran')",output_paths=['effect']),resources=limits)
+                self.assertEqual(receipt['exit_code'],125)
+                self.assertEqual(receipt['outputs'],[])
+                self.assertEqual(len(receipt['output_errors']),1)
+
     def test_native_cli_timeout_and_log_bounds(self):
         receipt = self.invoke(request("import sys,time; print('x'*20000,flush=True); time.sleep(30)",timeout_seconds=1))
         self.assertTrue(receipt['timed_out'])
@@ -118,7 +182,7 @@ print(child,flush=True)
 os._exit(0)
 """,output_paths=['output.bin'])
         receipt = self.invoke(value)
-        self.assertEqual(receipt['exit_code'],0)
+        self.assertEqual(receipt['exit_code'],0,base64.b64decode(receipt['stderr']['content_base64']))
         self.assertFalse(receipt['timed_out'])
         child = int(base64.b64decode(receipt['stdout']['content_base64']).strip())
         self.assertFalse(Path('/proc',str(child)).exists(),'Detached descendant still exists')
@@ -180,7 +244,8 @@ sys.exit(9)
         manifest = json.loads(Path('/ion/job-host.json').read_bytes())
         self.assertEqual(manifest,{'version':1,'worker':'ion-job-worker/1','credential_free':True,
                                    'network':'disabled','supervisor':'root','child':'nonroot',
-                                   'network_boundary':'linux-seccomp-socket-deny/v1'})
+                                   'network_boundary':'linux-seccomp-socket-deny/v1',
+                                   'resource_boundary':'linux-rlimit/v1'})
         for arg in ['--help','--version']:
             result = subprocess.run([BINARY,arg],capture_output=True,timeout=5)
             self.assertEqual(result.returncode,0)

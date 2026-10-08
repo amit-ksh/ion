@@ -36,7 +36,15 @@ image, grants and network policy provide isolation.
     "max_layer_bytes": 268435456,
     "uid": 1000,
     "gid": 1000,
-    "executables": ["/usr/local/bin/python3"]
+    "executables": ["/usr/local/bin/python3"],
+    "resources": {
+      "version": 1,
+      "cpu_seconds": 60,
+      "address_space_bytes": 536870912,
+      "max_file_bytes": 16777216,
+      "processes": 128,
+      "open_files": 128
+    }
   }
 ]
 ```
@@ -47,6 +55,10 @@ command plus workspace read access. A Local fallback attempt cannot run commands
 No resources are provisioned by installation; unregistered command images fail
 before a POST. Registry policy and image stay pinned once used within a run.
 Across mixed targets, the smallest configured command count is the run cap.
+New command launches require an approved `resources` policy and the exact image
+`resource_boundary: linux-rlimit/v1` marker. Missing approval rejects before image reads
+or reservation. Legacy missing policies retain their original saved wire body
+and remain recoverable; they cannot authorize new commands.
 An executable allowlist permits that executable's full behavior; Python can run
 arbitrary code in the disposable VM. It is not a source-code filter.
 
@@ -103,10 +115,11 @@ ConTree/GPU images and live resources still need separate acceptance.
 ### Production CLI and owner-path acceptance (2026-10-08)
 
 `test_linux_cli.py` invokes the **installed entrypoint**, including its real root
-supervision and fixed nonroot guard. Eight groups cover binary input/output and
+supervision and fixed nonroot guard. Eleven groups cover binary input/output and
 hashes, real nonzero exits, private environment/collector isolation, socket denial,
 timeout/log bounds, detached descendants, unsafe outputs, invalid requests,
-exclusive result creation/replay, CLI flags and missing supervisor capabilities.
+exclusive result creation/replay, CLI flags, missing supervisor capabilities and
+actual CPU/address-space/file/process/descriptor limits.
 The root collector requires CHOWN, KILL, SETUID, SETGID and either DAC_OVERRIDE or
 DAC_READ_SEARCH. It checks effective permissions before user code; the child
 still receives no capabilities. Linux script line endings are pinned by the
@@ -218,3 +231,27 @@ reservation. The marker records approval of the mechanism; it does not attest
 provider devices or billing. Historical policies omit the field and retain their
 original signatures/replay/recovery, but cannot authorize a new launch. Agent
 GPU submission remains gated on the other launch requirements.
+
+## Child resource approval (2026-10-08)
+
+The owner passes only its pinned registry's `resources` JSON in the trusted
+`ION_JOB_RESOURCE_LIMITS` environment field. Model tool arguments cannot supply or
+change it. The root supervisor forwards that one bounded field to the fixed guard;
+the guard removes it before user exec. Linux hard and soft limits are lowered
+before user code, with tighter inherited limits retained. An unprivileged child
+cannot raise a hard limit. Invalid/unsupported policy produces exit 125 before
+user code and never successful check evidence. Core dumps are disabled when a
+resource policy is supplied.
+
+Allowed owner values: CPU seconds 1..registered max_seconds (maximum 120), address
+space 64 MiB..8 GiB, file size 64 KiB..registered max_layer_bytes (maximum 1 GiB),
+processes 1..256 and open files 16..256. CPU/address space apply per process, file
+size per file, descriptors per process, and process/thread count to the real UID.
+They are **not** aggregate VM CPU/RAM, disk totals, GPU limits, or a billing cap.
+UID sharing can make the process limit stricter. Imported VM/runtime acceptance
+must confirm those semantics; the native JSON request/receipt version remains 1.
+
+The registry and complete environment field are stored with the original command
+reservation. Lost-acknowledgement binding requires the same environment witness.
+Historical missing fields are omitted, preserving original policy/body signatures.
+GPU launches retain their separate owner policies and existing enablement gates.

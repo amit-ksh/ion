@@ -126,6 +126,37 @@ def install_filter(lib):
         lib.seccomp_release(context)
 
 
+def install_resources():
+    # Old saved jobs omit the policy. New owner launches require it explicitly;
+    # this preserves exact historical request/recovery and GPU image contracts.
+    encoded = os.environ.pop('ION_JOB_RESOURCE_LIMITS', None)
+    if encoded is None:
+        return
+    if len(encoded) > 1024:
+        raise BoundaryError()
+    limits = json.loads(encoded)
+    if (not isinstance(limits, dict) or set(limits) != {'version', 'cpu_seconds',
+        'address_space_bytes', 'max_file_bytes', 'processes', 'open_files'}
+        or any(type(v) is not int for v in limits.values()) or limits['version'] != 1
+        or not 1 <= limits['cpu_seconds'] <= 120
+        or not 64*1024*1024 <= limits['address_space_bytes'] <= 8*1024*1024*1024
+        or not 64*1024 <= limits['max_file_bytes'] <= 1024*1024*1024
+        or not 1 <= limits['processes'] <= 256 or not 16 <= limits['open_files'] <= 256):
+        raise BoundaryError()
+    import resource
+    for kind, name in [(resource.RLIMIT_CPU, 'cpu_seconds'),
+                       (resource.RLIMIT_AS, 'address_space_bytes'),
+                       (resource.RLIMIT_FSIZE, 'max_file_bytes'),
+                       (resource.RLIMIT_NPROC, 'processes'),
+                       (resource.RLIMIT_NOFILE, 'open_files')]:
+        value = limits[name]
+        _, inherited = resource.getrlimit(kind)
+        if inherited != resource.RLIM_INFINITY:
+            value = min(value, inherited)
+        resource.setrlimit(kind, (value, value))
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
 def prepare(uid, gid):
     if sys.platform != 'linux' or platform.machine() not in ARCH:
         raise BoundaryError()
@@ -168,6 +199,7 @@ def prepare(uid, gid):
     if any(int(status[name].strip(), 16) != 0 for name in ('CapPrm', 'CapEff', 'CapAmb')):
         raise BoundaryError()
     trusted_file(Path(__file__))
+    install_resources()
     install_filter(library())
     descriptors = os.listdir('/proc/self/fd')
     if len(descriptors) > 256:
@@ -194,7 +226,7 @@ def main(arguments=None):
         prepare(int(arguments[0]), int(arguments[1]))
         os.execve(arguments[3], arguments[3:], dict(os.environ))
     except (BoundaryError, OSError, ValueError, KeyError, AttributeError):
-        sys.stderr.write('Child network boundary unavailable; command was not started.\n')
+        sys.stderr.write('Child execution boundary unavailable; command was not started.\n')
         return 125
 
 

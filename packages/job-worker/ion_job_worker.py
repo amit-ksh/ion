@@ -217,6 +217,11 @@ def run(request, workspace):
            'TMPDIR': str(root.parent), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8'}
     argv = request['argv']
     if identity:
+        if 'ION_JOB_RESOURCE_LIMITS' in os.environ:
+            limits = os.environ['ION_JOB_RESOURCE_LIMITS']
+            if len(limits) > 1024:
+                raise ValueError('Child resource policy exceeds its bound')
+            env['ION_JOB_RESOURCE_LIMITS'] = limits
         # A fixed trusted isolated interpreter loads the kernel boundary before user
         # code. Never use preexec_fn or load it from the command's working directory.
         argv = [sys.executable, '-I', '-S', '/usr/local/libexec/ion-job-guard.py',

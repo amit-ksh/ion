@@ -92,7 +92,8 @@ assert live account acceptance, visual validation or production release readines
   bounded remote gates do not establish these broader capabilities. Local Linux
   installed-entrypoint and owner-path acceptance now passes.
 - [ ] Pinned price/currency and monetary/cloud spending reservations and usage.
-- [ ] Additional resource/egress grants and host enforcement for general commands.
+- [ ] Aggregate host resource/egress grants and enforcement for general commands;
+  pinned bounded-command Linux rlimits are implemented.
 - [ ] Image/PDF input interpretation through a verified selected harness.
 - [ ] Persistent Inbox unread/acknowledge/archive state and user notification policy.
 - [ ] Additional artifact hashes/provenance/preview formats and global usage ledger.
@@ -375,3 +376,13 @@ implementation remain open. The full goal remains active.
   real operation/receipt contract. Repeat after runtime/image changes.
 - [ ] Complete broader project/resource/egress, GPU device/FUSE and billing gates
   listed in the [command/GPU guide](23-remote-command-gpu-jobs.md).
+
+## 2026-10-08 — approved child resources
+
+- [x] Versioned private command-resource approval, bounded quantities and exact
+  image support before remote reads/reservation/create. Model arguments cannot alter it.
+- [x] Fixed native Linux hard CPU/address-space/file/process/descriptor limits,
+  no core dumps, stricter inherited ceilings and removed setup environment.
+- [x] Original policy/body/environment witnesses and missing-field legacy recovery.
+- [ ] Imported runtime/UID/inherited-limit acceptance; aggregate VM resource,
+  allocation/egress and billing controls remain separate work.

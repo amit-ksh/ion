@@ -1,6 +1,6 @@
 # Remote command and GPU jobs
 
-Updated 2026-10-07. Worktree: `codex/ion-agent-teams`. This is an implementation
+Updated 2026-10-08. Worktree: `codex/ion-agent-teams`. This is an implementation
 checkpoint, not a claim that the full remote execution or release plan is done.
 
 ## Available command implementation
@@ -620,3 +620,48 @@ Reproduction and required local container permissions are in the
 These checks close local entrypoint/owner integration gaps. Full project transfers,
 resource/egress controls, GPU devices/FUSE, pricing/account/billing and imported
 runtime acceptance remain open; agent GPU submission stays disabled.
+
+## Pinned Linux command resource limits (2026-10-08)
+
+New command registry approval includes versioned `resources` for CPU seconds,
+address-space bytes, maximum file bytes, processes and open files. Values are
+checked against bounded native support and the existing registered time/layer
+caps. Missing approval rejects before image reads/reservation/create. The image
+manifest must also carry exact `resource_boundary: linux-rlimit/v1` support.
+Models cannot pass or alter this policy through command arguments.
+
+The owner passes the immutable policy in a bounded trusted environment field.
+The fixed nonroot guard validates it, lowers both hard and soft Linux rlimits,
+retains stricter inherited ceilings, disables core dumps and removes the field
+before user exec. Native failures retain real command outcomes. Invalid policy
+stops before user code, with no successful check evidence. Original reservation,
+replay and lost-acknowledgement environment witnesses bind these limits exactly.
+Historical missing policies/fields preserve their prior serialized body and can
+still be observed/recovered without relaunch.
+
+The current [ConTree request](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance)
+exposes only a writable-layer resource limit. No CPU/RAM API fields were invented.
+[Linux rlimit semantics](https://man7.org/linux/man-pages/man2/getrlimit.2.html)
+make CPU/address space per-process, file size per-file and process/thread counts
+per real UID. These limits are not aggregate VM CPU/RAM, dedicated allocation,
+GPU device control or billing caps. Source/command grants and disabled networking
+remain required. GPU launch retains its separate policies and development gates.
+
+Native CLI tests exercise real CPU termination before wall timeout, failed
+allocation/file growth/descriptor exhaustion/process creation, hard-limit refusal
+to increase and inheritance before exec, invalid policy before effects, and
+complete descendant cleanup. The tight real-UID process-limit case is separate
+from the suite's general fixture ceiling, so unrelated namespace UID usage is not
+misrepresented as a leaked child. The updated local immutable worker image is
+`sha256:d5ad65e7369536f8f9dab4ac3780628dee66e2b2863206fb478b22115ae44b13`.
+
+Later review:
+
+- [ ] Rebuild/import the reviewed image and approve resource values in the private
+  owner registry; inspect its exact socket/resource manifest markers.
+- [ ] Test the real VM's inherited hard limits and dedicated UID/thread behavior,
+  then verify authentic command failures and output receipts at a limit.
+- [ ] Verify a changed/missing original resource environment cannot bind recovery
+  or cause another command POST. Observe the saved original operation only.
+- [ ] Finish aggregate host CPU/RAM/process/storage and cloud price/account controls
+  before treating these per-process bounds as full remote resource governance.
