@@ -81,3 +81,5 @@ pub use protocol::{
 pub use server::{Backend, EventSink, RuntimePublisher, ServerOptions, serve};
 pub use settings::{DaemonSettings, DaemonSettingsStore};
 pub use workspace::{WorkspaceOperation, WorkspaceResult};
+
+pub mod routine_schedule;

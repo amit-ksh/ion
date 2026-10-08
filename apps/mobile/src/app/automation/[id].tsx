@@ -7,7 +7,7 @@ import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTheme } from '@/hooks/use-theme';
-import { automationStatus, routineTime, runResponse } from '@/lib/automation-api';
+import { automationStatus, routineTime, triggerLabel, runResponse } from '@/lib/automation-api';
 
 export default function AutomationScreen() {
   const { id: value } = useLocalSearchParams<{ id: string | string[] }>();
@@ -57,6 +57,7 @@ export default function AutomationScreen() {
           <Text style={[styles.title, { color: theme.text }]}>{run.name}</Text>
           <Text style={[styles.body, { color: theme.textSecondary }]}>{automationStatus(run.status)} · {run.stages.filter((s) => s.completed).length} of {run.stages.length} stages</Text>
           <Text style={[styles.body, { color: theme.textSecondary }]}>Deadline {routineTime(run.deadline)}</Text>
+          {run.trigger && <Text style={[styles.body, { color: theme.textSecondary }]}>{triggerLabel(run.trigger)}</Text>}
           {run.reason && <Text style={[styles.body, { color: theme.text }]}>{run.reason}</Text>}
         </>}
         {!fresh && run && <Text style={[styles.body, { color: theme.textSecondary }]}>Saved status · refresh to use controls</Text>}

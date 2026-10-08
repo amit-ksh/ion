@@ -267,6 +267,17 @@ fn create(
         "Definitions changed; refresh before running"
     );
     let (_, routine_id) = target(&definitions, definition_id)?;
+    let trigger = routine_id.and_then(|id| {
+        definitions.records.iter().find_map(|r| match r {
+            ControlRecord::Routine(r) if r.id == id => Some(RoutineTrigger {
+                interval_minutes: r.interval_minutes,
+                calendar: r.calendar.clone(),
+                missed_run_policy: r.missed_run_policy,
+                overlap_policy: r.overlap_policy,
+            }),
+            _ => None,
+        })
+    });
     let pinned = pin(definitions, definition_id)?;
     let limits = pinned.workflow.limits.clone().unwrap_or_default();
     validate_limits(&limits)?;
@@ -289,6 +300,7 @@ fn create(
         .collect();
     let mut run = AutomationRun {
         id,
+        trigger: None,
         name: pinned.workflow.name.clone(),
         project_id: pinned.workflow.project_id,
         workflow_id: Some(pinned.workflow.id).filter(|wid| Some(*wid) != routine_id),
@@ -304,12 +316,28 @@ fn create(
         stages,
     };
     if let Some(routine) = routine_id {
-        let overlapping: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_automation_runs WHERE routine_id=? AND status NOT IN ('\"completed\"','\"canceled\"','\"skipped\"'))", [routine.to_string()], |r| r.get(0))?;
-        if overlapping {
+        if trigger
+            .as_ref()
+            .is_none_or(|t| t.overlap_policy == OverlapPolicy::Skip)
+        {
+            let overlapping: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM ion_automation_runs WHERE routine_id=? AND status NOT IN ('\"completed\"','\"canceled\"','\"skipped\"'))", [routine.to_string()], |r| r.get(0))?;
+            if overlapping {
+                run.status = AutomationStatus::Skipped;
+                run.reason = Some("Previous routine run is still active; overlap skipped".into());
+            }
+        }
+        if scheduled.is_some_and(|slot| {
+            now.saturating_sub(slot) > crate::routine_schedule::MISSED_GRACE_SECONDS
+        }) && trigger
+            .as_ref()
+            .is_some_and(|t| t.missed_run_policy == MissedRunPolicy::Skip)
+        {
             run.status = AutomationStatus::Skipped;
-            run.reason = Some("Previous routine run is still active; overlap skipped".into());
+            run.reason =
+                Some("Scheduled time was missed by more than one minute; firing skipped".into());
         }
     }
+    run.trigger = trigger;
     tx.execute(
         "INSERT INTO ion_automation_runs VALUES(?,?,?,?,?,?,?,?,?)",
         params![
@@ -713,8 +741,13 @@ impl TeamCoordinator {
         routine.next_run = if paused {
             0
         } else {
-            now.checked_add(u64::from(routine.interval_minutes) * 60)
-                .context("Schedule overflow")?
+            crate::routine_schedule::next(
+                &RoutineScheduleRequest {
+                    interval_minutes: routine.interval_minutes,
+                    calendar: routine.calendar.clone(),
+                },
+                now,
+            )?
         };
         let record = ControlRecord::Routine(routine);
         sync_definition(&tx, &record)?;
@@ -750,38 +783,47 @@ impl TeamCoordinator {
                 sync_definition(&tx, &ControlRecord::Routine(r))?;
                 continue;
             }
-            let interval = u64::from(r.interval_minutes) * 60;
-            let slot = r.next_run + (now - r.next_run) / interval * interval;
-            let existing: Option<String> = tx
+            let timing = crate::routine_schedule::due(
+                &RoutineScheduleRequest {
+                    interval_minutes: r.interval_minutes,
+                    calendar: r.calendar.clone(),
+                },
+                r.next_run,
+                now,
+            );
+            if let Ok((slot, next)) = timing.as_ref() {
+                let slot = *slot;
+                let existing: Option<String> = tx
                 .query_row(
                     "SELECT run_id FROM ion_routine_fires WHERE routine_id=? AND scheduled_at=?",
                     params![id, slot],
                     |q| q.get(0),
                 )
                 .optional()?;
-            if existing.is_none() {
-                let run_id = Uuid::new_v4();
-                // A broken definition pauses its timer rather than retrying the
-                // same billable job each tick. No task is launched on this error.
-                match create(&tx, run_id, r.id, definitions.revision, Some(slot), now) {
-                    Ok(run) => {
-                        tx.execute(
-                            "INSERT INTO ion_routine_fires VALUES(?,?,?)",
-                            params![id, slot, run.id.to_string()],
-                        )?;
-                        changed.push(run.id);
-                    }
-                    Err(error) => {
-                        r.paused = true;
-                        r.last_error = Some(error.to_string());
+                if existing.is_none() {
+                    let run_id = Uuid::new_v4();
+                    // A broken definition pauses its timer rather than retrying the
+                    // same billable job each tick. No task is launched on this error.
+                    match create(&tx, run_id, r.id, definitions.revision, Some(slot), now) {
+                        Ok(run) => {
+                            tx.execute(
+                                "INSERT INTO ion_routine_fires VALUES(?,?,?)",
+                                params![id, slot, run.id.to_string()],
+                            )?;
+                            changed.push(run.id);
+                        }
+                        Err(error) => {
+                            r.paused = true;
+                            r.last_error = Some(error.to_string());
+                        }
                     }
                 }
-            }
-            r.next_run = if r.paused {
-                0
+                r.next_run = if r.paused { 0 } else { *next };
             } else {
-                slot.checked_add(interval).context("Schedule overflow")?
-            };
+                r.paused = true;
+                r.next_run = 0;
+                r.last_error = Some(timing.unwrap_err().to_string());
+            }
             let record = ControlRecord::Routine(r);
             sync_definition(&tx, &record)?;
             tx.execute(

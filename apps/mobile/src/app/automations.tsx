@@ -11,7 +11,7 @@ import { useScreenHeaderInset } from '@/components/screen-header';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
-import { automationStatus, routineTime, startSavedAutomation } from '@/lib/automation-api';
+import { automationStatus, routineTime, scheduleLabel, startSavedAutomation } from '@/lib/automation-api';
 
 type Tab = 'Workflows' | 'Routines' | 'Runs';
 type Definition = (Workflow & { kind: 'workflow' }) | (Routine & { kind: 'routine' });
@@ -105,7 +105,7 @@ export default function AutomationsScreen() {
         return <View style={[styles.row, { borderBottomColor: theme.border }]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`${expanded === item.id ? 'Hide' : 'Show'} ${item.name} instructions`} accessibilityState={{ expanded: expanded === item.id }} onPress={() => setExpanded(expanded === item.id ? null : item.id)} style={styles.definitionTitle}>
             <Text style={[styles.title, { color: theme.text }]}>{item.name}</Text>
-            <Text style={[styles.body, { color: theme.textSecondary }]}>{names.get(item.projectId) ?? 'Project'} · {item.kind === 'workflow' ? `${item.stages.length} stages` : item.paused ? 'Paused' : `Every ${item.intervalMinutes} min · ${routineTime(item.nextRun)}`}</Text>
+            <Text style={[styles.body, { color: theme.textSecondary }]}>{names.get(item.projectId) ?? 'Project'} · {item.kind === 'workflow' ? `${item.stages.length} stages` : `${item.paused ? 'Paused' : 'Scheduled'} · ${scheduleLabel(item.intervalMinutes, item.calendar)}${item.paused ? '' : ` · ${routineTime(item.nextRun)}`}`}</Text>
           </Pressable>
           {expanded === item.id && <View style={styles.instructions}>
             <Text selectable style={[styles.body, { color: theme.text }]}>{item.kind === 'workflow' ? item.prompt : item.instructions}</Text>

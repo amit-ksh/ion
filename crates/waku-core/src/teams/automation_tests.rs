@@ -59,6 +59,9 @@ fn routine(f: &Fixture, w: Option<Uuid>) -> Routine {
         project_id: f.project,
         instructions: "Review recent changes".into(),
         interval_minutes: 1,
+        calendar: None,
+        missed_run_policy: MissedRunPolicy::default(),
+        overlap_policy: OverlapPolicy::default(),
         paused: true,
         next_run: 0,
         provider: ProviderKind::Nebius,
@@ -733,5 +736,285 @@ fn workflow_documents_validate_before_save_and_legacy_empty_requirements_are_com
     assert_eq!(
         f.store.automation_run(run.id).unwrap().status,
         AutomationStatus::Completed
+    );
+}
+
+fn calendar_at(time: &str) -> u64 {
+    time.parse::<jiff::Timestamp>()
+        .unwrap()
+        .as_second()
+        .try_into()
+        .unwrap()
+}
+fn daily_routine(f: &Fixture) -> Routine {
+    let mut r = routine(f, None);
+    r.calendar = Some(CalendarSchedule {
+        time_zone: "UTC".into(),
+        hour: 9,
+        minute: 0,
+        recurrence: CalendarRecurrence::Daily,
+    });
+    r
+}
+fn saved_routine(f: &Fixture, id: Uuid) -> Routine {
+    f.definitions
+        .load()
+        .unwrap()
+        .records
+        .into_iter()
+        .find_map(|r| match r {
+            ControlRecord::Routine(r) if r.id == id => Some(r),
+            _ => None,
+        })
+        .unwrap()
+}
+#[test]
+fn calendar_owner_coalesces_once_pins_trigger_and_survives_concurrent_restart() {
+    let f = Fixture::new();
+    let r = daily_routine(&f);
+    let id = r.id;
+    let rev = save(&f, ControlRecord::Routine(r));
+    let enabled = calendar_at("2026-10-08T08:00:00Z");
+    tick(&f, enabled);
+    assert!(
+        f.store
+            .automation_runs(false, None, Some(id), None, 64)
+            .unwrap()
+            .runs
+            .is_empty()
+    );
+    f.store.set_routine_paused(id, rev, false, enabled).unwrap();
+    assert_eq!(
+        saved_routine(&f, id).next_run,
+        calendar_at("2026-10-08T09:00:00Z")
+    );
+    tick(&f, calendar_at("2026-10-08T08:59:59Z"));
+    assert!(
+        f.store
+            .automation_runs(false, None, Some(id), None, 64)
+            .unwrap()
+            .runs
+            .is_empty()
+    );
+    let now = calendar_at("2026-10-10T10:00:00Z");
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    std::thread::scope(|scope| {
+        for _ in 0..2 {
+            let barrier = barrier.clone();
+            let path = f.definitions.path().to_owned();
+            let project = f.project;
+            scope.spawn(move || {
+                let owner = TeamCoordinator::new(path);
+                barrier.wait();
+                owner
+                    .tick_automations(&HashSet::from([project]), now)
+                    .unwrap();
+            });
+        }
+    });
+    let runs = f
+        .store
+        .automation_runs(false, None, Some(id), None, 64)
+        .unwrap()
+        .runs;
+    assert_eq!(runs.len(), 1);
+    let run = &runs[0];
+    assert_eq!(run.scheduled_at, Some(calendar_at("2026-10-10T09:00:00Z")));
+    assert_eq!(
+        saved_routine(&f, id).next_run,
+        calendar_at("2026-10-11T09:00:00Z")
+    );
+    assert_eq!(
+        run.trigger
+            .as_ref()
+            .unwrap()
+            .calendar
+            .as_ref()
+            .unwrap()
+            .time_zone,
+        "UTC"
+    );
+    assert!(f.store.snapshot(run.stages[0].team_run_id).is_ok());
+    let mut edited = saved_routine(&f, id);
+    edited.calendar.as_mut().unwrap().time_zone = "Asia/Kolkata".into();
+    edited.missed_run_policy = MissedRunPolicy::Skip;
+    edited.overlap_policy = OverlapPolicy::Allow;
+    edited.paused = true;
+    edited.next_run = 0;
+    save(&f, ControlRecord::Routine(edited));
+    let owner = TeamCoordinator::new(f.definitions.path());
+    let pinned = owner.automation_run(run.id).unwrap().trigger.unwrap();
+    assert_eq!(pinned.calendar.unwrap().time_zone, "UTC");
+    assert_eq!(pinned.missed_run_policy, MissedRunPolicy::RunLatest);
+    assert_eq!(pinned.overlap_policy, OverlapPolicy::Skip);
+    owner
+        .tick_automations(&HashSet::from([f.project]), now)
+        .unwrap();
+    assert_eq!(
+        owner
+            .automation_runs(false, None, Some(id), None, 64)
+            .unwrap()
+            .runs
+            .len(),
+        1
+    );
+}
+#[test]
+fn calendar_owner_skip_missed_records_no_effect_and_grace_fires_normally() {
+    let f = Fixture::new();
+    let mut r = daily_routine(&f);
+    r.missed_run_policy = MissedRunPolicy::Skip;
+    let id = r.id;
+    let rev = save(&f, ControlRecord::Routine(r));
+    f.store
+        .set_routine_paused(id, rev, false, calendar_at("2026-10-08T08:00:00Z"))
+        .unwrap();
+    tick(&f, calendar_at("2026-10-08T09:01:01Z"));
+    tick(&f, calendar_at("2026-10-08T09:01:02Z"));
+    let runs = f
+        .store
+        .automation_runs(false, None, Some(id), None, 64)
+        .unwrap()
+        .runs;
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].status, AutomationStatus::Skipped);
+    assert!(runs[0].reason.as_ref().unwrap().contains("missed"));
+    assert!(f.store.snapshot(runs[0].stages[0].team_run_id).is_err());
+    assert!(f.store.pending_materializations(128).unwrap().is_empty());
+    tick(&f, calendar_at("2026-10-09T09:01:00Z"));
+    let runs = f
+        .store
+        .automation_runs(false, None, Some(id), None, 64)
+        .unwrap()
+        .runs;
+    assert_eq!(runs.len(), 2);
+    let live = runs
+        .iter()
+        .find(|r| r.status == AutomationStatus::Running)
+        .unwrap();
+    assert!(f.store.snapshot(live.stages[0].team_run_id).is_ok());
+}
+#[test]
+fn calendar_owner_manual_overlap_still_enforces_shared_agent_capacity() {
+    let f = Fixture::new();
+    let mut r = daily_routine(&f);
+    r.overlap_policy = OverlapPolicy::Allow;
+    r.missed_run_policy = MissedRunPolicy::Skip;
+    let id = r.id;
+    let rev = save(&f, ControlRecord::Routine(r));
+    // Manual invocation uses the saved policies without imposing missed-time logic.
+    let first = f
+        .store
+        .start_automation(Uuid::new_v4(), id, rev, 100)
+        .unwrap();
+    tick(&f, 100);
+    f.materialize();
+    let first_team = f.store.snapshot(first.stages[0].team_run_id).unwrap();
+    let first_claim = f.claim(first_team.id, first_team.work[0].id);
+    let second = f
+        .store
+        .start_automation(Uuid::new_v4(), id, rev, 102)
+        .unwrap();
+    assert_eq!(second.status, AutomationStatus::Running);
+    assert!(second.scheduled_at.is_none());
+    tick(&f, 102);
+    f.materialize();
+    let second_team = f.store.snapshot(second.stages[0].team_run_id).unwrap();
+    assert!(
+        f.store
+            .claim(
+                second_team.id,
+                second_team.work[0].id,
+                DispatchHost::Local,
+                103,
+                100
+            )
+            .is_err()
+    );
+    f.complete(&first_claim.lease);
+    assert!(
+        f.store
+            .claim(
+                second_team.id,
+                second_team.work[0].id,
+                DispatchHost::Local,
+                105,
+                100
+            )
+            .is_ok()
+    );
+    let mut r = saved_routine(&f, id);
+    r.overlap_policy = OverlapPolicy::Skip;
+    let rev = save(&f, ControlRecord::Routine(r));
+    let skipped = f
+        .store
+        .start_automation(Uuid::new_v4(), id, rev, 105)
+        .unwrap();
+    assert_eq!(skipped.status, AutomationStatus::Skipped);
+    assert!(skipped.reason.unwrap().contains("overlap"));
+}
+#[test]
+fn calendar_owner_legacy_defaults_and_invalid_schedule_isolation() {
+    let f = Fixture::new();
+    let legacy = routine(&f, None);
+    let bytes = serde_json::to_value(&legacy).unwrap();
+    assert!(bytes.get("calendar").is_none());
+    assert!(bytes.get("missedRunPolicy").is_none());
+    assert!(bytes.get("overlapPolicy").is_none());
+    let decoded: Routine = serde_json::from_value(bytes).unwrap();
+    assert_eq!(decoded.missed_run_policy, MissedRunPolicy::RunLatest);
+    assert_eq!(decoded.overlap_policy, OverlapPolicy::Skip);
+    let mut bad = daily_routine(&f);
+    let bad_id = bad.id;
+    bad.calendar.as_mut().unwrap().time_zone = "No/Such_Zone".into();
+    let rev = f.definitions.load().unwrap().revision;
+    assert!(
+        f.definitions
+            .save(rev, ControlRecord::Routine(bad.clone()))
+            .is_err()
+    );
+    assert_eq!(f.definitions.load().unwrap().revision, rev);
+    bad.calendar.as_mut().unwrap().time_zone = "UTC".into();
+    let rev = save(&f, ControlRecord::Routine(bad));
+    let now = calendar_at("2026-10-08T08:00:00Z");
+    f.store.set_routine_paused(bad_id, rev, false, now).unwrap();
+    let good = daily_routine(&f);
+    let good_id = good.id;
+    let rev = save(&f, ControlRecord::Routine(good));
+    f.store
+        .set_routine_paused(good_id, rev, false, now)
+        .unwrap();
+    let mut bad = saved_routine(&f, bad_id);
+    bad.calendar.as_mut().unwrap().time_zone = "No/Such_Zone".into();
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE ion_control_records SET body=? WHERE id=?",
+            params![
+                serde_json::to_string(&ControlRecord::Routine(bad)).unwrap(),
+                bad_id.to_string()
+            ],
+        )
+        .unwrap();
+    tick(&f, calendar_at("2026-10-08T09:00:00Z"));
+    let bad = saved_routine(&f, bad_id);
+    assert!(bad.paused);
+    assert_eq!(bad.next_run, 0);
+    assert!(bad.last_error.is_some());
+    assert!(
+        f.store
+            .automation_runs(false, None, Some(bad_id), None, 64)
+            .unwrap()
+            .runs
+            .is_empty()
+    );
+    assert_eq!(
+        f.store
+            .automation_runs(false, None, Some(good_id), None, 64)
+            .unwrap()
+            .runs
+            .len(),
+        1
     );
 }

@@ -2436,3 +2436,31 @@ The full planned release remains incomplete; deferred adapters stay out of scope
 Calendar/conditional/retry/code integration, historical/mobile Inbox and global
 usage, registered owner/gateway and cloud speech, and broader execution/resource/
 billing/GPU integrations remain the remaining implementation families.
+
+## Calendar routines checkpoint — 2026-10-08
+
+Implemented in `codex/ion-agent-teams`, protocol **32**:
+
+- Daily, weekday and monthly calendar rules use a pinned bundled IANA database.
+  UTC intervals retain their previous defaults/serialization. The owner validates
+  rules, computes exact future slots and returns three zoned preview timestamps.
+- Desktop reuses existing keyboard-operable form controls and background RPC.
+  Draft edits invalidate previews and generation fences discard stale responses.
+  Saved/phone history exposes the pinned calendar rule and run policies.
+- Explicit Run latest/Skip missed and Skip/Allow overlap remain subject to shared
+  agent concurrency, existing budgets, approvals and explicit host selection.
+  Fire deduplication, trigger snapshot and next schedule commit atomically.
+- DST gaps skip, folds choose the earlier occurrence once; missing monthly dates
+  skip. Unknown/invalid schedules fail before save or pause only the corrupt rule.
+
+Verification: seven calendar math/owner tests and all twenty automation regression
+checks passed, including concurrent owner restart, immutable triggers, real shared
+agent capacity and the existing two-stage dispatcher/artifact handoff. The native
+bounded-field test passed. Native/daemon compilation, generated shared/phone
+TypeScript, formatting and whitespace passed. Review items are in
+[workflows and routines](21-workflows-routines.md). No visual/device test or live
+provider/cloud effect was performed.
+
+The full goal remains active. Conditional workflow graphs, historical/mobile
+Inbox, global usage accounting and broader remote/GPU, gateway and speech
+integrations remain development. Unsupported new harness adapters remain deferred.

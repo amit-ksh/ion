@@ -8,6 +8,7 @@ use waku_client::teams::{
 };
 mod automation_ui;
 mod inbox;
+mod routine_ui;
 mod team_activity;
 mod team_apps;
 mod team_integration;
@@ -117,6 +118,7 @@ pub(super) struct ControlUi {
     expertise: Entity<TextInput>,
     model: Entity<TextInput>,
     interval: Entity<TextInput>,
+    routine: routine_ui::RoutineUi,
     provider: ProviderKind,
     execution: AgentExecution,
     access: AgentAccess,
@@ -303,6 +305,7 @@ impl ControlUi {
             expertise: cx.new(|cx| TextInput::new(window, cx).placeholder("Expertise")),
             model: cx.new(|cx| TextInput::new(window, cx).placeholder("Use harness default")),
             interval: cx.new(|cx| TextInput::new(window, cx).placeholder("Interval in minutes")),
+            routine: routine_ui::RoutineUi::new(window, cx),
             provider: ProviderKind::Nebius,
             execution: AgentExecution::default(),
             access: AgentAccess::default(),
@@ -1065,6 +1068,7 @@ impl Waku {
         ] {
             input.update(cx, |input, cx| input.set_content("", cx));
         }
+        self.reset_routine_editor(cx);
         cx.notify();
     }
     fn add_control_stage(
@@ -1134,6 +1138,7 @@ impl Waku {
                 self.control_ui.members = v.members;
             }
             ControlRecord::Routine(v) => {
+                self.load_routine_editor(&v, cx);
                 self.control_ui.routine_team = v.team_id;
                 self.control_ui.routine_workflow = v.workflow_id;
                 self.control_ui.project = Some(v.project_id);
@@ -1269,19 +1274,24 @@ impl Waku {
                     cx.notify();
                     return;
                 };
-                let Ok(interval_minutes) =
-                    self.control_ui.interval.read(cx).content().trim().parse()
-                else {
-                    self.control_ui.error = Some("Enter the schedule interval in minutes.".into());
-                    cx.notify();
-                    return;
+                let schedule = match self.routine_schedule_draft(cx) {
+                    Ok(schedule) => schedule,
+                    Err(error) => {
+                        self.control_ui.error = Some(error);
+                        cx.notify();
+                        return;
+                    }
                 };
+                let (missed_run_policy, overlap_policy) = self.routine_policies();
                 ControlRecord::Routine(Routine {
                     id,
                     name,
                     project_id,
                     instructions,
-                    interval_minutes,
+                    interval_minutes: schedule.interval_minutes,
+                    calendar: schedule.calendar,
+                    missed_run_policy,
+                    overlap_policy,
                     paused: true,
                     next_run: 0,
                     provider: self.control_ui.provider,
@@ -2421,13 +2431,16 @@ impl Waku {
                     ),
                     ControlRecord::Routine(routine) => (
                         format!(
-                            "{} · every {} minutes{}",
+                            "{} · {}{}",
                             if routine.paused {
                                 "Paused"
                             } else {
                                 "Scheduled"
                             },
-                            routine.interval_minutes,
+                            routine_ui::schedule_label(
+                                routine.interval_minutes,
+                                routine.calendar.as_ref()
+                            ),
                             routine
                                 .last_error
                                 .as_ref()
@@ -2829,19 +2842,9 @@ impl Waku {
             ));
         }
         if kind == FormKind::Routine {
-            form = form.child(self.render_routine_target(cx));
             form = form
-                .child(control_field(
-                    "Every (minutes)",
-                    self.control_ui.interval.clone(),
-                    "control-interval",
-                ))
-                .child(
-                    div()
-                        .text_size(sp(12.5))
-                        .text_color(theme.text_secondary)
-                        .child("Saved routines are paused until you enable their schedule. Missed intervals coalesce; overlapping runs are skipped."),
-                );
+                .child(self.render_routine_target(cx))
+                .child(self.render_routine_schedule(cx));
         }
         if kind == FormKind::Team {
             form = form.child(self.render_team_limit_inputs(cx));

@@ -770,6 +770,11 @@ impl Backend for WakuBackend {
                 self.team_runtime.wake();
                 Ok(ResponsePayload::WorkspaceControl { snapshot })
             }
+            Command::PreviewRoutineSchedule { request } => {
+                Ok(ResponsePayload::RoutineSchedulePreview {
+                    preview: crate::routine_schedule::preview(&request, crate::model::unix_time())?,
+                })
+            }
             Command::GenerateWorkflow { project_id, prompt } => {
                 Ok(ResponsePayload::WorkflowDraft {
                     workflow: crate::control::generate_workflow(project_id, prompt)?,
@@ -2556,6 +2561,7 @@ fn handle_driver_command(
         | Command::ResolveAutomationGate { .. }
         | Command::StopAutomation { .. }
         | Command::SetRoutinePaused { .. }
+        | Command::PreviewRoutineSchedule { .. }
         | Command::GenerateWorkflow { .. }
         | Command::ImportWorkspaceArtifact { .. }
         | Command::ReadWorkspaceArtifact { .. }

@@ -423,7 +423,7 @@ key or native control event enters the team transcript.
 
 ## Prepare a registered sandbox host later
 
-Protocol is **31**; rebuild desktop, daemon and client bundles together.
+Protocol is **32**; rebuild desktop, daemon and client bundles together.
 No deployment target has been supplied. The Linux **production release** harness
 worker now builds offline with the unchanged release profile/lockfile and tracked
 source. Ten checks against the actual ELF passed, including private malformed/

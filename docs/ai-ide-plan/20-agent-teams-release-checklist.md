@@ -125,7 +125,7 @@ assert live account acceptance, visual validation or production release readines
 
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
-Calendar schedules, conditional stage graphs, retries, binary document publication and
+Conditional stage graphs, retries, binary document publication and
 code integration across stages remain development work. Full release completion
 also requires the unchecked execution and accounting items above.
 
@@ -186,7 +186,7 @@ also requires the unchecked execution and accounting items above.
 
 ## Verification baseline
 
-Current protocol is **31**. Rebuild desktop, daemon and clients together. The
+Current protocol is **32**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.
@@ -460,3 +460,13 @@ Live native account acceptance and broader remote/GPU development remain open.
 - [ ] Complete [the workflow document review](21-workflows-routines.md#your-review).
 - [ ] Calendar/graph/retry/code integration, binary document publication and the
   other current-scope execution/accounting/Inbox/gateway/speech gates remain open.
+
+## Calendar implementation checkpoint (2026-10-08)
+
+Calendar routines, explicit missed/overlap policies and next-three-fire preview
+are implemented in the Teams worktree. See the calendar section in
+[workflows and routines](21-workflows-routines.md) for exact behavior and your
+unchecked native/phone/DST review. Owner tests cover concurrent scheduling and
+real team capacity. This does not close conditional graphs, historical/mobile
+Inbox, global usage, remote/GPU, gateway or speech development. New harness
+adapters remain deferred by user instruction.

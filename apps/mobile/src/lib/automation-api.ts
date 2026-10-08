@@ -1,4 +1,4 @@
-import { WakuRpcError, type AutomationRun, type Command, type ResponsePayload } from '@waku/client';
+import { WakuRpcError, type AutomationRun, type CalendarSchedule, type RoutineTrigger, type Command, type ResponsePayload } from '@waku/client';
 
 export interface AutomationTransport {
   request(command: Command): Promise<ResponsePayload>;
@@ -68,10 +68,22 @@ export async function runResponse(transport: AutomationTransport, command: Comma
 }
 
 export function automationStatus(status: AutomationRun['status']): string {
-  return { running: 'Running', waitingDecision: 'Decision required', blocked: 'Needs attention', completed: 'Completed', canceled: 'Stopped', skipped: 'Skipped overlap' }[status];
+  return { running: 'Running', waitingDecision: 'Decision required', blocked: 'Needs attention', completed: 'Completed', canceled: 'Stopped', skipped: 'Skipped' }[status];
 }
 export function routineTime(seconds: number): string {
   if (!seconds) return 'Paused';
   const date = new Date(seconds * 1000);
   return Number.isFinite(date.getTime()) ? date.toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'Unknown time';
+}
+
+export function scheduleLabel(interval: number, calendar?: CalendarSchedule | null): string {
+  if (!calendar) return `Every ${interval} minutes`;
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const recurrence = calendar.recurrence.type === 'daily' ? 'Daily'
+    : calendar.recurrence.type === 'weekly' ? calendar.recurrence.days.map((day) => weekdays[day]).filter(Boolean).join(', ')
+    : `Monthly on ${calendar.recurrence.days.join(', ')}`;
+  return `${recurrence} at ${String(calendar.hour).padStart(2, '0')}:${String(calendar.minute).padStart(2, '0')} · ${calendar.timeZone}`;
+}
+export function triggerLabel(trigger: RoutineTrigger): string {
+  return `${scheduleLabel(trigger.intervalMinutes, trigger.calendar)} · ${trigger.missedRunPolicy === 'skip' ? 'Skip missed times' : 'Run latest missed time'} · ${trigger.overlapPolicy === 'allow' ? 'Allow overlap' : 'Skip overlap'}`;
 }

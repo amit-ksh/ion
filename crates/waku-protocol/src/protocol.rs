@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 31;
+pub const PROTOCOL_VERSION: u32 = 32;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -308,6 +308,9 @@ pub enum Command {
         expected_revision: u64,
         paused: bool,
     },
+    PreviewRoutineSchedule {
+        request: crate::control::RoutineScheduleRequest,
+    },
     GenerateWorkflow {
         project_id: Uuid,
         prompt: String,
@@ -572,6 +575,9 @@ pub enum ResponsePayload {
     },
     AutomationRuns {
         page: crate::control::AutomationPage,
+    },
+    RoutineSchedulePreview {
+        preview: crate::control::RoutineSchedulePreview,
     },
     WorkflowDraft {
         workflow: crate::control::Workflow,

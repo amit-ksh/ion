@@ -514,11 +514,16 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
                     "A workflow needs 1–24 stages with a title and instructions"
                 );
             }
-            ControlRecord::Routine(routine) => ensure!(
-                (1..=525600).contains(&routine.interval_minutes)
-                    && !routine.instructions.trim().is_empty(),
-                "A routine needs instructions and an interval of 1–525600 minutes"
-            ),
+            ControlRecord::Routine(routine) => {
+                ensure!(
+                    !routine.instructions.trim().is_empty(),
+                    "A routine needs instructions"
+                );
+                crate::routine_schedule::validate(&RoutineScheduleRequest {
+                    interval_minutes: routine.interval_minutes,
+                    calendar: routine.calendar.clone(),
+                })?;
+            }
             ControlRecord::Agent(agent) => {
                 ensure!(
                     !agent.instructions.trim().is_empty(),
@@ -675,6 +680,9 @@ mod tests {
                     project_id: project.id,
                     instructions: "Summarize updates".into(),
                     interval_minutes: 60,
+                    calendar: None,
+                    missed_run_policy: MissedRunPolicy::default(),
+                    overlap_policy: OverlapPolicy::default(),
                     paused: true,
                     next_run: 0,
                     provider: ProviderKind::Claude,

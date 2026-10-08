@@ -104,7 +104,7 @@ superseded child into a correction attempt.
 Verification occurs on owner workers; UI frames do not read source files.
 Handoffs include bounded complete receipt references and explicit omission counts.
 Empty extension fields are omitted, preserving existing stored replay signatures.
-Protocol version **31** requires the daemon and clients to use matching builds.
+Protocol version **32** requires the daemon and clients to use matching builds.
 
 These gates currently support bounded remote command receipts. Local/fallback
 shell checks, large project transfers, GPU metric/training checks, dedicated

@@ -142,6 +142,78 @@ impl WorkflowStage {
         })
     }
 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct CalendarSchedule {
+    pub time_zone: String,
+    pub hour: u8,
+    pub minute: u8,
+    pub recurrence: CalendarRecurrence,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", deny_unknown_fields, rename_all = "camelCase")]
+pub enum CalendarRecurrence {
+    Daily,
+    /// Monday = 0 through Sunday = 6.
+    Weekly {
+        days: Vec<u8>,
+    },
+    /// Calendar days 1 through 31; unavailable dates are skipped.
+    Monthly {
+        days: Vec<u8>,
+    },
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum MissedRunPolicy {
+    #[default]
+    RunLatest,
+    Skip,
+}
+impl MissedRunPolicy {
+    pub fn is_default(&self) -> bool {
+        *self == Self::RunLatest
+    }
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum OverlapPolicy {
+    #[default]
+    Skip,
+    Allow,
+}
+impl OverlapPolicy {
+    pub fn is_default(&self) -> bool {
+        *self == Self::Skip
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct RoutineScheduleRequest {
+    pub interval_minutes: u32,
+    pub calendar: Option<CalendarSchedule>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduledFire {
+    pub at: u64,
+    pub display: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutineSchedulePreview {
+    pub observed_at: u64,
+    pub time_zone: String,
+    pub fires: Vec<ScheduledFire>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutineTrigger {
+    pub interval_minutes: u32,
+    pub calendar: Option<CalendarSchedule>,
+    pub missed_run_policy: MissedRunPolicy,
+    pub overlap_policy: OverlapPolicy,
+}
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct Routine {
@@ -150,6 +222,13 @@ pub struct Routine {
     pub project_id: Uuid,
     pub instructions: String,
     pub interval_minutes: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub calendar: Option<CalendarSchedule>,
+    #[serde(default, skip_serializing_if = "MissedRunPolicy::is_default")]
+    pub missed_run_policy: MissedRunPolicy,
+    #[serde(default, skip_serializing_if = "OverlapPolicy::is_default")]
+    pub overlap_policy: OverlapPolicy,
     pub paused: bool,
     pub next_run: u64,
     pub provider: ProviderKind,
@@ -280,6 +359,9 @@ pub struct AutomationStage {
 #[serde(rename_all = "camelCase")]
 pub struct AutomationRun {
     pub id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub trigger: Option<RoutineTrigger>,
     pub name: String,
     pub project_id: Uuid,
     pub workflow_id: Option<Uuid>,

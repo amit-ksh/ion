@@ -1,7 +1,7 @@
 # Workflow and routine execution
 
 Updated 2026-10-08. Development is on `codex/ion-agent-teams`; integration into
-`ion-prod` and live acceptance remain separate. Protocol **31** requires matching
+`ion-prod` and live acceptance remain separate. Protocol **32** requires matching
 desktop, daemon and clients.
 
 ## Available behavior
@@ -27,12 +27,13 @@ desktop, daemon and clients.
   Unknown usage keeps the original reservation. Stage limits also retain the
   selected team's smaller caps. Exhaustion blocks further dispatch.
 - Create a routine with a saved team or same-project workflow. Saving keeps it
-  paused. **Enable schedule** arms an elapsed interval; **Pause** prevents future
+  paused. **Enable schedule** arms the selected interval or calendar rule; **Pause** prevents future
   firings without stopping an existing run. **Run now** is available separately.
-- Intervals use UTC elapsed time, independent of daylight-saving changes. The
-  interface shows the next firing in UTC. After downtime, missed intervals
-  coalesce to the latest scheduled slot. An active or blocked previous run causes
-  the new firing to be recorded as skipped; it never overlaps.
+- Intervals use UTC elapsed time. Calendar rules support daily, selected weekdays
+  and selected month days at a 24-hour time in an IANA zone. Preview next runs
+  asks the owner for the next three local-time/offset timestamps. The saved list
+  shows the rule and next UTC firing. Missed and overlap policies are explicit;
+  their defaults retain latest-slot catch-up and skip-overlap behavior.
 - Firing identity, next schedule and automation creation commit together. Stage
   task IDs and the existing task outbox survive restart and lost acknowledgements.
   Unknown transport outcomes retain the same submission ID. A confirmed rejection
@@ -88,8 +89,7 @@ desktop, daemon and clients.
 
 ## Remaining development
 
-Calendar/timezone schedules, explicit catch-up/overlap policy choices, conditional
-workflow graphs, bounded stage retries, binary document publication, safe code
+Conditional workflow graphs, bounded stage retries, binary document publication, safe code
 integration across stages, additional app binding controls, complete historical/mobile notification delivery
 and phone definition editing remain subsequent increments. Additional Teams
 harnesses and a registered remote execution host are tracked in
@@ -156,3 +156,67 @@ contract/legacy/final-stage tests and an actual two-stage dispatcher run requiri
 Markdown from both leads. Desktop/daemon compilation, regenerated binding equality,
 shared/full phone TypeScript, formatting and whitespace passed. No live model key,
 app account effect, deployment, visual test or second watcher was used.
+
+## Calendar schedules and run policies (2026-10-08)
+
+In the desktop routine editor, choose Every few minutes, Daily, Days of the week
+or Days of the month. Calendar rules take an IANA zone such as `Asia/Kolkata`,
+a 24-hour `HH:MM` time and selected days. All rules are saved paused. The owner
+validates the zone and rule before changing the definition revision. Calendar
+calculation and preview RPC run on workers; row rendering reads cached data.
+
+**Preview next runs** returns exactly three future fires from the owning daemon.
+Editing a schedule clears its preview; a delayed response cannot replace the
+preview for another draft, form or owner. These timestamps are a preview, not
+reservations. Enabling computes the next future time at the owner. Pausing clears
+that next time while preserving active runs. Run now starts immediately.
+
+Nonexistent local times during a daylight-saving gap are skipped. A repeated
+local time fires at its earlier offset once. Monthly dates absent from a month
+are skipped, including February 29 in a non-leap year. The pinned Jiff bundled
+IANA database supplies these calculations without a network/system-zone lookup;
+see [Jiff's time zone API](https://docs.rs/jiff/latest/jiff/tz/struct.TimeZone.html)
+and [ambiguity handling](https://docs.rs/jiff/latest/jiff/tz/enum.Disambiguation.html).
+Zone data updates require updating the bundled dependency and matching builds.
+
+- **Missed run: run latest** coalesces downtime into the latest due slot, with no
+  backlog burst. **Missed run: skip** records a skipped firing when that slot is
+  more than 60 seconds late; the one-minute grace permits ordinary scheduler delay.
+- **Overlap: skip** records a skipped run if the previous one is still active,
+  blocked or waiting for a decision. **Overlap: allow** creates another run under
+  existing shared agent capacity and each team's budget. It does not increase
+  agent concurrency, grants, permitted environments or spending limits.
+- A run pins the exact interval/calendar and both policies. Future edits do not
+  change that run's history. Manual Run now ignores missed-time handling and still
+  follows the selected overlap policy. Phone run detail displays the pinned trigger.
+- Fire identity, schedule advancement and run creation share one SQLite transaction.
+  Concurrent owners/restarts do not create another task for the same slot. An
+  invalid stored rule pauses only its own routine and records the error.
+- Legacy interval records omit the new default fields. Matching protocol **32**
+  desktop/daemon/phone builds are required so calendar rules cannot be mistaken
+  for intervals by an older client.
+
+### Your calendar review
+
+- [ ] Save a daily `09:00` routine in `Asia/Kolkata`; preview three runs and confirm
+  their `+05:30` offset. Change time/zone and verify the old preview disappears.
+- [ ] Select weekdays and monthly days `1, 31`; preview and verify unavailable dates
+  are skipped. Confirm keyboard selection, field labels and text in both themes.
+- [ ] Save, enable and pause; confirm saving starts nothing, the next stored firing
+  is correct and pausing preserves any active run. Run now remains separate.
+- [ ] Restart after downtime with Run latest and then Skip; confirm one traceable
+  latest-slot run or one skipped record, without a backlog or duplicate team tasks.
+- [ ] Allow overlap with agent parallelism one; verify a second task waits for agent
+  capacity. Switch back to Skip and inspect the skipped reason in history.
+- [ ] Edit the saved zone/policies while a run is active; desktop/phone run detail
+  must retain the original trigger while a later run uses the new definition.
+- [ ] Use `America/New_York` at `02:30` across a spring gap and `01:30` across a fall
+  fold; the preview should skip the missing time and list the repeated time once.
+- [ ] Try an unknown zone or invalid day/time; save must fail without changing the
+  revision. Confirm an invalid routine does not stop other valid schedules.
+
+Automated owner/math checks passed for IANA offsets, exact three-fire previews,
+week/month dates, leap years, DST gaps/folds, bounded long-downtime catch-up,
+concurrent restart deduplication, immutable triggers, missed-run grace, overlap
+capacity, legacy defaults and invalid-rule isolation. Native/device review remains
+unchecked; no visual test or live provider call was performed.

@@ -7,7 +7,7 @@ fn status(status: AutomationStatus) -> &'static str {
         AutomationStatus::Blocked => "Needs attention",
         AutomationStatus::Completed => "Completed",
         AutomationStatus::Canceled => "Stopped",
-        AutomationStatus::Skipped => "Skipped overlap",
+        AutomationStatus::Skipped => "Skipped",
     }
 }
 pub(super) fn next_fire(at: u64) -> String {
@@ -409,10 +409,18 @@ impl Waku {
             (
                 run.name.clone(),
                 format!(
-                    "{} · {} of {} stages{}",
+                    "{} · {} of {} stages{}{}",
                     status(run.status),
                     run.stages.iter().filter(|s| s.completed).count(),
                     run.stages.len(),
+                    if self.control_ui.automation_selected == Some(id) {
+                        run.trigger
+                            .as_ref()
+                            .map(|t| format!("\n{}", routine_ui::trigger_label(t)))
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    },
                     run.reason
                         .as_ref()
                         .map(|r| format!(" · {r}"))
