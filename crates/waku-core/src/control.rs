@@ -500,6 +500,7 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
                 }
             }
             ControlRecord::Workflow(workflow) => {
+                workflow.validate_graph().map_err(anyhow::Error::msg)?;
                 for stage in &workflow.stages {
                     stage.document_contract().map_err(anyhow::Error::msg)?;
                 }
@@ -552,7 +553,7 @@ pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
     let key = waku_credentials::CredentialService::global().nebius_runtime_key()?;
     let response: serde_json::Value=reqwest::blocking::Client::builder().timeout(Duration::from_secs(90)).redirect(reqwest::redirect::Policy::none()).build()?
         .post(format!("{}/chat/completions",waku_credentials::TOKEN_FACTORY_BASE_URL)).bearer_auth(key)
-        .json(&serde_json::json!({"model":"nvidia/NVIDIA-Nemotron-3-Super-120B-A12B","messages":[{"role":"system","content":"Design a linear workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv and json, with no duplicates. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
+        .json(&serde_json::json!({"model":"nvidia/NVIDIA-Nemotron-3-Super-120B-A12B","messages":[{"role":"system","content":"Design an editable forward-only workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv and json, with no duplicates. Each stage may include transition: {type: next}, {type: goTo, target: {type: stage, index: zero-based-index} or {type: finish}}, or {type: documentCondition, document: exact-file.json, pointer: /ready, equals: JSON scalar, onMatch: target, onMismatch: target}. Links must target a later stage or finish. Every stage must be reachable from stage zero. Conditions require that stage to produce the exact named JSON document and the selected scalar pointer. Use next by default; no loops or parallel effects. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
     let content = response["choices"][0]["message"]["content"]
         .as_str()
         .context("Model returned no workflow")?;

@@ -125,7 +125,7 @@ assert live account acceptance, visual validation or production release readines
 
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
-Conditional stage graphs, retries, binary document publication and
+Stage retries, binary document publication and
 code integration across stages remain development work. Full release completion
 also requires the unchecked execution and accounting items above.
 
@@ -186,7 +186,7 @@ also requires the unchecked execution and accounting items above.
 
 ## Verification baseline
 
-Current protocol is **32**. Rebuild desktop, daemon and clients together. The
+Current protocol is **33**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

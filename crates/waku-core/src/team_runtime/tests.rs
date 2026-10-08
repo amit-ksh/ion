@@ -1057,6 +1057,7 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
                 requires_decision: false,
                 team_id: Some(f.run.team.id),
                 required_formats: vec!["md".into()],
+                transition: WorkflowTransition::default(),
             },
             WorkflowStage {
                 title: "Release review".into(),
@@ -1064,6 +1065,7 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
                 requires_decision: true,
                 team_id: Some(f.run.team.id),
                 required_formats: vec!["md".into()],
+                transition: WorkflowTransition::default(),
             },
         ],
     };

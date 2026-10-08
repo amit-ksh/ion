@@ -14,6 +14,7 @@ mod team_apps;
 mod team_integration;
 mod team_limits;
 mod team_recovery;
+mod workflow_ui;
 use waku_client::{Command as Rpc, ResponsePayload};
 
 fn app_name(slug: &str) -> String {
@@ -135,6 +136,7 @@ pub(super) struct ControlUi {
         bool,
         Option<Uuid>,
         Vec<String>,
+        workflow_ui::TransitionUi,
     )>,
     pending_stages: Option<Vec<WorkflowStage>>,
     routine_team: Option<Uuid>,
@@ -1084,9 +1086,14 @@ impl Waku {
         let instructions_input =
             cx.new(|cx| TextInput::new(window, cx).placeholder("Stage instructions"));
         instructions_input.update(cx, |input, cx| input.set_content(instructions, cx));
-        self.control_ui
-            .stages
-            .push((title_input, instructions_input, gate, None, vec![]));
+        self.control_ui.stages.push((
+            title_input,
+            instructions_input,
+            gate,
+            None,
+            vec![],
+            workflow_ui::TransitionUi::new(WorkflowTransition::Next, window, cx),
+        ));
         cx.notify();
     }
     fn edit_control_record(&mut self, record: ControlRecord, cx: &mut Context<Self>) {
@@ -1254,18 +1261,14 @@ impl Waku {
                             return;
                         }
                     }),
-                    stages: self
-                        .control_ui
-                        .stages
-                        .iter()
-                        .map(|(title, instructions, gate, team, formats)| WorkflowStage {
-                            title: title.read(cx).content().to_owned(),
-                            instructions: instructions.read(cx).content().to_owned(),
-                            requires_decision: *gate,
-                            team_id: *team,
-                            required_formats: formats.clone(),
-                        })
-                        .collect(),
+                    stages: match self.workflow_stage_drafts(cx) {
+                        Ok(stages) => stages,
+                        Err(error) => {
+                            self.control_ui.error = Some(error);
+                            cx.notify();
+                            return;
+                        }
+                    },
                 })
             }
             FormKind::Routine => {
@@ -1814,6 +1817,7 @@ impl Waku {
             for stage in stages {
                 let team_id = stage.team_id;
                 let formats = stage.required_formats;
+                let transition = workflow_ui::TransitionUi::new(stage.transition, window, cx);
                 self.add_control_stage(
                     stage.title,
                     stage.instructions,
@@ -1824,6 +1828,7 @@ impl Waku {
                 if let Some(stage) = self.control_ui.stages.last_mut() {
                     stage.3 = team_id;
                     stage.4 = formats;
+                    stage.5 = transition;
                 }
             }
         }
@@ -2966,7 +2971,7 @@ impl Waku {
                 },
             ));
             form = form.child(self.render_team_limit_inputs(cx));
-            for (i, (title, instructions, gate, _team, _formats)) in
+            for (i, (title, instructions, gate, _team, _formats, _transition)) in
                 self.control_ui.stages.iter().enumerate()
             {
                 let gate = *gate;
@@ -2977,6 +2982,7 @@ impl Waku {
                         .gap(px(8.0))
                         .child(self.render_stage_team(i, cx))
                         .child(self.render_stage_documents(i, cx))
+                        .child(self.render_workflow_route(i, cx))
                         .child(control_field(
                             "Stage",
                             title.clone(),
@@ -3005,12 +3011,27 @@ impl Waku {
                                     },
                                 ))
                                 .child(self.control_button(
+                                    format!("stage-up-{i}"),
+                                    "Move up",
+                                    cx,
+                                    move |this, _, cx| {
+                                        if i > 0 {
+                                            this.move_workflow_stage(i, i - 1, cx);
+                                        }
+                                    },
+                                ))
+                                .child(self.control_button(
+                                    format!("stage-down-{i}"),
+                                    "Move down",
+                                    cx,
+                                    move |this, _, cx| this.move_workflow_stage(i, i + 1, cx),
+                                ))
+                                .child(self.control_button(
                                     format!("stage-remove-{i}"),
                                     "Remove",
                                     cx,
                                     move |this, _, cx| {
-                                        this.control_ui.stages.remove(i);
-                                        cx.notify();
+                                        this.remove_workflow_stage(i, cx);
                                     },
                                 )),
                         ),

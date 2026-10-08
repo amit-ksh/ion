@@ -11,7 +11,7 @@ import { useScreenHeaderInset } from '@/components/screen-header';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
-import { automationStatus, routineTime, scheduleLabel, startSavedAutomation } from '@/lib/automation-api';
+import { automationStatus, routineTime, scheduleLabel, workflowTransition, startSavedAutomation } from '@/lib/automation-api';
 
 type Tab = 'Workflows' | 'Routines' | 'Runs';
 type Definition = (Workflow & { kind: 'workflow' }) | (Routine & { kind: 'routine' });

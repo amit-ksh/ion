@@ -15,6 +15,7 @@ fn workflow(f: &Fixture, gates: &[bool]) -> Workflow {
                 requires_decision: *gate,
                 team_id: Some(f.team),
                 required_formats: vec![],
+                transition: WorkflowTransition::default(),
             })
             .collect(),
     }
@@ -1017,4 +1018,322 @@ fn calendar_owner_legacy_defaults_and_invalid_schedule_isolation() {
             .len(),
         1
     );
+}
+
+fn branched_workflow(f: &Fixture) -> Workflow {
+    let mut w = workflow(f, &[false, true, true, false]);
+    w.stages[0].transition = WorkflowTransition::DocumentCondition {
+        document: "route.json".into(),
+        pointer: "/release/ready".into(),
+        equals: serde_json::json!(true),
+        on_match: WorkflowTarget::Stage { index: 1 },
+        on_mismatch: WorkflowTarget::Stage { index: 2 },
+    };
+    w.stages[1].transition = WorkflowTransition::GoTo {
+        target: WorkflowTarget::Stage { index: 3 },
+    };
+    w
+}
+fn complete_condition(f: &Fixture, run: &AutomationRun, name: &str, json: &str) -> Artifact {
+    f.materialize();
+    let team = f.store.snapshot(run.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    let doc = f
+        .store
+        .publish_document(&claim.lease, Uuid::new_v4(), name, "json", json, 102)
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![doc.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 103)
+        .unwrap();
+    doc
+}
+#[test]
+fn workflow_branch_routes_original_json_pins_choice_and_enforces_selected_gate() {
+    for (value, destination) in [(true, 1), (false, 2)] {
+        let f = Fixture::new();
+        let w = branched_workflow(&f);
+        let wid = w.id;
+        let run = start(&f, w);
+        tick(&f, 100);
+        let doc = complete_condition(
+            &f,
+            &run,
+            "route.json",
+            &format!(r#"{{"release":{{"ready":{value}}}}}"#),
+        );
+        let mut edit = branched_workflow(&f);
+        edit.id = wid;
+        if let WorkflowTransition::DocumentCondition { equals, .. } = &mut edit.stages[0].transition
+        {
+            *equals = serde_json::json!(!value);
+        }
+        save(&f, ControlRecord::Workflow(edit));
+        tick(&f, 104);
+        let routed = f.store.automation_run(run.id).unwrap();
+        assert_eq!(routed.current_stage, destination);
+        assert_eq!(routed.status, AutomationStatus::WaitingDecision);
+        assert!(routed.stages[0].completed);
+        let route = routed.stages[0].route.as_ref().unwrap();
+        assert_eq!(route.artifact_id, Some(doc.id));
+        assert_eq!(
+            route.sha256.as_ref(),
+            Some(&doc.evidence.as_ref().unwrap().sha256)
+        );
+        assert_eq!(route.matched, Some(value));
+        assert!(
+            f.store
+                .snapshot(routed.stages[usize::from(destination)].team_run_id)
+                .is_err()
+        );
+        if destination == 2 {
+            assert!(routed.stages[1].skipped);
+            assert!(f.store.snapshot(routed.stages[1].team_run_id).is_err());
+        }
+        assert!(
+            f.store
+                .resolve_automation_gate(
+                    run.id,
+                    routed.revision,
+                    if destination == 1 { 2 } else { 1 },
+                    true,
+                    105
+                )
+                .is_err()
+        );
+        let owner = TeamCoordinator::new(f.definitions.path());
+        owner
+            .tick_automations(&HashSet::from([f.project]), 105)
+            .unwrap();
+        assert_eq!(
+            owner.automation_run(run.id).unwrap().stages[0].route,
+            routed.stages[0].route
+        );
+        owner
+            .resolve_automation_gate(run.id, routed.revision, destination, true, 106)
+            .unwrap();
+        tick(&f, 107);
+        let selected = f
+            .store
+            .snapshot(routed.stages[usize::from(destination)].team_run_id)
+            .unwrap();
+        assert_eq!(selected.inputs.len(), 2);
+        assert_eq!(selected.inputs[1].name, "route.json");
+        complete_stage(&f, run.id, 108);
+        tick(&f, 110);
+        let next = f.store.automation_run(run.id).unwrap();
+        assert_eq!(next.current_stage, 3);
+        assert!(next.stages[1].completed || next.stages[1].skipped);
+        assert!(next.stages[2].completed || next.stages[2].skipped);
+        complete_stage(&f, run.id, 111);
+        tick(&f, 113);
+        assert_eq!(
+            f.store.automation_run(run.id).unwrap().status,
+            AutomationStatus::Completed
+        );
+    }
+}
+#[test]
+fn workflow_branch_missing_wrong_scalar_or_changed_document_blocks_without_other_team() {
+    for (name, json, change) in [
+        ("other.json", r#"{"release":{"ready":true}}"#, false),
+        ("route.json", r#"{"release":{}}"#, false),
+        ("route.json", r#"{"release":{"ready":[]}}"#, false),
+        ("route.json", r#"{"release":{"ready":true}}"#, true),
+        ("route.json", "not json", false),
+    ] {
+        let f = Fixture::new();
+        let run = start(&f, branched_workflow(&f));
+        tick(&f, 100);
+        let doc = complete_condition(&f, &run, name, json);
+        if change {
+            f.store
+                .connect()
+                .unwrap()
+                .execute(
+                    "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+                    params![
+                        br#"{"release":{"ready":false}}"#.as_slice(),
+                        doc.id.to_string()
+                    ],
+                )
+                .unwrap();
+        }
+        tick(&f, 104);
+        tick(&f, 105);
+        let blocked = f.store.automation_run(run.id).unwrap();
+        assert_eq!(blocked.status, AutomationStatus::Blocked);
+        assert!(!blocked.stages[0].completed);
+        assert!(blocked.stages[0].route.is_none());
+        for stage in &blocked.stages[1..] {
+            assert!(!stage.started);
+            assert!(f.store.snapshot(stage.team_run_id).is_err());
+        }
+    }
+}
+#[test]
+fn workflow_branch_ambiguous_document_names_block_and_early_finish_skips_other_path() {
+    let f = Fixture::new();
+    let run = start(&f, branched_workflow(&f));
+    tick(&f, 100);
+    f.materialize();
+    let team = f.store.snapshot(run.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    let mut output = result();
+    for _ in 0..2 {
+        output.artifact_ids.push(
+            f.store
+                .publish_document(
+                    &claim.lease,
+                    Uuid::new_v4(),
+                    "route.json",
+                    "json",
+                    r#"{"release":{"ready":true}}"#,
+                    102,
+                )
+                .unwrap()
+                .id,
+        );
+    }
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 103)
+        .unwrap();
+    tick(&f, 104);
+    assert!(
+        f.store
+            .automation_run(run.id)
+            .unwrap()
+            .reason
+            .unwrap()
+            .contains("ambiguous")
+    );
+    let f = Fixture::new();
+    let mut w = workflow(&f, &[false, false]);
+    w.stages[0].transition = WorkflowTransition::DocumentCondition {
+        document: "route.json".into(),
+        pointer: "/ready".into(),
+        equals: serde_json::json!(true),
+        on_match: WorkflowTarget::Finish,
+        on_mismatch: WorkflowTarget::Stage { index: 1 },
+    };
+    let run = start(&f, w);
+    tick(&f, 100);
+    complete_condition(&f, &run, "route.json", r#"{"ready":true}"#);
+    tick(&f, 104);
+    let done = f.store.automation_run(run.id).unwrap();
+    assert_eq!(done.status, AutomationStatus::Completed);
+    assert_eq!(usize::from(done.current_stage), done.stages.len());
+    assert!(done.stages[1].skipped);
+    assert!(f.store.snapshot(done.stages[1].team_run_id).is_err());
+}
+#[test]
+fn workflow_branch_topology_validation_and_legacy_defaults_precede_save() {
+    let f = Fixture::new();
+    let w = workflow(&f, &[false, false]);
+    let bytes = serde_json::to_value(&w).unwrap();
+    assert!(bytes["stages"][0].get("transition").is_none());
+    let decoded: Workflow = serde_json::from_value(bytes).unwrap();
+    decoded.validate_graph().unwrap();
+    for target in [0, 4] {
+        let mut w = branched_workflow(&f);
+        if let WorkflowTransition::DocumentCondition { on_match, .. } = &mut w.stages[0].transition
+        {
+            *on_match = WorkflowTarget::Stage { index: target };
+        }
+        let revision = f.definitions.load().unwrap().revision;
+        assert!(
+            f.definitions
+                .save(revision, ControlRecord::Workflow(w))
+                .is_err()
+        );
+        assert_eq!(f.definitions.load().unwrap().revision, revision);
+    }
+    let mut w = branched_workflow(&f);
+    w.stages[1].transition = WorkflowTransition::GoTo {
+        target: WorkflowTarget::Stage { index: 0 },
+    };
+    assert!(w.validate_graph().is_err());
+    let mut w = workflow(&f, &[false, false]);
+    w.stages[0].transition = WorkflowTransition::GoTo {
+        target: WorkflowTarget::Finish,
+    };
+    assert!(w.validate_graph().is_err());
+    for (name, pointer, equals) in [
+        ("../route.json", "/ready", serde_json::json!(true)),
+        ("route.json", "ready", serde_json::json!(true)),
+        ("route.json", "/bad~2", serde_json::json!(true)),
+        ("route.json", "/ready", serde_json::json!({"nested":true})),
+    ] {
+        let mut w = branched_workflow(&f);
+        if let WorkflowTransition::DocumentCondition {
+            document,
+            pointer: p,
+            equals: e,
+            ..
+        } = &mut w.stages[0].transition
+        {
+            *document = name.into();
+            *p = pointer.into();
+            *e = equals;
+        }
+        assert!(w.validate_graph().is_err());
+    }
+}
+
+#[test]
+fn workflow_branch_selected_path_cannot_reset_prior_model_budget() {
+    let f = Fixture::new();
+    let mut w = branched_workflow(&f);
+    for stage in &mut w.stages {
+        stage.requires_decision = false;
+    }
+    w.limits = Some(TeamRunLimits {
+        max_model_calls: 1,
+        ..Default::default()
+    });
+    let run = start(&f, w);
+    tick(&f, 100);
+    f.materialize();
+    let team = f.store.snapshot(run.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    f.store
+        .reserve_model_call(
+            &claim.lease,
+            1,
+            ModelCallAllowance {
+                model: "model-0".into(),
+                max_input_tokens: 100,
+                max_output_tokens: 10,
+            },
+            102,
+        )
+        .unwrap();
+    let doc = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "route.json",
+            "json",
+            r#"{"release":{"ready":false}}"#,
+            102,
+        )
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![doc.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 103)
+        .unwrap();
+    tick(&f, 104);
+    let blocked = f.store.automation_run(run.id).unwrap();
+    assert_eq!(blocked.current_stage, 2);
+    assert_eq!(blocked.status, AutomationStatus::Blocked);
+    assert!(blocked.stages[0].completed);
+    assert!(blocked.stages[1].skipped);
+    assert!(blocked.reason.unwrap().contains("budget"));
+    for stage in &blocked.stages[1..] {
+        assert!(!stage.started);
+        assert!(f.store.snapshot(stage.team_run_id).is_err());
+    }
 }

@@ -1,4 +1,4 @@
-import { WakuRpcError, type AutomationRun, type CalendarSchedule, type RoutineTrigger, type Command, type ResponsePayload } from '@waku/client';
+import { WakuRpcError, type AutomationRun, type CalendarSchedule, type RoutineTrigger, type WorkflowTarget, type WorkflowTransition, type Command, type ResponsePayload } from '@waku/client';
 
 export interface AutomationTransport {
   request(command: Command): Promise<ResponsePayload>;
@@ -86,4 +86,13 @@ export function scheduleLabel(interval: number, calendar?: CalendarSchedule | nu
 }
 export function triggerLabel(trigger: RoutineTrigger): string {
   return `${scheduleLabel(trigger.intervalMinutes, trigger.calendar)} · ${trigger.missedRunPolicy === 'skip' ? 'Skip missed times' : 'Run latest missed time'} · ${trigger.overlapPolicy === 'allow' ? 'Allow overlap' : 'Skip overlap'}`;
+}
+
+export function workflowTarget(target: WorkflowTarget): string {
+  return target.type === 'finish' ? 'Finish workflow' : `Stage ${target.index + 1}`;
+}
+export function workflowTransition(transition?: WorkflowTransition): string {
+  if (!transition || transition.type === 'next') return 'Next stage';
+  if (transition.type === 'goTo') return workflowTarget(transition.target);
+  return `${transition.document} ${transition.pointer} = ${JSON.stringify(transition.equals)} → ${workflowTarget(transition.onMatch)}; otherwise ${workflowTarget(transition.onMismatch)}`;
 }

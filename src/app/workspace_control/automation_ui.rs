@@ -292,7 +292,9 @@ impl Waku {
         let mut actions = div().flex().items_center().gap(px(8.0));
         let (title, detail, icon_path) = if let Some(index) = stage {
             let stage = &run.stages[index];
-            let label = if stage.completed {
+            let label = if stage.skipped {
+                "Skipped by workflow route"
+            } else if stage.completed {
                 "Completed"
             } else if stage.started {
                 "Started"
@@ -327,7 +329,7 @@ impl Waku {
             (
                 format!("{}. {}", index + 1, stage.title),
                 format!(
-                    "{label} · {team}{}\n{}",
+                    "{label} · {team}{}\n{}\n{}{}",
                     if stage.required_formats.is_empty() {
                         String::new()
                     } else {
@@ -336,7 +338,31 @@ impl Waku {
                             stage.required_formats.join(", ").to_uppercase()
                         )
                     },
-                    stage.instructions
+                    format!(
+                        "{}{}",
+                        stage.instructions,
+                        stage
+                            .route
+                            .as_ref()
+                            .and_then(|r| r.artifact_id.zip(r.sha256.as_ref()))
+                            .map(|(id, hash)| format!("\nDocument {id} · SHA-256 {hash}"))
+                            .unwrap_or_default()
+                    ),
+                    workflow_ui::transition_label(&stage.transition),
+                    stage
+                        .route
+                        .as_ref()
+                        .map(|r| format!(
+                            " · Chosen: {}{}",
+                            workflow_ui::target_label(r.target),
+                            r.matched
+                                .map(|m| format!(
+                                    " ({})",
+                                    if m { "matched" } else { "did not match" }
+                                ))
+                                .unwrap_or_default()
+                        ))
+                        .unwrap_or_default()
                 ),
                 "icons/git-branch.svg",
             )

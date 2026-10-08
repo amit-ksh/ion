@@ -7,7 +7,7 @@ import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTheme } from '@/hooks/use-theme';
-import { automationStatus, routineTime, triggerLabel, runResponse } from '@/lib/automation-api';
+import { automationStatus, routineTime, triggerLabel, workflowTarget, workflowTransition, runResponse } from '@/lib/automation-api';
 
 export default function AutomationScreen() {
   const { id: value } = useLocalSearchParams<{ id: string | string[] }>();
@@ -69,8 +69,11 @@ export default function AutomationScreen() {
       ListEmptyComponent={!query.error ? <Text style={[styles.empty, { color: theme.textSecondary }]}>{query.isFetching ? 'Loading…' : 'Connect and refresh to view this run.'}</Text> : null}
       renderItem={({ item: stage, index }) => <View style={[styles.stage, { borderBottomColor: theme.border }]}>
         <Text style={[styles.stageTitle, { color: theme.text }]}>{index + 1}. {stage.title}</Text>
-        <Text style={[styles.body, { color: theme.textSecondary }]}>{stage.completed ? 'Completed' : stage.started ? 'Started · open task for progress' : run?.status === 'waitingDecision' && index === run.currentStage ? 'Awaiting your decision' : 'Not started'}</Text>
+        <Text style={[styles.body, { color: theme.textSecondary }]}>{stage.skipped ? 'Skipped by workflow route' : stage.completed ? 'Completed' : stage.started ? 'Started · open task for progress' : run?.status === 'waitingDecision' && index === run.currentStage ? 'Awaiting your decision' : 'Not started'}</Text>
         <Text selectable style={[styles.body, { color: theme.text }]}>{stage.instructions}</Text>
+        <Text style={[styles.body, { color: theme.textSecondary }]}>{workflowTransition(stage.transition)}</Text>
+        {stage.route && <Text style={[styles.body, { color: theme.textSecondary }]}>Chosen: {workflowTarget(stage.route.target)}{stage.route.matched == null ? '' : stage.route.matched ? ' (matched)' : ' (did not match)'}</Text>}
+        {stage.route?.artifactId && <Text selectable style={[styles.body, { color: theme.textSecondary }]}>Document {stage.route.artifactId} · SHA-256 {stage.route.sha256}</Text>}
         {!!stage.requiredFormats?.length && <Text style={[styles.body, { color: theme.textSecondary }]}>Required documents: {stage.requiredFormats.join(', ').toUpperCase()}</Text>}
         <View style={styles.actions}>
           {stage.started && <AutomationButton label="Open task" onPress={() => router.push({ pathname: '/session/[id]', params: { id: stage.taskId } })} />}

@@ -112,6 +112,125 @@ pub struct WorkflowStage {
     /// One generated document of each selected format before this stage can complete.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_formats: Vec<String>,
+    #[serde(default, skip_serializing_if = "WorkflowTransition::is_default")]
+    pub transition: WorkflowTransition,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+pub enum WorkflowTarget {
+    Stage { index: u16 },
+    Finish,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum WorkflowTransition {
+    #[default]
+    Next,
+    GoTo {
+        target: WorkflowTarget,
+    },
+    /// Compare one scalar from an original accepted JSON document, never prompt prose.
+    DocumentCondition {
+        document: String,
+        pointer: String,
+        equals: serde_json::Value,
+        on_match: WorkflowTarget,
+        on_mismatch: WorkflowTarget,
+    },
+}
+impl WorkflowTransition {
+    pub fn is_default(&self) -> bool {
+        *self == Self::Next
+    }
+    pub fn targets(&self, index: usize, count: usize) -> Vec<WorkflowTarget> {
+        match self {
+            Self::Next => vec![if index + 1 < count {
+                WorkflowTarget::Stage {
+                    index: (index + 1) as u16,
+                }
+            } else {
+                WorkflowTarget::Finish
+            }],
+            Self::GoTo { target } => vec![*target],
+            Self::DocumentCondition {
+                on_match,
+                on_mismatch,
+                ..
+            } => vec![*on_match, *on_mismatch],
+        }
+    }
+}
+impl Workflow {
+    /// Forward-only conditional graphs terminate within the bounded stage collection.
+    pub fn validate_graph(&self) -> Result<(), &'static str> {
+        if self.stages.is_empty() || self.stages.len() > 24 {
+            return Err("Use 1–24 workflow stages");
+        }
+        let mut reachable = vec![false; self.stages.len()];
+        reachable[0] = true;
+        for (index, stage) in self.stages.iter().enumerate() {
+            stage.document_contract()?;
+            if let WorkflowTransition::DocumentCondition {
+                document,
+                pointer,
+                equals,
+                ..
+            } = &stage.transition
+            {
+                if document.is_empty()
+                    || document.len() > 128
+                    || document.trim() != document
+                    || document.contains(['/', '\\'])
+                    || !document.ends_with(".json")
+                {
+                    return Err(
+                        "A workflow condition needs an exact JSON document name, without a path",
+                    );
+                }
+                if pointer.is_empty()
+                    || pointer.len() > 256
+                    || !pointer.starts_with('/')
+                    || pointer.chars().any(char::is_control)
+                {
+                    return Err("Use a JSON pointer such as /release/ready (up to 256 bytes)");
+                }
+                let mut chars = pointer.chars();
+                while let Some(c) = chars.next() {
+                    if c == '~' && !matches!(chars.next(), Some('0' | '1')) {
+                        return Err("JSON pointers escape ~ as ~0 and / as ~1");
+                    }
+                }
+                if equals.is_array()
+                    || equals.is_object()
+                    || equals.as_str().is_some_and(|v| v.len() > 256)
+                {
+                    return Err("A workflow condition compares a JSON scalar of at most 256 bytes");
+                }
+            }
+            for target in stage.transition.targets(index, self.stages.len()) {
+                if let WorkflowTarget::Stage { index: target } = target {
+                    let target = usize::from(target);
+                    if target <= index || target >= self.stages.len() {
+                        return Err(
+                            "Workflow links must name a later stage; cycles and missing targets are not allowed",
+                        );
+                    }
+                    if reachable[index] {
+                        reachable[target] = true;
+                    }
+                }
+            }
+        }
+        if reachable.iter().any(|v| !*v) {
+            return Err("Every workflow stage must be reachable from the first stage");
+        }
+        Ok(())
+    }
 }
 pub const WORKFLOW_DOCUMENT_FORMATS: &[&str] = &["html", "md", "txt", "csv", "json"];
 impl WorkflowStage {
@@ -135,9 +254,17 @@ impl WorkflowStage {
         {
             return Err("Duplicate required workflow document format");
         }
+        let mut required_formats = self.required_formats.clone();
+        if matches!(
+            self.transition,
+            WorkflowTransition::DocumentCondition { .. }
+        ) && !required_formats.iter().any(|f| f == "json")
+        {
+            required_formats.push("json".into());
+        }
         Ok(crate::teams::OutputContract {
-            minimum_documents: self.required_formats.len() as u16,
-            required_formats: self.required_formats.clone(),
+            minimum_documents: required_formats.len() as u16,
+            required_formats,
             ..Default::default()
         })
     }
@@ -329,6 +456,14 @@ pub enum WorkspaceActionStatus {
     Declined,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRoute {
+    pub target: WorkflowTarget,
+    pub artifact_id: Option<Uuid>,
+    pub sha256: Option<String>,
+    pub matched: Option<bool>,
+}
 /// Metadata-only automation projection; pinned profile bodies remain private.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -343,6 +478,13 @@ pub enum AutomationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationStage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub route: Option<AutomationRoute>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skipped: bool,
+    #[serde(default, skip_serializing_if = "WorkflowTransition::is_default")]
+    pub transition: WorkflowTransition,
     pub title: String,
     pub instructions: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -1,7 +1,7 @@
 # Workflow and routine execution
 
 Updated 2026-10-08. Development is on `codex/ion-agent-teams`; integration into
-`ion-prod` and live acceptance remain separate. Protocol **32** requires matching
+`ion-prod` and live acceptance remain separate. Protocol **33** requires matching
 desktop, daemon and clients.
 
 ## Available behavior
@@ -13,7 +13,7 @@ desktop, daemon and clients.
   requirements are edited on desktop, pinned for the run and visible on desktop
   and phone. A missing format prevents its team lead from submitting completion.
 - **Run now** creates a durable automation run. Stages launch real Teams tasks
-  sequentially. The run pins the workflow, teams and profiles; editing a saved
+  along the selected forward path. The run pins the graph, teams and profiles; editing a saved
   definition affects later runs. The normal New task flow stays unchanged.
 - A marked stage waits for an exact user decision before its team exists in the
   dispatch queue. **Open** the run to see its instructions and prior stage task
@@ -89,7 +89,7 @@ desktop, daemon and clients.
 
 ## Remaining development
 
-Conditional workflow graphs, bounded stage retries, binary document publication, safe code
+Bounded stage retries, binary document publication, safe code
 integration across stages, additional app binding controls, complete historical/mobile notification delivery
 and phone definition editing remain subsequent increments. Additional Teams
 harnesses and a registered remote execution host are tracked in
@@ -220,3 +220,68 @@ week/month dates, leap years, DST gaps/folds, bounded long-downtime catch-up,
 concurrent restart deduplication, immutable triggers, missed-run grace, overlap
 capacity, legacy defaults and invalid-rule isolation. Native/device review remains
 unchecked; no visual test or live provider call was performed.
+
+## Conditional workflow routes (2026-10-08)
+
+Each stage now chooses an **After completion** route in the native editor:
+
+- **Next stage** retains the linear default and legacy serialization.
+- **Go to** selects a later stage or finishes the workflow.
+- **JSON condition** names a generated JSON document, a JSON pointer such as
+  `/release/ready`, a JSON scalar to compare and a destination for each result.
+  For example, `release.json` at `/ready` equal to `true` can select deployment
+  review, while `false` selects an investigation team. No fixed release/deploy
+  workflow types are introduced. Prompt generation can propose the same editable
+  typed routes; saving/activation still require valid teams and grants.
+
+Graphs are bounded to 24 stages, forward only and rooted at stage one. Every
+stage must be reachable by at least one possible path. Cycles, missing/backward
+links, invalid pointers and non-scalar conditions reject before saving. Multiple
+paths can join at a later stage. This runner follows one path at a time; parallel
+fan-out, loops and automatic stage retries are separate work.
+
+The branch stage must publish the exact named JSON document and reference its
+artifact ID in its accepted result. JSON becomes an implicit required format.
+The owner first verifies completion, required documents, source scope and original
+hashes; it then reads bounded original bytes and compares the scalar without type
+coercion. Missing, invalid, ambiguous or changed documents block for review, rather
+than selecting another path. A plain message or unaccepted file cannot choose a
+transition. This verifies original evidence and a configured value, not whether
+that evidence is factually correct or a deployment is appropriate.
+
+The chosen destination, matched result, document ID and SHA-256 commit with stage
+completion and run advancement. Restart/late acknowledgement retains that choice.
+Editing a saved graph affects future runs only. Unselected stages are marked
+Skipped by workflow route and have no Teams task. A selected decision gate still
+waits before its team exists. Source/account/action approvals remain independent.
+The selected predecessor's accepted documents are the next team's immutable input;
+shared calls/tokens/assignment limits count the actual completed path, including
+all earlier visited stages. A branch cannot reset the budget, grants or deadline.
+
+Move up/down remaps links to preserve stage identity and rejects a move that would
+create an invalid graph. Change incoming links before removing a linked stage.
+Desktop and phone run details show the pinned rule, chosen destination, matched
+result and skipped stages. Matching protocol **33** clients are required.
+
+### Your branch review
+
+- [ ] Generate or manually create four stages: decision document, ready-path team,
+  investigation team and a shared final team. Link both alternatives to the final
+  stage and choose explicit teams. Save and inspect the graph routes.
+- [ ] Configure `route.json` at `/release/ready` equal to `true`; run once with true
+  and once with false. Verify only the selected task exists; the other is skipped.
+- [ ] Require user decisions on both alternatives. Confirm only the selected gate
+  appears and no team starts before its exact approval. Decline/Stop a separate run.
+- [ ] Inspect the chosen document ID/hash and result on desktop/phone. Restart or
+  edit the saved graph after the document stage completes; the run's choice stays.
+- [ ] Omit the named document/pointer, use a wrong type, submit duplicate names or
+  change original bytes in a disposable fixture. Confirm the run blocks, without
+  guessing a path or creating another stage task.
+- [ ] Choose Finish workflow from one condition. Verify later unselected stages
+  remain skipped and the run completes without dispatching them.
+- [ ] Reorder alternatives and confirm links follow them. Try a backward/cyclic
+  link, unreachable stage or removal of a linked stage; correct the shown error.
+- [ ] Set small workflow-wide caps, branch around an unselected stage and verify
+  actual prior usage still constrains the selected path and final team.
+- [ ] Verify keyboard menus, labels in both themes and the actual mobile build.
+  Live generation/provider/device/visual acceptance remains your later review.

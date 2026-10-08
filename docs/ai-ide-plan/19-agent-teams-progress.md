@@ -2464,3 +2464,28 @@ provider/cloud effect was performed.
 The full goal remains active. Conditional workflow graphs, historical/mobile
 Inbox, global usage accounting and broader remote/GPU, gateway and speech
 integrations remain development. Unsupported new harness adapters remain deferred.
+
+## Conditional workflow checkpoint — 2026-10-08
+
+Implemented in the isolated Teams worktree, protocol **33**:
+
+- Forward typed Next/Go to/Finish and JSON document conditions; 24-stage bound,
+  reachability, exact scalar/pointer validation and rejection of cycles/back-links.
+- Manual/prompt-generated editable routes and route-aware native reorder/remove
+  controls. The selected path retains each actual team's profile/grants and gates.
+- Original accepted JSON document ID/hash and matched destination are durable.
+  Missing/invalid/ambiguous/changed condition evidence blocks before routing;
+  unselected stages have no tasks. Accepted choice survives a next-stage budget
+  block while partial next-team preparation rolls back independently.
+- Prior visited usage and accepted predecessor documents follow the actual path.
+  Desktop/phone display pinned rules, chosen receipt and skipped stages.
+
+Five graph acceptance tests and all twenty-five automation regressions passed,
+including both paths through exact gates, immutable edits/restart, early finish,
+invalid topology, document tampering/ambiguity and preserved shared model caps.
+Native/daemon compilation, full shared/phone TypeScript, generated-binding equality,
+formatting and whitespace passed. Review is in
+[workflow routes](21-workflows-routines.md). No visual/device/provider acceptance
+was performed. Parallel fan-out, loops and bounded stage retry remain separate
+work; this does not complete historical/mobile Inbox, global usage or the broader
+remote/GPU, gateway and speech goal. New harness adapters remain deferred.
