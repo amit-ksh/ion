@@ -647,7 +647,12 @@ fn native_team_decision_parks_and_delivers_only_the_pinned_human_receipt() {
                     for tool in tools.as_array().unwrap() {
                         assert!(!matches!(
                             tool["function"]["name"].as_str(),
-                            Some("write_file" | "run_remote_command" | "await_gpu_job")
+                            Some(
+                                "write_file"
+                                    | "run_remote_command"
+                                    | "run_remote_project_command"
+                                    | "await_gpu_job"
+                            )
                         ));
                     }
                     let receipt = messages.last().unwrap()["content"].as_str().unwrap();

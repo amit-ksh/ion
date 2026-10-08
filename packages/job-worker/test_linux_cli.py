@@ -13,6 +13,7 @@ import uuid
 
 BINARY = "/usr/local/bin/ion-job-worker"
 EXPORTED = None
+EXPORTED_PROJECT = None
 DEFAULT_LIMITS = {'version':1,'cpu_seconds':5,'address_space_bytes':256*1024*1024,
                   'max_file_bytes':16*1024*1024,'processes':256,'open_files':64}
 
@@ -23,6 +24,18 @@ def request(script, **changes):
              "timeout_seconds": 5, "inputs": [], "output_paths": []}
     value.update(changes)
     return value
+
+
+def archive_for(entries):
+    index=[]; content=b''
+    for path,data,executable in sorted(entries):
+        index.append({'path':path,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'executable':executable})
+        content+=data
+    header=json.dumps(index,separators=(',',':')).encode()
+    data=b'IONPROJ1'+len(header).to_bytes(4,'big')+header+content
+    facts={'version':1,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data),
+           'files':len(entries),'source_bytes':len(content)}
+    return data,facts
 
 
 class NativeCliTests(unittest.TestCase):
@@ -60,6 +73,55 @@ os.execve(sys.argv[2],sys.argv[2:],dict(os.environ))
         self.assertEqual(result.stderr, b"")
         self.assertLessEqual(len(result.stdout), 512 * 1024)
         return json.loads(result.stdout)
+
+    def invoke_project(self, value, data, mode=0o400, exit_code=0):
+        path=Path('/ion/job-project.ion')
+        with path.open('xb') as output: output.write(data)
+        path.chmod(mode)
+        try:
+            return self.invoke(value,args=['--project-file',str(path)],exit_code=exit_code)
+        finally:
+            path.unlink()
+
+    def test_project_snapshot_large_files_native_receipt_and_private_archive(self):
+        global EXPORTED_PROJECT
+        payload=bytes(range(256))*2048
+        digest=hashlib.sha256(payload).hexdigest()
+        script=("import hashlib,pathlib,os\n"
+                "assert len(list(pathlib.Path('src').glob('part-*.txt')))==96\n"
+                "assert hashlib.sha256(pathlib.Path('assets/data.bin').read_bytes()).hexdigest()=='%s'\n"
+                "assert pathlib.Path('src/main.py').stat().st_mode & 0o400\n"
+                "try: pathlib.Path('/ion/job-project.ion').read_bytes()\n"
+                "except PermissionError: pass\n"
+                "else: raise AssertionError('Child read supervisor archive')\n"
+                "pathlib.Path('result.txt').write_text('%s')\n")%(digest,digest)
+        entries=[('src/main.py',script.encode(),False),('assets/data.bin',payload,False)]
+        entries += [('src/part-%03d.txt'%i,('part-%d'%i).encode(),False) for i in range(96)]
+        data,facts=archive_for(entries)
+        value=request('',argv=['/usr/local/bin/python3','-I','-S','src/main.py'],
+                      project_snapshot=facts,output_paths=['result.txt'])
+        receipt=self.invoke_project(value,data)
+        self.assertEqual(receipt['exit_code'],0,receipt['stderr'])
+        self.assertEqual(receipt['project_sha256'],facts['sha256'])
+        self.assertEqual(base64.b64decode(receipt['outputs'][0]['content_base64']),digest.encode())
+        self.assertFalse(receipt['output_errors'])
+        EXPORTED_PROJECT=(value,receipt,data)
+
+    def test_project_archive_tampering_and_unsafe_paths_never_execute(self):
+        script="raise AssertionError('Invalid project reached child')"
+        for entries in [[('.env',b'secret',False)],[('../escape',b'x',False)],
+                        [('A.txt',b'1',False),('a.txt',b'2',False)],
+                        [('parent',b'x',False),('parent/child',b'y',False)]]:
+            data,facts=archive_for(entries)
+            reply=self.invoke_project(request(script,project_snapshot=facts),data,exit_code=1)
+            self.assertNotIn('request_id',reply)
+        data,facts=archive_for([('safe.txt',b'valid',False)])
+        value=request(script,project_snapshot=facts)
+        self.assertNotIn('request_id',self.invoke_project(value,data[:-1]+b'X',exit_code=1))
+        self.assertNotIn('request_id',self.invoke_project(value,data,mode=0o444,exit_code=1))
+        self.assertNotIn('request_id',self.invoke(value,exit_code=1)) # Missing explicit project mode.
+        bad=dict(facts,files=True)
+        self.assertNotIn('request_id',self.invoke_project(request(script,project_snapshot=bad),data,exit_code=1))
 
     def test_binary_transfer_native_identity_socket_boundary_and_nonzero_receipt(self):
         global EXPORTED
@@ -245,7 +307,7 @@ sys.exit(9)
         self.assertEqual(manifest,{'version':1,'worker':'ion-job-worker/1','credential_free':True,
                                    'network':'disabled','supervisor':'root','child':'nonroot',
                                    'network_boundary':'linux-seccomp-socket-deny/v1',
-                                   'resource_boundary':'linux-rlimit/v1'})
+                                   'resource_boundary':'linux-rlimit/v1','project_snapshot':'ion-project-archive/v1'})
         for arg in ['--help','--version']:
             result = subprocess.run([BINARY,arg],capture_output=True,timeout=5)
             self.assertEqual(result.returncode,0)
@@ -268,6 +330,10 @@ def main():
         root=args.fixture_dir.resolve(strict=True)
         if not root.is_dir() or args.fixture_dir.is_symlink() or EXPORTED is None:
             raise ValueError('Use a fresh mounted output directory')
+        if EXPORTED_PROJECT is None: raise ValueError('Project acceptance fixture missing')
+        with (root/'project.ion').open('xb') as target: target.write(EXPORTED_PROJECT[2])
+        for name,data in [('project-request.json',EXPORTED_PROJECT[0]),('project-receipt.json',EXPORTED_PROJECT[1])]:
+            with (root/name).open('x',encoding='utf-8') as target: json.dump(data,target,separators=(',',':'))
         for name, data in [('request.json',EXPORTED[0]),('receipt.json',EXPORTED[1]),('manifest.json',json.loads(Path('/ion/job-host.json').read_bytes()))]:
             with (root/name).open('x',encoding='utf-8') as target:
                 json.dump(data,target,separators=(',',':'))

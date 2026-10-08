@@ -9,8 +9,8 @@ use std::{collections::HashMap, io::Read, path::Path};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CommandCheckContext {
-    path: Option<PathBuf>,
-    epoch: String,
+    pub(super) path: Option<PathBuf>,
+    pub(super) epoch: String,
 }
 pub(super) fn validate_contract(contract: &OutputContract) -> Result<()> {
     ensure!(
@@ -87,7 +87,7 @@ fn epoch(db: &Connection, run: Uuid) -> Result<String> {
     );
     Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(&rows)?)))
 }
-fn context(
+pub(super) fn context(
     db: &Connection,
     run: &TeamRunSnapshot,
     work: &TeamAssignment,
@@ -218,6 +218,24 @@ pub(super) fn verify(
                 .context("Legacy command has no original check context")?,
         )?;
         verify_context(db, run, work, Some(&saved))?;
+        if let Some(facts) = &request.project_snapshot {
+            let policy: super::project::ProjectPolicy = serde_json::from_value(
+                serde_json::from_str::<serde_json::Value>(
+                    signature["policy"]
+                        .as_str()
+                        .context("Check policy missing")?,
+                )?["project_snapshot"]
+                    .clone(),
+            )?;
+            let source = saved
+                .path
+                .as_ref()
+                .context("Project check source missing")?;
+            ensure!(
+                &super::project::snapshot(source, &policy)?.0 == facts,
+                "Project check snapshot no longer matches its source"
+            );
+        }
         let mut total = 0;
         for input in &request.inputs {
             jobs::path(&input.path)?;

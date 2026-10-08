@@ -49,7 +49,7 @@ pub(super) fn require_settled_effects_except_gpu(
     request: Option<Uuid>,
 ) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned') AND (?2 IS NULL OR request_id!=?2))",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('staging','submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned') AND (?2 IS NULL OR request_id!=?2))",
         params![run.to_string(),request.map(|id| id.to_string())], |r| r.get(0))?;
     ensure!(
         !pending,
@@ -73,7 +73,7 @@ pub(super) fn check_writer_capacity(
 }
 // Fixed Git operations only. Disable hooks/fsmonitor/global configuration and
 // reject local checkout filters before allowing worktree creation.
-fn git(repository: &Path, args: &[&str]) -> Result<String> {
+pub(super) fn git(repository: &Path, args: &[&str]) -> Result<String> {
     let mut command = crate::command_env::plain_command("git");
     command
         .args([

@@ -209,6 +209,7 @@ impl Fixture {
             gid: 1000,
             executables: vec!["/usr/bin/python3".into()],
             resources: None,
+            project_snapshot: None,
         };
         Self {
             dir,
@@ -346,6 +347,7 @@ impl Drop for Fixture {
 }
 fn response(request: &JobRequest) -> JobResponse {
     JobResponse {
+        project_sha256: None,
         version: 1,
         request_id: request.request_id,
         exit_code: 0,
@@ -695,4 +697,395 @@ fn command_check_missing_declared_output_cannot_complete() {
             .to_string()
             .contains("Required command check failed")
     );
+}
+
+fn project_policy() -> crate::teams::project::ProjectPolicy {
+    crate::teams::project::ProjectPolicy {
+        version: 1,
+        max_bytes: 2 * 1024 * 1024,
+        max_file_bytes: 1024 * 1024,
+        max_files: 256,
+        max_run_bytes: 8 * 1024 * 1024,
+    }
+}
+fn approve_project(f: &mut Fixture) {
+    f.policy.resources = Some(ResourceLimits {
+        version: 1,
+        cpu_seconds: 5,
+        address_space_bytes: 256 * 1024 * 1024,
+        max_file_bytes: 16 * 1024 * 1024,
+        processes: 256,
+        open_files: 64,
+    });
+    f.policy.project_snapshot = Some(project_policy());
+}
+fn project_manifest() -> Value {
+    serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../packages/job-worker/job-host.json"
+    )))
+    .unwrap()
+}
+#[test]
+#[ignore = "Requires project fixture exported by the reviewed native Linux CLI acceptance"]
+fn command_check_native_project_upload_receipt_replay_and_parent_review() {
+    let fixture = std::path::PathBuf::from(
+        std::env::var_os("ION_NATIVE_JOB_WORKER_FIXTURE")
+            .expect("Export native worker project fixtures first"),
+    );
+    let read = |name: &str, max: u64| {
+        use std::io::Read;
+        let mut bytes = vec![];
+        std::fs::File::open(fixture.join(name))
+            .unwrap()
+            .take(max + 1)
+            .read_to_end(&mut bytes)
+            .unwrap();
+        assert!(bytes.len() as u64 <= max);
+        bytes
+    };
+    let request: JobRequest =
+        serde_json::from_slice(&read("project-request.json", 512 * 1024)).unwrap();
+    let receipt: JobResponse =
+        serde_json::from_slice(&read("project-receipt.json", 512 * 1024)).unwrap();
+    let archive = read("project.ion", crate::teams::project::MAX_ARCHIVE as u64);
+    let facts = request.project_snapshot.as_ref().unwrap();
+    crate::teams::project::matches(&archive, facts).unwrap();
+    receipt.validate_against(&request).unwrap();
+    let mut forged = receipt.clone();
+    forged.project_sha256 = None;
+    assert!(forged.validate_against(&request).is_err());
+    forged.project_sha256 = Some("0".repeat(64));
+    assert!(forged.validate_against(&request).is_err());
+    assert_eq!(receipt.exit_code, 0);
+    assert_eq!(facts.files, 98);
+    assert!(facts.source_bytes > 512 * 1024);
+    let mut f = Fixture::with_command(|c| {
+        c.argv = request.argv.clone();
+        c.timeout_seconds = request.timeout_seconds;
+        c.input_paths.clear();
+        c.output_paths = request.output_paths.clone();
+    });
+    approve_project(&mut f);
+    f.policy.executables = vec![request.argv[0].clone()];
+    std::fs::remove_file(f.workspace.join("check.py")).unwrap();
+    let length = u32::from_be_bytes(archive[8..12].try_into().unwrap()) as usize;
+    let entries: Vec<Value> = serde_json::from_slice(&archive[12..12 + length]).unwrap();
+    let mut offset = 12 + length;
+    for entry in entries {
+        let name = entry["path"].as_str().unwrap();
+        path(name).unwrap();
+        assert_eq!(entry["executable"], false);
+        let file = f.workspace.join(name);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let end = offset + entry["bytes"].as_u64().unwrap() as usize;
+        std::fs::write(file, &archive[offset..end]).unwrap();
+        offset = end;
+    }
+    assert_eq!(
+        crate::teams::project::snapshot(&f.workspace, &project_policy())
+            .unwrap()
+            .0,
+        *facts
+    );
+    let file = Uuid::new_v4();
+    let operation = Uuid::new_v4();
+    let manifest = project_manifest();
+    let terminal = json!({"uuid":operation,"kind":"instance","image_uuid":f.policy.image,"status":"SUCCESS",
+        "metadata":{"result":{"state":{"exit_code":0},"stdout":{"encoding":"base64","value":STANDARD.encode(serde_json::to_vec(&receipt).unwrap()),"truncated":false}}}});
+    let file_info = json!({"uuid":file,"sha256":facts.sha256,"size":facts.bytes});
+    let store_path = f.dir.join("control.db");
+    let lease = f.child.lease.clone();
+    let request_id = request.request_id;
+    let server = Server::with_hook(
+        vec![
+            (200, serde_json::to_vec(&manifest).unwrap()),
+            (404, b"{}".to_vec()),
+            (500, b"{}".to_vec()), // Upload acknowledgement lost.
+            (200, serde_json::to_vec(&file_info).unwrap()),
+            (201, serde_json::to_vec(&json!({"uuid":operation})).unwrap()),
+            (200, serde_json::to_vec(&terminal).unwrap()),
+            (200, serde_json::to_vec(&manifest).unwrap()),
+        ],
+        move |call| {
+            if call.line.starts_with("POST /files ") {
+                let coordinator = TeamCoordinator::new(store_path.clone());
+                let pending = coordinator.unfinished_jobs(lease.attempt_id()).unwrap();
+                assert_eq!(pending.len(), 1);
+                assert_eq!(pending[0].id, request_id);
+                assert_eq!(pending[0].state, "staging");
+                assert!(coordinator.has_pending_effect(lease.run_id()).unwrap());
+            }
+        },
+    );
+    let invoke = || {
+        super::project::run_with_host(
+            &f.store,
+            &f.child,
+            &f.workspace,
+            request.request_id,
+            super::project::ProjectArgs {
+                argv: request.argv.clone(),
+                output_paths: request.output_paths.clone(),
+                timeout_seconds: request.timeout_seconds,
+            },
+            &AtomicBool::new(false),
+            |target| {
+                assert_eq!(target, f.policy.target);
+                Ok((
+                    f.policy.clone(),
+                    Client::fixture(&server.url, "fixture-project"),
+                ))
+            },
+        )
+    };
+    let first = invoke().unwrap();
+    assert_eq!(invoke().unwrap(), first);
+    assert_eq!(f.store.project_file(request.request_id).unwrap(), file);
+    assert!(!f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
+    let calls = server.finish();
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|c| c.line.starts_with("POST /files "))
+            .count(),
+        1
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .find(|c| c.line.starts_with("POST /files "))
+            .unwrap()
+            .raw_body,
+        archive
+    );
+    let spawn: Vec<_> = calls
+        .iter()
+        .filter(|c| c.line.starts_with("POST /instances "))
+        .collect();
+    assert_eq!(spawn.len(), 1);
+    assert_eq!(
+        spawn[0].body["files"],
+        json!({"/ion/job-project.ion":{"uuid":file,"uid":0,"gid":0,"mode":"0400"}})
+    );
+    assert_eq!(
+        spawn[0].body["args"],
+        json!(["--project-file", "/ion/job-project.ion"])
+    );
+    let expected = super::project::body_for(&f.store, &f.policy, &request).unwrap();
+    let original = json!({"metadata":expected});
+    verify_original_command(&original, &expected).unwrap();
+    let mut changed = original.clone();
+    changed["metadata"]["files"]["/ion/job-project.ion"]["uuid"] = json!(Uuid::new_v4());
+    assert!(verify_original_command(&changed, &expected).is_err());
+    let db = rusqlite::Connection::open(f.dir.join("control.db")).unwrap();
+    let run = f.store.snapshot(f.child.lease.run_id()).unwrap();
+    let work = run
+        .work
+        .iter()
+        .find(|w| w.id == f.child.assignment.id)
+        .unwrap();
+    let args = json!({"argv":request.argv,"output_paths":request.output_paths,"timeout_seconds":request.timeout_seconds});
+    assert_eq!(
+        crate::teams::jobs::recover_receipt(
+            &db,
+            &run,
+            work,
+            f.child.lease.attempt_id(),
+            request.request_id,
+            &args
+        )
+        .unwrap()
+        .unwrap(),
+        first
+    );
+    let result = f.result(&request, &receipt);
+    f.report(result).unwrap();
+    let parent = f.resume().claimed;
+    let unchanged = std::fs::read(f.workspace.join("src/part-095.txt")).unwrap();
+    std::fs::write(
+        f.workspace.join("src/part-095.txt"),
+        b"changed unlisted source",
+    )
+    .unwrap();
+    assert!(f.accept(&parent).is_err()); // Whole-project hash protects unlisted sources.
+    std::fs::write(f.workspace.join("src/part-095.txt"), unchanged).unwrap();
+    f.accept(&parent).unwrap();
+}
+#[test]
+fn command_check_project_bad_upload_and_revocation_never_launch_compute() {
+    for revoked in [false, true] {
+        let mut f = Fixture::new();
+        approve_project(&mut f);
+        let stopped = std::sync::Arc::new(AtomicBool::new(false));
+        let stop = stopped.clone();
+        let manifest = project_manifest();
+        let (facts, _) = crate::teams::project::snapshot(&f.workspace, &project_policy()).unwrap();
+        let info = json!({"uuid":Uuid::new_v4(),"sha256":if revoked{facts.sha256.clone()}else{"0".repeat(64)},"size":facts.bytes});
+        let server = Server::with_hook(
+            vec![
+                (200, serde_json::to_vec(&manifest).unwrap()),
+                (404, b"{}".to_vec()),
+                (201, serde_json::to_vec(&info).unwrap()),
+            ],
+            move |call| {
+                if revoked && call.line.starts_with("POST /files ") {
+                    stop.store(true, Ordering::Release);
+                }
+            },
+        );
+        let result = super::project::run_with_host(
+            &f.store,
+            &f.child,
+            &f.workspace,
+            Uuid::new_v4(),
+            super::project::ProjectArgs {
+                argv: f.command.argv.clone(),
+                output_paths: vec![],
+                timeout_seconds: 10,
+            },
+            &stopped,
+            |_| {
+                Ok((
+                    f.policy.clone(),
+                    Client::fixture(&server.url, "fixture-project"),
+                ))
+            },
+        );
+        assert!(result.is_err());
+        assert!(!f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
+        assert!(
+            f.store
+                .unfinished_jobs(f.child.lease.attempt_id())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            server
+                .finish()
+                .iter()
+                .all(|c| !c.line.starts_with("POST /instances "))
+        );
+    }
+}
+#[test]
+fn command_check_project_staging_restart_stops_without_upload_or_compute() {
+    let mut f = Fixture::new();
+    approve_project(&mut f);
+    let context = f
+        .store
+        .project_source_context(&f.child.lease, &f.workspace, now())
+        .unwrap();
+    let (facts, archive) =
+        crate::teams::project::snapshot(&f.workspace, &project_policy()).unwrap();
+    let request = JobRequest {
+        version: 1,
+        request_id: Uuid::new_v4(),
+        argv: f.command.argv.clone(),
+        timeout_seconds: 10,
+        inputs: vec![],
+        output_paths: vec![],
+        project_snapshot: Some(facts),
+    };
+    f.store
+        .reserve_remote_project(
+            &f.child.lease,
+            &request,
+            f.policy.image,
+            "fixture-project",
+            &serde_json::to_string(&f.policy).unwrap(),
+            8,
+            now(),
+            &context,
+            &archive,
+        )
+        .unwrap();
+    assert!(f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
+    assert!(f.store.project_file(request.request_id).is_err());
+    f.store.reconcile_owner_restart(now() + 1).unwrap();
+    let server = Server::new(vec![]);
+    assert!(
+        reconcile_with(
+            &Client::fixture(&server.url, "fixture-project"),
+            &f.store,
+            f.store.unfinished_jobs(f.child.lease.attempt_id()).unwrap()
+        )
+        .unwrap()
+    );
+    assert!(server.finish().is_empty());
+    assert!(!f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
+}
+
+#[test]
+fn command_check_project_run_byte_cap_and_scope_remain_pinned() {
+    let mut f = Fixture::with_command(|c| c.input_paths.clear());
+    approve_project(&mut f);
+    f.policy.project_snapshot = Some(crate::teams::project::ProjectPolicy {
+        version: 1,
+        max_bytes: 64 * 1024,
+        max_file_bytes: 64 * 1024,
+        max_files: 4,
+        max_run_bytes: 64 * 1024,
+    });
+    std::fs::write(f.workspace.join("large.txt"), vec![7; 64000]).unwrap();
+    let context = f
+        .store
+        .project_source_context(&f.child.lease, &f.workspace, now())
+        .unwrap();
+    let (facts, archive) =
+        crate::teams::project::snapshot(&f.workspace, f.policy.project_snapshot.as_ref().unwrap())
+            .unwrap();
+    let mut request = JobRequest {
+        version: 1,
+        request_id: Uuid::new_v4(),
+        argv: f.command.argv.clone(),
+        timeout_seconds: 10,
+        inputs: vec![],
+        output_paths: vec![],
+        project_snapshot: Some(facts.clone()),
+    };
+    let reserve = |request: &JobRequest, p: &Policy| {
+        f.store.reserve_remote_project(
+            &f.child.lease,
+            request,
+            p.image,
+            "fixture-project",
+            &serde_json::to_string(p).unwrap(),
+            8,
+            now(),
+            &context,
+            &archive,
+        )
+    };
+    // A foreign workspace is refused before durable upload reservation.
+    assert!(
+        f.store
+            .project_source_context(&f.child.lease, &f.source, now())
+            .is_err()
+    );
+    assert!(reserve(&request, &f.policy).unwrap().is_none());
+    assert!(f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
+    let file = Uuid::new_v4();
+    f.store
+        .confirm_project_upload(&f.child.lease, request.request_id, file, now())
+        .unwrap();
+    assert!(
+        f.store
+            .confirm_project_upload(&f.child.lease, request.request_id, Uuid::new_v4(), now())
+            .is_err()
+    );
+    f.store
+        .bind_job_operation(request.request_id, Uuid::new_v4())
+        .unwrap();
+    let mut receipt = response(&request);
+    receipt.project_sha256 = Some(facts.sha256);
+    f.store
+        .finish_job(request.request_id, Some(&receipt))
+        .unwrap();
+    request.request_id = Uuid::new_v4();
+    assert!(reserve(&request, &f.policy).is_err()); // Count allows it; run bytes do not.
+    let mut expanded = f.policy.clone();
+    expanded.project_snapshot.as_mut().unwrap().max_run_bytes = 128 * 1024;
+    assert!(reserve(&request, &expanded).is_err()); // Registry edit cannot enlarge original allowance.
+    assert!(!f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
 }

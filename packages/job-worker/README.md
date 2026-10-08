@@ -255,3 +255,39 @@ The registry and complete environment field are stored with the original command
 reservation. Lost-acknowledgement binding requires the same environment witness.
 Historical missing fields are omitted, preserving original policy/body signatures.
 GPU launches retain their separate owner policies and existing enablement gates.
+
+## Project snapshot setup
+
+The owner tool `run_remote_project_command` accepts `argv`, `output_paths` and
+`timeout_seconds`. It has no model-selected upload root; only the sealed isolated
+team workspace can be snapshotted. Add this optional approval to the private
+command registry **before the run uses that target policy**:
+
+```json
+"project_snapshot": {
+  "version": 1,
+  "max_bytes": 33554432,
+  "max_file_bytes": 8388608,
+  "max_files": 4096,
+  "max_run_bytes": 67108864
+}
+```
+
+`max_bytes` counts source content; `max_run_bytes` counts stored archive bytes,
+including index/framing and stopped/failed jobs. The image layer cap must fit both
+archive and staged source. New snapshots require the exact additional manifest
+field `project_snapshot: ion-project-archive/v1`. Original eight-field manifests
+remain usable for original inline command contracts.
+
+The supervisor CLI accepts only `--project-file /ion/job-project.ion` for this
+mode. That file must be root-owned, regular, unlinked and mode 0400. Stdin retains
+bounded version-1 JSON with an optional `project_snapshot` descriptor. The worker
+validates the archive/hash/index/path/file bounds before staging, preserves
+approved executable flags, applies the same child network/resource boundary and
+adds `project_sha256` to its trusted receipt. Ordinary/GPU requests without the
+extension keep their original wire fields. GPU datasets/result volumes are a
+separate contract; the new CLI mode does not authorize them.
+
+Review the full [project transfer and retention checklist](../../docs/ai-ide-plan/23-remote-command-gpu-jobs.md#2026-10-08--project-snapshot-command-execution)
+before registering/importing it. Namespace blob lifetime/deletion and live
+provider execution have not been accepted here.

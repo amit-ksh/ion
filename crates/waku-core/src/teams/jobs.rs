@@ -18,6 +18,8 @@ pub(crate) struct JobRequest {
     pub argv: Vec<String>,
     pub timeout_seconds: u32,
     pub inputs: Vec<JobFile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_snapshot: Option<super::project::ProjectSnapshot>,
     pub output_paths: Vec<String>,
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -46,6 +48,8 @@ pub(crate) struct JobOutputError {
 pub(crate) struct JobResponse {
     pub version: u16,
     pub request_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_sha256: Option<String>,
     pub exit_code: i32,
     pub timed_out: bool,
     pub canceled: bool,
@@ -59,6 +63,8 @@ impl JobResponse {
     pub(crate) fn validate_against(&self, request: &JobRequest) -> Result<()> {
         ensure!(
             self.version == 1
+                && self.project_sha256.as_deref()
+                    == request.project_snapshot.as_ref().map(|p| p.sha256.as_str())
                 && self.request_id == request.request_id
                 && self.elapsed_milliseconds <= u64::from(request.timeout_seconds + 10) * 1000
                 && self.outputs.len() + self.output_errors.len() == request.output_paths.len(),
@@ -119,22 +125,25 @@ impl JobResponse {
         )
     }
     pub(crate) fn summary(&self) -> Result<serde_json::Value> {
-        Ok(
-            serde_json::json!({"request_id":self.request_id,"exit_code":self.exit_code,
+        let mut value = serde_json::json!({"request_id":self.request_id,"exit_code":self.exit_code,
             "timed_out":self.timed_out,"canceled":self.canceled,"elapsed_milliseconds":self.elapsed_milliseconds,
             "stdout":Self::preview(&self.stdout)?,"stderr":Self::preview(&self.stderr)?,
             "outputs":self.outputs.iter().map(|o|serde_json::json!({"path":o.path,"bytes":o.bytes,"sha256":o.sha256})).collect::<Vec<_>>(),
-            "output_errors":self.output_errors}),
-        )
+            "output_errors":self.output_errors});
+        if let Some(hash) = &self.project_sha256 {
+            value["project_sha256"] = serde_json::json!(hash);
+        }
+        Ok(value)
     }
     pub(crate) fn tool_reply(&self, artifact: Uuid) -> Result<String> {
-        Ok(
-            serde_json::json!({"artifact_id":artifact,"request_id":self.request_id,
+        let mut value = serde_json::json!({"artifact_id":artifact,"request_id":self.request_id,
             "exit_code":self.exit_code,"timed_out":self.timed_out,"canceled":self.canceled,
             "output_count":self.outputs.len(),"output_error_count":self.output_errors.len(),
-            "stdout":Self::preview(&self.stdout)?,"stderr":Self::preview(&self.stderr)?})
-            .to_string(),
-        )
+            "stdout":Self::preview(&self.stdout)?,"stderr":Self::preview(&self.stderr)?});
+        if let Some(hash) = &self.project_sha256 {
+            value["project_sha256"] = serde_json::json!(hash);
+        }
+        Ok(value.to_string())
     }
 }
 pub(crate) struct JobRecord {
@@ -199,6 +208,67 @@ impl TeamCoordinator {
         now: u64,
         check_context: Option<&super::checks::CommandCheckContext>,
     ) -> Result<Option<JobResponse>> {
+        ensure!(
+            request.project_snapshot.is_none(),
+            "Use the project reservation path"
+        );
+        self.reserve_job_inner(
+            lease,
+            request,
+            image,
+            project,
+            policy,
+            maximum,
+            now,
+            check_context,
+            None,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn reserve_remote_project(
+        &self,
+        lease: &AssignmentLease,
+        request: &JobRequest,
+        image: Uuid,
+        project: &str,
+        policy: &str,
+        maximum: u16,
+        now: u64,
+        check_context: &super::checks::CommandCheckContext,
+        archive: &[u8],
+    ) -> Result<Option<JobResponse>> {
+        super::project::matches(
+            archive,
+            request
+                .project_snapshot
+                .as_ref()
+                .context("Project snapshot missing")?,
+        )?;
+        self.reserve_job_inner(
+            lease,
+            request,
+            image,
+            project,
+            policy,
+            maximum,
+            now,
+            Some(check_context),
+            Some(archive),
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn reserve_job_inner(
+        &self,
+        lease: &AssignmentLease,
+        request: &JobRequest,
+        image: Uuid,
+        project: &str,
+        policy: &str,
+        maximum: u16,
+        now: u64,
+        check_context: Option<&super::checks::CommandCheckContext>,
+        archive: Option<&[u8]>,
+    ) -> Result<Option<JobResponse>> {
         self.authorize_remote_job(lease, now)?;
         let mut signature =
             serde_json::json!({"request":request,"image":image,"project":project,"policy":policy});
@@ -217,7 +287,15 @@ impl TeamCoordinator {
         let run = load(&tx, lease.run_id)?;
         active(&run, now)?;
         let work = checked_lease(&run, lease, now, false)?;
-        super::checks::verify_context(&tx, &run, work, check_context)?;
+        if request.project_snapshot.is_some() {
+            ensure!(
+                archive.is_some()
+                    && check_context == Some(&super::project::verify_source(&tx, &run, work)?),
+                "Project source changed before reservation"
+            );
+        } else {
+            super::checks::verify_context(&tx, &run, work, check_context)?;
+        }
         let previous: Option<(String,String,Option<String>)> = tx.query_row(
             "SELECT signature,state,receipt FROM ion_team_jobs WHERE work_id=? AND request_id=?",
             params![work.id.to_string(),request.request_id.to_string()], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
@@ -247,6 +325,9 @@ impl TeamCoordinator {
             .collect::<rusqlite::Result<_>>()?;
         ensure!(witnesses.len() <= 128, "Remote command count exceeded");
         let mut maximum = maximum;
+        let mut project_max = current["project_snapshot"]["max_run_bytes"]
+            .as_u64()
+            .unwrap_or(u64::MAX);
         for witness in witnesses {
             let old: serde_json::Value = serde_json::from_str(&witness)?;
             let old_policy: serde_json::Value =
@@ -257,6 +338,9 @@ impl TeamCoordinator {
                     .and_then(|v| u16::try_from(v).ok())
                     .context("Stored count missing")?,
             );
+            if let Some(limit) = old_policy["project_snapshot"]["max_run_bytes"].as_u64() {
+                project_max = project_max.min(limit);
+            }
             if old_policy["target"] == current["target"] {
                 ensure!(
                     old_policy == current
@@ -266,6 +350,26 @@ impl TeamCoordinator {
                 );
             }
         }
+        if let Some(archive) = archive {
+            let approved: super::project::ProjectPolicy =
+                serde_json::from_value(current["project_snapshot"].clone())?;
+            approved.validate()?;
+            let facts = request
+                .project_snapshot
+                .as_ref()
+                .context("Project snapshot missing")?;
+            ensure!(
+                facts.files <= approved.max_files
+                    && facts.source_bytes <= approved.max_bytes
+                    && request.inputs.is_empty(),
+                "Project snapshot exceeds approval or mixes file modes"
+            );
+            let used:u64=tx.query_row("SELECT coalesce(sum(length(p.archive)),0) FROM ion_team_job_projects p JOIN ion_team_jobs j ON j.request_id=p.request_id WHERE j.run_id=?",[run.id.to_string()],|r|r.get(0))?;
+            ensure!(
+                used + archive.len() as u64 <= project_max,
+                "Project run transfer limit reached"
+            );
+        }
         super::workspace::require_settled_effects(&tx, run.id)?;
         let count: u16 = tx.query_row(
             "SELECT count(*) FROM ion_team_jobs WHERE run_id=?",
@@ -273,8 +377,14 @@ impl TeamCoordinator {
             |r| r.get(0),
         )?;
         ensure!(count < maximum, "Remote command count limit reached");
-        tx.execute("INSERT INTO ion_team_jobs(request_id,run_id,work_id,attempt_id,image,project,signature,request,state) VALUES(?,?,?,?,?,?,?,?,'submitting')",
-            params![request.request_id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),image.to_string(),project,signature,serde_json::to_string(request)?])?;
+        tx.execute("INSERT INTO ion_team_jobs(request_id,run_id,work_id,attempt_id,image,project,signature,request,state) VALUES(?,?,?,?,?,?,?,?,?)",
+            params![request.request_id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),image.to_string(),project,signature,serde_json::to_string(request)?,if archive.is_some(){"staging"}else{"submitting"}])?;
+        if let Some(archive) = archive {
+            tx.execute(
+                "INSERT INTO ion_team_job_projects(request_id,archive) VALUES(?,?)",
+                params![request.request_id.to_string(), archive],
+            )?;
+        }
         audit(
             &tx,
             run.id,
@@ -290,6 +400,44 @@ impl TeamCoordinator {
         tx.commit()?;
         Ok(None)
     }
+    pub(crate) fn confirm_project_upload(
+        &self,
+        lease: &AssignmentLease,
+        request: Uuid,
+        file: Uuid,
+        now: u64,
+    ) -> Result<()> {
+        ensure!(!file.is_nil(), "Project file identity is empty");
+        self.authorize_remote_job(lease, now)?;
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let run = load(&tx, lease.run_id)?;
+        active(&run, now)?;
+        let work = checked_lease(&run, lease, now, false)?;
+        let signature:String=tx.query_row("SELECT signature FROM ion_team_jobs WHERE request_id=? AND work_id=? AND attempt_id=? AND state='staging' AND operation IS NULL",
+            params![request.to_string(),work.id.to_string(),lease.attempt_id.to_string()],|r|r.get(0))?;
+        let saved: serde_json::Value = serde_json::from_str(&signature)?;
+        let context: super::checks::CommandCheckContext =
+            serde_json::from_value(saved["check_context"].clone())?;
+        ensure!(
+            context == super::project::verify_source(&tx, &run, work)?,
+            "Project source changed before submission"
+        );
+        ensure!(tx.execute("UPDATE ion_team_job_projects SET file_uuid=? WHERE request_id=? AND file_uuid IS NULL",params![file.to_string(),request.to_string()])?==1,"Project upload already confirmed");
+        ensure!(tx.execute("UPDATE ion_team_jobs SET state='submitting' WHERE request_id=? AND state='staging'",[request.to_string()])?==1,"Project state changed");
+        tx.commit()?;
+        Ok(())
+    }
+    pub(crate) fn project_file(&self, request: Uuid) -> Result<Uuid> {
+        let file: String = self.connect()?.query_row(
+            "SELECT file_uuid FROM ion_team_job_projects WHERE request_id=?",
+            [request.to_string()],
+            |r| r.get(0),
+        )?;
+        let id = Uuid::parse_str(&file)?;
+        ensure!(!id.is_nil(), "Project file identity missing");
+        Ok(id)
+    }
     pub(crate) fn bind_job_operation(&self, request: Uuid, operation: Uuid) -> Result<()> {
         ensure!(!operation.is_nil(), "Job operation identity is empty");
         ensure!(self.connect()?.execute("UPDATE ion_team_jobs SET operation=?,state='running' WHERE request_id=? AND state='submitting' AND operation IS NULL",
@@ -304,7 +452,7 @@ impl TeamCoordinator {
         Ok(())
     }
     pub(crate) fn reject_job(&self, request: Uuid) -> Result<()> {
-        ensure!(self.connect()?.execute("UPDATE ion_team_jobs SET state='rejected' WHERE request_id=? AND state='submitting' AND operation IS NULL",[request.to_string()])? == 1,"Job submission outcome already changed");
+        ensure!(self.connect()?.execute("UPDATE ion_team_jobs SET state='rejected' WHERE request_id=? AND state IN ('staging','submitting') AND operation IS NULL",[request.to_string()])? == 1,"Job submission outcome already changed");
         Ok(())
     }
     /// Only the trusted transport calls this after verifying a terminal operation.
@@ -376,7 +524,7 @@ impl TeamCoordinator {
     }
     pub(crate) fn unfinished_jobs(&self, attempt: Uuid) -> Result<Vec<JobRecord>> {
         let db = self.connect()?;
-        let rows = db.prepare("SELECT request_id,image,project,operation,state,request,json_extract(signature,'$.policy') FROM ion_team_jobs WHERE attempt_id=? AND state IN ('submitting','running','canceling') LIMIT 129")?
+        let rows = db.prepare("SELECT request_id,image,project,operation,state,request,json_extract(signature,'$.policy') FROM ion_team_jobs WHERE attempt_id=? AND state IN ('staging','submitting','running','canceling') LIMIT 129")?
             .query_map([attempt.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,Option<String>>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
         ensure!(rows.len() <= 128, "Remote job limit exceeded");
         rows.into_iter()
@@ -486,8 +634,11 @@ pub(crate) fn recover_receipt(
                 |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
     if let Some((saved, state, receipt)) = row {
         let saved: JobRequest = serde_json::from_str(&saved)?;
-        let expected = json!({"argv":saved.argv,"input_paths":saved.inputs.iter().map(|f|&f.path).collect::<Vec<_>>(),
-                    "output_paths":saved.output_paths,"timeout_seconds":saved.timeout_seconds});
+        let expected = if saved.project_snapshot.is_some() {
+            json!({"argv":saved.argv,"output_paths":saved.output_paths,"timeout_seconds":saved.timeout_seconds})
+        } else {
+            json!({"argv":saved.argv,"input_paths":saved.inputs.iter().map(|f|&f.path).collect::<Vec<_>>(),"output_paths":saved.output_paths,"timeout_seconds":saved.timeout_seconds})
+        };
         ensure!(
             *args == expected,
             "Pending command arguments differ from its durable reservation"

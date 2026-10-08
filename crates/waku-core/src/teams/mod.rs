@@ -25,6 +25,7 @@ pub(crate) mod gpu_jobs;
 mod inputs;
 pub(crate) mod jobs;
 mod materialize;
+pub(crate) mod project;
 mod projections;
 mod recovery;
 pub(crate) mod remote;

@@ -12,6 +12,7 @@ pub(super) struct Request {
     pub line: String,
     pub headers: String,
     pub body: Value,
+    pub raw_body: Vec<u8>,
 }
 pub(super) struct Server {
     pub url: String,
@@ -102,7 +103,16 @@ impl Server {
                         .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
                         .map(|(_, v)| v.trim().parse::<usize>().unwrap())
                         .unwrap_or(0);
-                    assert!(len <= 256 * 1024);
+                    let binary = headers.lines().any(|h| {
+                        h.to_ascii_lowercase() == "content-type: application/octet-stream"
+                    });
+                    assert!(
+                        len <= if binary {
+                            crate::teams::project::MAX_ARCHIVE
+                        } else {
+                            256 * 1024
+                        }
+                    );
                     while data.len() < offset + len {
                         let n = stream.read(&mut buf).unwrap();
                         assert!(n > 0);
@@ -111,7 +121,8 @@ impl Server {
                     let request = Request {
                         line: headers.lines().next().unwrap().into(),
                         headers,
-                        body: if len == 0 {
+                        raw_body: data[offset..offset + len].to_vec(),
+                        body: if len == 0 || binary {
                             Value::Null
                         } else {
                             serde_json::from_slice(&data[offset..offset + len]).unwrap()

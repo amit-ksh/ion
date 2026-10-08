@@ -665,3 +665,60 @@ Later review:
   or cause another command POST. Observe the saved original operation only.
 - [ ] Finish aggregate host CPU/RAM/process/storage and cloud price/account controls
   before treating these per-process bounds as full remote resource governance.
+
+## 2026-10-08 — project snapshot command execution
+
+`run_remote_project_command` now executes against a bounded snapshot of the sealed
+isolated team Git workspace. It requires the actual Nebius attempt, command/read
+grants, the original command image and resource policy, plus explicit private
+`project_snapshot` transfer approval. Local/fallback attempts cannot use it.
+Tracked and unignored new regular files are included; ignored dependencies,
+private paths, symlinks, hard links and special files are excluded or rejected.
+No automatic install, checkout upload or source overwrite occurs.
+
+The archive uses `IONPROJ1`, a bounded JSON file index and raw file bytes. Each file
+and the whole archive are hashed; there is no compression or tar extraction.
+Maximums are 4,096 files, 8 MiB per file, 32 MiB source bytes and a 2 MiB index.
+The owner also enforces an approved cumulative archive-byte cap for the run,
+including failed/stopped stages. Across targets the smallest used cap applies.
+Output limits remain 32 files, 64 KiB/file and 256 KiB total.
+
+A `staging` command row and exact archive commit atomically before a provider
+upload. This participates in the existing pending-effect, Stop and restart fences.
+Ion checks the original namespace's content hash, uploads raw bytes once if absent,
+and validates exact UUID/hash/size. A lost upload acknowledgement is resolved by
+looking up that original hash; no second upload or command create is issued.
+After confirmation, Ion pins the file UUID and transitions to `submitting` before
+its one compute POST. The instance injects only `/ion/job-project.ion`, root-owned
+and mode 0400; the child cannot read or replace the private archive.
+
+The worker validates the full archive before creating the command workspace and
+returns `project_sha256` in its receipt. The owner checks it against the original
+request, saves it with the generated document and recovers only the original file
+map, flags, arguments and policy. Whole-project required checks use empty
+`inputPaths`; report and parent acceptance rehash all snapshot sources, including
+files not named in argv. Changed/new/deleted included files invalidate the check.
+
+A restart during staging stops that original command without upload or compute.
+Staging proves compute was never dispatched, but an uploaded namespace blob may
+remain. No undocumented delete API or storage lifetime is assumed. Private owner
+approval and namespace retention review are required before live use. This is
+bounded project transfer, not unbounded dataset sync, remote dependency install,
+GPU training submission or complete aggregate resource/billing governance.
+
+The provider contracts used here are [raw file upload](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/files/upload-a-file-to-the-server-the-body-must-be-a-file-content)
+and [instance file injection](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance),
+checked 2026-10-08 against the published API and cached OpenAPI schema.
+
+Later review:
+
+- [ ] Register the reviewed immutable image with
+  `project_snapshot: ion-project-archive/v1` in its exact manifest and approve bounded private transfer.
+- [ ] Use a disposable clean committed project; verify a file above 64 KiB and
+  more than 32 files reach the actual command, with the exact snapshot hash.
+- [ ] Confirm private/ignored paths stay absent, and links/oversized files reject.
+- [ ] Change an included source after execution and verify report/parent rejection.
+- [ ] Interrupt upload and compute acknowledgements separately; observe original
+  hash/operation, verify no duplicate POST and review namespace blob retention.
+- [ ] Verify Stop during upload never starts compute; acceptance must include the
+  real imported runtime, file ownership/mode and provider namespace.

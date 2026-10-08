@@ -6,7 +6,7 @@ mod receipts;
 
 pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> {
     let pending: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))",
+        "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('staging','submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))",
         [run.id.to_string()], |r| r.get(0),
     )?;
     let points: Vec<(String,String,u32)> = db.prepare(
@@ -17,7 +17,7 @@ pub(super) fn project(db: &Connection, run: &mut TeamRunSnapshot) -> Result<()> 
         .map(|(work, attempt, generation)| (work, (attempt, generation)))
         .collect();
     let unfinished: HashSet<String> = db.prepare(
-        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling') UNION SELECT work_id FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned')",
+        "SELECT work_id FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_app_effects WHERE run_id=?1 AND state='pending' UNION SELECT work_id FROM ion_team_jobs WHERE run_id=?1 AND state IN ('staging','submitting','running','canceling') UNION SELECT work_id FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned')",
     )?.query_map([run.id.to_string()], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
     let gpu_unknown: HashSet<String> = db.prepare(
         "SELECT DISTINCT j.work_id FROM ion_team_gpu_jobs j LEFT JOIN ion_team_gpu_cleanup c ON c.request_id=j.request_id WHERE j.run_id=? AND j.state NOT IN ('settled','cleaned') AND ((j.state='submitting' AND j.creation_operation IS NULL AND j.job_id IS NULL) OR (j.cancel_requested=1 AND j.cancellation_operation IS NULL) OR (c.state='claimed' AND json_extract(c.body,'$.operation') IS NULL))")?
@@ -268,7 +268,7 @@ fn repairable(db: &Connection, run: &TeamRunSnapshot, work: &TeamAssignment) -> 
     let value: Value = serde_json::from_str(&checkpoint)?;
     Ok(id==attempt.id.to_string() && generation==attempt.generation && dependencies=="[]"
         && value["version"]==1 && value["steps"].as_u64().is_some_and(|n|n<16)
-        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
+        && !db.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('staging','submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))",[run.id.to_string()],|r|r.get::<_,bool>(0))?)
 }
 fn review(db: &Connection, run: &TeamRunSnapshot, work: Uuid) -> Result<TeamRecoveryReview> {
     let work = assignment(run, work)?;

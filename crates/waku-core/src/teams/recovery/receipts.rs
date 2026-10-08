@@ -10,7 +10,7 @@ pub(super) fn tool(
     args: &Value,
 ) -> Result<String> {
     match name {
-        "run_remote_command" => {
+        "run_remote_command" | "run_remote_project_command" => {
             if let Some(receipt) =
                 super::super::jobs::recover_receipt(db, run, work, attempt, request, args)?
             {

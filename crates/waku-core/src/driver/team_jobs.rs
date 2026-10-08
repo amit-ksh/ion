@@ -1,9 +1,11 @@
 //! Explicit file bundles and actual commands in credential-free ConTree job images.
-//! No automatic upload, owner command, model credential or local retry is allowed.
+//! Explicit project approval is required for snapshots; no model credentials or local retry.
+mod project;
 use super::team_remote::{Client, read_json};
 use crate::teams::{AssignmentLease, ClaimedAssignment, TeamCoordinator, jobs::*};
 use anyhow::{Context, Result, ensure};
 use base64::{Engine, engine::general_purpose::STANDARD};
+pub(crate) use project::{ProjectArgs, run_project};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -32,6 +34,8 @@ struct Policy {
     executables: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     resources: Option<ResourceLimits>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    project_snapshot: Option<crate::teams::project::ProjectPolicy>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -96,6 +100,13 @@ fn validate_policy(p: &Policy) -> Result<()> {
             && p.executables.len() <= 64,
         "Invalid or credential-bearing command image policy"
     );
+    if let Some(project) = &p.project_snapshot {
+        project.validate()?;
+        ensure!(
+            2 * project.max_bytes + 2 * 1024 * 1024 + 12 <= p.max_layer_bytes,
+            "Project archive exceeds image layer limit"
+        );
+    }
     if let Some(r) = &p.resources {
         ensure!(
             r.version == 1
@@ -146,7 +157,7 @@ fn validate_args(p: &Policy, a: &CommandArgs) -> Result<()> {
     }
     Ok(())
 }
-fn manifest(client: &Client, p: &Policy) -> Result<()> {
+fn manifest(client: &Client, p: &Policy) -> Result<Value> {
     let response = client
         .request(
             reqwest::Method::GET,
@@ -159,11 +170,14 @@ fn manifest(client: &Client, p: &Policy) -> Result<()> {
         "Registered command image is unavailable before submission"
     );
     let host = read_json(response, 16 * 1024)?;
+    let original = json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot","network_boundary":"linux-seccomp-socket-deny/v1","resource_boundary":"linux-rlimit/v1"});
+    let mut extended = original.clone();
+    extended["project_snapshot"] = json!("ion-project-archive/v1");
     ensure!(
-        host == json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot","network_boundary":"linux-seccomp-socket-deny/v1","resource_boundary":"linux-rlimit/v1"}),
+        host == original || host == extended,
         "Command worker/image contract changed"
     );
-    Ok(())
+    Ok(host)
 }
 fn bundle(request: Uuid, a: &CommandArgs, workspace: &Path) -> Result<JobRequest> {
     let mut inputs = Vec::new();
@@ -192,6 +206,7 @@ fn bundle(request: Uuid, a: &CommandArgs, workspace: &Path) -> Result<JobRequest
         });
     }
     Ok(JobRequest {
+        project_snapshot: None,
         version: 1,
         request_id: request,
         argv: a.argv.clone(),
@@ -259,7 +274,7 @@ fn execute_with(
         coordinator.reject_job(request.request_id)?;
         anyhow::bail!("Stopped before command submission");
     }
-    let response=client.request(reqwest::Method::POST,"/instances").json(&body(p,request)?).send()
+    let response=client.request(reqwest::Method::POST,"/instances").json(&project::body_for(coordinator,p,request)?).send()
         .context("Command spawn acknowledgement lost; observe this request before continuing; no retry or local fallback")?;
     if matches!(response.status().as_u16(), 400 | 401 | 403) {
         coordinator.reject_job(request.request_id)?;
@@ -499,7 +514,7 @@ fn bind_recovered_with(
     let policy: Policy = serde_json::from_str(&record.policy)?;
     validate_policy(&policy)?;
     ensure!(policy.image == record.image, "Stored command image changed");
-    let expected = body(&policy, &record.request)?;
+    let expected = project::body_for(coordinator, &policy, &record.request)?;
     let observed = client.operation_bounded(operation, record.image, 3 * 1024 * 1024)?;
     verify_original_command(&observed, &expected)?;
     coordinator.bind_recovered_job_operation(
@@ -527,9 +542,10 @@ fn verify_original_command(observed: &Value, expected: &Value) -> Result<()> {
         );
     }
     ensure!(
-        metadata
-            .get("files")
-            .is_none_or(|v| v.is_null() || *v == json!({})),
+        expected.get("files").is_some()
+            || metadata
+                .get("files")
+                .is_none_or(|v| v.is_null() || *v == json!({})),
         "Command operation added unapproved files"
     );
     let stdin = &metadata["stdin"];
@@ -578,6 +594,12 @@ fn reconcile_with(
             job.project == client.project,
             "Remote command project changed; use its original credential context"
         );
+        if job.state == "staging" {
+            // This state is persisted before any upload and cannot have dispatched
+            // compute. Recovery stops it without a new upload or command.
+            coordinator.reject_job(job.id)?;
+            continue;
+        }
         let Some(operation) = job.operation else {
             stopped = false;
             continue;
@@ -727,8 +749,10 @@ mod tests {
                 gid: 1000,
                 executables: vec!["/usr/bin/python3".into()],
                 resources: None,
+                project_snapshot: None,
             };
             let request = JobRequest {
+                project_snapshot: None,
                 version: 1,
                 request_id: Uuid::new_v4(),
                 argv: vec!["/usr/bin/python3".into(), "check.py".into()],
@@ -873,6 +897,7 @@ mod tests {
     }
     fn response(request: &JobRequest, exit: i32) -> JobResponse {
         JobResponse {
+            project_sha256: None,
             version: 1,
             request_id: request.request_id,
             exit_code: exit,
@@ -922,7 +947,14 @@ mod tests {
         assert!(requests[0].line.contains("path=%2Fion%2Fjob-host.json"));
         assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
 
-        for change in ["missing", "changed", "network", "supervisor", "extra"] {
+        for change in [
+            "missing",
+            "changed",
+            "network",
+            "supervisor",
+            "project",
+            "extra",
+        ] {
             let mut invalid = shipped.clone();
             match change {
                 "missing" => {
@@ -931,6 +963,7 @@ mod tests {
                 "changed" => invalid["network_boundary"] = json!("unverified/v1"),
                 "network" => invalid["network"] = json!("enabled"),
                 "supervisor" => invalid["supervisor"] = json!("user"),
+                "project" => invalid["project_snapshot"] = json!("unverified/v2"),
                 "extra" => invalid["native_credentials"] = json!(true),
                 _ => unreachable!(),
             }

@@ -21,6 +21,7 @@ MAX_FILE = 64 * 1024
 MAX_FILES = 32
 MAX_TRANSFER = 256 * 1024
 MAX_STREAM = 8192
+MAX_PROJECT = 34 * 1024 * 1024
 PRIVATE = {'.git', '.ssh', '.aws', '.codex', '.agents', '.env', '.npmrc', '.pypirc',
            'credentials.json', 'secrets.json', 'node_modules', 'target', '.waku-cache'}
 
@@ -45,7 +46,18 @@ def keys(value, allowed):
 
 
 def validate(request):
-    keys(request, ['version', 'request_id', 'argv', 'timeout_seconds', 'inputs', 'output_paths'])
+    allowed=['version', 'request_id', 'argv', 'timeout_seconds', 'inputs', 'output_paths']
+    if 'project_snapshot' in request:
+        allowed.append('project_snapshot')
+        facts=request['project_snapshot']
+        keys(facts,['version','sha256','bytes','files','source_bytes'])
+        if (any(type(facts[k]) is not int for k in ('version','bytes','files','source_bytes'))
+            or facts['version']!=1 or not 12<=facts['bytes']<=MAX_PROJECT
+            or not 1<=facts['files']<=4096 or not 0<=facts['source_bytes']<=32*1024*1024
+            or not isinstance(facts['sha256'],str) or len(facts['sha256'])!=64
+            or any(c not in '0123456789abcdef' for c in facts['sha256']) or request.get('inputs')!=[]):
+            raise ValueError('Invalid project snapshot')
+    keys(request,allowed)
     if type(request['version']) is not int or request['version'] != VERSION or str(uuid.UUID(request['request_id'])) != request['request_id']:
         raise ValueError('Invalid job identity')
     if uuid.UUID(request['request_id']).int == 0:
@@ -88,6 +100,54 @@ def validate(request):
         seen.add(name.casefold())
     return decoded
 
+
+
+def project_inputs(data, facts):
+    if (len(data)!=facts['bytes'] or hashlib.sha256(data).hexdigest()!=facts['sha256']
+        or data[:8]!=b'IONPROJ1'):
+        raise ValueError('Project archive identity changed')
+    length=int.from_bytes(data[8:12],'big')
+    if not 1<=length<=2*1024*1024 or length+12>len(data):
+        raise ValueError('Invalid project index')
+    entries=json.loads(data[12:12+length])
+    if not isinstance(entries,list) or len(entries)!=facts['files']:
+        raise ValueError('Project file count changed')
+    seen=set(); offset=12+length; decoded=[]; total=0
+    for entry in entries:
+        keys(entry,['path','bytes','sha256','executable'])
+        relative(entry['path'])
+        name=entry['path'].casefold()
+        if (name in seen or type(entry['bytes']) is not int or not 0<=entry['bytes']<=8*1024*1024
+            or type(entry['executable']) is not bool or not isinstance(entry['sha256'],str)):
+            raise ValueError('Invalid project entry')
+        seen.add(name); end=offset+entry['bytes']; content=data[offset:end]
+        if end>len(data) or hashlib.sha256(content).hexdigest()!=entry['sha256']:
+            raise ValueError('Project file hash changed')
+        total+=len(content); offset=end
+        if total>32*1024*1024:
+            raise ValueError('Project bytes exceed their bound')
+        decoded.append((entry['path'],content,entry['executable']))
+    if offset!=len(data) or total!=facts['source_bytes']:
+        raise ValueError('Project archive length changed')
+    # Detect a file used as another file's parent before creating any workspace.
+    if any('/'.join(parts[:i]).casefold() in seen
+           for name in seen for parts in [name.split('/')] for i in range(1,len(parts))):
+        raise ValueError('Project paths conflict')
+    return decoded
+
+
+def read_project_file():
+    flags=os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC
+    fd=os.open('/ion/job-project.ion',flags)
+    with os.fdopen(fd,'rb') as source:
+        info=os.fstat(source.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink!=1 or info.st_uid!=0
+            or stat.S_IMODE(info.st_mode)!=0o400 or info.st_size>MAX_PROJECT):
+            raise ValueError('Project archive must be a private supervisor file')
+        data=source.read(MAX_PROJECT+1)
+    if len(data)>MAX_PROJECT:
+        raise ValueError('Project archive exceeds its bound')
+    return data
 
 def safe_file(root, name):
     current = root
@@ -186,9 +246,15 @@ def stop_tree(process):
         reap_descendants()
 
 
-def run(request, workspace):
+def run(request, workspace, project_data=None):
     # The remote VM/container is the isolation boundary. No local runtime invokes this worker.
-    inputs = validate(request)
+    inputs = [(name,data,False) for name,data in validate(request)]
+    if 'project_snapshot' in request:
+        if project_data is None:
+            raise ValueError('Project archive missing')
+        inputs=project_inputs(project_data,request['project_snapshot'])
+    elif project_data is not None:
+        raise ValueError('Unexpected project archive')
     root = workspace.resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     identity = None
@@ -200,12 +266,12 @@ def run(request, workspace):
 
     home = root.parent / 'home'
     home.mkdir(mode=0o700)
-    for name, data in inputs:
+    for name, data, executable in inputs:
         path = safe_file(root, name)
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         with path.open('xb') as target:
             target.write(data)
-        path.chmod(0o600)
+        path.chmod(0o700 if executable else 0o600)
     child_options = {}
     if identity:
         # The child cannot signal/read the supervisor or inject its outer receipt.
@@ -278,11 +344,14 @@ def run(request, workspace):
                             'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)})
         except (OSError, ValueError):
             failures.append({'path': name, 'reason': 'Missing, unsafe or oversized output'})
-    return {'version': VERSION, 'request_id': request['request_id'], 'exit_code': process.returncode,
+    result = {'version': VERSION, 'request_id': request['request_id'], 'exit_code': process.returncode,
             'timed_out': timed_out, 'canceled': canceled,
             'elapsed_milliseconds': int((time.monotonic()-started)*1000),
             'stdout': captured['stdout'], 'stderr': captured['stderr'],
             'outputs': outputs, 'output_errors': failures}
+    if 'project_snapshot' in request:
+        result['project_sha256']=request['project_snapshot']['sha256']
+    return result
 
 
 def prepare_result_directory(volume, request_id):
@@ -331,12 +400,12 @@ def secure_result_parent():
 def main():
     if sys.argv[1:] == ['--help']:
         print('ion-job-worker: versioned JSON request on stdin; isolated remote images only.\n'
-              'Options: --help, --version, --request-file /ion/job-request.json [--result-volume /ion/results]')
+              'Options: --help, --version, --request-file /ion/job-request.json [--result-volume /ion/results], --project-file /ion/job-project.ion')
         return 0
     if sys.argv[1:] == ['--version']:
         print('ion-job-worker/1')
         return 0
-    if sys.argv[1:] not in ([], ['--request-file', '/ion/job-request.json'],
+    if sys.argv[1:] not in ([], ['--project-file', '/ion/job-project.ion'], ['--request-file', '/ion/job-request.json'],
                            ['--request-file', '/ion/job-request.json', '--result-volume', '/ion/results']):
         print(json.dumps({'error': 'Unsupported arguments', 'help': 'Run ion-job-worker --help'}))
         return 2
@@ -347,18 +416,25 @@ def main():
     try:
         validate_supervisor()
         enable_subreaper()
-        stream = open('/ion/job-request.json', 'rb') if len(sys.argv) > 1 else sys.stdin.buffer
+        project_mode=sys.argv[1:]==['--project-file','/ion/job-project.ion']
+        stream = open('/ion/job-request.json', 'rb') if len(sys.argv)>1 and not project_mode else sys.stdin.buffer
         data = stream.read(MAX_INPUT+1)
         if len(data) > MAX_INPUT:
             raise ValueError('Job input exceeds its bound')
         request = json.loads(data)
         validate(request)
+        if project_mode != ('project_snapshot' in request):
+            raise ValueError('Project snapshot mode changed')
+        project_data=None
+        if project_mode:
+            secure_result_parent()
+            project_data=read_project_file()
         result_folder = None
         if len(sys.argv) == 5:
             secure_result_parent()
             result_folder = prepare_result_directory(Path('/ion/results'), request['request_id'])
         with tempfile.TemporaryDirectory(prefix='ion-job-') as temporary:
-            result = run(request, Path(temporary) / 'work')
+            result = run(request, Path(temporary) / 'work',project_data)
             if result_folder is not None:
                 write_result(result_folder, result)
                 sys.stdout.write(json.dumps({'version': VERSION, 'request_id': request['request_id'],

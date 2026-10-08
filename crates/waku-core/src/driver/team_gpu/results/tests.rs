@@ -30,6 +30,7 @@ fn reader(server: &Server) -> ResultReader {
 }
 pub(super) fn receipt(request: &JobRequest) -> JobResponse {
     JobResponse {
+        project_sha256: None,
         version: 1,
         request_id: request.request_id,
         exit_code: 7,

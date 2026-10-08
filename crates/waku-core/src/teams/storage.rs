@@ -83,6 +83,9 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             UNIQUE(work_id,request_id));
         CREATE INDEX IF NOT EXISTS ion_team_jobs_attempt ON ion_team_jobs(attempt_id,state);
         CREATE INDEX IF NOT EXISTS ion_team_jobs_run ON ion_team_jobs(run_id,state);
+        CREATE TABLE IF NOT EXISTS ion_team_job_projects (
+            request_id TEXT PRIMARY KEY REFERENCES ion_team_jobs(request_id),
+            archive BLOB NOT NULL, file_uuid TEXT);
         CREATE TABLE IF NOT EXISTS ion_team_gpu_jobs (
             request_id TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,

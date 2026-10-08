@@ -84,7 +84,8 @@ assert live account acceptance, visual validation or production release readines
   witnesses are required; legacy requests and live setup remain review items.
 - [ ] Full remote project/command execution, remote checks, resource/egress controls
   and GPU/ML job provisioning. Separate bounded command jobs are implemented;
-  the selected-harness completion worker still returns model actions to the owner.
+  project snapshots now support a sealed isolated workspace within explicit
+  transfer approval. The selected-harness completion worker returns actions to the owner.
 - [x] Pinned bounded remote command check gates use original successful receipts
   and current source witnesses at submission and parent acceptance. Descriptive
   check labels do not prove execution.
@@ -386,3 +387,18 @@ implementation remain open. The full goal remains active.
 - [x] Original policy/body/environment witnesses and missing-field legacy recovery.
 - [ ] Imported runtime/UID/inherited-limit acceptance; aggregate VM resource,
   allocation/egress and billing controls remain separate work.
+
+## 2026-10-08 — bounded project snapshots
+
+- [x] Explicit private source/file/count/run-byte approval; sealed isolated run
+  source and actual Nebius grants; tracked/unignored inventory with private exclusions.
+- [x] Atomic archive/staging reservation before upload; exact content-addressed
+  upload identity, pinned instance file injection and original-operation recovery.
+- [x] Worker verifies full archive and file hashes before exec; trusted snapshot
+  receipt and whole-project source checks at report and parent acceptance.
+- [x] Staging participates in pending-effect/Stop/restart fences; no compute after
+  failed upload or Stop, and no repeat upload/compute after lost acknowledgement.
+- [ ] Live imported-image/file-injection and namespace retention acceptance using
+  [the project review checklist](23-remote-command-gpu-jobs.md#2026-10-08--project-snapshot-command-execution).
+- [ ] Large returned files/datasets, dependency/network access, local general checks,
+  aggregate host/cloud billing controls and full GPU training remain development.

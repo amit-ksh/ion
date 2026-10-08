@@ -2241,3 +2241,45 @@ checkout's pre-existing changes are preserved.
 - Large project/dataset transfers, aggregate host resources, GPU devices/volumes,
   final price/account billing and Amp/Cursor native contracts remain open. See
   [policy, runtime semantics and review](23-remote-command-gpu-jobs.md#pinned-linux-command-resource-limits-2026-10-08).
+
+## 2026-10-08 — approved project snapshot command checkpoint
+
+The owner now exposes `run_remote_project_command` through the shared Teams tool
+runtime. It snapshots only the sealed isolated Git workspace under explicit
+private owner limits, stores the exact archive before upload, confirms its
+content-addressed provider identity and pins the injected file before compute.
+The native worker verifies the full archive before exec and returns its source
+hash. Report and parent acceptance compare all included project sources; changed
+files outside argv also invalidate the check. Staging participates in existing
+Stop/restart/pending-effect fences. Original inline/GPU wire contracts omit the
+new optional fields and retain their saved semantics.
+
+Actual credential-free Linux CLI acceptance passed 13 groups, including a 98-file
+project and 512 KiB binary, private archive ownership, tampering/path rejection,
+child resources, network denial and descendant cleanup. The same exported native
+project receipt passed the actual owner path with loopback provider responses:
+durable staging before upload, lost upload acknowledgement resolved by its hash,
+one upload/compute POST, exact file map, stable replay/readback, no compute after
+Stop and whole-project rejection at parent review. No live provider/account
+execution or cloud billing acceptance is claimed.
+
+Reviewed local immutable image:
+`sha256:050fbc7a43e32a8b1f550ef1a6520615168fc5f40832057ebd72dac6fd8d6f55`.
+Built offline from the preceding exact local resource image with only the current
+worker and manifest replaced; no image push, cloud import or key was used.
+The [project execution review checklist](23-remote-command-gpu-jobs.md#2026-10-08--project-snapshot-command-execution)
+records approval values, bounds and unresolved namespace retention/live acceptance.
+
+Verification: 16 command/job Rust checks (including the installed-worker receipt),
+17 executed-check/review Rust checks (including the native project fixture), one
+native tool-grant regression, seven host worker tests, 13 installed Linux CLI
+checks and nine Linux guard checks passed: **63 checks**. Desktop/daemon compile,
+formatting and diff checks passed. Fixtures use synthetic data and loopback
+provider responses; live import/account/retention acceptance remains required.
+
+Current **implementation estimate for Teams/harnesses/remote execution: ~75%**.
+This is a scope-based estimate, not a measured test-coverage percentage or release
+readiness claim. Amp/Cursor native limits/usage, additional solo-harness bridges,
+broader local/remote checks, aggregate host/cloud accounting and GPU runtime
+contracts remain development. The broader Ion release checklist additionally
+tracks Inbox, artifact/usage, gateway and cloud speech work.

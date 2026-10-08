@@ -711,6 +711,7 @@ pub(crate) mod tests {
     pub(crate) fn launch() -> Launch {
         Launch {
             request: JobRequest {
+                project_snapshot: None,
                 version: 1,
                 request_id: Uuid::new_v4(),
                 argv: vec![

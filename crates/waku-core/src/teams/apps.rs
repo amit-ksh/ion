@@ -245,7 +245,7 @@ impl TeamCoordinator {
         Ok(receipt.into())
     }
     pub fn has_pending_effect(&self, run: Uuid) -> Result<bool> {
-        Ok(self.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))", [run.to_string()], |r|r.get(0))?)
+        Ok(self.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('staging','submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned'))", [run.to_string()], |r|r.get(0))?)
     }
 }
 
