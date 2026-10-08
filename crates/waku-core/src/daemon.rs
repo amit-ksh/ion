@@ -625,6 +625,26 @@ impl Backend for WakuBackend {
                 self.team_runtime.cancel_run(run_id);
                 Ok(ResponsePayload::TeamRun { snapshot })
             }
+            Command::LoadInbox => Ok(ResponsePayload::Inbox {
+                snapshot: self.control.load_inbox()?,
+            }),
+            Command::UpdateInboxItem {
+                expected_revision,
+                key,
+                action,
+            } => Ok(ResponsePayload::Inbox {
+                snapshot: self
+                    .control
+                    .update_inbox_item(expected_revision, key, action)?,
+            }),
+            Command::SetNotificationPolicy {
+                expected_revision,
+                policy,
+            } => Ok(ResponsePayload::Inbox {
+                snapshot: self
+                    .control
+                    .set_notification_policy(expected_revision, policy)?,
+            }),
             Command::LoadWorkspaceControl => Ok(ResponsePayload::WorkspaceControl {
                 snapshot: self.control.load()?,
             }),
@@ -632,7 +652,7 @@ impl Backend for WakuBackend {
                 expected_revision,
                 record,
             } => Ok(ResponsePayload::WorkspaceControl {
-                snapshot: self.control.save(expected_revision, record)?,
+                snapshot: self.control.save_client_record(expected_revision, record)?,
             }),
             Command::RemoveWorkspaceRecord {
                 expected_revision,
@@ -755,23 +775,9 @@ impl Backend for WakuBackend {
                     workflow: crate::control::generate_workflow(project_id, prompt)?,
                 })
             }
-            Command::ImportWorkspaceArtifact {
-                expected_revision,
-                name,
-                format,
-                project_id,
-                task_id,
-                bytes,
-            } => Ok(ResponsePayload::WorkspaceControl {
-                snapshot: self.control.import_document(
-                    expected_revision,
-                    name,
-                    format,
-                    project_id,
-                    task_id,
-                    bytes,
-                )?,
-            }),
+            Command::ImportWorkspaceArtifact { .. } => bail!(
+                "Artifacts are published by agents. Ask a task or team to create the document."
+            ),
             Command::ReadWorkspaceArtifact { id } => Ok(ResponsePayload::BlobData {
                 bytes: self.control.read_document(id)?,
             }),
@@ -2523,6 +2529,9 @@ fn handle_driver_command(
         | Command::SetSkillsEnabled { .. }
         | Command::TrashSkills { .. }
         | Command::LoadTaskState
+        | Command::LoadInbox
+        | Command::UpdateInboxItem { .. }
+        | Command::SetNotificationPolicy { .. }
         | Command::LoadWorkspaceControl
         | Command::QueueTeamTask { .. }
         | Command::QueueTeamFollowUp { .. }

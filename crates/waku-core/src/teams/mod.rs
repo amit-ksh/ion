@@ -1595,7 +1595,21 @@ fn validate_result(
                 .map(|w| w.task_id),
         );
         for id in &result.artifact_ids {
-            ensure!(definitions.records.iter().any(|r|matches!(r,ControlRecord::Artifact(a) if a.id==*id && a.project_id==Some(run.project_id) && a.task_id.is_some_and(|task|tasks.contains(&task)))),"Result document does not belong to this assignment or its handoffs");
+            let artifact = definitions
+                .records
+                .iter()
+                .find_map(|r| match r {
+                    ControlRecord::Artifact(a)
+                        if a.id == *id
+                            && a.project_id == Some(run.project_id)
+                            && a.task_id.is_some_and(|task| tasks.contains(&task)) =>
+                    {
+                        Some(a)
+                    }
+                    _ => None,
+                })
+                .context("Result document does not belong to this assignment or its handoffs")?;
+            crate::control::verified_document(db, artifact)?;
         }
     }
     Ok(())

@@ -152,6 +152,10 @@ target; see [the deployment checklist](../../services/speech/README.md).
   durable bound-job waits/results, and remaining GPU launch, resource, recovery
   and monetary integration.
 
+- [Inbox state and artifact integrity review](24-inbox-artifact-review.md): durable
+  notification controls, desktop policy, original agent document evidence and
+  remaining historical/mobile Inbox, preview and usage work.
+
 - [Nebius GPU recovery contracts](RESEARCH-nebius-gpu-recovery.md): official
   operation/key witnesses, immutable SECRET input verification and the limits of
   missing historical VM/disk inventory.

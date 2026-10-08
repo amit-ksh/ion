@@ -10,6 +10,8 @@ use std::{
 use uuid::Uuid;
 use waku_protocol::control::*;
 
+mod inbox;
+
 pub struct ControlStore {
     path: PathBuf,
     capture_lock: parking_lot::Mutex<()>,
@@ -127,13 +129,20 @@ impl ControlStore {
                     .to_owned();
                 let snapshot = self.load()?;
                 let existing: HashSet<_> = snapshot.records.iter().map(ControlRecord::id).collect();
-                let snapshot = self.import_document(
+                let snapshot = self.publish_document(
                     snapshot.revision,
                     name,
                     format,
                     Some(session.project_id),
                     Some(session.id),
                     bytes,
+                    ArtifactProvenance {
+                        origin: ArtifactOrigin::AgentEdit,
+                        turn_id: Some(turn.id),
+                        activity_id: Some(activity.id.to_string()),
+                        source_path: Some(relative.to_string_lossy().into_owned()),
+                        ..Default::default()
+                    },
                 )?;
                 let artifact = snapshot
                     .records
@@ -216,6 +225,26 @@ impl ControlStore {
         task_id: Option<Uuid>,
         bytes: Vec<u8>,
     ) -> Result<ControlSnapshot> {
+        self.publish_document(
+            revision,
+            name,
+            format,
+            project_id,
+            task_id,
+            bytes,
+            ArtifactProvenance::default(),
+        )
+    }
+    fn publish_document(
+        &self,
+        revision: u64,
+        name: String,
+        format: String,
+        project_id: Option<Uuid>,
+        task_id: Option<Uuid>,
+        bytes: Vec<u8>,
+        producer: ArtifactProvenance,
+    ) -> Result<ControlSnapshot> {
         ensure!(
             !name.contains(['/', '\\', ':', '\0']),
             "Use a document filename without directories"
@@ -234,6 +263,7 @@ impl ControlStore {
         let id = Uuid::new_v4();
         std::fs::create_dir_all(self.document_dir())?;
         let path = self.document_dir().join(id.to_string());
+        let evidence = ArtifactEvidence::from_bytes(&bytes, producer);
         std::fs::write(&path, bytes)?;
         let record = ControlRecord::Artifact(Artifact {
             id,
@@ -243,6 +273,7 @@ impl ControlStore {
             reference: format!("ion-document:{id}"),
             format,
             created_at: crate::model::unix_time(),
+            evidence: Some(evidence),
         });
         match self.save(revision, record) {
             Ok(snapshot) => Ok(snapshot),
@@ -253,37 +284,36 @@ impl ControlStore {
         }
     }
     pub fn read_document(&self, id: Uuid) -> Result<Vec<u8>> {
-        let snapshot = self.load()?;
-        ensure!(
-            snapshot
-                .records
-                .iter()
-                .any(|record| matches!(record,ControlRecord::Artifact(a) if a.id==id)),
-            "Document no longer exists"
-        );
-        // Team documents commit their payload, provenance and tool receipt in
-        // the same control transaction. Older imported documents remain files.
-        let db = self.connect()?;
-        let has_team_documents = db.query_row(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ion_team_document_receipts')",
-            [], |row| row.get::<_, bool>(0),
-        )?;
-        let stored: Option<Vec<u8>> = if has_team_documents {
-            db.query_row(
-                "SELECT content FROM ion_team_document_receipts WHERE artifact_id=?",
+        let mut db = self.connect()?;
+        let tx = db.transaction()?;
+        let body: String = tx
+            .query_row(
+                "SELECT body FROM ion_control_records WHERE id=? AND kind='artifact'",
                 [id.to_string()],
-                |row| row.get(0),
+                |r| r.get(0),
             )
-            .optional()?
-        } else {
-            None
+            .context("Document no longer exists")?;
+        let ControlRecord::Artifact(artifact) = serde_json::from_str(&body)? else {
+            anyhow::bail!("Document identity changed");
         };
-        let bytes = match stored {
-            Some(bytes) => bytes,
-            None => std::fs::read(self.document_dir().join(id.to_string()))?,
-        };
-        ensure!(bytes.len() <= 16 * 1024 * 1024, "Document is too large");
+        ensure!(
+            artifact.id == id && artifact.reference == format!("ion-document:{id}"),
+            "Document identity changed"
+        );
+        let bytes = verified_document(&tx, &artifact)?;
+        tx.commit()?;
         Ok(bytes)
+    }
+    pub fn save_client_record(
+        &self,
+        revision: u64,
+        record: ControlRecord,
+    ) -> Result<ControlSnapshot> {
+        ensure!(
+            !matches!(record, ControlRecord::Artifact(_)),
+            "Artifacts are published by agents; their original evidence cannot be edited by clients"
+        );
+        self.save(revision, record)
     }
     pub fn save(&self, revision: u64, record: ControlRecord) -> Result<ControlSnapshot> {
         let mut db = self.connect()?;
@@ -342,6 +372,66 @@ impl ControlStore {
         Ok(snapshot)
     }
 }
+/// Verify stored bytes at every result, handoff, model read and export boundary.
+pub(crate) fn verified_document(db: &Connection, artifact: &Artifact) -> Result<Vec<u8>> {
+    ensure!(
+        artifact.reference == format!("ion-document:{}", artifact.id),
+        "Document identity changed"
+    );
+    // Team documents commit their payload, provenance and tool receipt in
+    // the same control transaction. Older imported documents remain files.
+    let has_team_documents = db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ion_team_document_receipts')",
+            [], |row| row.get::<_, bool>(0),
+        )?;
+    let stored: Option<Vec<u8>> = if has_team_documents {
+        let length: Option<u64> = db
+            .query_row(
+                "SELECT length(content) FROM ion_team_document_receipts WHERE artifact_id=?",
+                [artifact.id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        ensure!(
+            length.is_none_or(|bytes| bytes > 0 && bytes <= 64 * 1024),
+            "Team document exceeds its bound"
+        );
+        db.query_row(
+            "SELECT content FROM ion_team_document_receipts WHERE artifact_id=?",
+            [artifact.id.to_string()],
+            |row| row.get(0),
+        )
+        .optional()?
+    } else {
+        None
+    };
+    let bytes = match stored {
+        Some(bytes) => bytes,
+        None => {
+            use std::io::Read;
+            let path = PathBuf::from(db.path().context("Document database path is unavailable")?)
+                .with_file_name("ion-documents")
+                .join(artifact.id.to_string());
+            let meta = std::fs::symlink_metadata(&path)?;
+            ensure!(
+                meta.is_file() && !meta.file_type().is_symlink() && meta.len() <= 16 * 1024 * 1024,
+                "Document storage is not a bounded regular file"
+            );
+            let mut bytes = Vec::new();
+            std::fs::File::open(path)?
+                .take(16 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)?;
+            bytes
+        }
+    };
+    ensure!(bytes.len() <= 16 * 1024 * 1024, "Document is too large");
+    ensure!(
+        artifact.evidence.as_ref().is_none_or(|e| e.matches(&bytes)),
+        "Document content changed; its original hash no longer matches"
+    );
+    Ok(bytes)
+}
+
 pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
     ensure!(
         snapshot.records.len() <= 1000,
@@ -603,6 +693,15 @@ mod tests {
             store.read_document(snapshot.records[0].id()).unwrap(),
             b"<h1>Agent report</h1>"
         );
+        let ControlRecord::Artifact(artifact) = &snapshot.records[0] else {
+            panic!("artifact");
+        };
+        let evidence = artifact.evidence.as_ref().unwrap();
+        assert!(evidence.matches(b"<h1>Agent report</h1>"));
+        assert_eq!(evidence.producer.origin, ArtifactOrigin::AgentEdit);
+        assert_eq!(evidence.producer.turn_id, Some(turn_id));
+        assert_eq!(evidence.producer.source_path.as_deref(), Some("agent.html"));
+        assert!(evidence.producer.activity_id.is_some());
         std::fs::remove_dir_all(directory).unwrap();
     }
     fn agent(id: Uuid) -> ControlRecord {
@@ -664,6 +763,60 @@ mod tests {
         assert_eq!(store.load().unwrap().records.len(), 1);
         assert_eq!(store.remove(1, id).unwrap().records.len(), 0);
         std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn artifact_integrity_rejects_changed_bytes_unbounded_files_and_client_metadata_edits() {
+        let dir = std::env::temp_dir().join(format!("ion-artifact-integrity-{}", Uuid::new_v4()));
+        let store = ControlStore::new(dir.join("control.db"));
+        let bytes = b"<h1>Original generated report</h1>".to_vec();
+        let snapshot = store
+            .import_document(
+                0,
+                "report.html".into(),
+                "html".into(),
+                Some(Uuid::new_v4()),
+                Some(Uuid::new_v4()),
+                bytes.clone(),
+            )
+            .unwrap();
+        let ControlRecord::Artifact(artifact) = snapshot.records[0].clone() else {
+            panic!("artifact");
+        };
+        assert!(artifact.evidence.as_ref().unwrap().matches(&bytes));
+        let reopened = ControlStore::new(dir.join("control.db"));
+        assert_eq!(reopened.read_document(artifact.id).unwrap(), bytes);
+        let mut edited = artifact.clone();
+        edited.name = "Forged name.html".into();
+        edited.evidence = None;
+        assert!(
+            reopened
+                .save_client_record(snapshot.revision, ControlRecord::Artifact(edited))
+                .is_err()
+        );
+        assert_eq!(reopened.load().unwrap().revision, snapshot.revision);
+        let path = store.document_dir().join(artifact.id.to_string());
+        std::fs::write(&path, b"<h1>Modified bytes</h1>").unwrap();
+        assert!(reopened.read_document(artifact.id).is_err());
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(16 * 1024 * 1024 + 1)
+            .unwrap();
+        assert!(reopened.read_document(artifact.id).is_err());
+        std::fs::write(&path, &bytes).unwrap();
+        assert_eq!(reopened.read_document(artifact.id).unwrap(), bytes);
+        let mut old = serde_json::to_value(&artifact).unwrap();
+        old.as_object_mut().unwrap().remove("evidence");
+        let legacy: Artifact = serde_json::from_value(old).unwrap();
+        assert!(legacy.evidence.is_none());
+        assert_eq!(
+            std::fs::canonicalize(&dir).unwrap().parent(),
+            Some(
+                std::fs::canonicalize(std::env::temp_dir())
+                    .unwrap()
+                    .as_path()
+            )
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn imports_document_bytes_and_cleans_a_rejected_import() {

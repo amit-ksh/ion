@@ -138,6 +138,57 @@ pub struct Artifact {
     pub reference: String,
     pub format: String,
     pub created_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub evidence: Option<ArtifactEvidence>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum ArtifactOrigin {
+    #[default]
+    AgentGenerated,
+    AgentEdit,
+    TeamAssignment,
+}
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactProvenance {
+    pub origin: ArtifactOrigin,
+    pub turn_id: Option<Uuid>,
+    pub activity_id: Option<String>,
+    pub source_path: Option<String>,
+    pub run_id: Option<Uuid>,
+    pub assignment_id: Option<Uuid>,
+    pub agent_id: Option<Uuid>,
+    pub request_id: Option<Uuid>,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactEvidence {
+    pub version: u16,
+    pub bytes: u64,
+    pub sha256: String,
+    pub producer: ArtifactProvenance,
+}
+impl ArtifactEvidence {
+    pub fn from_bytes(bytes: &[u8], producer: ArtifactProvenance) -> Self {
+        use sha2::{Digest, Sha256};
+        Self {
+            version: 1,
+            bytes: bytes.len() as u64,
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            producer,
+        }
+    }
+    pub fn matches(&self, bytes: &[u8]) -> bool {
+        use sha2::{Digest, Sha256};
+        self.version == 1
+            && self.bytes > 0
+            && self.bytes <= 16 * 1024 * 1024
+            && self.bytes == bytes.len() as u64
+            && format!("{:x}", Sha256::digest(bytes)) == self.sha256
+    }
 }
 
 /// Agent proposals are durable. Accepting one never silently starts a task.

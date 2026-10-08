@@ -1647,6 +1647,99 @@ fn assignment_documents_commit_payload_provenance_and_exact_replay_across_restar
 }
 
 #[test]
+fn artifact_integrity_team_receipt_tampering_cannot_be_read_replayed_or_reported() {
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_document(
+            &root.lease,
+            request,
+            "report.md",
+            "md",
+            "Original report",
+            102,
+        )
+        .unwrap();
+    let evidence = artifact.evidence.as_ref().unwrap();
+    assert!(evidence.matches(b"Original report"));
+    assert_eq!(evidence.producer.origin, ArtifactOrigin::TeamAssignment);
+    assert_eq!(evidence.producer.run_id, Some(run.id));
+    assert_eq!(evidence.producer.assignment_id, Some(root.assignment.id));
+    assert_eq!(evidence.producer.agent_id, Some(root.assignment.agent_id));
+    assert_eq!(evidence.producer.request_id, Some(request));
+    let db = f.store.connect().unwrap();
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+        params![b"Changed report".as_slice(), artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(f.definitions.read_document(artifact.id).is_err());
+    assert!(
+        f.store
+            .read_assignment_document(&root.lease, artifact.id, 103)
+            .is_err()
+    );
+    assert!(
+        f.store
+            .publish_document(
+                &root.lease,
+                request,
+                "report.md",
+                "md",
+                "Original report",
+                103
+            )
+            .is_err()
+    );
+    let result = AssignmentResult {
+        executed_checks: vec![],
+        summary: "Report".into(),
+        artifact_ids: vec![artifact.id],
+        checks: vec![],
+    };
+    assert!(
+        f.store
+            .report(
+                &root.lease,
+                AssignmentOutcome::Completed(result.clone()),
+                103
+            )
+            .is_err()
+    );
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=zeroblob(65537) WHERE artifact_id=?",
+        [artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(
+        f.definitions
+            .read_document(artifact.id)
+            .unwrap_err()
+            .to_string()
+            .contains("bound")
+    );
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+        params![b"Original report".as_slice(), artifact.id.to_string()],
+    )
+    .unwrap();
+    assert_eq!(
+        f.definitions.read_document(artifact.id).unwrap(),
+        b"Original report"
+    );
+    assert_eq!(
+        f.store
+            .report(&root.lease, AssignmentOutcome::Completed(result), 104)
+            .unwrap()
+            .status,
+        TeamRunStatus::Completed
+    );
+}
+
+#[test]
 fn racing_assignment_document_publications_create_one_artifact_and_receipt() {
     let f = Fixture::new();
     let run = f.run();

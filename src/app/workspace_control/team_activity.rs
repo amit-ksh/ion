@@ -146,6 +146,7 @@ impl Waku {
         .detach();
     }
     pub(super) fn refresh_team_activity(&mut self, replace_pending: bool, cx: &mut Context<Self>) {
+        self.refresh_inbox(cx);
         if !relevant(self.control_ui.page) || (self.control_ui.activity_busy && !replace_pending) {
             return;
         }

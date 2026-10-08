@@ -110,8 +110,13 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Aggregate host resource/egress grants and enforcement for general commands;
   pinned bounded-command Linux rlimits are implemented.
 - [ ] Image/PDF input interpretation through a verified selected harness.
-- [ ] Persistent Inbox unread/acknowledge/archive state and user notification policy.
-- [ ] Additional artifact hashes/provenance/preview formats and global usage ledger.
+- [x] Persistent current-notification Inbox read/acknowledge/archive/restore state
+  and desktop task notification policy, with independent owner revision and
+  concurrency/restart/capacity checks.
+- [ ] Complete owner notification history, global unread badge and phone Inbox UI.
+- [x] Artifact content hashes and original task/team producer metadata, bounded
+  verified read/export/report/review/handoff and agent-only client publication.
+- [ ] Embedded artifact previews/additional interpretation and global usage ledger.
 - [ ] Registered-owner portfolio/gateway projection and remote workflow controls.
 - [ ] Cloud speech live partial streaming and deployment/device acceptance.
 
@@ -429,3 +434,15 @@ Live native account acceptance and broader remote/GPU development remain open.
   worker; native owner receipt and full upload/replay/artifact/review acceptance.
 - [ ] Verify the registered host's executable private workspace mount and run a
   real approved project command when the Nebius target is available.
+
+## 2026-10-08 — Inbox controls and artifact evidence
+
+- [x] Durable current-notification state and All / Issues only / Off desktop task
+  notifications; organizing Inbox does not change execution authorization.
+- [x] Agent-only artifact publication, original SHA-256/bytes/producer evidence
+  and verification at consumer, submission, review and workflow boundaries.
+- [x] Owner/native integration tests, desktop/daemon and shared/phone type checks.
+- [ ] Complete the [Inbox/artifact live review](24-inbox-artifact-review.md).
+- [ ] Historical notification index/global unread/mobile UI, embedded rich document
+  previews and global usage ledger remain development, alongside the execution,
+  accounting, calendar/graph and gateway/speech work listed above.

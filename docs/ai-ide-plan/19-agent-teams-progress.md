@@ -2372,3 +2372,37 @@ The test fixture's tracked-link setup needed Git's explicit `--add`; the local
 Docker mount needed `exec` to run approved project scripts. No provider key,
 cloud provision, adapter addition or visual test was involved. Broader remote/GPU
 and other release checklist features remain open.
+
+## 2026-10-08 — Inbox state and original artifact evidence
+
+Implemented independent daemon-owned Inbox read/acknowledge/archive/restore state,
+current-notification view filters and persistent desktop task notification policy.
+Native UI uses cached state and background generation-fenced requests; collection
+identities are hashed at cache rebuild rather than per visible row. Existing
+project/task/type/status controls remain. Read/acknowledge/archive never authorizes
+a decision or changes the pinned agent/team definitions. Conflicts request Refresh;
+exact retries and bounded-capacity existing-item updates survive restart.
+
+New artifact metadata contains original byte count/SHA-256 and native task or team
+producer identities. Client upload/metadata replacement is rejected; agent capture
+and atomic team publication remain. Content is bounded and verified when read,
+exported, submitted, accepted or handed to a later workflow stage. Legacy content
+without evidence remains explicitly unverified. Corrupted prior-stage bytes block
+new work, and restoring the original content permits the same stage to continue.
+
+Verification: three Inbox owner tests, one native identity/view test, three new
+artifact integration tests, three publication/read/concurrency tests, parent
+revalidation, native task capture and thirteen workflow/routine regressions passed.
+Desktop/daemon compilation, generated binding equality, shared and full phone
+TypeScript, formatting and whitespace checks passed. The worktree has no installed
+TypeScript/Expo dependencies: checks reused the primary checkout's compiler/types
+and exact installed Expo/React export declarations through an ignored configuration.
+The initial native compile exposed two verifier identifiers and three helper
+visibility errors; those were fixed before final verification. Existing warnings
+remain; no app launch, visual test, live account, provisioning or second watcher.
+
+See [behavior and manual review](24-inbox-artifact-review.md). Complete owner
+notification history/global unread/mobile Inbox, rich embedded artifact previews
+and global usage accounting remain development. Other current-scope release gates
+are still open; this checkpoint does not mark the full Ion implementation complete.
+Unfinished adapters remain deferred under the user's current scope correction.

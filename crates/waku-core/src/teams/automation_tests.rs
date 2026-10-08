@@ -197,6 +197,64 @@ fn automation_handoff_uses_durable_accepted_documents_not_model_file_paths() {
     );
 }
 #[test]
+fn artifact_integrity_workflow_cannot_start_a_stage_with_changed_prior_document() {
+    let f = Fixture::new();
+    let run = start(&f, workflow(&f, &[false, false]));
+    tick(&f, 100);
+    f.materialize();
+    let team = f.store.snapshot(run.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    let document = f
+        .store
+        .publish_document(
+            &claim.lease,
+            Uuid::new_v4(),
+            "release.md",
+            "md",
+            "Original accepted release",
+            102,
+        )
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![document.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(output), 103)
+        .unwrap();
+    let db = f.store.connect().unwrap();
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+        params![
+            b"Changed after completion".as_slice(),
+            document.id.to_string()
+        ],
+    )
+    .unwrap();
+    tick(&f, 104);
+    let blocked = f.store.automation_run(run.id).unwrap();
+    assert_eq!(blocked.status, AutomationStatus::Blocked);
+    assert!(blocked.reason.as_ref().unwrap().contains("original hash"));
+    assert!(f.store.snapshot(run.stages[1].team_run_id).is_err());
+    db.execute(
+        "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+        params![
+            b"Original accepted release".as_slice(),
+            document.id.to_string()
+        ],
+    )
+    .unwrap();
+    tick(&f, 105);
+    assert_eq!(f.store.automation_run(run.id).unwrap().current_stage, 1);
+    assert_eq!(
+        f.store
+            .snapshot(run.stages[1].team_run_id)
+            .unwrap()
+            .inputs
+            .len(),
+        2
+    );
+}
+
+#[test]
 fn automation_aggregate_model_budget_and_deadline_do_not_reset_per_stage() {
     let f = Fixture::new();
     let mut w = workflow(&f, &[false, false]);

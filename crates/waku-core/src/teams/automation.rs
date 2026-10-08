@@ -445,7 +445,21 @@ fn advance(tx: &Transaction<'_>, run: &mut AutomationRun, now: u64) -> Result<()
                 content: result.summary.clone(),
             });
             for id in &result.artifact_ids {
-                let (name,bytes):(String,Vec<u8>)=tx.query_row("SELECT d.name,d.content FROM ion_team_document_receipts d JOIN ion_team_work w ON w.id=d.work_id WHERE d.artifact_id=? AND w.run_id=?",params![id.to_string(),previous.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).context("Prior document receipt missing")?;
+                let (name,bytes):(String,Vec<u8>)=tx.query_row("SELECT d.name,d.content FROM ion_team_document_receipts d JOIN ion_team_work w ON w.id=d.work_id WHERE d.artifact_id=? AND w.run_id=? AND length(d.content) BETWEEN 1 AND 65536",params![id.to_string(),previous.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).context("Prior document receipt missing")?;
+                let body: String = tx
+                    .query_row(
+                        "SELECT body FROM ion_control_records WHERE id=? AND kind='artifact'",
+                        [id.to_string()],
+                        |r| r.get(0),
+                    )
+                    .context("Prior artifact is unavailable")?;
+                let ControlRecord::Artifact(artifact) = serde_json::from_str(&body)? else {
+                    anyhow::bail!("Prior artifact identity changed");
+                };
+                ensure!(
+                    crate::control::verified_document(tx, &artifact)? == bytes,
+                    "Prior document changed during handoff"
+                );
                 inputs.push(PreparedInput {
                     key: id.to_string(),
                     name,

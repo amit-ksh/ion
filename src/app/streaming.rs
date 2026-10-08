@@ -359,7 +359,8 @@ impl Waku {
                 }
                 self.settle_foreground_work(session_id, BackgroundWorkStatus::Completed);
                 let previous_kinds = self.snapshot_selected_transcript_rows(session_id);
-                let announce = cx.active_window().is_none()
+                let announce = self.allows_task_notification(false)
+                    && cx.active_window().is_none()
                     && !runtime.park_announced
                     && self.active_turn_has_user_message(session_id);
                 let task_notification = announce
@@ -710,7 +711,9 @@ impl Waku {
                 {
                     return true;
                 }
-                let task_notification = cx.active_window().is_none().then(|| {
+                let task_notification = (self.allows_task_notification(!success)
+                    && cx.active_window().is_none())
+                .then(|| {
                     self.state
                         .sessions
                         .iter()

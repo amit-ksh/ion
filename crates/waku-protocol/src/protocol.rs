@@ -179,6 +179,16 @@ pub enum Command {
     },
     LoadTaskState,
     LoadWorkspaceControl,
+    LoadInbox,
+    UpdateInboxItem {
+        expected_revision: u64,
+        key: String,
+        action: crate::inbox::InboxAction,
+    },
+    SetNotificationPolicy {
+        expected_revision: u64,
+        policy: crate::inbox::NotificationPolicy,
+    },
     /// Persist a run queue; this does not start a provider process.
     QueueTeamTask {
         run_id: Uuid,
@@ -550,6 +560,9 @@ pub enum ResponsePayload {
     },
     WorkspaceControl {
         snapshot: crate::control::ControlSnapshot,
+    },
+    Inbox {
+        snapshot: crate::inbox::InboxSnapshot,
     },
     AutomationRun {
         run: crate::control::AutomationRun,
