@@ -261,7 +261,7 @@ all earlier visited stages. A branch cannot reset the budget, grants or deadline
 Move up/down remaps links to preserve stage identity and rejects a move that would
 create an invalid graph. Change incoming links before removing a linked stage.
 Desktop and phone run details show the pinned rule, chosen destination, matched
-result and skipped stages. Matching protocol **33** clients are required.
+result and skipped stages. Matching protocol **34** clients are required.
 
 ### Your branch review
 

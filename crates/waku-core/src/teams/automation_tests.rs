@@ -1337,3 +1337,138 @@ fn workflow_branch_selected_path_cannot_reset_prior_model_budget() {
         assert!(f.store.snapshot(stage.team_run_id).is_err());
     }
 }
+
+#[test]
+fn inbox_history_records_workflow_gates_decisions_artifacts_and_completion_atomically() {
+    use waku_protocol::inbox::*;
+    let f = Fixture::new();
+    let query = || InboxQuery {
+        project_id: Some(f.project),
+        task_id: None,
+        kind: None,
+        view: InboxHistoryView::All,
+        status: InboxHistoryStatus::All,
+        after: None,
+        limit: 64,
+    };
+    let run = start(&f, workflow(&f, &[true]));
+    tick(&f, 100);
+    let page = f.definitions.inbox_history(query()).unwrap();
+    let gate = page
+        .entries
+        .iter()
+        .find(|e| e.source == InboxSource::Automation && e.needs_action)
+        .unwrap();
+    f.definitions
+        .update_inbox_item(
+            page.revision,
+            gate.state.key.clone(),
+            InboxAction::Acknowledge,
+        )
+        .unwrap();
+    let blocked = f.store.automation_run(run.id).unwrap();
+    assert_eq!(blocked.status, AutomationStatus::WaitingDecision);
+    f.store
+        .resolve_automation_gate(run.id, blocked.revision, 0, true, 100)
+        .unwrap();
+    tick(&f, 100);
+    f.materialize();
+    let started = f.store.automation_run(run.id).unwrap();
+    let team = f.store.snapshot(started.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    let decision = f
+        .store
+        .suspend_for_decision(
+            &claim.lease,
+            Uuid::new_v4(),
+            "Scope",
+            "Continue the approved report",
+            "{}",
+            102,
+        )
+        .unwrap();
+    let page = f.definitions.inbox_history(query()).unwrap();
+    assert!(
+        page.entries
+            .iter()
+            .any(|e| e.source == InboxSource::TeamDecision
+                && e.source_id == decision.id
+                && e.needs_action)
+    );
+    let fact = page
+        .entries
+        .iter()
+        .find(|e| e.source_id == decision.id)
+        .unwrap();
+    f.definitions
+        .update_inbox_item(page.revision, fact.state.key.clone(), InboxAction::Archive)
+        .unwrap();
+    assert_eq!(
+        f.store.snapshot(team.id).unwrap().decisions[0].status,
+        TeamDecisionStatus::Pending
+    );
+    f.store
+        .resolve_decision(decision.id, decision.revision, true, 103)
+        .unwrap();
+    let resumed = f
+        .store
+        .resume_after_children(team.id, team.work[0].id, 104, 100)
+        .unwrap()
+        .claimed;
+    let doc = f
+        .store
+        .publish_document(
+            &resumed.lease,
+            Uuid::new_v4(),
+            "report.json",
+            "json",
+            "{\"ready\":true}",
+            105,
+        )
+        .unwrap();
+    let mut output = result();
+    output.artifact_ids = vec![doc.id];
+    f.store
+        .report(&resumed.lease, AssignmentOutcome::Completed(output), 106)
+        .unwrap();
+    tick(&f, 107);
+    let page = f.definitions.inbox_history(query()).unwrap();
+    assert_eq!(page.needs_action_count, 0);
+    assert!(
+        page.entries
+            .iter()
+            .any(|e| e.source == InboxSource::Artifact && e.source_id == doc.id)
+    );
+    assert!(
+        page.entries
+            .iter()
+            .any(|e| e.source == InboxSource::TeamAssignment && e.kind == InboxKind::Completed)
+    );
+    assert!(
+        page.entries
+            .iter()
+            .any(|e| e.source == InboxSource::Automation && e.kind == InboxKind::Completed)
+    );
+    let history_revision = page.history_revision;
+    assert!(
+        f.store
+            .report(
+                &claim.lease,
+                AssignmentOutcome::Blocked("Stale report".into()),
+                108
+            )
+            .is_err()
+    );
+    assert_eq!(
+        f.definitions
+            .inbox_history(query())
+            .unwrap()
+            .history_revision,
+        history_revision
+    );
+    let reopened = crate::control::ControlStore::new(f.definitions.path());
+    assert_eq!(
+        reopened.inbox_history(query()).unwrap().matching_count,
+        page.matching_count
+    );
+}

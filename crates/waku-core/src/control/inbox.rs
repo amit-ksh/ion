@@ -8,7 +8,7 @@ fn open(store: &ControlStore) -> Result<Connection> {
     db.execute_batch("CREATE TABLE IF NOT EXISTS ion_inbox_items (key TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS ion_inbox_preferences (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, policy TEXT NOT NULL); INSERT OR IGNORE INTO ion_inbox_preferences VALUES(1,0,'all');")?;
     Ok(db)
 }
-fn read(db: &Connection) -> Result<InboxSnapshot> {
+pub(super) fn read(db: &Connection) -> Result<InboxSnapshot> {
     let (revision, policy): (u64, String) = db.query_row(
         "SELECT revision,policy FROM ion_inbox_preferences WHERE id=1",
         [],
@@ -51,6 +51,9 @@ impl ControlStore {
         key: String,
         action: InboxAction,
     ) -> Result<InboxSnapshot> {
+        if let Some(sequence) = super::inbox_history::history_sequence(&key) {
+            return self.update_history_item(expected_revision, sequence, action);
+        }
         validate_key(&key)?;
         let mut db = open(self)?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;

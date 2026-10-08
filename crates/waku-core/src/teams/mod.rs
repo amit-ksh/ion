@@ -254,6 +254,7 @@ impl TeamCoordinator {
         let db = self.control.connect()?;
         schema(&db)?;
         automation::schema(&db)?;
+        crate::control::inbox_history::install_teams(&db)?;
         Ok(db)
     }
 

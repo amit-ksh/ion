@@ -18,17 +18,32 @@ completion/background notifications; Issues only retains failed completion
 notifications. They do not mute pending work in Inbox or Decisions. Preferences
 load before system task notifications are sent and survive owner/app restart.
 
-Notification preferences and item state are bounded to 10,000 event identities.
-Concurrent client edits use an independent expected revision. Retrying an already
-applied action after a lost response is safe; a conflicting edit requires Refresh.
-At capacity, existing entries and the notification policy remain editable.
+Current builds use protocol **34**. The owner now keeps a paged historical
+journal of observed persisted task lifecycle changes, proposals, team assignments,
+team planning decisions, workflow/routine states and agent document publication.
+Each source write and its journal fact share a transaction. A resolved or removed
+source clears its pending flag while retaining previous facts and read state.
+Metadata-only task saves and replayed source writes do not create duplicate facts.
+Existing stores backfill the current facts once; transitions from before this
+upgrade are not reconstructed. Task facts use a durable bounded outbox across the
+task/control databases; counts can increase while “Importing task history” is shown.
 
-The current notification catalog is still a projection of current task state,
-control records, and loaded run/decision pages. State is durable, but this is not
-an append-only historical notification feed: a replaced source event can leave
-that projection. A complete owner notification index, global unread badge,
-paged historical feed and phone Inbox UI remain development work. No Push
-notification delivery service is introduced by this increment.
+Desktop and phone show 32-row pages and counts across all projects. Filters use
+indexed bound SQL on the owner, and both clients render cached/virtualized rows.
+Historical item controls use independent expected revisions with safe identical
+retries. Organizing history has no 10,000-item cap; the older system-notification
+preference catalog retains its compatibility limit. Notification delivery policy
+does not hide pending actions or change execution authorization.
+
+Phone adds Inbox to the task drawer, foreground-only polling, persistent controls,
+and owner source review for planning decisions and proposed tasks. Decision
+approval uses the actual decision revision. Accepting a proposed task records its
+verdict; “Prepare New task” loads it into the existing unsent composer, where the
+user chooses execution and presses Send. An existing draft is preserved and must
+be cleared/saved before loading the proposal. Profile/connection and foreground
+changes disable stale controls; deleted sources retain history but cannot be
+approved. Workflow gate review uses the existing run screen. Phone system Push
+delivery and rich embedded document previews remain development.
 
 Artifacts are published by agents. Native task document capture retains its
 turn/activity/source path; team documents retain their run, assignment, agent and
@@ -51,7 +66,7 @@ add embedded rich previews or implement the cross-project cost ledger.
 
 ## Your review checklist
 
-- [ ] Rebuild matching desktop/daemon clients and open Inbox. Confirm the default
+- [ ] Rebuild matching protocol-34 desktop/daemon/phone clients and open Inbox. Confirm the default
   scope is All projects / All tasks, then combine project/task/type/status filters.
 - [ ] Mark a notification read; acknowledge another; archive a third. Restart the
   app and daemon and confirm their state. Restore an archived notification and
@@ -59,7 +74,19 @@ add embedded rich previews or implement the cross-project cost ledger.
 - [ ] Archive a pending approval/proposal. Confirm it is still pending in
   Decisions and its task; acknowledging it must not authorize or start work.
 - [ ] Complete another turn in a task with an archived earlier notification.
-  Confirm its new current notification is unread.
+  Confirm its new notification is unread and the earlier archived fact remains.
+- [ ] Page across more than 32 notifications, combine project/task/type/status
+  filters and confirm the global unread count remains independent of the page.
+- [ ] Resolve a decision, complete a workflow and delete a disposable task.
+  Confirm their earlier facts remain and only current unresolved work needs action.
+- [ ] Connect the phone to the same owner. Read/archive there, refresh desktop and
+  confirm shared state. Review a team decision and approve/decline its exact source.
+- [ ] Accept a phone proposed task and use Prepare New task. Confirm it fills an
+  unsent composer, preserves an existing draft and requires Send to start work.
+- [ ] Background/reconnect/switch the phone owner during a delayed read or action.
+  Confirm stale responses cannot enable controls, navigate or alter the new owner.
+- [ ] Open a removed source from history and confirm its unavailable message;
+  archived unresolved work must still appear in Decisions.
 - [ ] Change a notification on another connected client. Confirm a stale changed
   action requests Refresh and cannot overwrite it; an identical retry is safe.
 - [ ] Choose Notifications off, background the desktop and complete/fail a task.
@@ -79,17 +106,15 @@ add embedded rich previews or implement the cross-project cost ledger.
 
 ## Automated evidence
 
-Three owner Inbox tests cover restart, exact retry, concurrent SQLite clients,
-revision isolation from pending approvals, invalid event identities and capacity.
-One native test covers stable event identity, new unread versions and view filters.
-Three artifact integration tests cover changed/bounded bytes, original provenance,
-client metadata rejection, lease/report fences and altered prior workflow outputs.
-Three existing publication/read/concurrency tests, parent revalidation, task capture
-and thirteen workflow/routine tests passed, including the real dispatcher handoff.
+Six history owner/integration tests cover immutable past facts after resolution
+and deletion, task outbox restart/replay and bounded backlog, indexed paging and
+project/task/type/state filters, global counts, independent concurrent client
+controls, actual workflow gates/team decisions/documents and stale-lease rollback.
+The three prior Inbox compatibility tests remain relevant; read/ack/archive never
+approves execution. Workflow/routine and team decision regressions, matching
+native/daemon/shared-client/phone builds and exporter checks are recorded in the
+progress document when complete.
 
-Desktop/daemon compilation, generated binding equality, shared-client TypeScript,
-full phone TypeScript, formatting and whitespace checks passed. TypeScript reused
-the primary checkout's existing compiler/dependencies through an ignored check
-configuration; the worktree has no dependency installation. Native builds retain
-existing warnings. No visual test, live account action, deployment or second
-watcher was performed. Live account/device and UI acceptance remain unchecked.
+Prior artifact evidence tests and their bounds remain unchanged. No visual test,
+phone device acceptance, live provider, cloud deployment, Push service or second
+development watcher was performed. The manual review boxes remain unchecked.

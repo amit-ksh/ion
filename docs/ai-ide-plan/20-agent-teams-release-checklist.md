@@ -470,3 +470,16 @@ unchecked native/phone/DST review. Owner tests cover concurrent scheduling and
 real team capacity. This does not close conditional graphs, historical/mobile
 Inbox, global usage, remote/GPU, gateway or speech development. New harness
 adapters remain deferred by user instruction.
+
+
+## Historical and phone Inbox checkpoint (2026-10-08)
+
+- [x] Transactional owner notification journal and bounded durable task outbox,
+  retained resolved/deleted facts, indexed paging and global unread/pending counts.
+- [x] Native and phone shared read/ack/archive controls; phone actual planning
+  decision/proposal review and accepted-proposal prefill of the unsent New task.
+- [x] Owner concurrency/restart/deletion/gate/artifact/rollback acceptance, team
+  and persistence regressions, matching desktop/daemon/shared/phone type checks.
+- [ ] Complete the expanded [desktop and phone review](24-inbox-artifact-review.md).
+- [ ] Global usage, embedded previews, retries/code integration and broader
+  remote/GPU/gateway/cloud speech gates remain open. New adapters stay deferred.

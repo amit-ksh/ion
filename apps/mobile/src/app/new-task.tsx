@@ -6,7 +6,7 @@ import {
   type ComposerPreferences,
 } from '@waku/client/composer-preferences';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -69,6 +69,8 @@ type SheetKind =
   | 'branch';
 
 export default function NewTaskScreen() {
+  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string}>();
+  const proposalLoaded = useRef<string | null>(null);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerInset = useScreenHeaderInset();
@@ -220,6 +222,26 @@ export default function NewTaskScreen() {
     carryAcrossTargets: true,
     onHydrate: (synchronized) => setPrompt(synchronized.text),
   });
+  // An accepted proposal only fills the existing composer. No provider starts here.
+  const draftSyncRef=useRef(draftSync);draftSyncRef.current=draftSync;
+  const promptRef=useRef(prompt);promptRef.current=prompt;
+  useEffect(()=> {
+    const client=daemon.client; const id=proposalParams.proposal;
+    const owner=daemon.activeProfile?.id; const key=`${owner}:${id}`;
+    if(!id || !client || daemon.phase!=='connected' || proposalParams.owner!==owner || restoredAddress!==daemon.activeProfile?.address || proposalLoaded.current===key)return;
+    let canceled=false;
+    void client.request({type:'loadWorkspaceControl'}).then((response)=> {
+      if(canceled)return;
+      if(response.type!=='workspaceControl')throw new Error('Could not load the accepted proposal.');
+      const action=response.snapshot.records.find((r)=>r.kind==='action' && r.id===id);
+      if(!action || action.kind!=='action' || action.status!=='accepted' || action.actionKind!=='proposedTask')throw new Error('This task proposal is no longer accepted or available.');
+      if(!taskState.data?.projects.some((p)=>p.id===action.projectId))throw new Error('The proposal’s project is unavailable.');
+      if(promptRef.current.trim())throw new Error('Clear or save the current draft, then reopen the accepted proposal.');
+      proposalLoaded.current=key;
+      draftSyncRef.current.markEdited();setProjectId(action.projectId);setPrompt(`${action.title}\n\n${action.detail}`);
+    }).catch((cause)=>{if(!canceled)setError(cause instanceof Error?cause.message:String(cause));});
+    return()=>{canceled=true;};
+  },[daemon.client,daemon.phase,daemon.activeProfile?.id,daemon.activeProfile?.address,proposalParams.proposal,proposalParams.owner,restoredAddress,taskState.data]);
   const contextPicker = useComposerPicker({
     text: prompt,
     onChangeText: (value) => {

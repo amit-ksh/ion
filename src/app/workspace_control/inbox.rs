@@ -1,5 +1,6 @@
 //! Cached user notification state. No owner RPC or hashing occurs in row builders.
 use super::*;
+mod history;
 use waku_client::inbox::{
     InboxAction, InboxItemState, InboxSnapshot, NotificationPolicy, event_key,
 };
@@ -42,6 +43,12 @@ pub(super) struct InboxUi {
     busy: bool,
     generation: u64,
     pub error: Option<String>,
+    history: Option<Rc<waku_client::inbox::InboxPage>>,
+    history_busy: bool,
+    history_generation: u64,
+    history_error: Option<String>,
+    after: Option<u64>,
+    previous: Vec<Option<u64>>,
 }
 pub(super) struct InboxRow {
     state: InboxItemState,
@@ -97,6 +104,7 @@ fn policy_label(policy: NotificationPolicy) -> &'static str {
 }
 impl Waku {
     pub(super) fn refresh_inbox(&mut self, cx: &mut Context<Self>) {
+        self.refresh_inbox_history(cx);
         if !self.control_ui.inbox.busy {
             self.inbox_request(Rpc::LoadInbox, cx);
         }
@@ -147,6 +155,9 @@ impl Waku {
                             this.control_ui.inbox.loaded = true;
                         }
                         this.control_ui.inbox.error = None;
+                        if mutation {
+                            this.refresh_inbox_history(cx);
+                        }
                         if changed || mutation {
                             cx.notify();
                         }
@@ -295,6 +306,7 @@ impl Waku {
                             MenuItem::new(view.label(), move |_, cx| {
                                 let _ = weak.update(cx, |this, cx| {
                                     this.control_ui.inbox.view = view;
+                                    this.reset_inbox_history(cx);
                                     cx.notify();
                                 });
                             })
@@ -313,7 +325,7 @@ impl Waku {
                     .child("Updating…"),
             );
         }
-        bar
+        bar.child(self.history_toolbar(cx))
     }
     pub(super) fn render_inbox_row(
         &self,

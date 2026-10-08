@@ -206,6 +206,7 @@ pub(super) struct ControlUi {
 #[derive(Clone)]
 enum Row {
     Inbox(Rc<inbox::InboxRow>),
+    InboxEvent(Rc<waku_client::inbox::InboxEntry>),
     Task(Uuid),
     Project(Uuid),
     Record(ControlRecord),
@@ -811,6 +812,9 @@ impl Waku {
                                             this.refresh_team_activity(true, cx);
                                         }
                                     }
+                                    if this.control_ui.page == Some(Page::Inbox) {
+                                        this.reset_inbox_history(cx);
+                                    }
                                     cx.notify();
                                 });
                             })
@@ -925,6 +929,7 @@ impl Waku {
             self.control_ui.filter_kind = NoticeKind::All;
             self.control_ui.filter_status = NoticeStatus::All;
             self.control_ui.inbox.view = inbox::InboxView::Inbox;
+            self.reset_inbox_history(cx);
         }
         self.control_ui.editor_generation += 1;
         self.control_ui.app_action_generation += 1;
@@ -1017,6 +1022,8 @@ impl Waku {
                         }
                     }
                     Ok(ResponsePayload::AutomationRun {run}) => {
+                        let page=if run.routine_id.is_some() { Page::Routines } else { Page::Workflows };
+                        if this.control_ui.page!=Some(page) { this.open_workspace_page(page,cx); }
                         this.control_ui.automation_requests.retain(|_,(id,_)|*id!=run.id);
                         this.control_ui.automation_selected=Some(run.id);
                         this.control_ui.automation_detail=Some(Rc::new(run));
@@ -1444,7 +1451,7 @@ impl Waku {
             }
             let selected = self.control_ui.page == Some(page);
             let label = page.label();
-            let button = self
+            let mut button = self
                 .control_button(
                     format!("workspace-nav-{label}"),
                     "",
@@ -1480,6 +1487,15 @@ impl Waku {
                         )),
                 )
                 .child(div().min_w_0().truncate().child(label));
+            if page == Page::Inbox && self.inbox_unread_count() > 0 {
+                button = button.child(
+                    div()
+                        .ml_auto()
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .child(self.inbox_unread_count().to_string()),
+                );
+            }
             nav = nav.child(button);
         }
         nav
@@ -1563,6 +1579,13 @@ impl Waku {
             .child(actions)
     }
     fn control_rows(&self, page: Page, cx: &App) -> Vec<Row> {
+        if page == Page::Inbox {
+            let mut rows = self.inbox_history_rows();
+            if rows.is_empty() {
+                rows.push(Row::Empty("No notifications match these filters."));
+            }
+            return rows;
+        }
         let mut rows = Vec::new();
         match page {
             Page::Inbox | Page::Decisions => rows.extend(
@@ -2112,6 +2135,7 @@ impl Waku {
         let mut actions = div().flex_none().flex().gap(px(8.0));
         let (title, detail, icon_path) = match row {
             Row::Inbox(row) => return self.render_inbox_row(row, index, cx),
+            Row::InboxEvent(entry) => return self.render_inbox_history_row(entry, cx),
             Row::Automation(run) => return self.render_automation_row(run, None, cx),
             Row::AutomationStage(run, index) => {
                 return self.render_automation_row(run, Some(index), cx);

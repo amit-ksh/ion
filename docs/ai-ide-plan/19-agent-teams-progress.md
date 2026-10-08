@@ -2489,3 +2489,35 @@ formatting and whitespace passed. Review is in
 was performed. Parallel fan-out, loops and bounded stage retry remain separate
 work; this does not complete historical/mobile Inbox, global usage or the broader
 remote/GPU, gateway and speech goal. New harness adapters remain deferred.
+
+
+## Historical and phone Inbox checkpoint — 2026-10-08
+
+Implemented in the isolated Teams worktree, protocol **34**:
+
+- Owner facts for persisted task lifecycle/deletion, proposed tasks, team work,
+  decisions, workflows/routines and generated documents; same-transaction source
+  capture, once-only current-state backfill and durable bounded task outbox import.
+- Retained history after source resolution/removal, independent read/ack/archive
+  state, exact retries, concurrent revision fences, indexed project/task/type/state
+  paging and global unread/pending counts independent of the 32-row client page.
+- Native cached background pages and source links. Phone Inbox with foreground
+  polling, shared controls, actual decision/proposal review and stale owner/client
+  fences. Accepted proposals fill the existing unsent New task flow, preserve an
+  existing draft and require the user to Send; approval is separate from archive.
+
+Verification: all **6 new history tests** passed; the broader Inbox filter ran
+**10 tests** including the three prior compatibility cases. **129 team/source
+bridge/workflow/budget/recovery tests passed**, with two pre-existing native
+Claude/Codex account-fixture cases ignored because their binary environment was
+not set. **54 persistence regressions passed**. Native/daemon compilation, exact
+protocol binding equality, shared/full phone TypeScript, Rust formatting and
+whitespace passed. The initial fixtures were corrected to create a started task
+and resume the actual persisted decision continuation. No live provider, device,
+visual acceptance, cloud deployment, Push service or second watcher was performed.
+
+Manual acceptance is in [Inbox and artifacts](24-inbox-artifact-review.md).
+Historical transition reconstruction before this upgrade and Push notifications
+are not delivered. The full goal remains active: global usage accounting, bounded
+workflow retries/code integration and broader remote/GPU, gateway and speech
+integrations still require development. New harness adapters remain deferred.

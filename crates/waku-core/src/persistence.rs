@@ -1024,9 +1024,22 @@ impl StateStore {
             .execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")
             .map_err(to_io_error)?;
         apply_migrations(&connection)?;
+        crate::control::inbox_history::install_task_outbox(&connection).map_err(to_io_error)?;
         Ok(connection)
     }
 
+    pub(crate) fn task_inbox_rows(&self, after: u64) -> io::Result<Vec<(u64, String)>> {
+        let db = self.open()?;
+        let mut q = db
+            .prepare(
+                "SELECT seq,body FROM ion_task_inbox_outbox WHERE seq>? ORDER BY seq LIMIT 513",
+            )
+            .map_err(to_io_error)?;
+        q.query_map([after], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(to_io_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(to_io_error)
+    }
     pub fn load_or_fresh(&self, cwd: PathBuf) -> PersistedState {
         let mut state = self.load().unwrap_or_else(|_| {
             if cwd.parent().is_none() {
