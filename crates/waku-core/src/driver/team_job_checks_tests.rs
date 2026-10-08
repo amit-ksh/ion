@@ -1089,3 +1089,93 @@ fn command_check_project_run_byte_cap_and_scope_remain_pinned() {
     assert!(reserve(&request, &expanded).is_err()); // Registry edit cannot enlarge original allowance.
     assert!(!f.store.has_pending_effect(f.child.lease.run_id()).unwrap());
 }
+
+#[test]
+fn command_check_project_mode_only_change_invalidates_report_and_parent_review() {
+    for parent_gate in [false, true] {
+        let mut f = Fixture::with_command(|c| c.input_paths.clear());
+        approve_project(&mut f);
+        git(&f.workspace, &["config", "core.filemode", "false"]);
+        let context = f
+            .store
+            .project_source_context(&f.child.lease, &f.workspace, now())
+            .unwrap();
+        let (facts, archive) =
+            crate::teams::project::snapshot(&f.workspace, &project_policy()).unwrap();
+        let request = JobRequest {
+            version: 1,
+            request_id: Uuid::new_v4(),
+            argv: f.command.argv.clone(),
+            timeout_seconds: f.command.timeout_seconds,
+            inputs: vec![],
+            output_paths: vec![],
+            project_snapshot: Some(facts),
+        };
+        f.store
+            .reserve_remote_project(
+                &f.child.lease,
+                &request,
+                f.policy.image,
+                "fixture-project",
+                &serde_json::to_string(&f.policy).unwrap(),
+                8,
+                now(),
+                &context,
+                &archive,
+            )
+            .unwrap();
+        f.store
+            .confirm_project_upload(&f.child.lease, request.request_id, Uuid::new_v4(), now())
+            .unwrap();
+        f.store
+            .bind_job_operation(request.request_id, Uuid::new_v4())
+            .unwrap();
+        let mut receipt = response(&request);
+        receipt.project_sha256 = request.project_snapshot.as_ref().map(|p| p.sha256.clone());
+        f.store
+            .finish_job(request.request_id, Some(&receipt))
+            .unwrap();
+        let result = f.result(&request, &receipt);
+        let parent = if parent_gate {
+            f.report(result.clone()).unwrap();
+            Some(f.resume().claimed)
+        } else {
+            None
+        };
+        let original = std::fs::read(f.workspace.join("check.py")).unwrap();
+        git(&f.workspace, &["update-index", "--chmod=+x", "check.py"]);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                f.workspace.join("check.py"),
+                std::fs::Permissions::from_mode(0o755),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            std::fs::read(f.workspace.join("check.py")).unwrap(),
+            original
+        );
+        if let Some(parent) = &parent {
+            assert!(f.accept(parent).is_err());
+        } else {
+            assert!(f.report(result.clone()).is_err());
+        }
+        git(&f.workspace, &["update-index", "--chmod=-x", "check.py"]);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                f.workspace.join("check.py"),
+                std::fs::Permissions::from_mode(0o644),
+            )
+            .unwrap();
+        }
+        if let Some(parent) = &parent {
+            f.accept(parent).unwrap();
+        } else {
+            f.report(result).unwrap();
+        }
+    }
+}

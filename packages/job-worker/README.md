@@ -131,7 +131,7 @@ For example, on Linux with `ION_REVIEWED_JOB_IMAGE` set to its verified image ID
 
 ```sh
 fixture_dir=$(mktemp -d)
-docker run --rm --pull=never --network=none --cap-drop=ALL --cap-add=CHOWN --cap-add=KILL --cap-add=SETUID --cap-add=SETGID --cap-add=DAC_OVERRIDE --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --tmpfs=/tmp:rw,nosuid,nodev,size=64m --env=ION_JOB_CLI_ACCEPTANCE=1 --mount "type=bind,source=$PWD/packages/job-worker,target=/acceptance,readonly" --mount "type=bind,source=$fixture_dir,target=/out" --entrypoint=/usr/local/bin/python3 "$ION_REVIEWED_JOB_IMAGE" -I -B -S /acceptance/test_linux_cli.py --fixture-dir /out
+docker run --rm --pull=never --network=none --cap-drop=ALL --cap-add=CHOWN --cap-add=KILL --cap-add=SETUID --cap-add=SETGID --cap-add=DAC_OVERRIDE --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --tmpfs=/tmp:rw,exec,nosuid,nodev,size=64m --env=ION_JOB_CLI_ACCEPTANCE=1 --mount "type=bind,source=$PWD/packages/job-worker,target=/acceptance,readonly" --mount "type=bind,source=$fixture_dir,target=/out" --entrypoint=/usr/local/bin/python3 "$ION_REVIEWED_JOB_IMAGE" -I -B -S /acceptance/test_linux_cli.py --fixture-dir /out
 ION_NATIVE_JOB_WORKER_FIXTURE="$fixture_dir" cargo test -p waku-core team_job_native_linux_receipt_full_run_transfer_replay_and_artifact --lib --locked -- --include-ignored --test-threads=1
 ```
 
@@ -291,3 +291,38 @@ separate contract; the new CLI mode does not authorize them.
 Review the full [project transfer and retention checklist](../../docs/ai-ide-plan/23-remote-command-gpu-jobs.md#2026-10-08--project-snapshot-command-execution)
 before registering/importing it. Namespace blob lifetime/deletion and live
 provider execution have not been accepted here.
+
+
+## 2026-10-08: Windows executable project snapshots
+
+Windows owners preserve the tracked Git executable bit in project archives.
+Unix owners retain current filesystem permissions, including unstaged mode changes.
+Untracked Windows files are non-executable. Tracked links, submodules and unresolved
+merge entries reject the snapshot before upload; ignored/private files stay excluded.
+Changing an executable bit changes the archive hash and invalidates a previously
+successful command check at both report submission and parent review.
+
+The local acceptance recipe explicitly mounts the private `/tmp` workspace with
+`exec,nosuid,nodev`. Docker otherwise mounts it `noexec`, which prevents direct
+execution of approved project scripts. This requirement does not alter the worker's
+nonroot identity, socket-denial boundary or hard resource limits. Verify the chosen
+registered host's actual workspace mount before live project execution.
+
+Verification used the unchanged installed worker image
+`sha256:050fbc7a43e32a8b1f550ef1a6520615168fc5f40832057ebd72dac6fd8d6f55`,
+with no external network or credentials. All **14 installed Linux CLI groups** passed,
+including a real Windows owner-generated executable script archive. The native Rust
+owner validated the exact original archive/request/receipt and the full existing
+project upload, replay, artifact and parent-review path.
+
+To include the owner fixture in this acceptance run, export a fresh directory with
+`ION_PROJECT_EXECUTABLE_EXPORT` and the ignored Rust test
+`team_job_project_export_host_executable_archive`. Mount that directory read-only at
+`/owner` and set `ION_HOST_EXECUTABLE_FIXTURE=/owner` for `test_linux_cli.py`.
+The successful fixture export includes `host-executable-request.json` and
+`host-executable-receipt.json`; validate them with
+`team_job_project_native_executable_receipt_matches_owner_archive`, setting
+`ION_NATIVE_JOB_WORKER_FIXTURE` to the Linux export directory.
+
+Git mode source: [ls-files stage metadata](https://git-scm.com/docs/git-ls-files)
+and [update-index executable bits](https://git-scm.com/docs/git-update-index).

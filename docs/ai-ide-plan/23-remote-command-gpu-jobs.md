@@ -722,3 +722,26 @@ Later review:
   hash/operation, verify no duplicate POST and review namespace blob retention.
 - [ ] Verify Stop during upload never starts compute; acceptance must include the
   real imported runtime, file ownership/mode and provider namespace.
+
+
+## 2026-10-08: Windows-to-Linux executable project transfer
+
+Project snapshots now read regular tracked Git modes on Windows so Linux can run
+approved scripts directly. Unix snapshots keep current local execute permissions.
+Mode-only changes produce a different sealed archive identity and invalidate old
+check receipts at report and parent acceptance. Merge-conflicted index entries,
+tracked links and submodules reject before upload; private/ignored paths remain excluded.
+
+Verification: **19 remote job/snapshot checks**, **17 command-check regressions**,
+**14 installed Linux CLI groups**, and **two native owner acceptance checks** passed.
+The Linux run consumed an actual Windows-generated archive with its original
+request; the owner verified the resulting receipt. It also exercised the full
+existing native project upload/replay/artifact/parent-review path. The unchanged
+worker image was run locally without external networking or credentials.
+
+The local Docker recipe needs `exec` on its private `/tmp` mount for direct project
+script execution; `nosuid,nodev`, nonroot children, socket denial and resource caps
+remain required. See the [worker acceptance recipe](../../packages/job-worker/README.md).
+Registered-host mount/live acceptance remains a review item. Large dataset/checkpoint
+transfer, general Local checks, aggregate host/cloud accounting and enabled GPU
+runtime/device/network/volume contracts remain development tasks.

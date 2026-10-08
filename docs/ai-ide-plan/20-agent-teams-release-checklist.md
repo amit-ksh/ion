@@ -417,3 +417,15 @@ Live native account acceptance and broader remote/GPU development remain open.
   [the project review checklist](23-remote-command-gpu-jobs.md#2026-10-08--project-snapshot-command-execution).
 - [ ] Large returned files/datasets, dependency/network access, local general checks,
   aggregate host/cloud billing controls and full GPU training remain development.
+
+
+## 2026-10-08: executable project archive acceptance
+
+- [x] Windows tracked executable permissions, Unix current permissions, exact
+  archive hash and rejection of unsafe/conflicted Git index entries.
+- [x] Permission-only source changes reject original successful command receipts
+  at result submission and parent acceptance.
+- [x] Actual Windows-generated archive executes a script with the installed Linux
+  worker; native owner receipt and full upload/replay/artifact/review acceptance.
+- [ ] Verify the registered host's executable private workspace mount and run a
+  real approved project command when the Nebius target is available.

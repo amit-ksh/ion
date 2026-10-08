@@ -2353,3 +2353,22 @@ aggregate cloud accounting and GPU runtime/device/network/volume contracts remai
 in the plan. Live native account and Nebius resource acceptance is tracked
 separately. The historical estimate is not a percentage for the reduced scope,
 measured coverage or full Ion release readiness.
+
+
+## 2026-10-08: executable remote project snapshot checkpoint
+
+- Windows archives preserve tracked Git executable modes; Unix retains current
+  filesystem permissions. Untracked Windows files stay non-executable.
+- Tracked links, submodules and unresolved index entries reject before transfer.
+  A permission-only edit changes the original archive hash and rejects stale
+  success evidence at both result submission and parent review.
+- Actual Windows owner export ran an executable script with the installed Linux
+  worker; the owner validated the original request, archive identity and receipt.
+  The existing full project upload/replay/artifact/review acceptance also passed.
+
+Verification: **19 job/snapshot regressions**, **17 command-check regressions**,
+**14 native Linux CLI groups**, **two native owner acceptance checks** passed.
+The test fixture's tracked-link setup needed Git's explicit `--add`; the local
+Docker mount needed `exec` to run approved project scripts. No provider key,
+cloud provision, adapter addition or visual test was involved. Broader remote/GPU
+and other release checklist features remain open.

@@ -14,6 +14,7 @@ import uuid
 BINARY = "/usr/local/bin/ion-job-worker"
 EXPORTED = None
 EXPORTED_PROJECT = None
+EXPORTED_HOST_PROJECT = None
 DEFAULT_LIMITS = {'version':1,'cpu_seconds':5,'address_space_bytes':256*1024*1024,
                   'max_file_bytes':16*1024*1024,'processes':256,'open_files':64}
 
@@ -106,6 +107,26 @@ os.execve(sys.argv[2],sys.argv[2:],dict(os.environ))
         self.assertEqual(base64.b64decode(receipt['outputs'][0]['content_base64']),digest.encode())
         self.assertFalse(receipt['output_errors'])
         EXPORTED_PROJECT=(value,receipt,data)
+
+    @unittest.skipUnless(os.environ.get('ION_HOST_EXECUTABLE_FIXTURE'), 'Optional actual owner-generated Git archive')
+    def test_owner_git_executable_archive_runs_on_installed_linux_worker(self):
+        global EXPORTED_HOST_PROJECT
+        source=Path(os.environ['ION_HOST_EXECUTABLE_FIXTURE'])
+        data=(source/'project.ion').read_bytes()
+        value=json.loads((source/'request.json').read_bytes())
+        facts=value['project_snapshot']
+        self.assertEqual(hashlib.sha256(data).hexdigest(),facts['sha256'])
+        length=int.from_bytes(data[8:12],'big')
+        index=json.loads(data[12:12+length])
+        self.assertTrue(next(e for e in index if e['path']=='bin/check')['executable'])
+        self.assertFalse(next(e for e in index if e['path']=='launcher.py')['executable'])
+        receipt=self.invoke_project(value,data)
+        self.assertEqual(receipt['exit_code'],0,receipt['stderr'])
+        self.assertEqual(receipt['project_sha256'],facts['sha256'])
+        self.assertFalse(receipt['timed_out'] or receipt['canceled'] or receipt['output_errors'])
+        self.assertIn(b'Executable snapshot passed',base64.b64decode(receipt['stdout']['content_base64']))
+        self.assertFalse(Path('/ion/job-project.ion').exists())
+        EXPORTED_HOST_PROJECT=(value,receipt)
 
     def test_project_archive_tampering_and_unsafe_paths_never_execute(self):
         script="raise AssertionError('Invalid project reached child')"
@@ -334,6 +355,10 @@ def main():
         with (root/'project.ion').open('xb') as target: target.write(EXPORTED_PROJECT[2])
         for name,data in [('project-request.json',EXPORTED_PROJECT[0]),('project-receipt.json',EXPORTED_PROJECT[1])]:
             with (root/name).open('x',encoding='utf-8') as target: json.dump(data,target,separators=(',',':'))
+        if os.environ.get('ION_HOST_EXECUTABLE_FIXTURE'):
+            if EXPORTED_HOST_PROJECT is None: raise ValueError('Owner executable acceptance fixture missing')
+            for name,value in [('host-executable-request.json',EXPORTED_HOST_PROJECT[0]),('host-executable-receipt.json',EXPORTED_HOST_PROJECT[1])]:
+                with (root/name).open('x',encoding='utf-8') as target: json.dump(value,target,separators=(',',':'))
         for name, data in [('request.json',EXPORTED[0]),('receipt.json',EXPORTED[1]),('manifest.json',json.loads(Path('/ion/job-host.json').read_bytes()))]:
             with (root/name).open('x',encoding='utf-8') as target:
                 json.dump(data,target,separators=(',',':'))
