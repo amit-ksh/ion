@@ -314,7 +314,7 @@ impl crate::control::ControlStore {
             // A resumed/copied native message retains its first owner task and time.
             return Ok(());
         }
-        tx.execute("INSERT INTO ion_usage_ledger(kind,source_id,project_id,task_id,provider,model,environment,host,started_at,updated_at,status,input_tokens,output_tokens) VALUES('soloModelCall',?,?,?,?,?,'local','local',?,?,'reported',?,?)", params![receipt.source_id.to_string(), receipt.project_id.to_string(), receipt.task_id.to_string(), provider, receipt.model, now, now, receipt.usage.input_tokens, receipt.usage.output_tokens])?;
+        tx.execute("INSERT INTO ion_usage_ledger(kind,source_id,project_id,task_id,provider,model,environment,host,observed_at,updated_at,status,input_tokens,output_tokens) VALUES('soloModelCall',?,?,?,?,?,'local','local',?,?,'reported',?,?)", params![receipt.source_id.to_string(), receipt.project_id.to_string(), receipt.task_id.to_string(), provider, receipt.model, now, now, receipt.usage.input_tokens, receipt.usage.output_tokens])?;
         tx.commit()?;
         Ok(())
     }

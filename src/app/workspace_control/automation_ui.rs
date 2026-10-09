@@ -348,7 +348,11 @@ impl Waku {
                             .map(|(id, hash)| format!("\nDocument {id} · SHA-256 {hash}"))
                             .unwrap_or_default()
                     ),
-                    workflow_ui::transition_label(&stage.transition),
+                    format!(
+                        "{} · {}",
+                        workflow_ui::transition_label(&stage.transition),
+                        workflow_ui::retry_label(stage.retry)
+                    ),
                     stage
                         .route
                         .as_ref()

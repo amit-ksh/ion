@@ -2,6 +2,7 @@
 //! durable; a scheduler tick never creates a second team or replays effects.
 use super::*;
 use serde::{Deserialize, Serialize};
+mod retries;
 #[path = "automation_routing.rs"]
 mod routing;
 
@@ -20,6 +21,8 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_automation_ticks (id TEXT PRIMARY KEY,tick INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS ion_automation_tick_order ON ion_automation_ticks(tick);
         CREATE TABLE IF NOT EXISTS ion_automation_pending_stops (id TEXT PRIMARY KEY);
+        CREATE TABLE IF NOT EXISTS ion_automation_retry_waits (
+            work_id TEXT PRIMARY KEY,attempt_id TEXT NOT NULL,retry_at INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_routine_fires (
             routine_id TEXT NOT NULL,scheduled_at INTEGER NOT NULL,run_id TEXT NOT NULL UNIQUE,
             PRIMARY KEY(routine_id,scheduled_at));")?;
@@ -97,6 +100,7 @@ fn target(definitions: &ControlSnapshot, definition_id: Uuid) -> Result<(Workflo
                         prompt: r.instructions.clone(),
                         limits: None,
                         stages: vec![WorkflowStage {
+                            retry: None,
                             title: r.name.clone(),
                             instructions: r.instructions.clone(),
                             requires_decision: false,
@@ -290,6 +294,7 @@ fn create(
         .stages
         .iter()
         .map(|s| AutomationStage {
+            retry: s.retry,
             route: None,
             skipped: false,
             transition: s.transition.clone(),
@@ -424,6 +429,30 @@ fn advance(tx: &Transaction<'_>, run: &mut AutomationRun, now: u64) -> Result<()
                 "Stage team stopped; review the original task before starting another workflow"
                     .into(),
             );
+            return Ok(());
+        } else if team
+            .work
+            .iter()
+            .any(|w| w.status == AssignmentStatus::Failed)
+            && !team.work.iter().any(|w| {
+                matches!(
+                    w.status,
+                    AssignmentStatus::Blocked | AssignmentStatus::Uncertain
+                )
+            })
+        {
+            ensure!(
+                run.stages[current].retry == pinned.workflow.stages[current].retry,
+                "Pinned retry policy changed"
+            );
+            if let Some(reason) = retries::advance(tx, &team, run.stages[current].retry, now)? {
+                run.status = AutomationStatus::Running;
+                run.reason = Some(reason);
+                return Ok(());
+            }
+            run.status = AutomationStatus::Blocked;
+            run.reason =
+                Some("Stage requires attention; retries are disabled, unsafe or exhausted".into());
             return Ok(());
         } else if team.work.iter().any(|w| {
             matches!(

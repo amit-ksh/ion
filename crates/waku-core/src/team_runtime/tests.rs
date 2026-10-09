@@ -1052,6 +1052,7 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
         }),
         stages: vec![
             WorkflowStage {
+                retry: None,
                 title: "Prepare".into(),
                 instructions: "Create reviewed preparation evidence".into(),
                 requires_decision: false,
@@ -1060,6 +1061,7 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
                 transition: WorkflowTransition::default(),
             },
             WorkflowStage {
+                retry: None,
                 title: "Release review".into(),
                 instructions: "Review the prior report inputs and create a final document".into(),
                 requires_decision: true,

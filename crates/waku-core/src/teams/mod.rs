@@ -1415,35 +1415,7 @@ impl TeamCoordinator {
             run.revision == expected_revision,
             "Run changed; refresh before retry"
         );
-        let mut work = run
-            .work
-            .iter()
-            .find(|w| w.id == work_id)
-            .context("Assignment missing")?
-            .clone();
-        let safe: bool = tx.query_row(
-            "SELECT retry_safe FROM ion_team_work WHERE id=?",
-            [work_id.to_string()],
-            |r| r.get(0),
-        )?;
-        ensure!(
-            work.status == AssignmentStatus::Failed
-                && safe
-                && work.attempts.len() < usize::from(run.limits.max_attempts),
-            "Only confirmed failures before effects may be retried within the attempt limit"
-        );
-        work.status = AssignmentStatus::Queued;
-        work.reason = None;
-        save_work(&tx, &work, false)?;
-        bump(&tx, run_id)?;
-        audit(
-            &tx,
-            run_id,
-            Some(work_id),
-            "retry_queued",
-            "Confirmed safe retry",
-            now,
-        )?;
+        retry_in_transaction(&tx, &run, work_id, now)?;
         tx.commit()?;
         self.snapshot(run_id)
     }
@@ -1510,6 +1482,46 @@ impl TeamCoordinator {
         self.snapshot(run_id)
     }
 }
+/// Shared queue mutation; callers retain the same run, assignment, limits and grants.
+fn retry_in_transaction(
+    tx: &Transaction<'_>,
+    run: &TeamRunSnapshot,
+    work_id: Uuid,
+    now: u64,
+) -> Result<()> {
+    active(run, now)?;
+    let mut work = run
+        .work
+        .iter()
+        .find(|w| w.id == work_id)
+        .context("Assignment missing")?
+        .clone();
+    let safe: bool = tx.query_row(
+        "SELECT retry_safe FROM ion_team_work WHERE id=?",
+        [work_id.to_string()],
+        |r| r.get(0),
+    )?;
+    ensure!(
+        work.status == AssignmentStatus::Failed
+            && safe
+            && work.attempts.len() < usize::from(run.limits.max_attempts),
+        "Only confirmed failures before effects may be retried within the attempt limit"
+    );
+    work.status = AssignmentStatus::Queued;
+    work.reason = None;
+    save_work(tx, &work, false)?;
+    bump(tx, run.id)?;
+    audit(
+        tx,
+        run.id,
+        Some(work_id),
+        "retry_queued",
+        "Confirmed safe retry",
+        now,
+    )?;
+    Ok(())
+}
+
 // Adding a defaulted run limit must not invalidate an exact durable invocation
 // saved by protocol 13. Normalize only this documented default; all identities,
 // access and requested limits still compare exactly.

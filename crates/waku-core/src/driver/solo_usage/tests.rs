@@ -200,7 +200,8 @@ fn native_owner_rejects_changed_receipt_and_concurrent_replay_is_atomic() {
     changed.model = Some("edited-model".into());
     assert!(store.record_native_solo_usage(&changed, 100).is_err());
     assert_eq!(f.page().revision, initial.revision);
-    assert_eq!(f.page().entries[0].started_at, Some(1));
+    assert_eq!(f.page().entries[0].started_at, None);
+    assert_eq!(f.page().entries[0].observed_at, 1);
 }
 #[test]
 fn codex_invalid_subtotals_and_unbounded_ids_cannot_publish_receipts() {
@@ -229,4 +230,28 @@ fn codex_invalid_subtotals_and_unbounded_ids_cannot_publish_receipts() {
         identity(&["claude-message-v1", "thread", "turn"]),
         identity(&["codex-call-v1", "thread", "turn"])
     );
+}
+
+#[test]
+fn codex_real_calls_after_context_fill_are_distinct_without_rewriting_normal_receipts() {
+    let f = Fixture::new();
+    let mut reader = f.reader();
+    reader.observe_codex(&start("turn"), Some("thread"));
+    let first = codex(10, 10, "turn");
+    reader.observe_codex(&first, Some("thread"));
+    let mut after_fill = first.clone();
+    after_fill["params"]["tokenUsage"]["total"]["totalTokens"] = json!(200015);
+    reader.observe_codex(&after_fill, Some("thread"));
+    let page = f.page();
+    assert_eq!(page.summary.model_calls, 2);
+    assert_eq!(page.summary.input_tokens, 20);
+    assert_eq!(page.summary.output_tokens, 10);
+    reader.observe_codex(&after_fill, Some("thread"));
+    assert_eq!(f.page().revision, page.revision);
+    drop(reader);
+    let mut resumed = f.reader();
+    resumed.observe_codex(&start("turn"), Some("thread"));
+    resumed.observe_codex(&first, Some("thread"));
+    resumed.observe_codex(&after_fill, Some("thread"));
+    assert_eq!(f.page().revision, page.revision);
 }

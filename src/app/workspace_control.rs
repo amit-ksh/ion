@@ -139,6 +139,7 @@ pub(super) struct ControlUi {
         Option<Uuid>,
         Vec<String>,
         workflow_ui::TransitionUi,
+        Option<WorkflowRetryPolicy>,
     )>,
     pending_stages: Option<Vec<WorkflowStage>>,
     routine_team: Option<Uuid>,
@@ -1105,6 +1106,7 @@ impl Waku {
             None,
             vec![],
             workflow_ui::TransitionUi::new(WorkflowTransition::Next, window, cx),
+            None,
         ));
         cx.notify();
     }
@@ -1845,6 +1847,7 @@ impl Waku {
             for stage in stages {
                 let team_id = stage.team_id;
                 let formats = stage.required_formats;
+                let retry = stage.retry;
                 let transition = workflow_ui::TransitionUi::new(stage.transition, window, cx);
                 self.add_control_stage(
                     stage.title,
@@ -1857,6 +1860,7 @@ impl Waku {
                     stage.3 = team_id;
                     stage.4 = formats;
                     stage.5 = transition;
+                    stage.6 = retry;
                 }
             }
         }
@@ -3004,7 +3008,7 @@ impl Waku {
                 },
             ));
             form = form.child(self.render_team_limit_inputs(cx));
-            for (i, (title, instructions, gate, _team, _formats, _transition)) in
+            for (i, (title, instructions, gate, _team, _formats, _transition, _retry)) in
                 self.control_ui.stages.iter().enumerate()
             {
                 let gate = *gate;
@@ -3015,6 +3019,7 @@ impl Waku {
                         .gap(px(8.0))
                         .child(self.render_stage_team(i, cx))
                         .child(self.render_stage_documents(i, cx))
+                        .child(self.render_workflow_retry(i, cx))
                         .child(self.render_workflow_route(i, cx))
                         .child(control_field(
                             "Stage",

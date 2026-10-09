@@ -1,7 +1,7 @@
 # Workflow and routine execution
 
-Updated 2026-10-08. Development is on `codex/ion-agent-teams`; integration into
-`ion-prod` and live acceptance remain separate. Protocol **33** requires matching
+Updated 2026-10-09. Development is on `codex/ion-agent-teams`; integration into
+`ion-prod` and live acceptance remain separate. Protocol **36** requires matching
 desktop, daemon and clients.
 
 ## Available behavior
@@ -89,10 +89,9 @@ desktop, daemon and clients.
 
 ## Remaining development
 
-Bounded stage retries, binary document publication, safe code
-integration across stages, additional app binding controls, complete historical/mobile notification delivery
-and phone definition editing remain subsequent increments. Additional Teams
-harnesses and a registered remote execution host are tracked in
+Binary document publication, safe code
+integration across stages, additional app binding controls, background notification delivery
+and phone definition editing remain subsequent increments. Broader remote execution and registered-owner integrations are tracked in
 [the release checklist](20-agent-teams-release-checklist.md). Executed test receipts
 and monetary caps are still required. Presence of this workflow runner does not
 claim those capabilities or a finished Ion release.
@@ -238,7 +237,8 @@ Graphs are bounded to 24 stages, forward only and rooted at stage one. Every
 stage must be reachable by at least one possible path. Cycles, missing/backward
 links, invalid pointers and non-scalar conditions reject before saving. Multiple
 paths can join at a later stage. This runner follows one path at a time; parallel
-fan-out, loops and automatic stage retries are separate work.
+fan-out and loops remain separate work. Optional retries before effects were
+added in the 2026-10-09 checkpoint below.
 
 The branch stage must publish the exact named JSON document and reference its
 artifact ID in its accepted result. JSON becomes an implicit required format.
@@ -261,7 +261,7 @@ all earlier visited stages. A branch cannot reset the budget, grants or deadline
 Move up/down remaps links to preserve stage identity and rejects a move that would
 create an invalid graph. Change incoming links before removing a linked stage.
 Desktop and phone run details show the pinned rule, chosen destination, matched
-result and skipped stages. Matching protocol **35** clients are required.
+result and skipped stages. Matching protocol **36** clients are required.
 
 ### Your branch review
 
@@ -285,3 +285,56 @@ result and skipped stages. Matching protocol **35** clients are required.
   actual prior usage still constrains the selected path and final team.
 - [ ] Verify keyboard menus, labels in both themes and the actual mobile build.
   Live generation/provider/device/visual acceptance remains your later review.
+
+## Optional bounded retries (2026-10-09)
+
+Each desktop stage has a **Retries: off** menu. Choose one or two retries before
+effects, with a 30-second delay. The owner supports at most three attempts and
+a validated 1–300 second delay; stricter pinned team/workflow attempt limits still
+apply. Older saved workflows and runs keep retries off. Phone definition/run
+details show the original pinned policy; definitions edited during a run affect
+future runs only.
+
+Retry requeues the original assignment in its existing team and task. It keeps
+its harness, model, environment, access, human stage approval, output contract,
+original deadline and all call/token usage. The owner persists the failed attempt
+and wait before returning. Repeated ticks and owner restart preserve the delay
+and do not create another task or reset a budget. A new claim fences the old lease.
+All attempts remain in task history, and usage is deducted before a later stage
+can dispatch.
+
+Only a confirmed failure before effects is eligible. Blocked/uncertain outcomes,
+prior file/app/command/GPU effects, child delegation, unknown native remote hosts,
+unmetered/excess usage, exhausted attempts/budgets and Stop remain blocked for
+review. An automatic retry never repeats a successful or uncertain external action
+or replaces recovery of a stopped checkpoint. Missing documents or failed semantic
+checks are not reclassified as failures before effects.
+
+### Retry review additions
+
+- [ ] Confirm an old workflow and a newly created stage default to Retries: off.
+- [ ] Enable a retry, induce a confirmed harness failure before effects and restart
+  the owner during the delay. Confirm one original task/assignment is requeued once.
+- [ ] Edit the saved retry policy during that run. Confirm its pinned policy and
+  grants remain unchanged; new runs receive the edit.
+- [ ] Exhaust the attempt and call/token limits. Confirm the workflow blocks and
+  cannot create a new stage with a fresh allowance.
+- [ ] Test an uncertain host or prior file/app/command/child effect. Confirm the
+  original task requires review and the action is not replayed.
+- [ ] Stop the run during its delay. Confirm it stays canceled after restart/ticks.
+- [ ] Confirm native keyboard controls and matching phone policy display. No
+  visual or device acceptance is claimed by compilation.
+
+Code integration, parallel fan-out/loops, binary document publication, broader
+GPU/gateway/cloud speech and authoritative billing still have development remaining.
+Deferred new harness adapters remain outside scope.
+
+Retry verification: **29 workflow/calendar/branch/history regressions passed**,
+including all four new retry groups. The retry groups passed again after scoping
+child-effect lookup to the original run; SQLite EXPLAIN changed from a history
+scan to an indexed run/parent search. The existing exact manual retry/old-lease
+fence passed. Desktop, daemon and native worker compilation, generated protocol
+36 equality, shared/full phone TypeScript, Rust formatting and whitespace passed.
+Six native usage receipt regressions also passed, including post-context-fill
+Codex calls. No live provider, deployment, device/visual test or additional
+dev watcher was performed.

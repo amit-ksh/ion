@@ -10,6 +10,7 @@ fn workflow(f: &Fixture, gates: &[bool]) -> Workflow {
             .iter()
             .enumerate()
             .map(|(i, gate)| WorkflowStage {
+                retry: None,
                 title: format!("Stage {i}"),
                 instructions: "Create a report and review its evidence".into(),
                 requires_decision: *gate,
@@ -1472,3 +1473,6 @@ fn inbox_history_records_workflow_gates_decisions_artifacts_and_completion_atomi
         page.matching_count
     );
 }
+
+#[path = "automation_retry_tests.rs"]
+mod retries;

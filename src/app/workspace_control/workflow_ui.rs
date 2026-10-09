@@ -132,13 +132,24 @@ pub(super) fn transition_label(transition: &WorkflowTransition) -> String {
         ),
     }
 }
+pub(super) fn retry_label(policy: Option<WorkflowRetryPolicy>) -> String {
+    match policy {
+        None => "Retries: off".into(),
+        Some(p) => format!(
+            "Retry before effects: up to {} · {}s delay",
+            p.max_attempts.saturating_sub(1),
+            p.delay_seconds
+        ),
+    }
+}
 impl Waku {
     pub(super) fn workflow_stage_drafts(&self, cx: &App) -> Result<Vec<WorkflowStage>, String> {
         self.control_ui
             .stages
             .iter()
-            .map(|(title, instructions, gate, team, formats, route)| {
+            .map(|(title, instructions, gate, team, formats, route, retry)| {
                 Ok(WorkflowStage {
+                    retry: *retry,
                     title: title.read(cx).content().to_owned(),
                     instructions: instructions.read(cx).content().to_owned(),
                     requires_decision: *gate,
@@ -284,6 +295,46 @@ impl Waku {
                         .selected(target == selected)
                     })
                     .collect()
+            },
+        )
+        .into_any_element()
+    }
+    pub(super) fn render_workflow_retry(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+        let selected = self.control_ui.stages[index].6;
+        let weak = cx.entity().downgrade();
+        let id = SharedString::from(format!("workflow-retry-{index}"));
+        let menu = self.menu_handle(id.clone(), cx);
+        dropdown_menu(
+            self.control_button(id.clone(), retry_label(selected), cx, |_, _, _| {}),
+            id,
+            &menu,
+            MenuAlign::BelowLeft,
+            move |_| {
+                [
+                    None,
+                    Some(WorkflowRetryPolicy {
+                        max_attempts: 2,
+                        delay_seconds: 30,
+                    }),
+                    Some(WorkflowRetryPolicy {
+                        max_attempts: 3,
+                        delay_seconds: 30,
+                    }),
+                ]
+                .into_iter()
+                .map(|policy| {
+                    let weak = weak.clone();
+                    MenuItem::new(retry_label(policy), move |_, cx| {
+                        let _ = weak.update(cx, |this, cx| {
+                            if let Some(stage) = this.control_ui.stages.get_mut(index) {
+                                stage.6 = policy;
+                            }
+                            cx.notify();
+                        });
+                    })
+                    .selected(policy == selected)
+                })
+                .collect()
             },
         )
         .into_any_element()

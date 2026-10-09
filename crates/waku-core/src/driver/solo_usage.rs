@@ -136,7 +136,10 @@ impl NativeUsage {
                 let Some(last) = params.pointer("/tokenUsage/last").and_then(codex_tokens) else {
                     return;
                 };
-                let Some(total) = params.pointer("/tokenUsage/total").and_then(codex_tokens) else {
+                let Some(total) = params
+                    .pointer("/tokenUsage/total")
+                    .and_then(codex_total_tokens)
+                else {
                     return;
                 };
                 // `fill_to_context_window` emits synthetic totals with zero input
@@ -150,7 +153,20 @@ impl NativeUsage {
                 {
                     return;
                 }
-                let checkpoint = format!("{}:{}", total.input_tokens, total.output_tokens);
+                let Some(total_count) = params
+                    .pointer("/tokenUsage/total")
+                    .and_then(|v| count(v, "totalTokens"))
+                else {
+                    return;
+                };
+                let mut checkpoint = format!("{}:{}", total.input_tokens, total.output_tokens);
+                // Core's context-fill resets cumulative input/output to zero but
+                // seeds totalTokens with the context window. Preserve that offset
+                // to distinguish later real calls after the reset. Normal receipts
+                // retain their existing durable identity from the first release.
+                if total_count != total.input_tokens + total.output_tokens {
+                    checkpoint.push_str(&format!(":context:{total_count}"));
+                }
                 self.record(
                     identity(&["codex-call-v1", thread, turn, &checkpoint]),
                     ProviderKind::Codex,
@@ -186,6 +202,12 @@ fn claude_tokens(value: &Value) -> Option<ModelTokenUsage> {
     })
 }
 fn codex_tokens(value: &Value) -> Option<ModelTokenUsage> {
+    codex_counts(value, true)
+}
+fn codex_total_tokens(value: &Value) -> Option<ModelTokenUsage> {
+    codex_counts(value, false)
+}
+fn codex_counts(value: &Value, exact_total: bool) -> Option<ModelTokenUsage> {
     let input = count(value, "inputTokens")?;
     let output = count(value, "outputTokens")?;
     // Cached input and reasoning output are already included, unlike Claude's
@@ -193,7 +215,8 @@ fn codex_tokens(value: &Value) -> Option<ModelTokenUsage> {
     if count(value, "cachedInputTokens")? > input
         || optional_count(value, "cacheWriteInputTokens")? > input
         || count(value, "reasoningOutputTokens")? > output
-        || count(value, "totalTokens")? != input.checked_add(output)?
+        || count(value, "totalTokens")? < input.checked_add(output)?
+        || (exact_total && count(value, "totalTokens")? != input.checked_add(output)?)
     {
         return None;
     }

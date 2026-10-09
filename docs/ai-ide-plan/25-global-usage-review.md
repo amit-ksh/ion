@@ -1,7 +1,7 @@
 # Global usage ledger and review
 
 Implemented checkpoint: 2026-10-09, isolated `codex/ion-agent-teams` worktree,
-protocol **35**. The complete Ion release still has development remaining.
+protocol **36**. The complete Ion release still has development remaining.
 
 ## Available behavior
 
@@ -64,13 +64,14 @@ uses the existing task flow. No new harness connection is enabled by a filter.
 
 ## Native Claude and Codex receipts (2026-10-09)
 
-Normal New task execution now records validated completed-message usage from the
+Project-linked normal New task execution now records validated completed-message usage from the
 existing Claude and Codex adapters. It does not enable any deferred adapter or
 change task/team invocation. Metadata writes run on provider reader workers;
 render and the streaming event pump perform no new work. A bounded receipt cache
 avoids repeated writes while durable SQLite identities survive owner restart.
 No native session ID, provider message ID, transcript or request body is published
-in a usage row. First observation retains the original task/project/time.
+in a usage row. First observation retains the original task/project/time. Native call start time
+is unavailable, so its time filter uses the owner observation timestamp.
 
 Claude uses the upstream message ID, even when a native fork has a different
 session ID. Its uncached input, cache reads and cache creation are separate input
@@ -110,7 +111,8 @@ settlement. No live provider or visual acceptance was performed.
 - Ordinary Claude and Codex usage observed after this upgrade is now captured by
   the native reader worker in this ledger, including its phone projection. This
   does not backfill old provider history. Other existing solo harnesses still
-  need verified receipt capture. Settings → Usage / Provider history remains a
+  need verified receipt capture and projectless tasks need an explicit ledger
+  scope. Settings → Usage / Provider history remains a
   separate overlapping view; do not add its totals to ledger totals.
 - Remote Claude SDK estimates are propagated by the updated native worker's
   optional `estimated_cost_usd_micros` field. Legacy workers omit it and remain
@@ -146,7 +148,7 @@ dev watcher was performed.
 
 ## Your review checklist
 
-- [ ] Open Usage on desktop and phone connected to the same protocol 35 owner.
+- [ ] Open Usage on desktop and phone connected to the same protocol 36 owner.
   Confirm All projects/All tasks defaults and corresponding records/totals.
 - [ ] Run one ordinary Nebius task and a researcher/reviewer call. Confirm separate
   request rows, actual model/token receipts, and unavailable costs when not reported.
@@ -183,3 +185,13 @@ Native usage integration verification: the five receipt tests and four existing
 ledger regressions passed. Desktop, daemon and native worker compilation passed;
 Rust formatting and whitespace checks passed. Protocol remains 35, with no shared
 wire or phone source changes in this increment. No visual/live/device test was run.
+
+### Native context-adjustment accounting follow-up
+
+Codex cumulative totals can include a synthetic context-window offset. That
+adjustment is never a model call, while later real calls retain distinct
+checkpoint identities. Normal pre-upgrade receipt identities remain unchanged.
+A sixth native regression verifies real calls after a context fill and exact
+restart replay. Native receipts retain an observation timestamp and unavailable
+call-start time rather than inventing a start time. The source behavior follows
+[Codex TokenUsageInfo](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/protocol.rs).

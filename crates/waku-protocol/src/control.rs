@@ -103,6 +103,10 @@ pub struct Workflow {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowStage {
+    /// Opt-in retries of confirmed failures before effects; old workflows keep it off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub retry: Option<WorkflowRetryPolicy>,
     pub title: String,
     pub instructions: String,
     pub requires_decision: bool,
@@ -114,6 +118,21 @@ pub struct WorkflowStage {
     pub required_formats: Vec<String>,
     #[serde(default, skip_serializing_if = "WorkflowTransition::is_default")]
     pub transition: WorkflowTransition,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowRetryPolicy {
+    /// Includes the initial assignment attempt; stricter team/workflow caps apply.
+    pub max_attempts: u8,
+    pub delay_seconds: u16,
+}
+impl WorkflowRetryPolicy {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if !(2..=3).contains(&self.max_attempts) || !(1..=300).contains(&self.delay_seconds) {
+            return Err("Stage retries allow 2–3 attempts with a 1–300 second delay");
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
@@ -175,6 +194,9 @@ impl Workflow {
         reachable[0] = true;
         for (index, stage) in self.stages.iter().enumerate() {
             stage.document_contract()?;
+            if let Some(retry) = stage.retry {
+                retry.validate()?;
+            }
             if let WorkflowTransition::DocumentCondition {
                 document,
                 pointer,
@@ -478,6 +500,9 @@ pub enum AutomationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationStage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub retry: Option<WorkflowRetryPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub route: Option<AutomationRoute>,

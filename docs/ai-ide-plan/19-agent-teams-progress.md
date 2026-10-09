@@ -2574,3 +2574,24 @@ Native usage integration verification: the five receipt tests and four existing
 ledger regressions passed. Desktop, daemon and native worker compilation passed;
 Rust formatting and whitespace checks passed. Protocol remains 35, with no shared
 wire or phone source changes in this increment. No visual/live/device test was run.
+
+## 2026-10-09: optional workflow retry implementation
+
+The desktop stage editor and pinned native/phone details now expose an optional
+retry policy, with legacy/default off. Durable owner waits preserve the chosen
+delay across restart. Retry uses the same stage team/assignment/task and existing
+bounded queue mutation, retaining harness/model/environment/grants, deadline and
+all usage. Automatic recovery requires a confirmed failure before effects and
+rejects unknown hosts, prior file/app/command/GPU/child effects and exhausted
+attempt/call/token limits. Stop remains authoritative.
+
+Protocol is now **36**; desktop, daemon, worker and phone clients must match.
+See [retry behavior and user review](21-workflows-routines.md#optional-bounded-retries-2026-10-09).
+Verification: 29 workflow regressions, six native usage receipts and the existing
+exact retry fence passed. The four retry groups passed after the indexed query
+correction. Desktop/daemon/worker, generated protocol 36 equality and shared/full
+phone TypeScript passed. No visual/device/live/deployment or new watcher was used.
+The full goal remains active;
+code integration, other existing solo-harness usage receipts, billing, broader
+remote/GPU, registered-owner/gateway and cloud speech still need implementation.
+Deferred new harness adapters remain outside scope.

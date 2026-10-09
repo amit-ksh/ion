@@ -1,6 +1,6 @@
 # Agent Teams release checklist
 
-Updated 2026-10-08. Implementation branch: `codex/ion-agent-teams` in the managed
+Updated 2026-10-09. Implementation branch: `codex/ion-agent-teams` in the managed
 worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
@@ -116,17 +116,22 @@ assert live account acceptance, visual validation or production release readines
 - [x] Persistent current-notification Inbox read/acknowledge/archive/restore state
   and desktop task notification policy, with independent owner revision and
   concurrency/restart/capacity checks.
-- [ ] Complete owner notification history, global unread badge and phone Inbox UI.
+- [x] Durable owner notification history and phone Inbox with source decision/proposal
+  review, scope fences and full filtered counts.
+- [ ] Broader background notification delivery and live phone review.
 - [x] Artifact content hashes and original task/team producer metadata, bounded
   verified read/export/report/review/handoff and agent-only client publication.
-- [ ] Embedded artifact previews/additional interpretation and global usage ledger.
+- [ ] Embedded artifact previews/additional interpretation.
+- [x] Durable global usage ledger, desktop/phone filtered projections, existing Teams
+  and ordinary Nebius/Claude/Codex receipts with unknown costs preserved.
+- [ ] Other existing solo-harness receipts and authoritative provider/cloud billing.
 - [ ] Registered-owner portfolio/gateway projection and remote workflow controls.
 - [ ] Cloud speech live partial streaming and deployment/device acceptance.
 
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
-Stage retries, binary document publication and
-code integration across stages remain development work. Full release completion
+Opt-in confirmed-failure stage retries are implemented. Binary document publication
+and code integration across stages remain development work. Full release completion
 also requires the unchecked execution and accounting items above.
 
 ## Your live review when resources are available
@@ -508,3 +513,18 @@ adapters remain deferred by user instruction.
 - [ ] Complete the native usage review in [the usage checklist](25-global-usage-review.md).
 - [ ] Add verified receipt capture for the other existing solo harnesses and actual
   billing reconciliation. Deferred new adapters stay out of scope.
+
+### Optional workflow retry checkpoint — 2026-10-09
+
+- [x] Complete verification of opt-in bounded stage retries and original
+  task/grants/usage preservation through delayed owner restart.
+- [ ] Review [stage retries](21-workflows-routines.md#retry-review-additions) on
+  matching protocol 36 desktop/daemon/phone clients.
+- [ ] Complete remaining workflow code integration and broader integrations;
+  live account/device acceptance remains separate.
+
+Verification: 29 workflow regressions, six native receipt tests, one exact manual
+retry fence, and all four retry groups after the indexed safety-query correction
+passed. Desktop/daemon/worker compilation, generated protocol 36 equality,
+shared/full phone TypeScript, formatting and whitespace passed. No live account,
+device/visual acceptance or deployment was performed.
