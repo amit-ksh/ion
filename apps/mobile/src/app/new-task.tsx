@@ -26,6 +26,7 @@ import { ComposerContextPicker } from '@/components/composer-context-picker';
 import { useComposerLocalCommands } from '@/components/composer-command-sheets';
 import { DaemonPickerSheet } from '@/components/daemon-picker-sheet';
 import { PhoneDictationControl } from '@/components/phone-dictation-control';
+import { LiveDictationPreview } from '@/components/live-dictation-preview';
 import {
   ComposerCard,
   ComposerIconButton,
@@ -92,6 +93,7 @@ export default function NewTaskScreen() {
   const [openSheet, setOpenSheet] = useState<SheetKind | null>(null);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speechPreview, setSpeechPreview] = useState<string | null>(null);
   const installedProviders = useMemo(
     () => catalog.providers.filter((item) => item.installed).map((item) => item.id),
     [catalog.providers],
@@ -443,6 +445,7 @@ export default function NewTaskScreen() {
             <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
           </View>
         )}
+        <LiveDictationPreview text={speechPreview} />
         <ComposerCard
           {...contextPicker.inputProps}
           accessibilityLabel="Task prompt"
@@ -465,6 +468,7 @@ export default function NewTaskScreen() {
             <>
               <PhoneDictationControl
                 client={daemon.client}
+                onPreview={setSpeechPreview}
                 contextKey={`new-task:${projectId ?? ''}:${provider ?? ''}`}
                 host={daemon.activeProfile?.name ?? 'the selected daemon'}
                 disabled={submitting || daemon.phase !== 'connected'}

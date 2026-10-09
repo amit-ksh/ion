@@ -2933,23 +2933,31 @@ impl Waku {
                             .child(self.speech_feedback.clone().unwrap_or_default()),
                     )
                 })
-                .when((self.speech_transcript.is_some() || self.speech_partial.is_some())
-                    && self.speech_session_owner == self.state.selected_session, |card| {
-                    card.child(
-                        div()
-                            .id("composer-dictation-preview")
-                            .mx(px(12.0))
-                            .mt(px(5.0))
-                            .max_h(px(100.0))
-                            .overflow_y_scroll()
-                            .p(px(8.0))
-                            .rounded(px(7.0))
-                            .bg(theme.inset)
-                            .text_size(sp(12.0))
-                            .text_color(theme.text)
-                            .child(self.speech_transcript.clone().or(self.speech_partial.clone()).unwrap_or_default()),
-                    )
-                })
+                .when(
+                    (self.speech_transcript.is_some() || self.speech_partial.is_some())
+                        && self.speech_session_owner == self.state.selected_session,
+                    |card| {
+                        card.child(
+                            div()
+                                .id("composer-dictation-preview")
+                                .mx(px(12.0))
+                                .mt(px(5.0))
+                                .max_h(px(100.0))
+                                .overflow_y_scroll()
+                                .p(px(8.0))
+                                .rounded(px(7.0))
+                                .bg(theme.inset)
+                                .text_size(sp(12.0))
+                                .text_color(theme.text)
+                                .child(
+                                    self.speech_transcript
+                                        .clone()
+                                        .or(self.speech_partial.clone())
+                                        .unwrap_or_default(),
+                                ),
+                        )
+                    },
+                )
                 .child(
                     div()
                         .mt(px(8.0))
@@ -2985,12 +2993,14 @@ impl Waku {
                                 .text_size(sp(11.5))
                                 .text_color(theme.text)
                                 .tooltip(Tooltip::text(if self.speech_recording {
-                                    "Stop and transcribe local recording"
+                                    "Stop recording and finalize transcript"
                                 } else {
-                                    "Record locally with Nemotron 3.5; first use downloads about 742 MB"
+                                    "Use your configured speech service, or local Nemotron 3.5"
                                 }))
                                 .child(if self.speech_recording {
                                     "Stop dictation"
+                                } else if self.speech_busy && self.speech_stop_tx.is_some() {
+                                    "Finalizing…"
                                 } else if self.speech_busy {
                                     "Preparing speech…"
                                 } else {
@@ -3008,7 +3018,7 @@ impl Waku {
                                     }
                                 })),
                         )
-                        .when(self.speech_recording, |row| {
+                        .when(self.speech_stop_tx.is_some(), |row| {
                             row.child(
                                 div()
                                     .id("composer-cancel-dictation")
@@ -3042,41 +3052,44 @@ impl Waku {
                                     )),
                             )
                         })
-                        .when(self.speech_transcript.is_some()
-                            && self.speech_session_owner == self.state.selected_session, |row| {
-                            row.child(
-                                div()
-                                    .id("composer-insert-dictation")
-                                    .tab_group()
-                                    .tab_index(0)
-                                    .tab_stop(true)
-                                    .focus_visible(|style| style.border_color(theme.accent))
-                                    .min_h(px(28.0))
-                                    .px(px(8.0))
-                                    .rounded(px(7.0))
-                                    .text_size(sp(11.5))
-                                    .text_color(theme.text)
-                                    .flex()
-                                    .items_center()
-                                    .child("Insert dictation")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.insert_speech_transcript(window, cx)
-                                    }))
-                                    .on_key_down(cx.listener(
-                                        |this, event: &KeyDownEvent, window, cx| {
-                                            if !event.keystroke.modifiers.modified()
-                                                && matches!(
-                                                    event.keystroke.key.as_str(),
-                                                    "enter" | "space"
-                                                )
-                                            {
-                                                this.insert_speech_transcript(window, cx);
-                                                cx.stop_propagation();
-                                            }
-                                        },
-                                    )),
-                            )
-                        })
+                        .when(
+                            self.speech_transcript.is_some()
+                                && self.speech_session_owner == self.state.selected_session,
+                            |row| {
+                                row.child(
+                                    div()
+                                        .id("composer-insert-dictation")
+                                        .tab_group()
+                                        .tab_index(0)
+                                        .tab_stop(true)
+                                        .focus_visible(|style| style.border_color(theme.accent))
+                                        .min_h(px(28.0))
+                                        .px(px(8.0))
+                                        .rounded(px(7.0))
+                                        .text_size(sp(11.5))
+                                        .text_color(theme.text)
+                                        .flex()
+                                        .items_center()
+                                        .child("Insert dictation")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.insert_speech_transcript(window, cx)
+                                        }))
+                                        .on_key_down(cx.listener(
+                                            |this, event: &KeyDownEvent, window, cx| {
+                                                if !event.keystroke.modifiers.modified()
+                                                    && matches!(
+                                                        event.keystroke.key.as_str(),
+                                                        "enter" | "space"
+                                                    )
+                                                {
+                                                    this.insert_speech_transcript(window, cx);
+                                                    cx.stop_propagation();
+                                                }
+                                            },
+                                        )),
+                                )
+                            },
+                        )
                         .child(div().flex_1())
                         .child(match submit_action {
                             ComposerSubmitAction::Preparing => div()

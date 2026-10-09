@@ -1,14 +1,8 @@
 import { fetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
 export const SPEECH_MODEL = 'nvidia/nemotron-3.5-asr-streaming-0.6b';
-export type SpeechEndpoint = { baseUrl: string; token: string };
-export function speechUrl(value: string): string {
-  const url = new URL(value.trim());
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
-    throw new Error('Use an HTTPS speech service URL without a path or credentials');
-  }
-  return url.origin;
-}
+import { speechUrl, type SpeechEndpoint } from './speech-endpoint';
+export { speechUrl, type SpeechEndpoint } from './speech-endpoint';
 export async function testSpeechService(endpoint: SpeechEndpoint): Promise<void> {
   const response = await fetch(`${speechUrl(endpoint.baseUrl)}/v1/models`, {
     headers: { Authorization: `Bearer ${endpoint.token}` }, redirect: 'error', signal: AbortSignal.timeout(15_000),

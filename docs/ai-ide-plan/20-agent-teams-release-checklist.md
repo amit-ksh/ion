@@ -126,7 +126,10 @@ assert live account acceptance, visual validation or production release readines
   and ordinary Nebius/Claude/Codex receipts with unknown costs preserved.
 - [ ] Other existing solo-harness receipts and authoritative provider/cloud billing.
 - [ ] Registered-owner portfolio/gateway projection and remote workflow controls.
-- [ ] Cloud speech live partial streaming and deployment/device acceptance.
+- [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
+  exact final acknowledgment, cancellation and source/draft fences.
+- [ ] Cloud speech deployment, native TLS/redirect acceptance and real microphone
+  device review; see [shared speech review](26-shared-speech-streaming.md).
 
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).

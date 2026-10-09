@@ -34,6 +34,7 @@ import type { ComposerTextInputProps } from './composer-text-input.types';
 import { GlassSurface, liquidGlass } from './glass-surface';
 import { ModelTraitsSheet } from './session-option-sheets';
 import { PhoneDictationControl } from './phone-dictation-control';
+import { LiveDictationPreview } from '@/components/live-dictation-preview';
 import { MonoFont, NativeTint, Radius } from '@/constants/theme';
 import { useProviderModels, useTaskState } from '@/hooks/use-daemon-data';
 import { useComposerPicker } from '@/hooks/use-composer-picker';
@@ -194,6 +195,7 @@ export function MobileComposer({
   const [importingAttachments, setImportingAttachments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [speechPreview, setSpeechPreview] = useState<string | null>(null);
   const [traitsSheetOpen, setTraitsSheetOpen] = useState(false);
   const modelProbe = useProviderModels(session.provider);
   const providerAvailable = session.provider === 'nebius' || Boolean(session.team_assignment);
@@ -494,6 +496,7 @@ export function MobileComposer({
         </View>
       ))}
 
+      <LiveDictationPreview text={speechPreview} />
       <ComposerCard
         {...contextPicker.inputProps}
         accessibilityLabel="Message agent"
@@ -542,6 +545,7 @@ export function MobileComposer({
           <>
             <PhoneDictationControl
               client={daemon.client}
+              onPreview={setSpeechPreview}
               contextKey={session.id}
               host={daemon.activeProfile?.name ?? 'the selected daemon'}
               disabled={disconnected || submitting || !providerAvailable}

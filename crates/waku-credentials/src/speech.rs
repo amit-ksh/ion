@@ -1,6 +1,9 @@
 //! Authenticated personal speech endpoint. Call only on a worker.
 use super::*;
 use std::io::Read;
+
+mod realtime;
+pub use realtime::RealtimeSpeech;
 pub const MODEL: &str = "nvidia/nemotron-3.5-asr-streaming-0.6b";
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,6 +54,10 @@ impl SpeechService {
             "Load the Nemotron 3.5 ASR model on the speech service"
         );
         Ok(())
+    }
+    /// Open an authenticated PCM stream on a blocking worker. No redirects or retries.
+    pub fn start_live(&self, sample_rate: u32, language: &str) -> Result<RealtimeSpeech> {
+        RealtimeSpeech::connect(self, sample_rate, language)
     }
     pub fn transcribe(&self, bytes: Vec<u8>, language: &str) -> Result<String> {
         anyhow::ensure!(

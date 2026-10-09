@@ -1,9 +1,8 @@
-//! Local NeMo-Speech.cpp adapter. All calls must run on a background executor.
+//! Local and authenticated cloud NeMo-Speech.cpp adapter. All calls must run on a background executor.
 
 use std::fs::File;
-use std::io;
 use std::io::{BufWriter, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -12,9 +11,6 @@ use std::time::Duration;
 use anyhow::{Context as _, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
-use serde_json::Value;
-use tungstenite::stream::MaybeTlsStream;
-use tungstenite::{Message, WebSocket};
 use uuid::Uuid;
 
 const MAX_WAV_BYTES: u64 = 50 * 1024 * 1024;
@@ -22,17 +18,16 @@ const MAX_RECORD_SECONDS: u32 = 120;
 
 #[derive(Debug)]
 pub enum SpeechProgress {
-    Ready { live_preview: bool },
+    Ready { live_preview: bool, cloud: bool },
     Preview(String),
 }
 
 struct LiveRecognizer {
-    _child: LocalSpeechProcess,
-    socket: WebSocket<MaybeTlsStream<TcpStream>>,
-    committed: String,
-    partial: String,
-    last_preview: String,
-    completed_events: usize,
+    _child: Option<LocalSpeechProcess>,
+    session: waku_credentials::speech::RealtimeSpeech,
+    sample_rate: u32,
+    last_preview_at: std::time::Instant,
+    pending_preview: Option<String>,
 }
 
 struct LocalSpeechProcess(Child);
@@ -45,7 +40,7 @@ impl Drop for LocalSpeechProcess {
 }
 
 impl LiveRecognizer {
-    fn start(language: SpeechLanguage, sample_rate: u32) -> Result<Self> {
+    fn start_local(language: SpeechLanguage, sample_rate: u32) -> Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let port = listener.local_addr()?.port();
         drop(listener);
@@ -78,120 +73,72 @@ impl LiveRecognizer {
             }
             std::thread::sleep(Duration::from_millis(150));
         }
-        let url = format!("ws://127.0.0.1:{port}/v1/audio/transcriptions/realtime");
-        let mut request = tungstenite::client::IntoClientRequest::into_client_request(url)?;
-        request.headers_mut().insert(
-            "Authorization",
-            tungstenite::http::HeaderValue::from_str(&format!("Bearer {key}"))?,
-        );
-        let (mut socket, _) = tungstenite::client::connect_with_config(request, None, 3)
-            .context("Could not connect to the local speech preview")?;
-        if let MaybeTlsStream::Plain(stream) = socket.get_mut() {
-            stream.set_read_timeout(Some(Duration::from_millis(25)))?;
-            stream.set_write_timeout(Some(Duration::from_secs(2)))?;
-        }
-        socket.send(Message::Text(
-            serde_json::json!({
-                "type": "session.update",
-                "session": { "sample_rate": sample_rate, "language": language.code() },
-            })
-            .to_string()
-            .into(),
-        ))?;
+        let service =
+            waku_credentials::speech::SpeechService::new(format!("http://127.0.0.1:{port}/"), key)?;
         Ok(Self {
-            _child: child,
-            socket,
-            committed: String::new(),
-            partial: String::new(),
-            last_preview: String::new(),
-            completed_events: 0,
+            _child: Some(child),
+            session: service.start_live(sample_rate, language.code())?,
+            sample_rate,
+            last_preview_at: std::time::Instant::now() - Duration::from_millis(125),
+            pending_preview: None,
         })
     }
-
-    fn send_audio(&mut self, samples: &[i16], progress: &Sender<SpeechProgress>) -> Result<()> {
-        if samples.is_empty() {
-            return Ok(());
-        }
-        let mut bytes = Vec::with_capacity(samples.len() * 2);
-        for sample in samples {
-            bytes.extend_from_slice(&sample.to_le_bytes());
-        }
-        self.socket.send(Message::Binary(bytes.into()))?;
-        self.poll(progress, 3)
+    fn start_cloud(
+        service: &waku_credentials::speech::SpeechService,
+        language: SpeechLanguage,
+        sample_rate: u32,
+    ) -> Result<Self> {
+        Ok(Self {
+            _child: None,
+            session: service.start_live(sample_rate, language.code())?,
+            sample_rate,
+            last_preview_at: std::time::Instant::now() - Duration::from_millis(125),
+            pending_preview: None,
+        })
     }
-
-    fn poll(&mut self, progress: &Sender<SpeechProgress>, limit: usize) -> Result<()> {
-        for _ in 0..limit {
-            match self.socket.read() {
-                Ok(Message::Text(text)) => {
-                    let event: Value = serde_json::from_str(&text)?;
-                    match event.get("type").and_then(Value::as_str) {
-                        Some("conversation.item.input_audio_transcription.delta") => {
-                            if let Some(delta) = event.get("delta").and_then(Value::as_str) {
-                                self.partial.push_str(delta);
-                            }
-                        }
-                        Some("conversation.item.input_audio_transcription.completed") => {
-                            if let Some(transcript) =
-                                event.get("transcript").and_then(Value::as_str)
-                            {
-                                if !self.committed.is_empty() {
-                                    self.committed.push(' ');
-                                }
-                                self.committed.push_str(transcript.trim());
-                                self.partial.clear();
-                                self.completed_events += 1;
-                            }
-                        }
-                        Some("error") => bail!("Local speech preview reported an error"),
-                        _ => {}
-                    }
-                    let preview = format!("{} {}", self.committed, self.partial)
-                        .trim()
-                        .to_owned();
-                    if preview != self.last_preview
-                        && !preview.is_empty()
-                        && preview.len() <= 16_384
-                    {
-                        self.last_preview = preview.clone();
-                        let _ = progress.try_send(SpeechProgress::Preview(preview));
-                    }
-                }
-                Ok(Message::Ping(_)) => {
-                    self.socket.flush()?;
-                }
-                Ok(Message::Close(_)) => bail!("Local speech preview disconnected"),
-                Ok(_) => {}
-                Err(tungstenite::Error::Io(error))
-                    if matches!(
-                        error.kind(),
-                        io::ErrorKind::WouldBlock
-                            | io::ErrorKind::TimedOut
-                            | io::ErrorKind::Interrupted
-                    ) =>
-                {
-                    break;
-                }
-                Err(error) => return Err(error.into()),
-            }
+    fn send_audio(&mut self, samples: &[i16], progress: &Sender<SpeechProgress>) -> Result<()> {
+        for chunk in samples.chunks(self.sample_rate as usize) {
+            self.session.send_pcm(chunk)?;
+        }
+        self.poll_preview(progress)
+    }
+    fn poll_preview(&mut self, progress: &Sender<SpeechProgress>) -> Result<()> {
+        if let Some(preview) = self.session.poll()? {
+            self.pending_preview = Some(preview);
+        }
+        if self.last_preview_at.elapsed() >= Duration::from_millis(125)
+            && let Some(preview) = self.pending_preview.take()
+        {
+            let _ = progress.try_send(SpeechProgress::Preview(preview));
+            self.last_preview_at = std::time::Instant::now();
         }
         Ok(())
     }
-
-    fn finish(mut self, progress: &Sender<SpeechProgress>) -> Result<String> {
-        let previous_completions = self.completed_events;
-        self.socket.send(Message::Text(
-            r#"{"type":"input_audio_buffer.commit"}"#.into(),
-        ))?;
-        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    fn finish(
+        mut self,
+        commands: &Receiver<RecordCommand>,
+        progress: &Sender<SpeechProgress>,
+    ) -> Result<Option<String>> {
+        self.session.commit()?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
         while std::time::Instant::now() < deadline {
-            self.poll(progress, 8)?;
-            if self.completed_events > previous_completions && !self.committed.trim().is_empty() {
-                return Ok(self.committed.trim().to_owned());
+            if recording_canceled(commands) {
+                return Ok(None);
+            }
+            self.poll_preview(progress)?;
+            if let Some(transcript) = self.session.final_transcript()? {
+                return Ok(Some(transcript));
             }
         }
-        bail!("Local speech preview did not return a final transcript")
+        bail!("Speech service did not confirm a final transcript. Try a shorter recording.")
     }
+}
+
+fn recording_canceled(commands: &Receiver<RecordCommand>) -> bool {
+    matches!(
+        commands.try_recv(),
+        Ok(RecordCommand::Cancel) | Err(crossbeam_channel::TryRecvError::Disconnected)
+    )
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -244,8 +191,7 @@ pub fn runtime_version() -> Result<String> {
     Ok(version)
 }
 
-/// Transcribe an existing local WAV. The model must be pulled in advance for
-/// offline use; no audio file is sent to a cloud API by this command.
+/// Transcribe a WAV on a worker using the configured endpoint, or the local runtime.
 pub fn transcribe_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
     if !path.is_file()
         || !path
@@ -264,6 +210,10 @@ pub fn transcribe_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
     if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
         return service.transcribe(std::fs::read(path)?, language.code());
     }
+    transcribe_local_wav(path, language)
+}
+
+fn transcribe_local_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
     let output = Command::new(executable())
         .args(["--quiet", "transcribe"])
         .arg(path)
@@ -364,14 +314,7 @@ pub fn record_and_transcribe(
     language: SpeechLanguage,
     progress: Sender<SpeechProgress>,
 ) -> Result<Option<String>> {
-    let (wav, streamed) = match record_microphone(commands, language, &progress)? {
-        Some(result) => result,
-        None => return Ok(None),
-    };
-    match streamed {
-        Some(transcript) => Ok(Some(transcript)),
-        None => transcribe_wav(&wav.0, language).map(Some),
-    }
+    record_microphone(commands, language, &progress)
 }
 
 /// Called only on a blocking worker. The callback holds a small in-memory
@@ -380,7 +323,7 @@ fn record_microphone(
     commands: Receiver<RecordCommand>,
     language: SpeechLanguage,
     progress: &Sender<SpeechProgress>,
-) -> Result<Option<(TemporaryWav, Option<String>)>> {
+) -> Result<Option<String>> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
@@ -404,14 +347,16 @@ fn record_microphone(
     )));
     let stream_error = Arc::new(Mutex::new(None::<String>));
     let config = supported.config();
-    let mut live = if waku_credentials::CredentialService::global()
-        .speech_service()?
-        .is_some()
-    {
-        None
+    let service = waku_credentials::CredentialService::global().speech_service()?;
+    let cloud = service.is_some();
+    let mut live = if let Some(service) = &service {
+        Some(LiveRecognizer::start_cloud(service, language, sample_rate)?)
     } else {
-        LiveRecognizer::start(language, sample_rate).ok()
+        LiveRecognizer::start_local(language, sample_rate).ok()
     };
+    if recording_canceled(&commands) {
+        return Ok(None);
+    }
     let error_slot = stream_error.clone();
     let stream = match supported.sample_format() {
         cpal::SampleFormat::F32 => {
@@ -458,13 +403,21 @@ fn record_microphone(
         .context("Could not start the microphone. Check OS permission.")?;
     let _ = progress.try_send(SpeechProgress::Ready {
         live_preview: live.is_some(),
+        cloud,
     });
+    let deadline = std::time::Instant::now() + Duration::from_secs(u64::from(MAX_RECORD_SECONDS));
     let mut sent_samples = 0usize;
     let decision = loop {
         if let Some(error) = stream_error.lock().unwrap().take() {
             bail!("Microphone stopped: {error}");
         }
         let command = commands.recv_timeout(Duration::from_millis(100));
+        if matches!(
+            command,
+            Ok(RecordCommand::Cancel) | Err(RecvTimeoutError::Disconnected)
+        ) {
+            break RecordCommand::Cancel;
+        }
         if let Some(recognizer) = live.as_mut() {
             let fresh = {
                 let recorded = samples.lock().unwrap();
@@ -472,11 +425,18 @@ fn record_microphone(
                 sent_samples = recorded.len();
                 fresh
             };
-            if recognizer.send_audio(&fresh, progress).is_err() {
+            if let Err(error) = recognizer.send_audio(&fresh, progress) {
+                if cloud {
+                    return Err(error);
+                }
                 live = None;
+                let _ = progress.try_send(SpeechProgress::Ready {
+                    live_preview: false,
+                    cloud: false,
+                });
             }
         }
-        if samples.lock().unwrap().len() >= max_samples {
+        if samples.lock().unwrap().len() >= max_samples || std::time::Instant::now() >= deadline {
             break RecordCommand::Stop;
         }
         match command {
@@ -493,18 +453,29 @@ fn record_microphone(
     if samples.is_empty() {
         bail!("No microphone audio was captured");
     }
-    let path = std::env::temp_dir().join(format!("ion-dictation-{}.wav", Uuid::new_v4()));
-    let wav = TemporaryWav(path);
+    if recording_canceled(&commands) {
+        return Ok(None);
+    }
+    if let Some(mut recognizer) = live {
+        match recognizer.send_audio(&samples[sent_samples..], progress) {
+            Ok(()) => match recognizer.finish(&commands, progress) {
+                Ok(result) => return Ok(result),
+                Err(error) if cloud => return Err(error),
+                Err(_) => {}
+            },
+            Err(error) if cloud => return Err(error),
+            Err(_) => {}
+        }
+    }
+    if recording_canceled(&commands) {
+        return Ok(None);
+    }
+    // Offline preview can degrade to the existing local file recognizer. A configured
+    // cloud session never re-uploads audio or switches destination after a failure.
+    let wav =
+        TemporaryWav(std::env::temp_dir().join(format!("ion-dictation-{}.wav", Uuid::new_v4())));
     write_wav(&wav.0, sample_rate, &samples)?;
-    let streamed = if let Some(mut recognizer) = live {
-        recognizer
-            .send_audio(&samples[sent_samples..], progress)
-            .ok();
-        recognizer.finish(progress).ok()
-    } else {
-        None
-    };
-    Ok(Some((wav, streamed)))
+    transcribe_local_wav(&wav.0, language).map(Some)
 }
 
 fn append_mono<T: Copy>(

@@ -121,12 +121,12 @@ pub(super) fn visible_settings_pages(
 impl Waku {
     pub(super) fn toggle_speech_recording(&mut self, cx: &mut Context<Self>) {
         if self.speech_recording {
-            if let Some(stop) = self.speech_stop_tx.take() {
+            if let Some(stop) = self.speech_stop_tx.as_ref() {
                 let _ = stop.send(crate::speech::RecordCommand::Stop);
             }
             self.speech_recording = false;
             self.speech_busy = true;
-            self.speech_feedback = Some("Transcribing local microphone audio…".into());
+            self.speech_feedback = Some("Finalizing microphone transcription…".into());
             cx.notify();
             return;
         }
@@ -141,7 +141,7 @@ impl Waku {
         self.speech_partial = None;
         self.speech_draft_owner = self.selected_composer_draft_key();
         self.speech_session_owner = self.state.selected_session;
-        self.speech_feedback = Some("Preparing the local Nemotron 3.5 model…".into());
+        self.speech_feedback = Some("Preparing Nemotron 3.5 speech…".into());
         cx.notify();
         let (progress_tx, progress_rx) = crossbeam_channel::bounded(32);
         cx.spawn(async move |waku, cx| {
@@ -154,9 +154,11 @@ impl Waku {
                 let still_current = waku.update(cx, |waku, cx| {
                     if waku.speech_generation != generation { return false; }
                     match event {
-                        crate::speech::SpeechProgress::Ready { live_preview } => {
+                        crate::speech::SpeechProgress::Ready { live_preview, cloud } => {
                             if waku.speech_recording {
-                                waku.speech_feedback = Some(if live_preview {
+                                waku.speech_feedback = Some(if cloud {
+                                    "Streaming microphone audio to your speech service. Press Stop when finished.".into()
+                                } else if live_preview {
                                     "Recording locally with live transcript preview. Press Stop when finished.".into()
                                 } else {
                                     "Recording locally. Live preview unavailable; final transcription will still run.".into()
@@ -199,7 +201,7 @@ impl Waku {
                     waku.speech_busy = false;
                     waku.speech_recording = true;
                     waku.speech_stop_tx = Some(stop);
-                    waku.speech_feedback = Some("Starting the local speech recognizer…".into());
+                    waku.speech_feedback = Some("Connecting the speech recognizer…".into());
                     cx.notify();
                     true
                 })
@@ -220,6 +222,13 @@ impl Waku {
                 if waku.speech_generation != generation {
                     return;
                 }
+                // Cancel clears the sender immediately, including while finalization
+                // is in flight. A late successful result must remain discarded.
+                let result = if waku.speech_stop_tx.is_some() {
+                    result
+                } else {
+                    Ok(None)
+                };
                 waku.speech_busy = false;
                 waku.speech_recording = false;
                 waku.speech_stop_tx = None;
@@ -312,7 +321,7 @@ impl Waku {
                 match result {
                     Some(Ok(transcript)) => {
                         waku.speech_transcript = Some(transcript);
-                        waku.speech_feedback = Some("Local transcript is ready to insert.".into());
+                        waku.speech_feedback = Some("Transcript is ready to insert.".into());
                     }
                     Some(Err(error)) => waku.speech_feedback = Some(error.to_string()),
                     None => {}

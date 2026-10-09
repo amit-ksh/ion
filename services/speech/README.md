@@ -5,9 +5,10 @@ name, or access target has been supplied. These files make no cloud changes.
 
 Model: `nvidia/nemotron-3.5-asr-streaming-0.6b`. NeMo-Speech.cpp serves its
 verified indexed conversion through authenticated HTTP and WebSocket APIs.
-The desktop and phone currently use the HTTP upload path after recording
-stops. Remote live partial transcription is a separate follow-up; local
-desktop streaming preview remains available.
+Desktop and native phone microphone dictation now stream PCM audio through
+`/v1/audio/transcriptions/realtime`. Partial text is a preview; Stop waits for
+final segments and the server's commit acknowledgment. Existing WAV imports
+continue to use the HTTP upload path. Local desktop preview remains available.
 
 ## Provision and install
 
@@ -44,16 +45,30 @@ desktop streaming preview remains available.
   Enter the HTTPS root URL and service token; Save, then Test. The OS vault
   holds the credential. Deleting it restores local speech.
 - Phone: **Daemons → Cloud speech**. Enter the same URL and token; Test and
-  save. The phone stores the token in SecureStore and uploads directly to
+  save. The phone stores the token in SecureStore and streams directly to
   the service. Its selected task/daemon still determines where the resulting
   editable text belongs.
-- Both clients require an HTTPS root URL, and refuse redirects for requests
-  carrying the token. A failing configured cloud endpoint does not silently
-  switch to local speech. The desktop permits HTTP only for loopback testing.
+- Both clients require an HTTPS root URL. HTTP requests and the desktop
+  WebSocket handshake reject redirects. Native phone sockets use the platform's
+  TLS and redirect behavior; validate this with your deployed endpoint on both
+  Android and iOS. Serve the exact WebSocket path directly, without redirects.
+  Tokens are Authorization headers, never URL parameters or subprotocols.
+- A failing configured cloud stream is stopped and discarded. Ion does not
+  reconnect, replay audio, upload it again, or switch to local speech. The desktop
+  permits HTTP/WS only for loopback testing.
 
 No local NeMo install/model download is required for cloud dictation. Without
 cloud configuration, the desktop and daemon keep their existing local mode.
 Phone recordings are limited to 60 seconds; desktop recordings to 120 seconds.
+Phone task/daemon changes, app backgrounding and Cancel stop capture and discard
+pending text. Cancel also remains available during finalization. Final text is
+editable and does not automatically submit a task. Cloud capture creates no WAV
+on either client; phone offline capture still uses a temporary cache WAV.
+
+The phone requires a native build with the installed Expo Audio 57 microphone
+stream API; browser dictation is disabled. Model-inventory Test checks HTTP/model
+readiness, not successful microphone streaming. Deployments must support the
+explicit transcription WebSocket route and a trusted TLS certificate.
 
 ## Review checklist
 
@@ -61,8 +76,17 @@ Phone recordings are limited to 60 seconds; desktop recordings to 120 seconds.
 - [ ] Provision VM and verified binary; download model; replace private token.
 - [ ] Confirm service survives reboot, uses bounded workers, and 8080 is private.
 - [ ] Verify TLS, model inventory, authentication, upload limit, and timeout.
-- [ ] Test a short dictation from both desktop and phone; edit the result.
-- [ ] Test Hindi/English, silence, service outage, cancel, and switching tasks.
+- [ ] Test 1-, 10-, and 30-second clips on desktop, Android and iOS: partial preview,
+  all final words, Stop/acknowledgment, and editing before Send.
+- [ ] Verify the finalization deadline gives an error for a stalled server; no
+  partial result should be inserted as a complete transcript.
+- [ ] Verify native TLS rejection of an invalid certificate and unexpected redirects;
+  inspect only sanitized metadata, not the token or audio.
+- [ ] Test Hindi/English, silence, service outage, Cancel during preparation and
+  finalization, switching tasks/daemons, backgrounding, headset disconnect and
+  microphone permission refusal.
+- [ ] Verify no replay or destination switch after failure, and no leftover microphone
+  indicator after Cancel or app backgrounding.
 - [ ] Check resource usage and latency with two simultaneous devices.
 
 The upstream calls this server a direct integration/local serving path and

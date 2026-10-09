@@ -17,7 +17,7 @@ export default function SpeechSettings() {
   return <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
     <Stack.Screen options={{ title: 'Cloud speech' }} />
     <Text style={{ color: theme.text }}>Nemotron 3.5 ASR</Text>
-    <Text style={{ color: theme.textSecondary }}>Phone dictation connects directly to your speech service. Audio is sent after you stop recording. You can review the text before sending a task.</Text>
+    <Text style={{ color: theme.textSecondary }}>Phone dictation connects directly to your speech service. Microphone audio streams live; Stop waits for the final transcript. You can review the text before sending a task.</Text>
     <Text style={{ color: theme.text }}>Speech service URL</Text>
     <TextInput accessibilityLabel="Speech service URL" autoCapitalize="none" autoCorrect={false} keyboardType="url" value={baseUrl} onChangeText={setUrl} placeholder="https://speech.example.com" placeholderTextColor={theme.textSecondary} style={field} />
     <Text style={{ color: theme.text }}>Service token</Text>

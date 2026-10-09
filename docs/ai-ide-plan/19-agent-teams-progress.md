@@ -2595,3 +2595,36 @@ The full goal remains active;
 code integration, other existing solo-harness usage receipts, billing, broader
 remote/GPU, registered-owner/gateway and cloud speech still need implementation.
 Deferred new harness adapters remain outside scope.
+
+
+## 2026-10-09: shared desktop and phone speech streaming
+
+Configured cloud microphone sessions now use NeMo's explicit transcription WSS
+route on both clients. Native PCM is sent after format acknowledgment, partials
+stay previews, and only final segments plus the commit acknowledgment become
+editable text. No reconnect/replay/upload fallback follows a cloud failure.
+Capture, queue, event/text and finalization limits are enforced. Existing local
+speech and WAV import behavior remain available.
+
+Phone cancellation fences task/daemon changes, backgrounding, disabled composers,
+late sockets and late results. Desktop Stop retains the Cancel channel through
+finalization; canceled results stay discarded. Local preview failure cannot change
+its pinned destination because settings changed mid-capture. Network and local
+speech process work remain on the existing worker, with preview cadence capped
+at eight updates per second. Explicit per-connection crypto selection avoids
+Rustls's ambiguous global provider when the app enables both Ring and AWS-LC.
+
+See [shared speech implementation and review](26-shared-speech-streaming.md).
+Protocol remains 36. No service has been deployed, and no credentials, billable
+resources, native device acceptance or visual review are claimed. The full goal
+stays active: code integration, other existing harness usage and billing, broader
+remote/GPU and registered-owner/gateway work remain. New adapters stay deferred.
+
+
+Verification for this checkpoint: **nine Rust speech boundary tests** and
+**thirteen phone stream/WAV tests** passed. Desktop, daemon and native worker
+compilation, full phone TypeScript, Rust formatting and whitespace checks passed.
+The stream tests cover PCM/auth ordering, endpointed final text, canceled/late
+sockets, malformed/oversized responses and buffers, TLS failure and redirects.
+They use controlled local/fake transports and do not establish live service,
+OS microphone, Android/iOS TLS/redirect or visual acceptance.
