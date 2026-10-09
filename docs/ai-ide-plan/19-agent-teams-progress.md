@@ -2553,3 +2553,24 @@ provider history has overlapping scope and must not be added to its totals.
 Invoice/cloud billing reconciliation, bounded workflow retries/code integration,
 registered-owner/gateway/cloud speech and broader GPU/resource integrations remain
 implementation. The full goal stays active; new harness adapters remain deferred.
+
+## 2026-10-09: ordinary native Claude/Codex usage
+
+The existing normal-task adapters now publish validated metadata receipts into
+the owner ledger already consumed by desktop and phone Usage. Claude message
+identities survive copied native sessions; Codex observed-turn/cumulative
+checkpoints exclude historical replay and context fills. Cached/reasoning counts
+follow each provider's exact inclusion rules. Original task/project/time is
+immutable; exact replay does not change ledger revision. No transcript or native
+identifier is published, and no UI/event-pump I/O or new harness adapter was added.
+
+Five focused receipt tests passed. See [coverage and review](25-global-usage-review.md).
+Other existing solo-harness receipt capture, authoritative billing, workflow
+retries/code integration and broader GPU/gateway/cloud speech remain development.
+The full implementation goal remains active; live accounts/device review are
+separate and have not been claimed.
+
+Native usage integration verification: the five receipt tests and four existing
+ledger regressions passed. Desktop, daemon and native worker compilation passed;
+Rust formatting and whitespace checks passed. Protocol remains 35, with no shared
+wire or phone source changes in this increment. No visual/live/device test was run.

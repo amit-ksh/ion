@@ -294,6 +294,7 @@ impl ClaudeDriver {
         let reader_commands = commands.clone();
         let reader_turn = turn_active.clone();
         let reader_session = session_id.clone();
+        let mut reader_usage = workspace.as_ref().map(super::solo_usage::NativeUsage::new);
         let reader_pending_task_stops = pending_task_stops.clone();
         let reader_pending_user_inputs = pending_user_inputs.clone();
         let team_bridge = workspace
@@ -325,6 +326,9 @@ impl ClaudeDriver {
                     let Ok(value) = serde_json::from_str::<Value>(&line) else {
                         continue;
                     };
+                    if let Some(usage) = &mut reader_usage {
+                        usage.observe_claude(&value, &reader_session);
+                    }
                     if let Some(bridge) = &reader_team_bridge {
                         bridge.observe(&value);
                         if bridge.dispatch(&value) {

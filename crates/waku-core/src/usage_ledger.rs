@@ -260,6 +260,66 @@ impl crate::control::ControlStore {
     }
 }
 
+/// Native CLI receipts have stable, hashed identities. No session/transcript bytes
+/// enter the ledger, and an observed receipt cannot be attributed to a fork twice.
+pub(crate) struct NativeSoloReceipt {
+    pub source_id: Uuid,
+    pub project_id: Uuid,
+    pub task_id: Uuid,
+    pub provider: waku_protocol::model::ProviderKind,
+    pub model: Option<String>,
+    pub usage: crate::teams::ModelTokenUsage,
+}
+impl crate::control::ControlStore {
+    pub(crate) fn record_native_solo_usage(
+        &self,
+        receipt: &NativeSoloReceipt,
+        now: u64,
+    ) -> Result<()> {
+        use rusqlite::OptionalExtension;
+        use waku_protocol::model::ProviderKind;
+        ensure!(
+            matches!(receipt.provider, ProviderKind::Claude | ProviderKind::Codex),
+            "Unsupported native usage source"
+        );
+        ensure!(
+            receipt
+                .model
+                .as_ref()
+                .is_none_or(|model| !model.trim().is_empty()
+                    && model.len() <= 512
+                    && !model.chars().any(char::is_control)),
+            "Invalid usage model"
+        );
+        ensure!(
+            receipt.usage.input_tokens <= 1_000_000_000_000
+                && receipt.usage.output_tokens <= 1_000_000_000_000,
+            "Invalid native usage receipt"
+        );
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let existing: Option<(String, Option<String>, u64, u64)> = tx.query_row(
+            "SELECT provider,model,input_tokens,output_tokens FROM ion_usage_ledger WHERE kind='soloModelCall' AND source_id=?",
+            [receipt.source_id.to_string()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        ).optional()?;
+        let provider = tag(receipt.provider)?;
+        if let Some((old_provider, model, input, output)) = existing {
+            ensure!(
+                old_provider == provider
+                    && model == receipt.model
+                    && input == receipt.usage.input_tokens
+                    && output == receipt.usage.output_tokens,
+                "Native usage receipt changed"
+            );
+            // A resumed/copied native message retains its first owner task and time.
+            return Ok(());
+        }
+        tx.execute("INSERT INTO ion_usage_ledger(kind,source_id,project_id,task_id,provider,model,environment,host,started_at,updated_at,status,input_tokens,output_tokens) VALUES('soloModelCall',?,?,?,?,?,'local','local',?,?,'reported',?,?)", params![receipt.source_id.to_string(), receipt.project_id.to_string(), receipt.task_id.to_string(), provider, receipt.model, now, now, receipt.usage.input_tokens, receipt.usage.output_tokens])?;
+        tx.commit()?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn all_query() -> UsageLedgerQuery {
     UsageLedgerQuery {

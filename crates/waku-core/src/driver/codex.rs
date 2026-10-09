@@ -303,6 +303,7 @@ impl CodexDriver {
             })
             .transpose()?;
         let (commands, command_rx) = unbounded();
+        let mut reader_usage = workspace.as_ref().map(super::solo_usage::NativeUsage::new);
         let team_bridge = workspace
             .map(|context| source_teams::Bridge::start(context, commands.clone(), events.clone()))
             .transpose()?;
@@ -781,6 +782,10 @@ impl CodexDriver {
                         Ok(line) if !line.trim().is_empty() => {
                             match serde_json::from_str::<Value>(&line) {
                                 Ok(value) => {
+                                    if let Some(usage) = &mut reader_usage {
+                                        let thread = reader_thread_id.lock().clone();
+                                        usage.observe_codex(&value, thread.as_deref());
+                                    }
                                     if let Some(bridge) = &reader_team_bridge {
                                         bridge.observe(&value, reader_thread_id.lock().as_deref());
                                         if bridge.dispatch(&value) { continue; }

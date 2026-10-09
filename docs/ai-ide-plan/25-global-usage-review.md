@@ -1,6 +1,6 @@
 # Global usage ledger and review
 
-Implemented checkpoint: 2026-10-08, isolated `codex/ion-agent-teams` worktree,
+Implemented checkpoint: 2026-10-09, isolated `codex/ion-agent-teams` worktree,
 protocol **35**. The complete Ion release still has development remaining.
 
 ## Available behavior
@@ -62,12 +62,56 @@ filter requests. Only the Usage page polls. Phone polling is foreground-only and
 owner/connection/visibility fenced, with bounded FlatList pages. Opening a source
 uses the existing task flow. No new harness connection is enabled by a filter.
 
+## Native Claude and Codex receipts (2026-10-09)
+
+Normal New task execution now records validated completed-message usage from the
+existing Claude and Codex adapters. It does not enable any deferred adapter or
+change task/team invocation. Metadata writes run on provider reader workers;
+render and the streaming event pump perform no new work. A bounded receipt cache
+avoids repeated writes while durable SQLite identities survive owner restart.
+No native session ID, provider message ID, transcript or request body is published
+in a usage row. First observation retains the original task/project/time.
+
+Claude uses the upstream message ID, even when a native fork has a different
+session ID. Its uncached input, cache reads and cache creation are separate input
+counts and are added once. Content-block repeats and resumed/copied messages do
+not increment totals. Partial stream frames and cumulative SDK `result` totals
+are excluded. The actual message model is retained. Missing, malformed, negative
+or excessive token receipts are not replaced with zero; a valid zero is known.
+The wire identity and usage fields follow the
+[official Claude SDK parser](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/message_parser.py).
+
+Codex records `last` usage once per native thread/observed turn/cumulative
+input-output checkpoint. It never adds the cumulative `total` as a new call.
+Historical replay before an observed turn, unrelated threads and synthetic
+context-window fill events are excluded. Cached input and reasoning output are
+already included in input/output, so are not added twice. Recently observed turns
+are bounded and allow late receipts; durable identities suppress reconnect replay.
+The usage notification omits the actual model: these rows retain model unavailable,
+rather than presenting a configured/rerouted model as a verified receipt model.
+See the official
+[notification schema](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/typescript/v2/ThreadTokenUsageUpdatedNotification.ts),
+[token breakdown](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/typescript/v2/TokenUsageBreakdown.ts)
+and [resume replay implementation](https://github.com/openai/codex/blob/main/codex-rs/app-server/src/request_processors/token_usage_replay.rs).
+
+Native CLI usage is observed accounting, not a pre-dispatch reservation or an
+invoice. A dropped notification, old incompatible payload, receipt that cannot
+be persisted, or a call never emitted by the CLI cannot be reconstructed here.
+Costs remain unavailable for these normal CLI rows. This checkpoint does not
+claim native provider billing reconciliation or live account acceptance.
+
+Five focused tests passed for content-block repeats, restart and native forks,
+malformed/partial/zero receipts, Codex historical replay/context-fill/foreign turns,
+changed receipt rejection, privacy of stored identities and concurrent exact
+settlement. No live provider or visual acceptance was performed.
+
 ## Coverage still requiring development
 
-- Ordinary non-Nebius CLI session usage is still available through the existing
-  desktop Settings → Usage / Provider history scanner for Claude and Codex. It
-  has not been imported into this owner ledger or the phone projection. Do not
-  combine that scanner's totals with ledger totals: their scopes can overlap.
+- Ordinary Claude and Codex usage observed after this upgrade is now captured by
+  the native reader worker in this ledger, including its phone projection. This
+  does not backfill old provider history. Other existing solo harnesses still
+  need verified receipt capture. Settings → Usage / Provider history remains a
+  separate overlapping view; do not add its totals to ledger totals.
 - Remote Claude SDK estimates are propagated by the updated native worker's
   optional `estimated_cost_usd_micros` field. Legacy workers omit it and remain
   usable, with costs unavailable. Use a matching owner and rebuild/re-register
@@ -123,3 +167,19 @@ dev watcher was performed.
   refresh. Confirm stale responses cannot replace the selected owner's page.
 - [ ] Use every desktop control by keyboard and check readable text in both themes.
   No visual acceptance is claimed by compilation.
+
+### Native usage review additions
+
+- [ ] Run ordinary Claude and Codex tasks on the upgraded owner; inspect the same
+  rows on desktop and phone. Confirm configured Teams invocation is unchanged.
+- [ ] Resume and fork a Claude session. Confirm copied messages retain their first
+  task/project and only newly observed requests add usage.
+- [ ] Resume Codex, change its context window and stop a turn. Confirm historical
+  replay/context adjustments do not count as calls and late known receipts settle
+  once. Codex model and both native costs remain unavailable without exact receipts.
+- [ ] Confirm old history is separate and is not added to the owner ledger totals.
+
+Native usage integration verification: the five receipt tests and four existing
+ledger regressions passed. Desktop, daemon and native worker compilation passed;
+Rust formatting and whitespace checks passed. Protocol remains 35, with no shared
+wire or phone source changes in this increment. No visual/live/device test was run.

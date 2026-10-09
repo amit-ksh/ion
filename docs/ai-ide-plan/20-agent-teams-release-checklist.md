@@ -498,3 +498,13 @@ adapters remain deferred by user instruction.
   billing. Existing provider history has overlapping scope; do not sum both views.
 - [ ] Complete bounded retries/code integration, registered-owner/gateway/cloud
   speech and broader GPU execution/resource gates. New adapters remain out of scope.
+
+### Ordinary native usage checkpoint — 2026-10-09
+
+- [x] Capture validated normal Claude/Codex usage in the owner ledger with durable
+  replay/fork fences, separate cache rules and bounded reader-worker metadata.
+- [x] Verify malformed/partial/zero receipts, native replay/context adjustment,
+  exact concurrent settlement and original ownership across restart/fork.
+- [ ] Complete the native usage review in [the usage checklist](25-global-usage-review.md).
+- [ ] Add verified receipt capture for the other existing solo harnesses and actual
+  billing reconciliation. Deferred new adapters stay out of scope.

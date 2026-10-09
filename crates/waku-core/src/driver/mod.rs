@@ -13,6 +13,7 @@ mod opencode;
 mod opencode2;
 mod opencode2_computer_use;
 mod pi;
+mod solo_usage;
 pub(crate) mod source_teams;
 mod support;
 pub(crate) mod team_antigravity;
