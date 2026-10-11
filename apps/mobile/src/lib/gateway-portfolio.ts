@@ -1,5 +1,7 @@
 import {
   portfolioId,
+  portfolioReadGrant,
+  portfolioDirectoryGrants,
   validatePortfolioJob,
   validatePortfolioQuery,
   type PortfolioQuery,
@@ -42,17 +44,12 @@ export async function loadGatewayPortfolio(
   validatePortfolioQuery(query);
   if (!portfolioId(publisherId) || !portfolioId(nonce))
     throw new Error("Invalid history request identity");
-  const grant =
-    query.kind === "inbox"
-      ? "inboxRead"
-      : query.kind === "usage"
-        ? "usageRead"
-        : null;
+  const grant = portfolioReadGrant(query);
   if (
     grant
       ? !pairing.grants.includes(grant)
-      : !pairing.grants.some(
-          (value) => value === "inboxRead" || value === "usageRead",
+      : !pairing.grants.some((value) =>
+          portfolioDirectoryGrants.includes(value),
         )
   )
     throw new Error(

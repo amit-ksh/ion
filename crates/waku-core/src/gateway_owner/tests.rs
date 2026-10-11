@@ -583,3 +583,93 @@ fn registered_owner_portfolio_reads_real_filtered_history_and_ledger_without_sta
         super::portfolio::read(&f.engine, serde_json::json!({"kind":"stop","runId":run})).is_err()
     );
 }
+
+#[test]
+fn historical_owner_queries_page_by_creation_time_and_read_sealed_workflow_documents() {
+    use crate::teams::{AssignmentOutcome, DispatchHost};
+    use waku_protocol::teams::AssignmentResult;
+    let f = Fixture::new();
+    let now = crate::model::unix_time();
+    let revision = f.engine.control.load().unwrap().revision;
+    let newer = Uuid::from_u128(1);
+    let older = Uuid::from_u128(2);
+    f.engine
+        .teams
+        .start_automation(older, f.workflow, revision, now - 10)
+        .unwrap();
+    f.engine
+        .teams
+        .start_automation(newer, f.workflow, revision, now)
+        .unwrap();
+    let history=super::portfolio::read(&f.engine,serde_json::json!({"kind":"workflowHistory","query":{"projectId":f.project,"definitionId":null,"pendingOnly":false,"after":null,"limit":1}})).unwrap();
+    assert_eq!(history["page"]["runs"][0]["id"], newer.to_string());
+    assert_eq!(history["page"]["nextCursor"], newer.to_string());
+    let next=super::portfolio::read(&f.engine,serde_json::json!({"kind":"workflowHistory","query":{"projectId":f.project,"definitionId":f.workflow,"pendingOnly":false,"after":newer,"limit":1}})).unwrap();
+    assert_eq!(next["page"]["runs"][0]["id"], older.to_string());
+    f.engine
+        .teams
+        .tick_automations(&HashSet::from([f.project]), now)
+        .unwrap();
+    let waiting = f.engine.teams.automation_run(newer).unwrap();
+    f.engine
+        .teams
+        .resolve_automation_gate(newer, waiting.revision, 0, true, now)
+        .unwrap();
+    f.engine
+        .teams
+        .tick_automations(&HashSet::from([f.project]), now)
+        .unwrap();
+    let run = f.engine.teams.automation_run(newer).unwrap();
+    let stage = &run.stages[0];
+    f.engine
+        .teams
+        .materialize_run(
+            stage.team_run_id,
+            &f.engine.task_store,
+            &mut f.engine.tasks.lock(),
+            now,
+        )
+        .unwrap();
+    let team = f.engine.teams.snapshot(stage.team_run_id).unwrap();
+    let lease = f
+        .engine
+        .teams
+        .claim(team.id, team.work[0].id, DispatchHost::Local, now, 60)
+        .unwrap()
+        .lease;
+    let artifact = f
+        .engine
+        .teams
+        .publish_document(
+            &lease,
+            Uuid::new_v4(),
+            "report.md",
+            "md",
+            "Verified report",
+            now,
+        )
+        .unwrap();
+    f.engine
+        .teams
+        .report(
+            &lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Accepted report".into(),
+                artifact_ids: vec![artifact.id],
+                checks: vec![],
+                executed_checks: vec![],
+            }),
+            now,
+        )
+        .unwrap();
+    let page=super::portfolio::read(&f.engine,serde_json::json!({"kind":"workflowEvidence","query":{"runId":newer,"after":null,"limit":32}})).unwrap();
+    assert_eq!(page["page"]["documents"][0]["id"], artifact.id.to_string());
+    let chunk=super::portfolio::read(&f.engine,serde_json::json!({"kind":"workflowDocument","query":{"runId":newer,"artifactId":artifact.id,"sha256":artifact.evidence.unwrap().sha256,"offset":0,"limit":16384}})).unwrap();
+    assert_eq!(chunk["page"]["data"], "VmVyaWZpZWQgcmVwb3J0");
+    assert!(!page.to_string().contains("Private profile"));
+    let other = super::portfolio::read(
+        &f.engine,
+        serde_json::json!({"kind":"workflowDocument","query":{"runId":older,"artifactId":artifact.id,"sha256":"a".repeat(64),"offset":0,"limit":1}}),
+    );
+    assert!(other.is_err());
+}

@@ -13,9 +13,27 @@ use uuid::Uuid;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 pub enum PortfolioQuery {
-    Inbox { query: InboxQuery },
-    Usage { query: UsageLedgerQuery },
-    Projects { query: PortfolioProjectsQuery },
+    Inbox {
+        query: InboxQuery,
+    },
+    Usage {
+        query: UsageLedgerQuery,
+    },
+    Projects {
+        query: PortfolioProjectsQuery,
+    },
+    WorkflowHistory {
+        query: history::WorkflowHistoryQuery,
+    },
+    WorkflowRun {
+        query: history::WorkflowRunQuery,
+    },
+    WorkflowEvidence {
+        query: history::WorkflowEvidenceQuery,
+    },
+    WorkflowDocument {
+        query: history::WorkflowDocumentQuery,
+    },
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -29,6 +47,28 @@ impl PortfolioQuery {
             Self::Inbox { query } => query.limit,
             Self::Usage { query } => query.limit,
             Self::Projects { query } => query.limit,
+            Self::WorkflowHistory { query } => query.limit,
+            Self::WorkflowEvidence { query } => query.limit,
+            Self::WorkflowRun { .. } => 1,
+            Self::WorkflowDocument { query } => {
+                ensure!(
+                    (1..=16_384).contains(&query.limit),
+                    "Document chunk must contain 1–16384 bytes"
+                );
+                ensure!(
+                    query.offset < 16 * 1024 * 1024,
+                    "Document offset exceeds bound"
+                );
+                ensure!(
+                    query.sha256.len() == 64
+                        && query
+                            .sha256
+                            .bytes()
+                            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)),
+                    "Invalid document digest"
+                );
+                return Ok(());
+            }
         };
         ensure!(
             (1..=32).contains(&limit),
@@ -54,7 +94,7 @@ fn bounded(mut value: Value, rows: &str) -> Result<Value> {
         let last = value["page"][rows]
             .as_array()
             .and_then(|rows| rows.last())
-            .and_then(|row| row.get(if rows == "projects" { "id" } else { "sequence" }))
+            .and_then(|row| row.get(if rows == "entries" { "sequence" } else { "id" }))
             .cloned();
         // An empty oversized page must fail, never suggest that history is done.
         ensure!(last.is_some(), "Gateway row exceeds transfer bound");
@@ -135,5 +175,7 @@ pub fn projects_result(
         "projects",
     )
 }
+pub mod history;
+
 #[cfg(test)]
 mod tests;

@@ -35,6 +35,53 @@ pub(super) fn read(engine: &OwnerEngine, value: serde_json::Value) -> Result<ser
         .as_millis()
         .try_into()?;
     match query {
+        PortfolioQuery::WorkflowHistory { query } => gateway_portfolio::history::history_result(
+            engine.teams.automation_runs(
+                query.pending_only,
+                query.project_id,
+                query.definition_id,
+                query.after,
+                query.limit,
+            )?,
+            now,
+        ),
+        PortfolioQuery::WorkflowRun { query } => {
+            gateway_portfolio::history::run_result(&engine.teams.automation_run(query.run_id)?, now)
+        }
+        PortfolioQuery::WorkflowEvidence { query } => {
+            let run = engine.teams.automation_run(query.run_id)?;
+            let teams = run
+                .stages
+                .iter()
+                .filter(|stage| stage.started && !stage.skipped)
+                .map(|stage| engine.teams.snapshot(stage.team_run_id))
+                .collect::<Result<Vec<_>>>()?;
+            gateway_portfolio::history::evidence_result(
+                &run,
+                &teams,
+                &engine.control.load()?,
+                &query,
+                now,
+            )
+        }
+        PortfolioQuery::WorkflowDocument { query } => {
+            let run = engine.teams.automation_run(query.run_id)?;
+            let teams = run
+                .stages
+                .iter()
+                .filter(|stage| stage.started && !stage.skipped)
+                .map(|stage| engine.teams.snapshot(stage.team_run_id))
+                .collect::<Result<Vec<_>>>()?;
+            let records = engine.control.load()?;
+            anyhow::ensure!(
+                gateway_portfolio::history::accepted_artifacts(&run, &teams, &records)?
+                    .iter()
+                    .any(|row| row["id"] == query.artifact_id.to_string()),
+                "Document is not accepted evidence"
+            );
+            let bytes = engine.control.read_document(query.artifact_id)?;
+            gateway_portfolio::history::document_result(&run, &teams, &records, &query, &bytes, now)
+        }
         PortfolioQuery::Inbox { query } => {
             let syncing = engine.control.sync_task_inbox(&engine.task_store)?;
             let mut page = engine.control.inbox_history(query)?;

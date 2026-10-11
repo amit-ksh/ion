@@ -143,8 +143,11 @@ assert live account acceptance, visual validation or production release readines
 - [x] Registered-owner paged Inbox/global usage reads and native phone filters,
   with separate read grants, whole-ledger totals, privacy projections and scope fences.
   See [gateway history implementation and review](32-gateway-inbox-usage-history.md).
-- [ ] Paged historical gateway workflow/evidence projections and notification writes;
-  Linux descriptor tests and live gateway/device acceptance.
+- [x] Paged historical gateway workflow/routine runs, pinned stage/branch details,
+  accepted document catalogues and digest-verified phone source/export reads.
+  See [history and document review](33-gateway-workflow-history-documents.md).
+- [ ] Gateway Inbox notification writes; Linux descriptor tests and live
+  gateway/device acceptance.
 - [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
   exact final acknowledgment, cancellation and source/draft fences.
 - [ ] Cloud speech deployment, native TLS/redirect acceptance and real microphone

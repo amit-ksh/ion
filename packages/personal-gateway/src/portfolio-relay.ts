@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import {
   portfolioId,
+  portfolioReadGrant,
   validatePortfolioQuery,
   validatePortfolioResult,
   type PortfolioSubmission,
@@ -16,16 +17,8 @@ export type {
   PortfolioResult,
 } from "../../waku-client/src/gateway-portfolio";
 
-export function portfolioGrant(
-  query: PortfolioQuery,
-): "inboxRead" | "usageRead" | null {
-  validatePortfolioQuery(query);
-  return query.kind === "inbox"
-    ? "inboxRead"
-    : query.kind === "usage"
-      ? "usageRead"
-      : null;
-}
+export const portfolioGrant = portfolioReadGrant;
+
 function object(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }

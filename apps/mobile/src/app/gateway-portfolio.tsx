@@ -110,7 +110,7 @@ export default function GatewayPortfolioScreen() {
     [agentInput, setAgentInput] = useState(""),
     [modelInput, setModelInput] = useState("");
   const [hours, setHours] = useState("");
-  const query = useMemo<Exclude<PortfolioQuery, { kind: "projects" }>>(
+  const query = useMemo<Extract<PortfolioQuery, { kind: "inbox" | "usage" }>>(
     () =>
       mode === "inbox"
         ? { kind: "inbox", query: inbox }
@@ -239,7 +239,10 @@ export default function GatewayPortfolioScreen() {
     if (mode === "inbox") setInbox((q) => ({ ...q, after }));
     else setUsage((q) => ({ ...q, after }));
   }
-  const next = result?.kind === "projects" ? null : result?.page.nextCursor;
+  const next =
+    result?.kind === "inbox" || result?.kind === "usage"
+      ? result.page.nextCursor
+      : null;
   const disabled = !state.ownerId;
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>

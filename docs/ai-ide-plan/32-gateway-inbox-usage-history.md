@@ -92,7 +92,7 @@ billable resource or deployment was started.
 ## Your review checklist
 
 - [ ] Pair a phone with Inbox only; usage must require its separate read grant.
-      Repeat with usage only, then both. Task/workflow-only invites cannot read.
+      Repeat with usage only, then both. Task/workflow-only invites cannot read Inbox or usage content.
 - [ ] Select two owners with different projects. Change owner while loading;
       the previous owner's records must never appear under the new owner.
 - [ ] Browse more than 32 projects and several Inbox/usage pages. Compare counts
@@ -112,8 +112,9 @@ billable resource or deployment was started.
 
 ## Remaining objective
 
-Paged historical workflow runs/full evidence and gateway notification writes
-remain development. Other existing solo-harness receipts, authoritative billing,
+Paged workflow runs and accepted generated-document reads are implemented in
+[the history increment](33-gateway-workflow-history-documents.md). Gateway
+notification writes remain development. Other existing solo-harness receipts, authoritative billing,
 broader host/remote/GPU resource enforcement and shared speech deployment/device
 acceptance also remain tracked in the release checklist. Deferred new harness
 adapters remain outside the current scope.

@@ -55,9 +55,13 @@ const floatingHeader = {
 } satisfies NativeStackNavigationOptions;
 
 export default function RootLayout() {
-  useEffect(() => listenForGatewayNotifications((taskId) => {
-    router.push({ pathname: '/gateway-task/[id]', params: { id: taskId } });
-  }), []);
+  useEffect(
+    () =>
+      listenForGatewayNotifications((taskId) => {
+        router.push({ pathname: "/gateway-task/[id]", params: { id: taskId } });
+      }),
+    [],
+  );
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
   const navigationTheme =
@@ -102,21 +106,27 @@ function AppNavigator() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
   const daemonRoutesAvailable = phase === "booting" || profiles.length > 0;
-  const drawerAction = useMemo<HeaderActionSpec>(() => ({
-    icon: { ios: "sidebar.left", android: "menu", web: "menu" },
-    label: "Task history",
-    onPress: openTaskDrawer,
-  }), [openTaskDrawer]);
-  const drawerHeader = useMemo<NativeStackNavigationOptions>(() => ({
-    ...floatingHeader,
-    gestureEnabled: false,
-    headerLeft: () => (
-      <HeaderActionGroup>
-        <HeaderAction {...drawerAction} />
-      </HeaderActionGroup>
-    ),
-    unstable_headerLeftItems: () => nativeHeaderButtons([drawerAction]),
-  }), [drawerAction]);
+  const drawerAction = useMemo<HeaderActionSpec>(
+    () => ({
+      icon: { ios: "sidebar.left", android: "menu", web: "menu" },
+      label: "Task history",
+      onPress: openTaskDrawer,
+    }),
+    [openTaskDrawer],
+  );
+  const drawerHeader = useMemo<NativeStackNavigationOptions>(
+    () => ({
+      ...floatingHeader,
+      gestureEnabled: false,
+      headerLeft: () => (
+        <HeaderActionGroup>
+          <HeaderAction {...drawerAction} />
+        </HeaderActionGroup>
+      ),
+      unstable_headerLeftItems: () => nativeHeaderButtons([drawerAction]),
+    }),
+    [drawerAction],
+  );
 
   useEffect(() => {
     if (phase !== "booting") void SplashScreen.hideAsync();
@@ -134,20 +144,40 @@ function AppNavigator() {
     >
       <Stack.Screen
         name="index"
-        options={daemonRoutesAvailable
-          ? { ...drawerHeader, title: "New Task" }
-          : { headerShown: false, title: "ion" }}
+        options={
+          daemonRoutesAvailable
+            ? { ...drawerHeader, title: "New Task" }
+            : { headerShown: false, title: "ion" }
+        }
       />
       {/* Removing the final saved daemon also removes every daemon-backed
        * route from navigation, returning restored and open tasks to home. */}
       <Stack.Screen name="speech" options={{ title: "Cloud speech" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
-        <Stack.Screen name="usage" options={{ ...drawerHeader, title: "Usage" }} />
-        <Stack.Screen name="inbox-source" options={{ ...floatingHeader, title: "Review" }} />
-        <Stack.Screen name="inbox" options={{ ...drawerHeader, title: "Inbox" }} />
-        <Stack.Screen name="automations" options={{ ...drawerHeader, title: "Workflows & routines" }} />
-        <Stack.Screen name="automation-editor" options={{ ...floatingHeader, title: "Automation" }} />
-        <Stack.Screen name="automation/[id]" options={{ ...floatingHeader, title: "Run" }} />
+        <Stack.Screen
+          name="usage"
+          options={{ ...drawerHeader, title: "Usage" }}
+        />
+        <Stack.Screen
+          name="inbox-source"
+          options={{ ...floatingHeader, title: "Review" }}
+        />
+        <Stack.Screen
+          name="inbox"
+          options={{ ...drawerHeader, title: "Inbox" }}
+        />
+        <Stack.Screen
+          name="automations"
+          options={{ ...drawerHeader, title: "Workflows & routines" }}
+        />
+        <Stack.Screen
+          name="automation-editor"
+          options={{ ...floatingHeader, title: "Automation" }}
+        />
+        <Stack.Screen
+          name="automation/[id]"
+          options={{ ...floatingHeader, title: "Run" }}
+        />
         <Stack.Screen
           name="daemons"
           options={{ headerLargeTitle: true, title: "Daemons" }}
@@ -173,10 +203,31 @@ function AppNavigator() {
           title: "Add Daemon",
         }}
       />
-      <Stack.Screen name="gateway" options={{ title: 'Personal gateway' }} />
-      <Stack.Screen name="gateway-portfolio" options={{ title: 'Gateway history' }} />
-      <Stack.Screen name="gateway-automations" options={{ title: 'Gateway workflows' }} />
-      <Stack.Screen name="gateway-task/[id]" options={{ title: 'Gateway task' }} />
+      <Stack.Screen name="gateway" options={{ title: "Personal gateway" }} />
+      <Stack.Screen
+        name="gateway-workflow-history"
+        options={{ title: "Workflow history" }}
+      />
+      <Stack.Screen
+        name="gateway-workflow/[id]"
+        options={{ title: "Workflow run" }}
+      />
+      <Stack.Screen
+        name="gateway-workflow-evidence"
+        options={{ title: "Workflow documents" }}
+      />
+      <Stack.Screen
+        name="gateway-portfolio"
+        options={{ title: "Gateway history" }}
+      />
+      <Stack.Screen
+        name="gateway-automations"
+        options={{ title: "Gateway workflows" }}
+      />
+      <Stack.Screen
+        name="gateway-task/[id]"
+        options={{ title: "Gateway task" }}
+      />
     </Stack>
   );
 }

@@ -1,5 +1,7 @@
-import type {
-  PortfolioOwner,
+import {
+  portfolioReadGrant,
+  portfolioDirectoryGrants,
+  type PortfolioOwner,
   PortfolioQuery,
   PortfolioResult,
 } from "@waku/client";
@@ -31,10 +33,13 @@ function identity(pairing: GatewayPairing | null) {
       ])
     : "";
 }
-export function useGatewayPortfolio(query: PortfolioQuery) {
+export function useGatewayPortfolio(
+  query: PortfolioQuery,
+  options: { ownerId?: string; loadProjects?: boolean } = {},
+) {
   const [pairing, setPairing] = useState<GatewayPairing | null>(null);
   const [owners, setOwners] = useState<PortfolioOwner[]>([]);
-  const [ownerId, setOwnerId] = useState("");
+  const [ownerId, setOwnerId] = useState(options.ownerId ?? "");
   const [projects, setProjects] = useState<Projects>(emptyProjects);
   const [result, setResult] = useState<PortfolioResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,7 +49,7 @@ export function useGatewayPortfolio(query: PortfolioQuery) {
     querying = useRef(false),
     rerun = useRef(false);
   const pairingRef = useRef<GatewayPairing | null>(null),
-    ownerRef = useRef(""),
+    ownerRef = useRef(options.ownerId ?? ""),
     projectOwner = useRef("");
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
@@ -79,24 +84,27 @@ export function useGatewayPortfolio(query: PortfolioQuery) {
         pairingRef.current = saved;
         setPairing(saved);
         setOwners([]);
-        ownerRef.current = "";
-        setOwnerId("");
+        ownerRef.current = options.ownerId ?? "";
+        setOwnerId(options.ownerId ?? "");
         projectOwner.current = "";
         projectsRef.current = emptyProjects();
         setProjects(projectsRef.current);
         clear();
       }
       const credential = pairingRef.current;
-      const grant =
-        queryRef.current.kind === "inbox" ? "inboxRead" : "usageRead";
+      const grant = portfolioReadGrant(queryRef.current);
       if (
         !credential ||
         credential.expiresAt <= Date.now() ||
-        !credential.grants.includes(grant)
+        (grant
+          ? !credential.grants.includes(grant)
+          : !credential.grants.some((g) =>
+              portfolioDirectoryGrants.includes(g),
+            ))
       ) {
         clear();
         setMessage(
-          `Pair this phone with ${grant === "inboxRead" ? "Read owner Inbox history" : "Read owner usage"} in the gateway owner console.`,
+          `Pair this phone with ${grant === "inboxRead" ? "Read owner Inbox history" : grant === "usageRead" ? "Read owner usage" : grant === "evidenceRead" ? "Read workflow documents" : "Read workflows"} in the gateway owner console.`,
         );
         return;
       }
@@ -105,12 +113,13 @@ export function useGatewayPortfolio(query: PortfolioQuery) {
       setOwners(directory);
       const selected =
         directory.find((owner) => owner.publisherId === ownerRef.current) ??
-        directory.find(
-          (owner) =>
-            owner.publishedAt <= Date.now() &&
-            Date.now() - owner.publishedAt <= 60_000,
-        ) ??
-        directory[0];
+        (options.ownerId !== undefined
+          ? undefined
+          : (directory.find(
+              (owner) =>
+                owner.publishedAt <= Date.now() &&
+                Date.now() - owner.publishedAt <= 60_000,
+            ) ?? directory[0]));
       if (!selected) {
         clear();
         setMessage(
@@ -149,7 +158,7 @@ export function useGatewayPortfolio(query: PortfolioQuery) {
           Crypto.randomUUID(),
           stillCurrent,
         ),
-        projectsRef.current.projects.length
+        options.loadProjects === false || projectsRef.current.projects.length
           ? Promise.resolve(null)
           : loadGatewayPortfolio(
               credential,
@@ -196,10 +205,17 @@ export function useGatewayPortfolio(query: PortfolioQuery) {
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   useEffect(() => {
+    if (options.ownerId !== undefined && ownerRef.current !== options.ownerId) {
+      ownerRef.current = options.ownerId;
+      setOwnerId(options.ownerId);
+      projectOwner.current = "";
+      projectsRef.current = emptyProjects();
+      setProjects(projectsRef.current);
+    }
     generation.current += 1;
     clear();
     void refreshRef.current();
-  }, [key]);
+  }, [key, options.ownerId]);
   useFocusEffect(
     useCallback(() => {
       visible.current = true;
@@ -282,7 +298,11 @@ export function useGatewayPortfolio(query: PortfolioQuery) {
     selectOwner,
     projects,
     moreProjects,
-    result: resultScope.current === `${ownerId}:${key}` ? result : null,
+    result:
+      (options.ownerId === undefined || options.ownerId === ownerId) &&
+      resultScope.current === `${ownerId}:${key}`
+        ? result
+        : null,
     loading,
     message,
     refresh,

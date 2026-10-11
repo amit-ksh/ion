@@ -39,6 +39,52 @@ fn read(
         .as_millis()
         .try_into()?;
     match query {
+        PortfolioQuery::WorkflowHistory { query } => {
+            let ResponsePayload::AutomationRuns { page } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::ListAutomationRuns {
+                    pending_only: query.pending_only,
+                    project_id: query.project_id,
+                    definition_id: query.definition_id,
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )?
+            else {
+                bail!("Invalid historical run response");
+            };
+            gateway_portfolio::history::history_result(page, now)
+        }
+        PortfolioQuery::WorkflowRun { query } => {
+            gateway_portfolio::history::run_result(&automation_run(client, query.run_id)?, now)
+        }
+        PortfolioQuery::WorkflowEvidence { query } => {
+            let run = automation_run(client, query.run_id)?;
+            let (teams, records) = evidence_sources(client, &run)?;
+            gateway_portfolio::history::evidence_result(&run, &teams, &records, &query, now)
+        }
+        PortfolioQuery::WorkflowDocument { query } => {
+            let run = automation_run(client, query.run_id)?;
+            let (teams, records) = evidence_sources(client, &run)?;
+            anyhow::ensure!(
+                gateway_portfolio::history::accepted_artifacts(&run, &teams, &records)?
+                    .iter()
+                    .any(|row| row["id"] == query.artifact_id.to_string()),
+                "Document is not accepted evidence"
+            );
+            let ResponsePayload::BlobData { bytes } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::ReadWorkspaceArtifact {
+                    id: query.artifact_id,
+                },
+            )?
+            else {
+                bail!("Invalid document response");
+            };
+            gateway_portfolio::history::document_result(&run, &teams, &records, &query, &bytes, now)
+        }
         PortfolioQuery::Inbox { query } => {
             let ResponsePayload::InboxHistory { page } = client.request(
                 Uuid::nil(),
@@ -62,4 +108,49 @@ fn read(
             gateway_portfolio::projects_result(projects, &query, now)
         }
     }
+}
+
+fn automation_run(
+    client: &DaemonClient,
+    id: Uuid,
+) -> Result<waku_protocol::control::AutomationRun> {
+    let ResponsePayload::AutomationRun { run } =
+        client.request(Uuid::nil(), Uuid::nil(), Command::GetAutomationRun { id })?
+    else {
+        bail!("Historical run unavailable");
+    };
+    anyhow::ensure!(run.id == id, "Run identity changed");
+    Ok(run)
+}
+fn evidence_sources(
+    client: &DaemonClient,
+    run: &waku_protocol::control::AutomationRun,
+) -> Result<(
+    Vec<waku_protocol::teams::TeamRunSnapshot>,
+    waku_protocol::control::ControlSnapshot,
+)> {
+    let mut teams = Vec::new();
+    for stage in run
+        .stages
+        .iter()
+        .filter(|stage| stage.started && !stage.skipped)
+    {
+        let ResponsePayload::TeamRun { snapshot } = client.request(
+            Uuid::nil(),
+            Uuid::nil(),
+            Command::GetTeamRun {
+                run_id: stage.team_run_id,
+            },
+        )?
+        else {
+            bail!("Historical stage unavailable");
+        };
+        teams.push(snapshot);
+    }
+    let ResponsePayload::WorkspaceControl { snapshot } =
+        client.request(Uuid::nil(), Uuid::nil(), Command::LoadWorkspaceControl)?
+    else {
+        bail!("Evidence catalogue unavailable");
+    };
+    Ok((teams, snapshot))
 }

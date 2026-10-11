@@ -2831,3 +2831,27 @@ was performed. See [setup and review](32-gateway-inbox-usage-history.md).
 Historical gateway workflow/evidence pages, notification writes, remaining
 resource/accounting integration and cloud speech/device acceptance remain open.
 Deferred new harness adapters were not added.
+
+
+## Gateway workflow history and accepted documents (2026-10-11)
+
+Implemented indexed chronological owner history for older workflow/routine runs,
+phone project/definition/attention filters, pinned stage/branch/code-inheritance
+metadata and a separate evidenceRead grant for accepted generated documents.
+The registered daemon and memory-only desktop bridges read existing owner stores.
+Phone source/export reads check exact stage/producer membership, immutable metadata,
+16 KiB byte continuations and the complete original SHA-256 before showing or
+exporting content. HTML stays inert source; text previews use virtualized rows.
+
+Verification: 136 distinct focused tests passed (8 protocol, 11 owner, 30 existing
+workflow/routine/branch/retry, 51 gateway and 36 phone helper tests). Locked Rust
+checks passed for desktop, daemon bins and the native harness worker; complete
+mobile/gateway/client TypeScript checks, protocol-37 binding freshness, formatting,
+diff whitespace and the native source detector also passed. Existing Rust warnings
+remain. These checks do not prove native folder-picker behavior, visuals, Linux
+service descriptors, TLS/live gateway or live provider/device acceptance.
+
+Review and setup: [workflow history and accepted documents](33-gateway-workflow-history-documents.md).
+Gateway notification writes and broader accounting/resource/speech work remain;
+deferred harness adapters stay outside scope. No watcher, live provider or billable
+resource was started. The overall goal remains active.

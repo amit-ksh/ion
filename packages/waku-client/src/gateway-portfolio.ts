@@ -1,3 +1,11 @@
+import {
+  isWorkflowHistory,
+  isWorkflowHistoryQuery,
+  validateWorkflowHistoryQuery,
+  validateWorkflowHistoryResult,
+  type WorkflowHistoryQuery,
+  type WorkflowHistoryResult,
+} from "./gateway-history";
 import type {
   InboxEntry,
   InboxPage,
@@ -9,10 +17,12 @@ import type {
 } from "./generated";
 
 export type PortfolioQuery =
+  | WorkflowHistoryQuery
   | { kind: "inbox"; query: InboxQuery }
   | { kind: "usage"; query: UsageLedgerQuery }
   | { kind: "projects"; query: { after: string | null; limit: number } };
 export type PortfolioResult =
+  | WorkflowHistoryResult
   | {
       kind: "inbox";
       page: Omit<InboxPage, "entries"> & {
@@ -101,6 +111,10 @@ const bytes = (v: unknown) => portfolioUtf8Bytes(JSON.stringify(v));
 export function validatePortfolioQuery(
   value: unknown,
 ): asserts value is PortfolioQuery {
+  if (obj(value) && isWorkflowHistory(value.kind)) {
+    validateWorkflowHistoryQuery(value);
+    return;
+  }
   if (
     !shape(value, "kind,query") ||
     !obj(value.query) ||
@@ -170,6 +184,10 @@ export function validatePortfolioResult(
     bytes(value) > 60_000
   )
     throw new Error("Invalid portfolio result");
+  if (isWorkflowHistoryQuery(request)) {
+    validateWorkflowHistoryResult(value, request);
+    return;
+  }
   const p = value.page;
   if (value.kind === "projects") {
     if (
@@ -409,3 +427,24 @@ export function validatePortfolioJob(
   else if (value.result !== null)
     throw new Error("Unexpected pending portfolio data");
 }
+
+export function portfolioReadGrant(
+  query: PortfolioQuery,
+): "inboxRead" | "usageRead" | "automationRead" | "evidenceRead" | null {
+  validatePortfolioQuery(query);
+  return query.kind === "inbox"
+    ? "inboxRead"
+    : query.kind === "usage"
+      ? "usageRead"
+      : query.kind === "workflowHistory" || query.kind === "workflowRun"
+        ? "automationRead"
+        : query.kind === "workflowEvidence" || query.kind === "workflowDocument"
+          ? "evidenceRead"
+          : null;
+}
+export const portfolioDirectoryGrants = [
+  "inboxRead",
+  "usageRead",
+  "automationRead",
+  "evidenceRead",
+];

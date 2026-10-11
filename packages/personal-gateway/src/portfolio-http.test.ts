@@ -88,9 +88,19 @@ test("HTTP read grants, exact publisher routing and requester response scope sta
     expect((await f.call("/v1/device/session", "GET", reader)).status).toBe(
       200,
     );
+    // Workflow readers can now discover history owners, but cannot read Inbox.
     expect((await f.call("/v1/device/portfolio", "GET", legacy)).status).toBe(
-      401,
+      200,
     );
+    expect(
+      (
+        await f.call("/v1/device/portfolio/queries", "POST", legacy, {
+          publisherId: publisher.id,
+          idempotencyKey: randomUUID(),
+          query: inbox,
+        })
+      ).status,
+    ).toBe(401);
     expect(
       (await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 }))
         .status,
@@ -304,6 +314,232 @@ test("read requests cannot smuggle commands, paths or unsolicited result fields"
         )
       ).status,
     ).toBe(400);
+  } finally {
+    await f.gateway.close();
+  }
+});
+
+test("workflow history and document grants are independent and scoped at every read boundary", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      workflow = await f.pair(["automationRead"]),
+      documents = await f.pair(["evidenceRead"]),
+      task = await f.pair(["taskRead"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    expect((await f.call("/v1/device/portfolio", "GET", workflow)).status).toBe(
+      200,
+    );
+    expect(
+      (await f.call("/v1/device/portfolio", "GET", documents)).status,
+    ).toBe(200);
+    expect((await f.call("/v1/device/portfolio", "GET", task)).status).toBe(
+      401,
+    );
+    const run = randomUUID();
+    const history = {
+      kind: "workflowHistory",
+      query: {
+        projectId: null,
+        definitionId: null,
+        pendingOnly: false,
+        after: null,
+        limit: 32,
+      },
+    };
+    const evidence = {
+      kind: "workflowEvidence",
+      query: { runId: run, after: null, limit: 32 },
+    };
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query: history,
+    };
+    expect(
+      (await f.call("/v1/device/portfolio/queries", "POST", documents, input))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await f.call("/v1/device/portfolio/queries", "POST", workflow, {
+          ...input,
+          query: evidence,
+        })
+      ).status,
+    ).toBe(401);
+    const job = (await (
+      await f.call("/v1/device/portfolio/queries", "POST", workflow, input)
+    ).json()) as { id: string };
+    const result = {
+      kind: "workflowHistory",
+      page: { runs: [], nextCursor: null, pendingCount: 0 },
+      pageTruncated: false,
+      servedAt: Date.now(),
+    };
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          publisher,
+          { result },
+        )
+      ).status,
+    ).toBe(200);
+    const read = await f.call(
+      `/v1/device/portfolio/queries?key=${input.idempotencyKey}`,
+      "GET",
+      workflow,
+    );
+    expect(read.status).toBe(200);
+    expect(read.headers.get("Cache-Control")).toBe("no-store");
+    const documentInput = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query: evidence,
+    };
+    const documentJob = (await (
+      await f.call(
+        "/v1/device/portfolio/queries",
+        "POST",
+        documents,
+        documentInput,
+      )
+    ).json()) as { id: string };
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${documentJob.id}/complete`,
+          "POST",
+          publisher,
+          {
+            result: {
+              kind: "workflowEvidence",
+              page: {
+                runId: run,
+                revision: 1,
+                documents: [],
+                nextCursor: null,
+                total: 0,
+              },
+              pageTruncated: false,
+              servedAt: Date.now(),
+            },
+          },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries?key=${documentInput.idempotencyKey}`,
+          "GET",
+          workflow,
+        )
+      ).status,
+    ).toBe(200); // no receipt belongs to this phone
+    expect(
+      (
+        (await (
+          await f.call(
+            `/v1/device/portfolio/queries?key=${documentInput.idempotencyKey}`,
+            "GET",
+            workflow,
+          )
+        ).json()) as { job: unknown }
+      ).job,
+    ).toBeNull();
+    expect(
+      (await f.call("/v1/device/automations/commands", "POST", documents, {}))
+        .status,
+    ).toBe(401);
+  } finally {
+    await f.gateway.close();
+  }
+});
+test("revoked document readers cannot receive a queued result and chunk replies cannot change the selected digest", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      reader = await f.pair(["evidenceRead"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const run = randomUUID(),
+      artifact = randomUUID();
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query: {
+        kind: "workflowDocument",
+        query: {
+          runId: run,
+          artifactId: artifact,
+          sha256: "a".repeat(64),
+          offset: 0,
+          limit: 16384,
+        },
+      },
+    };
+    const job = (await (
+      await f.call("/v1/device/portfolio/queries", "POST", reader, input)
+    ).json()) as { id: string };
+    const document = {
+      id: artifact,
+      name: "report.md",
+      format: "md",
+      projectId: randomUUID(),
+      taskId: null,
+      stage: 0,
+      teamRunId: randomUUID(),
+      assignmentId: randomUUID(),
+      bytes: 1,
+      sha256: "b".repeat(64),
+      createdAt: 100,
+    };
+    const result = {
+      kind: "workflowDocument",
+      page: { runId: run, document, offset: 0, nextOffset: null, data: "YQ==" },
+      pageTruncated: false,
+      servedAt: Date.now(),
+    };
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          publisher,
+          { result },
+        )
+      ).status,
+    ).toBe(400);
+    await f.call(`/v1/owner/devices/${reader.id}/revoke`, "POST", f.owner, {});
+    const response = (await (
+      await f.call(
+        `/v1/device/portfolio/queries/${job.id}/complete`,
+        "POST",
+        publisher,
+        {
+          result: {
+            ...result,
+            page: {
+              ...result.page,
+              document: { ...document, sha256: "a".repeat(64) },
+            },
+          },
+        },
+      )
+    ).json()) as { status: string; result: unknown };
+    expect(response.status).toBe("rejected");
+    expect(response.result).toBeNull();
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries?key=${input.idempotencyKey}`,
+          "GET",
+          reader,
+        )
+      ).status,
+    ).toBe(401);
   } finally {
     await f.gateway.close();
   }

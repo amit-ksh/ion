@@ -178,3 +178,5 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 For registered-owner paged Inbox/usage reads, phone read-grant setup and review,
 see [gateway history](32-gateway-inbox-usage-history.md).
+
+33. [Gateway workflow history and accepted documents](33-gateway-workflow-history-documents.md)

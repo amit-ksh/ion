@@ -15,6 +15,9 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS ion_automation_definition ON ion_automation_runs(definition_id,id);
         CREATE INDEX IF NOT EXISTS ion_automation_routine ON ion_automation_runs(routine_id,status);
         CREATE INDEX IF NOT EXISTS ion_automation_project ON ion_automation_runs(project_id,id);
+        CREATE INDEX IF NOT EXISTS ion_automation_history_time ON ion_automation_runs(json_extract(body,'$.createdAt') DESC,id DESC);
+        CREATE INDEX IF NOT EXISTS ion_automation_history_project ON ion_automation_runs(project_id,json_extract(body,'$.createdAt') DESC,id DESC);
+        CREATE INDEX IF NOT EXISTS ion_automation_history_definition ON ion_automation_runs(definition_id,json_extract(body,'$.createdAt') DESC,id DESC);
         CREATE TABLE IF NOT EXISTS ion_routine_schedule (
             id TEXT PRIMARY KEY,next_fire INTEGER NOT NULL,paused INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS ion_routine_due ON ion_routine_schedule(paused,next_fire,id);
@@ -740,7 +743,7 @@ impl TeamCoordinator {
             "Automation page size must be 1–64"
         );
         let db = self.connect()?;
-        let mut query=db.prepare("SELECT body FROM ion_automation_runs WHERE (? IS NULL OR project_id=?) AND (? IS NULL OR definition_id=?) AND (? IS NULL OR id<?) AND (?=0 OR status IN ('\"waitingDecision\"','\"blocked\"')) ORDER BY id DESC LIMIT ?")?;
+        let mut query=db.prepare("SELECT body FROM ion_automation_runs WHERE (? IS NULL OR project_id=?) AND (? IS NULL OR definition_id=?) AND (? IS NULL OR (json_extract(body,'$.createdAt'),id)<(SELECT json_extract(body,'$.createdAt'),id FROM ion_automation_runs WHERE id=?)) AND (?=0 OR status IN ('\"waitingDecision\"','\"blocked\"')) ORDER BY json_extract(body,'$.createdAt') DESC,id DESC LIMIT ?")?;
         let project = project.map(|i| i.to_string());
         let definition = definition.map(|i| i.to_string());
         let after = after.map(|i| i.to_string());
