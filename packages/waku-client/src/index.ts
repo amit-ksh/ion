@@ -24,3 +24,5 @@ export * from "./gateway-portfolio";
 export * from "./gateway-history";
 
 export * from "./gateway-inbox";
+
+export * from "./cloud-budgets";

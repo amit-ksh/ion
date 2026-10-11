@@ -598,3 +598,28 @@ device/visual acceptance or deployment was performed.
 - [ ] Complete [the native phone/live gateway review](32-gateway-inbox-usage-history.md#your-review-checklist).
 - [ ] Complete historical workflow/evidence gateway pages, notification writes,
   remaining resource/accounting integrations and live speech/device acceptance.
+
+
+## Shared GPU budget checkpoint (2026-10-11)
+
+- [x] One owner allowance per exact Nebius project, shared across runs/routines;
+  currency and approved target aliases are checked before fresh launches.
+- [x] Atomic monetary holds with launch/resource/price evidence; exact replay cannot
+  debit or submit again. Stop/terminal/cleanup retain the monetary allowance.
+- [x] Existing reservations adopted without budget reset; held budgets cannot be
+  deleted, moved to another project/currency or lowered below existing holds.
+- [x] Desktop and directly connected phone Usage budget create/edit/enable/pause;
+  native cached/virtualized rows and keyboard list navigation.
+- [x] Persisted phone submission identity and exact-record interrupted-save
+  reconciliation; stale workspace/focus/connection fences preserve the draft.
+- [x] Gateway totals through independent Usage read access, without resource IDs,
+  target aliases or budget write controls. Direct wire protocol is now **39**.
+- [ ] Complete [shared GPU budget setup/review](35-shared-gpu-budgets.md#setup-and-review-checklist).
+- [ ] Provider invoice/contract/finality reconciliation, release of holds after
+  verified billing, ordinary sandbox/model/egress spending and budgets shared
+  between different owner databases remain development/integration work.
+
+This checkpoint does not unlock the still-gated GPU training submission path or
+close broader resource/egress/readiness, notification delivery, larger document
+formats/previews, other existing solo usage receipts or shared speech acceptance.
+Deferred new harness adapters remain outside scope. No live resources were started.

@@ -22,6 +22,9 @@ pub enum PortfolioQuery {
     Projects {
         query: PortfolioProjectsQuery,
     },
+    CloudBudgets {
+        query: PortfolioProjectsQuery,
+    },
     WorkflowHistory {
         query: history::WorkflowHistoryQuery,
     },
@@ -46,7 +49,7 @@ impl PortfolioQuery {
         let limit = match self {
             Self::Inbox { query } => query.limit,
             Self::Usage { query } => query.limit,
-            Self::Projects { query } => query.limit,
+            Self::Projects { query } | Self::CloudBudgets { query } => query.limit,
             Self::WorkflowHistory { query } => query.limit,
             Self::WorkflowEvidence { query } => query.limit,
             Self::WorkflowRun { .. } => 1,
@@ -179,3 +182,15 @@ pub mod history;
 
 #[cfg(test)]
 mod tests;
+
+/// Phone cost readers receive totals, not target aliases or cloud resource identities.
+pub fn cloud_budgets_result(
+    page: crate::cloud_spending::CloudBudgetPage,
+    served_at: u64,
+) -> Result<Value> {
+    let budgets:Vec<Value>=page.budgets.into_iter().map(|row|json!({"id":row.budget.id,"name":label(&row.budget.name),"currency":row.budget.currency,"limitMicros":row.budget.limit_micros,"paused":row.budget.paused,"heldMicros":row.held_micros,"availableMicros":row.available_micros,"requests":row.requests})).collect();
+    bounded(
+        json!({"kind":"cloudBudgets","page":{"budgets":budgets,"nextCursor":page.next_cursor,"total":page.total},"pageTruncated":false,"servedAt":served_at}),
+        "budgets",
+    )
+}

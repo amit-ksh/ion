@@ -190,6 +190,7 @@ impl ControlStore {
         db.execute_batch("CREATE TABLE IF NOT EXISTS ion_control_records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ion_control_kind ON ion_control_records(kind); CREATE TABLE IF NOT EXISTS ion_control_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL); INSERT OR IGNORE INTO ion_control_revision VALUES(1,0);")?;
         inbox_history::install_control(&db)?;
         crate::usage_ledger::schema(&db)?;
+        crate::cloud_spending::schema(&db)?;
         Ok(db)
     }
     pub(crate) fn read(db: &Connection) -> Result<ControlSnapshot> {
@@ -342,6 +343,7 @@ impl ControlStore {
         snapshot.records.push(record.clone());
         validate(&snapshot)?;
         crate::teams::validate_automation_definition(&record, &snapshot)?;
+        crate::cloud_spending::validate_change(&tx, &record)?;
         tx.execute("INSERT INTO ion_control_records VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![record.id().to_string(),record.kind(),serde_json::to_string(&record)?])?;
         crate::teams::sync_automation_definition(&tx, &record)?;
         tx.execute(
@@ -362,6 +364,7 @@ impl ControlStore {
         );
         snapshot.records.retain(|record| record.id() != id);
         validate(&snapshot)?;
+        crate::cloud_spending::ensure_removable(&tx, id)?;
         crate::teams::remove_automation_definition(&tx, id)?;
         tx.execute(
             "DELETE FROM ion_control_records WHERE id=?",
@@ -447,6 +450,23 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
     ensure!(
         snapshot.records.len() <= 1000,
         "Keep the workspace library below 1000 records"
+    );
+    let mut budget_projects = HashSet::new();
+    for budget in snapshot.records.iter().filter_map(|r| {
+        if let ControlRecord::CloudBudget(b) = r {
+            Some(b)
+        } else {
+            None
+        }
+    }) {
+        ensure!(
+            budget_projects.insert(&budget.cloud_project),
+            "Only one shared GPU budget can authorize a Nebius project"
+        );
+    }
+    ensure!(
+        budget_projects.len() <= 64,
+        "Keep at most 64 shared GPU budgets"
     );
     let agents: HashSet<_> = snapshot
         .records
@@ -536,6 +556,7 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
                     calendar: routine.calendar.clone(),
                 })?;
             }
+            ControlRecord::CloudBudget(budget) => crate::cloud_spending::validate(budget)?,
             ControlRecord::Agent(agent) => {
                 ensure!(
                     !agent.instructions.trim().is_empty(),

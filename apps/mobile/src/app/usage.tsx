@@ -211,6 +211,10 @@ export default function UsageScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <ConnectionBanner />
+            <AutomationButton
+              label="GPU budgets"
+              onPress={() => router.push("/cloud-budgets")}
+            />
             <AutomationRefresh
               refreshing={query.isFetching}
               onRefresh={() => void query.refetch()}

@@ -16,13 +16,34 @@ import type {
   UsageCost,
 } from "./generated";
 
+export interface GatewayCloudBudget {
+  id: string;
+  name: string;
+  currency: string;
+  limitMicros: number;
+  paused: boolean;
+  heldMicros: number;
+  availableMicros: number;
+  requests: number;
+}
 export type PortfolioQuery =
   | WorkflowHistoryQuery
+  | { kind: "cloudBudgets"; query: { after: string | null; limit: number } }
   | { kind: "inbox"; query: InboxQuery }
   | { kind: "usage"; query: UsageLedgerQuery }
   | { kind: "projects"; query: { after: string | null; limit: number } };
 export type PortfolioResult =
   | WorkflowHistoryResult
+  | {
+      kind: "cloudBudgets";
+      page: {
+        budgets: GatewayCloudBudget[];
+        nextCursor: string | null;
+        total: number;
+      };
+      pageTruncated: boolean;
+      servedAt: number;
+    }
   | {
       kind: "inbox";
       page: Omit<InboxPage, "entries"> & {
@@ -124,7 +145,7 @@ export function validatePortfolioQuery(
   )
     throw new Error("Invalid portfolio query");
   const q = value.query;
-  if (value.kind === "projects") {
+  if (value.kind === "projects" || value.kind === "cloudBudgets") {
     if (!shape(q, "after,limit") || !uuid(q.after))
       throw new Error("Invalid project query");
   } else if (value.kind === "inbox") {
@@ -189,6 +210,48 @@ export function validatePortfolioResult(
     return;
   }
   const p = value.page;
+  if (value.kind === "cloudBudgets") {
+    if (
+      request.kind !== "cloudBudgets" ||
+      !shape(p, "budgets,nextCursor,total") ||
+      !Array.isArray(p.budgets) ||
+      p.budgets.length > request.query.limit ||
+      !uuid(p.nextCursor) ||
+      !number(p.total) ||
+      p.total < p.budgets.length ||
+      p.total > 64
+    )
+      throw new Error("Invalid GPU budget page");
+    let previous = request.query.after;
+    for (const row of p.budgets) {
+      if (
+        !shape(
+          row,
+          "id,name,currency,limitMicros,paused,heldMicros,availableMicros,requests",
+        ) ||
+        !portfolioId(row.id) ||
+        !label(row.name, 160) ||
+        typeof row.currency !== "string" ||
+        !/^[A-Z]{3}$/.test(row.currency) ||
+        !bool(row.paused) ||
+        !["limitMicros", "heldMicros", "availableMicros", "requests"].every(
+          (k) => number(row[k]),
+        ) ||
+        row.limitMicros < 1 ||
+        row.limitMicros > 1_000_000_000_000 ||
+        row.heldMicros + row.availableMicros !== row.limitMicros ||
+        (previous !== null && row.id <= previous)
+      )
+        throw new Error("Invalid GPU budget row");
+      previous = row.id;
+    }
+    if (
+      p.nextCursor !== null &&
+      (!p.budgets.length || p.nextCursor !== previous)
+    )
+      throw new Error("Invalid GPU budget cursor");
+    return;
+  }
   if (value.kind === "projects") {
     if (
       !shape(p, "projects,nextCursor,total") ||
@@ -434,7 +497,7 @@ export function portfolioReadGrant(
   validatePortfolioQuery(query);
   return query.kind === "inbox"
     ? "inboxRead"
-    : query.kind === "usage"
+    : query.kind === "usage" || query.kind === "cloudBudgets"
       ? "usageRead"
       : query.kind === "workflowHistory" || query.kind === "workflowRun"
         ? "automationRead"

@@ -661,6 +661,9 @@ impl Backend for WakuBackend {
                 page.task_history_syncing = syncing;
                 Ok(ResponsePayload::InboxHistory { page })
             }
+            Command::LoadCloudBudgets { after, limit } => Ok(ResponsePayload::CloudBudgets {
+                page: self.control.cloud_budgets(after, limit)?,
+            }),
             Command::LoadInbox => Ok(ResponsePayload::Inbox {
                 snapshot: self.control.load_inbox()?,
             }),
@@ -2563,6 +2566,7 @@ fn handle_driver_command(
         | Command::LoadTaskState
         | Command::LoadUsageLedger { .. }
         | Command::ListInboxHistory { .. }
+        | Command::LoadCloudBudgets { .. }
         | Command::LoadInbox
         | Command::ApplyGatewayInbox { .. }
         | Command::UpdateInboxItem { .. }

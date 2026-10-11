@@ -96,3 +96,41 @@ fn usage_transfer_keeps_unknown_costs_allowances_quality_and_totals_without_host
         "provisional"
     );
 }
+
+#[test]
+fn gpu_budget_gateway_projection_contains_totals_without_cloud_or_target_identity() {
+    use crate::cloud_spending::*;
+    let id = Uuid::new_v4();
+    let page = CloudBudgetPage {
+        budgets: vec![CloudBudgetStatus {
+            budget: CloudBudget {
+                id,
+                name: "Training".into(),
+                cloud_project: "private-project".into(),
+                targets: vec!["private-target".into()],
+                currency: "USD".into(),
+                limit_micros: 10_000,
+                paused: false,
+            },
+            held_micros: 2_000,
+            available_micros: 8_000,
+            requests: 1,
+        }],
+        next_cursor: None,
+        total: 1,
+    };
+    let result = cloud_budgets_result(page, 1000).unwrap();
+    let row = &result["page"]["budgets"][0];
+    assert_eq!(row["heldMicros"], 2000);
+    assert_eq!(row["availableMicros"], 8000);
+    assert_eq!(row.as_object().unwrap().len(), 8);
+    assert!(!result.to_string().contains("private-"));
+    assert!(
+        serde_json::from_value::<PortfolioQuery>(
+            json!({"kind":"cloudBudgets","query":{"after":null,"limit":32}})
+        )
+        .unwrap()
+        .validate()
+        .is_ok()
+    );
+}

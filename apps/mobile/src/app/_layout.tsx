@@ -163,6 +163,10 @@ function AppNavigator() {
           options={{ ...floatingHeader, title: "Review" }}
         />
         <Stack.Screen
+          name="cloud-budgets"
+          options={{ ...floatingHeader, title: "GPU budgets" }}
+        />
+        <Stack.Screen
           name="inbox"
           options={{ ...drawerHeader, title: "Inbox" }}
         />
@@ -204,6 +208,10 @@ function AppNavigator() {
         }}
       />
       <Stack.Screen name="gateway" options={{ title: "Personal gateway" }} />
+      <Stack.Screen
+        name="gateway-cloud-budgets"
+        options={{ title: "GPU budgets" }}
+      />
       <Stack.Screen
         name="gateway-workflow-history"
         options={{ title: "Workflow history" }}

@@ -7,6 +7,7 @@ use waku_client::teams::{
     TeamRunStatus, TeamRunSummary,
 };
 mod automation_ui;
+mod budget_ui;
 mod inbox;
 mod routine_ui;
 mod team_activity;
@@ -111,6 +112,7 @@ pub(super) struct ControlUi {
     pub busy: bool,
     inbox: inbox::InboxUi,
     usage: usage_ui::UsageUi,
+    budgets: budget_ui::BudgetUi,
     generation: u64,
     editor_generation: u64,
     error: Option<String>,
@@ -300,6 +302,7 @@ impl ControlUi {
             busy: false,
             inbox: inbox::InboxUi::default(),
             usage: usage_ui::UsageUi::new(window, cx),
+            budgets: budget_ui::BudgetUi::new(window, cx),
             generation: 0,
             editor_generation: 0,
             error: None,
@@ -955,6 +958,7 @@ impl Waku {
             self.refresh_composio_apps(cx);
         }
         if page == Page::Usage {
+            self.refresh_cloud_budgets(cx);
             self.reset_usage_ledger(cx);
             self.start_usage_poll(cx);
         }
@@ -978,6 +982,15 @@ impl Waku {
         let generation = self.control_ui.generation;
         let editor_generation = self.control_ui.editor_generation;
         let saving = matches!(&command, Rpc::SaveWorkspaceRecord { .. });
+        let saved_budget = if let Rpc::SaveWorkspaceRecord {
+            record: ControlRecord::CloudBudget(b),
+            ..
+        } = &command
+        {
+            Some(b.clone())
+        } else {
+            None
+        };
         let starting = if let Rpc::StartAutomation { id, .. } = &command {
             Some(*id)
         } else {
@@ -1021,6 +1034,10 @@ impl Waku {
                 match response {
                     Ok(ResponsePayload::WorkspaceControl { snapshot }) => {
                         this.install_control_snapshot(snapshot);
+                        if let Some(budget)=&saved_budget {
+                            if this.cloud_budget_draft(cx).ok().as_ref()==Some(budget) {this.control_ui.budgets.editing=false;}
+                            this.refresh_cloud_budgets(cx);
+                        }
                         if saving && this.control_ui.editor_generation==editor_generation {this.control_ui.form = None;}
                         if saving && let Some(proposal) = this.control_ui.accepted_proposal.take() {
                             if this.control_ui.snapshot.records.iter().any(|r| matches!(r, ControlRecord::Action(a) if a.id==proposal.id && a.status==WorkspaceActionStatus::Accepted)) {
@@ -1118,6 +1135,10 @@ impl Waku {
             ControlRecord::Team(v) => (FormKind::Team, v.objective.clone()),
             ControlRecord::Workflow(v) => (FormKind::Workflow, v.prompt.clone()),
             ControlRecord::Routine(v) => (FormKind::Routine, v.instructions.clone()),
+            ControlRecord::CloudBudget(v) => {
+                self.begin_cloud_budget(Some(v.clone()), cx);
+                return;
+            }
             ControlRecord::Artifact(_) | ControlRecord::Action(_) => return,
         };
         self.begin_control_form(kind, cx);
@@ -1416,7 +1437,9 @@ impl Waku {
                 routine.instructions,
                 cx,
             ),
-            ControlRecord::Artifact(_) | ControlRecord::Action(_) => {}
+            ControlRecord::Artifact(_)
+            | ControlRecord::Action(_)
+            | ControlRecord::CloudBudget(_) => {}
         }
     }
     pub(super) fn render_workspace_nav(&self, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -1834,6 +1857,9 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let theme = Theme::current(cx);
+        if page == Page::Usage && self.control_ui.budgets.open {
+            return self.render_cloud_budgets(cx);
+        }
         if page == Page::Harnesses {
             return div()
                 .id("workspace-harnesses")
@@ -2522,6 +2548,10 @@ impl Waku {
                         (detail, "icons/file.svg")
                     }
                     ControlRecord::Action(action) => (action.detail.clone(), "icons/check.svg"),
+                    ControlRecord::CloudBudget(b) => (
+                        format!("{} · {}", b.cloud_project, b.currency),
+                        "icons/chart-column.svg",
+                    ),
                 };
                 if let ControlRecord::Team(team) = &record {
                     let id = team.id;

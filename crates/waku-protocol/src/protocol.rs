@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 38;
+pub const PROTOCOL_VERSION: u32 = 39;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -180,6 +180,10 @@ pub enum Command {
     LoadTaskState,
     LoadWorkspaceControl,
     LoadInbox,
+    LoadCloudBudgets {
+        after: Option<Uuid>,
+        limit: u16,
+    },
     LoadUsageLedger {
         query: crate::usage_ledger::UsageLedgerQuery,
     },
@@ -578,6 +582,9 @@ pub enum ResponsePayload {
     },
     InboxHistory {
         page: crate::inbox::InboxPage,
+    },
+    CloudBudgets {
+        page: crate::cloud_spending::CloudBudgetPage,
     },
     InboxWrite {
         receipt: crate::gateway_inbox::InboxWriteReceipt,

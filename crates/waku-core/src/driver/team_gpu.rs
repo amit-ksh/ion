@@ -445,6 +445,7 @@ fn launch_once_with(
         coordinator.verify_gpu_launch_replay(lease, &launch.request, &body, policy, now)?;
         return Ok(saved);
     }
+    coordinator.authorize_shared_gpu_budget(&launch.project, policy)?;
     pricing::approved_policy(launch, policy)?;
     let preflight = client.verify_preflight(launch, policy)?;
     let price = client.verify_price(launch, policy)?;
@@ -844,6 +845,30 @@ pub(crate) mod tests {
                     180,
                 )
                 .unwrap();
+            let snapshot = definitions.load().unwrap();
+            let mut budget = snapshot
+                .records
+                .iter()
+                .find_map(|r| {
+                    if let ControlRecord::CloudBudget(b) = r {
+                        Some(b.clone())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(CloudBudget {
+                    id: Uuid::new_v4(),
+                    name: "Fixture GPU budget".into(),
+                    cloud_project: "project-fixture".into(),
+                    targets: vec![],
+                    currency: "USD".into(),
+                    limit_micros: 1_000_000_000,
+                    paused: false,
+                });
+            budget.targets.push(target.clone());
+            definitions
+                .save(snapshot.revision, ControlRecord::CloudBudget(budget))
+                .unwrap();
             Self {
                 dir,
                 coordinator,
@@ -1067,6 +1092,11 @@ pub(crate) mod tests {
             Some("operation-cancel")
         );
         assert!(record.cancel_requested);
+        let budgets = crate::control::ControlStore::new(f.dir.join("control.db"))
+            .cloud_budgets(None, 64)
+            .unwrap();
+        assert_eq!(budgets.budgets[0].held_micros, f.policy.reservation_micros);
+        assert_eq!(budgets.budgets[0].requests, 1);
         assert!(reopened.has_pending_effect(f.lease.run_id()).unwrap());
         assert!(
             !reopened

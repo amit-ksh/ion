@@ -85,3 +85,5 @@ pub use settings::{DaemonSettings, DaemonSettingsStore};
 pub use workspace::{WorkspaceOperation, WorkspaceResult};
 
 pub mod routine_schedule;
+
+mod cloud_spending;

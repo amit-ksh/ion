@@ -104,6 +104,20 @@ fn read(
             };
             gateway_portfolio::usage_result(page, now)
         }
+        PortfolioQuery::CloudBudgets { query } => {
+            let ResponsePayload::CloudBudgets { page } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::LoadCloudBudgets {
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )?
+            else {
+                bail!("Invalid GPU budget response");
+            };
+            gateway_portfolio::cloud_budgets_result(page, now)
+        }
         PortfolioQuery::Projects { query } => {
             gateway_portfolio::projects_result(projects, &query, now)
         }

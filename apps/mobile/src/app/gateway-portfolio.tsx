@@ -15,7 +15,7 @@ import {
   type UsageLedgerQuery,
   type UsageMoney,
 } from "@waku/client";
-import { Stack, useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,
@@ -363,6 +363,18 @@ export default function GatewayPortfolioScreen() {
         }
         ListHeaderComponent={
           <View style={styles.header}>
+            <AutomationButton
+              label="GPU budgets"
+              disabled={
+                !state.ownerId || !state.pairing?.grants.includes("usageRead")
+              }
+              onPress={() =>
+                router.push({
+                  pathname: "/gateway-cloud-budgets",
+                  params: { owner: state.ownerId },
+                })
+              }
+            />
             <AutomationRefresh
               refreshing={state.loading}
               onRefresh={() => void state.refresh()}

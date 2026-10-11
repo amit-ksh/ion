@@ -2887,3 +2887,37 @@ Remaining work includes broader resource/monetary accounting, other existing
 solo-harness receipts, larger artifact formats/interpretation/previews, background
 notification delivery and shared speech/live device acceptance. Deferred harness
 adapters remain outside scope. The overall goal remains active.
+
+
+## Shared GPU budgets (2026-10-11)
+
+GPU allowances now include one owner budget per exact Nebius project across runs
+and routines. Each fresh launch reserves against both its original run allowance
+and that shared cap in the same transaction as launch/resource/price facts. Exact
+replay does not submit or reserve twice; unknown, canceled and terminal jobs retain
+money. Legacy reservations are adopted on budget save and cannot be reset through
+identity edits, cap decreases or deletion. Increasing a cap remains an explicit
+owner action and cannot expand the original per-run grant.
+
+Desktop Usage and directly connected phone Usage expose budget creation, editing
+and enable/pause for new launches. Status shows integer held/available allowance,
+limit and request count, not invoices. Native rows are cached/virtualized and
+keyboard navigable. Phone saved-request identity, exact-state reconciliation and
+owner/focus/revision fences prevent interrupted saves from creating another cap.
+Gateway Usage readers receive redacted totals only, with no budget write route.
+Direct protocol **39** requires desktop/daemon/worker/phone to upgrade together.
+
+Verification: seven shared-cap owner tests, 62 existing GPU regressions, two
+protocol tests, 56 full gateway tests and 31 shared-client/phone helper tests
+passed (158 distinct focused tests). Complete mobile/gateway/client TypeScript,
+locked desktop/daemon/worker checks, generated protocol-39 binding freshness,
+formatting, whitespace and source/UTF-8 label audits passed. Existing Rust
+warnings remain. No visual/native device acceptance, watcher, live provider,
+deployment or billable resource was started.
+
+Review/setup: [shared GPU budgets](35-shared-gpu-budgets.md).
+Remaining development includes provider billing/finality, broader cloud/resource/
+egress controls, other existing solo usage receipts, larger document interpretation/
+previews, background notification delivery and shared speech/live device acceptance.
+The GPU submission gate remains closed where its original prerequisites are unmet;
+unimplemented harness adapters remain deferred. The overall goal remains active.

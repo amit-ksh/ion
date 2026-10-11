@@ -137,6 +137,19 @@ impl TeamCoordinator {
         );
         Ok(())
     }
+    pub(crate) fn authorize_shared_gpu_budget(
+        &self,
+        project: &str,
+        policy: &GpuBudgetPolicy,
+    ) -> Result<()> {
+        crate::cloud_spending::authorize(
+            &self.connect()?,
+            project,
+            &policy.target,
+            &policy.currency,
+            policy.reservation_micros,
+        )
+    }
     pub(crate) fn verify_gpu_launch_replay(
         &self,
         lease: &AssignmentLease,
@@ -368,6 +381,15 @@ impl TeamCoordinator {
                 params![request.request_id.to_string(), price.persisted()?],
             )?;
         }
+        crate::cloud_spending::hold(
+            &tx,
+            request.request_id,
+            run.id,
+            project,
+            &policy.target,
+            &policy.currency,
+            policy.reservation_micros,
+        )?;
         audit(
             &tx,
             run.id,

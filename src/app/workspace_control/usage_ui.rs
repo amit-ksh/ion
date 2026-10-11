@@ -181,6 +181,7 @@ impl Waku {
                             this.control_ui.usage.polling = false;
                             return false;
                         }
+                        this.refresh_cloud_budgets(cx);
                         this.refresh_usage_ledger(cx);
                         true
                     })
@@ -264,7 +265,17 @@ impl Waku {
     pub(super) fn usage_toolbar(&self, cx: &mut Context<Self>) -> Div {
         let theme = Theme::current(cx);
         let ui = &self.control_ui.usage;
-        let mut bar = div().flex().flex_col().gap(px(12.0));
+        let mut bar = div()
+            .flex()
+            .flex_col()
+            .gap(px(12.0))
+            .child(
+                self.control_button("usage-gpu-budgets", "GPU budgets", cx, |this, _, cx| {
+                    this.control_ui.budgets.open = true;
+                    this.refresh_cloud_budgets(cx);
+                    cx.notify();
+                }),
+            );
         let mut filters = div().flex().flex_wrap().gap(px(8.0));
         let project = ui
             .project

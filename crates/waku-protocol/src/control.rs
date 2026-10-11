@@ -1,4 +1,5 @@
 //! Durable workspace definitions shared by desktop, phone, and daemon.
+pub use crate::cloud_spending::CloudBudget;
 use crate::model::ProviderKind;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -20,6 +21,7 @@ pub enum ControlRecord {
     Routine(Routine),
     Artifact(Artifact),
     Action(WorkspaceAction),
+    CloudBudget(CloudBudget),
 }
 impl ControlRecord {
     pub fn id(&self) -> Uuid {
@@ -30,6 +32,7 @@ impl ControlRecord {
             Self::Routine(v) => v.id,
             Self::Artifact(v) => v.id,
             Self::Action(v) => v.id,
+            Self::CloudBudget(v) => v.id,
         }
     }
     pub fn kind(&self) -> &'static str {
@@ -40,6 +43,7 @@ impl ControlRecord {
             Self::Routine(_) => "routine",
             Self::Artifact(_) => "artifact",
             Self::Action(_) => "action",
+            Self::CloudBudget(_) => "cloudBudget",
         }
     }
     pub fn name(&self) -> &str {
@@ -50,6 +54,7 @@ impl ControlRecord {
             Self::Routine(v) => &v.name,
             Self::Artifact(v) => &v.name,
             Self::Action(v) => &v.title,
+            Self::CloudBudget(v) => &v.name,
         }
     }
 }

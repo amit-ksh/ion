@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) fn schema(db: &Connection) -> Result<()> {
+    crate::cloud_spending::schema(db)?;
     db.execute_batch("PRAGMA foreign_keys=ON;
         CREATE TABLE IF NOT EXISTS ion_team_runs (
             id TEXT PRIMARY KEY, root_task_id TEXT NOT NULL UNIQUE, project_id TEXT NOT NULL,

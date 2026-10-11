@@ -722,3 +722,95 @@ test("revocation rejects queued and uncertain Inbox writes before any owner noti
     await f.gateway.close();
   }
 });
+
+test("GPU budget totals require Usage read and cannot carry budget writes or private identities", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      reader = await f.pair(["usageRead"]),
+      other = await f.pair(["inboxRead"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query: { kind: "cloudBudgets", query: { after: null, limit: 32 } },
+    };
+    expect(
+      (await f.call("/v1/device/portfolio/queries", "POST", other, input))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await f.call("/v1/device/portfolio/queries", "POST", reader, {
+          ...input,
+          query: {
+            ...input.query,
+            query: { after: null, limit: 32, paused: false },
+          },
+        })
+      ).status,
+    ).toBe(400);
+    const response = await f.call(
+      "/v1/device/portfolio/queries",
+      "POST",
+      reader,
+      input,
+    );
+    expect(response.status).toBe(201);
+    const job = (await response.json()) as { id: string };
+    const row = {
+      id: randomUUID(),
+      name: "Training",
+      currency: "USD",
+      limitMicros: 1000,
+      heldMicros: 400,
+      availableMicros: 600,
+      paused: false,
+      requests: 1,
+    };
+    const result = {
+      kind: "cloudBudgets",
+      page: { budgets: [row], nextCursor: null, total: 1 },
+      pageTruncated: false,
+      servedAt: Date.now(),
+    };
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          publisher,
+          {
+            result: {
+              ...result,
+              page: {
+                ...result.page,
+                budgets: [{ ...row, targets: ["private-host"] }],
+              },
+            },
+          },
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          publisher,
+          { result },
+        )
+      ).status,
+    ).toBe(200);
+    const receipt = await f.call(
+      `/v1/device/portfolio/queries?key=${input.idempotencyKey}`,
+      "GET",
+      reader,
+    );
+    expect(
+      ((await receipt.json()) as any).job.result.page.budgets[0].heldMicros,
+    ).toBe(400);
+  } finally {
+    await f.gateway.close();
+  }
+});
