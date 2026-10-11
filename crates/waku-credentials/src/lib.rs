@@ -886,3 +886,33 @@ impl CredentialService {
         }
     }
 }
+
+impl GatewayApi {
+    pub fn has_inbox_control(&self) -> Result<bool> {
+        let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
+        Ok(health["features"]["inboxControl"].as_u64() == Some(1))
+    }
+    pub fn pending_inbox(&self) -> Result<Vec<serde_json::Value>> {
+        let response: serde_json::Value =
+            self.request(reqwest::Method::GET, "v1/device/inbox/queue", None)?;
+        Ok(response["commands"]
+            .as_array()
+            .context("Invalid Inbox queue")?
+            .clone())
+    }
+    pub fn claim_inbox(&self, id: &str) -> Result<serde_json::Value> {
+        self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/inbox/commands/{id}/claim"),
+            None,
+        )
+    }
+    pub fn settle_inbox(&self, id: &str, applied: bool) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/inbox/commands/{id}/settle"),
+            Some(serde_json::json!({"applied":applied})),
+        )?;
+        Ok(())
+    }
+}

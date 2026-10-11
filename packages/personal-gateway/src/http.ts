@@ -1,3 +1,4 @@
+import type { DurableInboxRelay } from "./inbox-relay";
 import { portfolioGrant, type DurablePortfolioRelay } from "./portfolio-relay";
 import { validatePortfolioQuery } from "../../waku-client/src/gateway-portfolio";
 import type {
@@ -136,6 +137,7 @@ export function createGatewayHandler(
   executor?: ComposioExecutor,
   automations?: DurableAutomationRelay,
   portfolio?: DurablePortfolioRelay,
+  inbox?: DurableInboxRelay,
 ) {
   if (ownerSecret.length < 32 || !/^[A-Za-z0-9_-]+$/.test(ownerSecret)) {
     throw new Error("Owner token must be at least 32 URL-safe characters");
@@ -153,6 +155,7 @@ export function createGatewayHandler(
           features: {
             automationRelay: automations ? 1 : 0,
             portfolioRelay: portfolio ? 1 : 0,
+            inboxControl: inbox ? 1 : 0,
           },
         });
       if (path === "/owner" && method === "GET")
@@ -331,12 +334,10 @@ export function createGatewayHandler(
             );
             const names = new Map(devices.map((d) => [d.id, d.name]));
             return json({
-              owners: portfolio
-                .owners(publishers)
-                .map((owner) => ({
-                  ...owner,
-                  name: names.get(owner.publisherId) ?? "Registered owner",
-                })),
+              owners: portfolio.owners(publishers).map((owner) => ({
+                ...owner,
+                name: names.get(owner.publisherId) ?? "Registered owner",
+              })),
             });
           }
           if (path === "/v1/device/portfolio/queries" && method === "POST") {
@@ -396,6 +397,86 @@ export function createGatewayHandler(
           throw new HttpFailure(400, "Portfolio read request rejected");
         }
       }
+      if (inbox && path.startsWith("/v1/device/inbox/")) {
+        const enabled = (id: string, grant: DeviceGrant) =>
+          authority
+            .listDevices()
+            .some(
+              (d) =>
+                d.id === id &&
+                !d.revoked &&
+                d.expiresAt > Date.now() &&
+                d.grants.includes(grant),
+            );
+        const reader = () => {
+          const identity = authorizedDevice(request, authority, "inboxControl");
+          if (!enabled(identity.id, "inboxRead"))
+            throw new HttpFailure(401, "Inbox read grant required");
+          return identity;
+        };
+        if (path === "/v1/device/inbox/commands" && method === "POST") {
+          const identity = reader(),
+            input = await body(request);
+          if (!enabled(string(input.publisherId), "publish"))
+            throw new HttpFailure(401, "Owner unavailable");
+          const owner = portfolio?.owners(
+            new Set([string(input.publisherId)]),
+          )[0];
+          if (
+            !owner ||
+            owner.publishedAt > Date.now() ||
+            Date.now() - owner.publishedAt > 60_000
+          )
+            throw new HttpFailure(409, "Owner offline or stale");
+          try {
+            return json(inbox.enqueue(identity.id, input), 201);
+          } catch {
+            throw new HttpFailure(
+              409,
+              "Inbox request expired, changed or unavailable",
+            );
+          }
+        }
+        if (path === "/v1/device/inbox/commands" && method === "GET") {
+          const identity = reader(),
+            key = string(url.searchParams.get("key"));
+          const command = inbox.byKey(identity.id, key);
+          if (command && !enabled(command.publisherId, "publish"))
+            throw new HttpFailure(401, "Owner unavailable");
+          return json({ command });
+        }
+        if (path === "/v1/device/inbox/queue" && method === "GET") {
+          const identity = authorizedDevice(request, authority, "publish");
+          return json({ commands: inbox.pending(identity.id) });
+        }
+        const claim =
+          /^\/v1\/device\/inbox\/commands\/([0-9a-f-]{36})\/claim$/.exec(path);
+        if (claim && method === "POST") {
+          const identity = authorizedDevice(request, authority, "publish"),
+            command = inbox.command(claim[1]!);
+          return json(
+            inbox.claim(
+              identity.id,
+              claim[1]!,
+              !!command &&
+                enabled(command.deviceId, "inboxRead") &&
+                enabled(command.deviceId, "inboxControl"),
+            ),
+          );
+        }
+        const settle =
+          /^\/v1\/device\/inbox\/commands\/([0-9a-f-]{36})\/settle$/.exec(path);
+        if (settle && method === "POST") {
+          const identity = authorizedDevice(request, authority, "publish"),
+            input = await body(request);
+          if (
+            Object.keys(input).join(",") !== "applied" ||
+            typeof input.applied !== "boolean"
+          )
+            throw new HttpFailure(400, "Invalid Inbox receipt");
+          return json(inbox.settle(identity.id, settle[1]!, input.applied));
+        }
+      }
       if (automations && path.startsWith("/v1/device/automations")) {
         const devices = authority.listDevices();
         const enabled = (id: string, grant: DeviceGrant) =>
@@ -422,12 +503,10 @@ export function createGatewayHandler(
           );
           const names = new Map(devices.map((d) => [d.id, d.name]));
           return json({
-            owners: automations
-              .owners(publishers)
-              .map((o) => ({
-                ...o,
-                name: names.get(o.publisherId) ?? "Registered owner",
-              })),
+            owners: automations.owners(publishers).map((o) => ({
+              ...o,
+              name: names.get(o.publisherId) ?? "Registered owner",
+            })),
           });
         }
         if (path === "/v1/device/automations" && method === "PUT") {
@@ -714,6 +793,7 @@ export function createGatewayHandler(
           "automationRead",
           "automationControl",
           "inboxRead",
+          "inboxControl",
           "usageRead",
           "evidenceRead",
         ];

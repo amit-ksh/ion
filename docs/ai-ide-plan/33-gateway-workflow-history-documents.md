@@ -29,8 +29,9 @@ transfer ceiling does not add larger binary publication.
 
 ## Setup and permissions
 
-Upgrade the gateway, desktop/daemon owner and phone together. The direct daemon
-wire protocol remains version 37; these typed reads extend the gateway protocol.
+Upgrade the gateway, desktop/daemon owner and phone together. History reads were introduced without changing direct daemon protocol 37.
+The later [Inbox controls](34-gateway-inbox-controls.md) require app/daemon/phone
+protocol 38; upgrade the components together.
 A legacy owner can reject unknown reads until upgraded.
 
 - **Read workflows** (`automationRead`) permits history and stage metadata.
@@ -82,7 +83,8 @@ new harness adapters stay outside scope.
 
 ## Remaining work
 
-Gateway Inbox notification writes, broader resource/monetary accounting, other
+Gateway Inbox notification writes are implemented in [the control increment](34-gateway-inbox-controls.md).
+Broader resource/monetary accounting, other
 existing solo-harness usage receipts, larger binary formats/previews and shared
 speech deployment/device acceptance remain tracked separately. Background push
 notification delivery is distinct from reading or changing Inbox state.

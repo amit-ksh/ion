@@ -544,3 +544,181 @@ test("revoked document readers cannot receive a queued result and chunk replies 
     await f.gateway.close();
   }
 });
+
+test("Inbox writes require independent read/control grants, exact publisher and notification-only commands", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      foreign = await f.pair(["publish"]);
+    const reader = await f.pair(["inboxRead"]),
+      controller = await f.pair(["inboxRead", "inboxControl"]);
+    const workflow = await f.pair(["automationRead", "automationControl"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      sequence: 1,
+      expectedRevision: 0,
+      action: "acknowledge",
+      expiresAt: Date.now() + 120_000,
+    };
+    expect(
+      (await f.call("/v1/device/inbox/commands", "POST", reader, input)).status,
+    ).toBe(401);
+    expect(
+      (await f.call("/v1/device/inbox/commands", "POST", workflow, input))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await f.call("/v1/device/inbox/commands", "POST", controller, {
+          ...input,
+          approved: true,
+        })
+      ).status,
+    ).toBe(409);
+    const response = await f.call(
+      "/v1/device/inbox/commands",
+      "POST",
+      controller,
+      input,
+    );
+    expect(response.status).toBe(201);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const command = (await response.json()) as any;
+    expect(
+      (await f.call("/v1/device/inbox/queue", "GET", foreign)).status,
+    ).toBe(200);
+    expect(
+      (
+        (await (
+          await f.call("/v1/device/inbox/queue", "GET", foreign)
+        ).json()) as any
+      ).commands,
+    ).toEqual([]);
+    expect(
+      (
+        await f.call(
+          `/v1/device/inbox/commands/${command.id}/claim`,
+          "POST",
+          foreign,
+        )
+      ).status,
+    ).not.toBe(200);
+    const claim = (await (
+      await f.call(
+        `/v1/device/inbox/commands/${command.id}/claim`,
+        "POST",
+        publisher,
+      )
+    ).json()) as any;
+    expect(claim.status).toBe("uncertain");
+    expect(
+      (
+        await f.call(
+          `/v1/device/inbox/commands/${command.id}/settle`,
+          "POST",
+          publisher,
+          { applied: true, action: "start" },
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        (await (
+          await f.call(
+            `/v1/device/inbox/commands/${command.id}/settle`,
+            "POST",
+            publisher,
+            { applied: true },
+          )
+        ).json()) as any
+      ).status,
+    ).toBe("applied");
+    expect(
+      (
+        (await (
+          await f.call(
+            `/v1/device/inbox/commands?key=${input.idempotencyKey}`,
+            "GET",
+            controller,
+          )
+        ).json()) as any
+      ).command.id,
+    ).toBe(command.id);
+    const another = await f.pair(["inboxRead", "inboxControl"]);
+    expect(
+      (
+        (await (
+          await f.call(
+            `/v1/device/inbox/commands?key=${input.idempotencyKey}`,
+            "GET",
+            another,
+          )
+        ).json()) as any
+      ).command,
+    ).toBeNull();
+  } finally {
+    await f.gateway.close();
+  }
+});
+test("revocation rejects queued and uncertain Inbox writes before any owner notification mutation", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      controller = await f.pair(["inboxRead", "inboxControl"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      sequence: 1,
+      expectedRevision: 0,
+      action: "archive",
+      expiresAt: Date.now() + 120_000,
+    };
+    const first = (await (
+      await f.call("/v1/device/inbox/commands", "POST", controller, input)
+    ).json()) as any;
+    const second = (await (
+      await f.call("/v1/device/inbox/commands", "POST", controller, {
+        ...input,
+        idempotencyKey: randomUUID(),
+      })
+    ).json()) as any;
+    await f.call(
+      `/v1/device/inbox/commands/${second.id}/claim`,
+      "POST",
+      publisher,
+    );
+    await f.call(
+      `/v1/owner/devices/${controller.id}/revoke`,
+      "POST",
+      f.owner,
+      {},
+    );
+    for (const command of [first, second]) {
+      expect(
+        (
+          (await (
+            await f.call(
+              `/v1/device/inbox/commands/${command.id}/claim`,
+              "POST",
+              publisher,
+            )
+          ).json()) as any
+        ).status,
+      ).toBe("rejected");
+    }
+    expect(
+      (
+        await f.call(
+          `/v1/device/inbox/commands?key=${input.idempotencyKey}`,
+          "GET",
+          controller,
+        )
+      ).status,
+    ).toBe(401);
+  } finally {
+    await f.gateway.close();
+  }
+});

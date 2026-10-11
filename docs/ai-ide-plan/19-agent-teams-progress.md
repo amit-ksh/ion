@@ -2855,3 +2855,35 @@ Review and setup: [workflow history and accepted documents](33-gateway-workflow-
 Gateway notification writes and broader accounting/resource/speech work remain;
 deferred harness adapters stay outside scope. No watcher, live provider or billable
 resource was started. The overall goal remains active.
+
+
+## Gateway Inbox notification controls (2026-10-11)
+
+Implemented native gateway-phone read/unread, acknowledge and archive/restore
+controls. An independent Inbox read+control grant, pinned owner/phone/sequence/
+revision/action/nonce/deadline and separate durable command queue protect the
+notification operation. The phone saves intent before sending; owner state and
+its exact receipt commit atomically. Lost gateway or daemon acknowledgments
+recover that receipt after restart without reapplying it after another client's
+change. Stale, missing and expired requests reject without changing owner work.
+Both headless daemon and memory-only desktop bridges use the same owner receipt.
+
+The new receipt RPC raises the direct wire version to 38. Desktop, daemon and
+phone must upgrade together; gateway health advertises Inbox control support.
+No existing phone grant acquires write access. No provider effect, task/decision
+approval, workflow start or billable operation is representable in this command.
+
+Verification: 19 new focused tests passed (5 owner DB receipt, 1 strict protocol,
+4 gateway routing/durability and 9 phone persistence/recovery/transport tests).
+Combined with the workflow-history increment, 155 distinct focused tests passed
+this continuation. The full gateway suite (55), phone helper suite (45), complete
+mobile/gateway/client TypeScript checks, locked desktop/daemon/worker Rust checks,
+protocol-38 generated-binding freshness, formatting, diff whitespace and native
+source detector passed. Existing Rust warnings remain. No visual/device test,
+watcher, live provider, deployment or billable resource was started.
+
+Review/setup: [gateway Inbox controls](34-gateway-inbox-controls.md).
+Remaining work includes broader resource/monetary accounting, other existing
+solo-harness receipts, larger artifact formats/interpretation/previews, background
+notification delivery and shared speech/live device acceptance. Deferred harness
+adapters remain outside scope. The overall goal remains active.

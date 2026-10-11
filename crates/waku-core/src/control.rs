@@ -10,6 +10,7 @@ use std::{
 use uuid::Uuid;
 use waku_protocol::control::*;
 
+mod gateway_inbox;
 mod inbox;
 pub(crate) mod inbox_history;
 

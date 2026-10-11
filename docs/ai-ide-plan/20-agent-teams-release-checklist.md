@@ -146,8 +146,10 @@ assert live account acceptance, visual validation or production release readines
 - [x] Paged historical gateway workflow/routine runs, pinned stage/branch details,
   accepted document catalogues and digest-verified phone source/export reads.
   See [history and document review](33-gateway-workflow-history-documents.md).
-- [ ] Gateway Inbox notification writes; Linux descriptor tests and live
-  gateway/device acceptance.
+- [x] Gateway Inbox notification writes with separate grants, expiring durable
+  phone intent and atomic owner state/receipt recovery.
+  See [notification controls and upgrade review](34-gateway-inbox-controls.md).
+- [ ] Linux descriptor tests and live gateway/device acceptance.
 - [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
   exact final acknowledgment, cancellation and source/draft fences.
 - [ ] Cloud speech deployment, native TLS/redirect acceptance and real microphone

@@ -22,3 +22,5 @@ export type * from "./gateway-automation";
 export * from "./gateway-portfolio";
 
 export * from "./gateway-history";
+
+export * from "./gateway-inbox";

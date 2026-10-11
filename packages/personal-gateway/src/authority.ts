@@ -16,6 +16,7 @@ export type DeviceGrant =
   | "taskControl"
   | "automationRead"
   | "automationControl"
+  | "inboxControl"
   | "inboxRead"
   | "usageRead"
   | "evidenceRead";
@@ -282,6 +283,7 @@ export class GatewayAuthority {
             "taskControl",
             "automationRead",
             "automationControl",
+            "inboxControl",
             "inboxRead",
             "usageRead",
             "evidenceRead",

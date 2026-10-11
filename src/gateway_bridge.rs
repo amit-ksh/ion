@@ -18,6 +18,7 @@ use crate::credentials::{
 };
 
 mod automations;
+mod inbox;
 mod portfolio;
 
 use crate::model::{ActivityKind, AgentSession, MessageRole};
@@ -213,6 +214,7 @@ fn sync_once(
     }
     if temporary_pairing {
         portfolio::sync(client, api, &project_records)?;
+        inbox::sync(client, api)?;
     }
     sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
     let mut active_ids = Vec::new();

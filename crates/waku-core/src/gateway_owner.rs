@@ -90,7 +90,8 @@ impl GatewayOwner {
                         api.with_timeout(Duration::from_secs(5)).and_then(|api| {
                             let controls = engine.sync(&api, &fence);
                             let reads = portfolio::sync(&api, &engine, &fence);
-                            controls?; reads
+                            let notifications = inbox::sync(&api, &engine, &fence);
+                            controls?; reads?; notifications
                         })
                     }
                     Err(_) if connected || file_managed => Err(anyhow::anyhow!("Gateway owner pairing unavailable")),
@@ -369,4 +370,5 @@ impl OwnerEngine {
 #[cfg(test)]
 mod tests;
 
+mod inbox;
 mod portfolio;

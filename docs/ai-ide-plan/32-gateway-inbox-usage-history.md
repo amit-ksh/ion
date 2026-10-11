@@ -114,7 +114,7 @@ billable resource or deployment was started.
 
 Paged workflow runs and accepted generated-document reads are implemented in
 [the history increment](33-gateway-workflow-history-documents.md). Gateway
-notification writes remain development. Other existing solo-harness receipts, authoritative billing,
+notification writes are implemented in [the control increment](34-gateway-inbox-controls.md). Other existing solo-harness receipts, authoritative billing,
 broader host/remote/GPU resource enforcement and shared speech deployment/device
 acceptance also remain tracked in the release checklist. Deferred new harness
 adapters remain outside the current scope.

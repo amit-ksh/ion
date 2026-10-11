@@ -66,6 +66,8 @@ export type { InboxPage } from "./InboxPage";
 export type { InboxQuery } from "./InboxQuery";
 export type { InboxSnapshot } from "./InboxSnapshot";
 export type { InboxSource } from "./InboxSource";
+export type { InboxWriteReceipt } from "./InboxWriteReceipt";
+export type { InboxWriteRequest } from "./InboxWriteRequest";
 export type { Message } from "./Message";
 export type { MessageAttachment } from "./MessageAttachment";
 export type { MessageRole } from "./MessageRole";

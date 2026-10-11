@@ -664,6 +664,15 @@ impl Backend for WakuBackend {
             Command::LoadInbox => Ok(ResponsePayload::Inbox {
                 snapshot: self.control.load_inbox()?,
             }),
+            Command::ApplyGatewayInbox { request } => Ok(ResponsePayload::InboxWrite {
+                receipt: self.control.apply_gateway_inbox(
+                    request,
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)?
+                        .as_millis()
+                        .try_into()?,
+                )?,
+            }),
             Command::UpdateInboxItem {
                 expected_revision,
                 key,
@@ -2555,6 +2564,7 @@ fn handle_driver_command(
         | Command::LoadUsageLedger { .. }
         | Command::ListInboxHistory { .. }
         | Command::LoadInbox
+        | Command::ApplyGatewayInbox { .. }
         | Command::UpdateInboxItem { .. }
         | Command::SetNotificationPolicy { .. }
         | Command::LoadWorkspaceControl

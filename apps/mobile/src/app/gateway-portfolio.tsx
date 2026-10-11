@@ -1,3 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
+import { submitGatewayInbox } from "@/lib/gateway-inbox";
 import {
   portfolioId,
   portfolioUtf8Bytes,
@@ -5,15 +8,23 @@ import {
   type InboxHistoryView,
   type InboxKind,
   type InboxQuery,
+  type InboxAction,
   type PortfolioQuery,
   type PortfolioResult,
   type ProviderKind,
   type UsageLedgerQuery,
   type UsageMoney,
 } from "@waku/client";
-import { Stack } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Stack, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AppState,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   AutomationButton,
@@ -132,6 +143,93 @@ export default function GatewayPortfolioScreen() {
     setAgentInput("");
     setModelInput("");
   }, [identity]);
+  const [writing, setWriting] = useState(false),
+    [writeNotice, setWriteNotice] = useState<string | null>(null);
+  const visible = useRef(false),
+    writeEpoch = useRef(0),
+    writeLock = useRef(false),
+    mounted = useRef(true);
+  const writeScope = JSON.stringify([
+    query,
+    state.ownerId,
+    state.pairing?.baseUrl,
+    state.pairing?.id,
+    state.pairing?.token,
+    state.pairing?.expiresAt,
+    state.pairing?.grants,
+  ]);
+  const scopeRef = useRef(writeScope);
+  scopeRef.current = writeScope;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    writeEpoch.current++;
+    setWriteNotice(null);
+  }, [writeScope]);
+  useFocusEffect(
+    useCallback(() => {
+      visible.current = true;
+      writeEpoch.current++;
+      const subscription = AppState.addEventListener("change", () => {
+        writeEpoch.current++;
+        setWriteNotice(null);
+      });
+      return () => {
+        visible.current = false;
+        writeEpoch.current++;
+        subscription.remove();
+      };
+    }, []),
+  );
+  async function notification(sequence: number, action: InboxAction) {
+    if (writeLock.current || !state.pairing || state.result?.kind !== "inbox")
+      return;
+    const ticket = writeEpoch.current,
+      scope = writeScope;
+    const current = () =>
+      mounted.current &&
+      visible.current &&
+      AppState.currentState === "active" &&
+      writeEpoch.current === ticket &&
+      scopeRef.current === scope;
+    writeLock.current = true;
+    setWriting(true);
+    setWriteNotice(null);
+    try {
+      const command = await submitGatewayInbox(
+        state.pairing,
+        AsyncStorage,
+        state.ownerId,
+        { sequence, expectedRevision: state.result.page.revision, action },
+        Crypto.randomUUID,
+        current,
+      );
+      if (!current()) return;
+      setWriteNotice(
+        command.status === "applied"
+          ? "Notification updated."
+          : command.status === "rejected"
+            ? "Notification changed or request expired. Refresh before retrying."
+            : "Notification request pending. Tap its action again to recover the same request.",
+      );
+      if (command.status === "applied" || command.status === "rejected")
+        await state.refresh();
+    } catch (error) {
+      if (current())
+        setWriteNotice(
+          error instanceof Error
+            ? error.message
+            : "Notification update unavailable.",
+        );
+    } finally {
+      writeLock.current = false;
+      if (mounted.current) setWriting(false);
+    }
+  }
   const result = state.result,
     selected = query.query;
   const rows = useMemo<Row[]>(
@@ -545,6 +643,14 @@ export default function GatewayPortfolioScreen() {
                 history; totals cover all matching records.
               </Text>
             )}
+            {writeNotice && (
+              <Text
+                accessibilityRole="alert"
+                style={[styles.body, { color: theme.textSecondary }]}
+              >
+                {writeNotice}
+              </Text>
+            )}
             {(error || state.message) && (
               <Text
                 accessibilityRole="alert"
@@ -625,6 +731,39 @@ export default function GatewayPortfolioScreen() {
                 >
                   Task {item.entry.taskId}
                 </Text>
+              )}
+              {state.pairing?.grants.includes("inboxControl") && (
+                <View style={styles.actions}>
+                  <AutomationButton
+                    label={item.entry.state.read ? "Mark unread" : "Mark read"}
+                    disabled={writing || state.loading}
+                    onPress={() =>
+                      void notification(
+                        item.entry.sequence,
+                        item.entry.state.read ? "markUnread" : "markRead",
+                      )
+                    }
+                  />
+                  {!item.entry.state.acknowledged && (
+                    <AutomationButton
+                      label="Acknowledge"
+                      disabled={writing || state.loading}
+                      onPress={() =>
+                        void notification(item.entry.sequence, "acknowledge")
+                      }
+                    />
+                  )}
+                  <AutomationButton
+                    label={item.entry.state.archived ? "Restore" : "Archive"}
+                    disabled={writing || state.loading}
+                    onPress={() =>
+                      void notification(
+                        item.entry.sequence,
+                        item.entry.state.archived ? "restore" : "archive",
+                      )
+                    }
+                  />
+                </View>
               )}
             </View>
           ) : (
