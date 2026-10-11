@@ -1,6 +1,6 @@
 # Agent Teams release checklist
 
-Updated 2026-10-09. Implementation branch: `codex/ion-agent-teams` in the managed
+Updated 2026-10-11. Implementation branch: `codex/ion-agent-teams` in the managed
 worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
@@ -72,6 +72,11 @@ assert live account acceptance, visual validation or production release readines
 
 - [x] Durable sequential workflow stages, per-stage teams, exact human gates,
   aggregate limits, immutable prior report handoffs and interval routine firing.
+- [x] Explicit code inheritance between stages: durable source reservations,
+  immutable manifests, original Git base, independent installed workspaces,
+  actual branch predecessor, unchanged grants and cumulative human source review.
+  Interrupted copies stay fenced until exact verification; see
+  [code handoff review](27-workflow-code-handoff.md).
 - [x] Pinned per-stage required HTML/Markdown/text/CSV/JSON output documents,
   real lead output contracts and final-stage evidence revalidation; requirements
   remain visible on desktop/phone and immutable for existing runs.
@@ -134,7 +139,8 @@ assert live account acceptance, visual validation or production release readines
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
 Opt-in confirmed-failure stage retries are implemented. Binary document publication
-and code integration across stages remain development work. Full release completion
+remains development work. Code inheritance and cumulative source review are
+implemented with the review limits above. Full release completion
 also requires the unchecked execution and accounting items above.
 
 ## Your live review when resources are available
@@ -194,7 +200,7 @@ also requires the unchecked execution and accounting items above.
 
 ## Verification baseline
 
-Current protocol is **33**. Rebuild desktop, daemon and clients together. The
+Current protocol is **37**. Rebuild desktop, daemon and clients together. The
 progress document records the exact automated checks for each committed increment.
 No live provider billing, app account mutation, cloud deployment, visual test or
 second development watcher was performed during these checkpoints.

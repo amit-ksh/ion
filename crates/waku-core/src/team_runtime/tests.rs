@@ -276,16 +276,32 @@ impl Fixture {
         }
     }
     fn until(&self, condition: impl Fn(&TeamRunSnapshot) -> bool) -> TeamRunSnapshot {
-        let deadline = Instant::now() + Duration::from_secs(30);
+        // Disk-backed native execution may progress beyond 30s on Windows.
+        // Fail a true 30s stall, and retain a separate finite overall bound.
+        let deadline = Instant::now() + Duration::from_secs(180);
+        let mut stalled_at = Instant::now() + Duration::from_secs(30);
+        let mut observed = None;
         let mut after = None;
         loop {
             self.runtime.tick(&mut after).unwrap();
             let run = self.runtime.coordinator.snapshot(self.run.id).unwrap();
+            let progress = (
+                run.status,
+                run.usage.model_calls,
+                run.work
+                    .iter()
+                    .map(|w| (w.id, w.status))
+                    .collect::<Vec<_>>(),
+            );
+            if observed.as_ref() != Some(&progress) {
+                stalled_at = Instant::now() + Duration::from_secs(30);
+                observed = Some(progress);
+            }
             if condition(&run) && self.runtime.jobs.lock().is_empty() {
                 return run;
             }
             assert!(
-                Instant::now() < deadline,
+                Instant::now() < deadline && Instant::now() < stalled_at,
                 "Dispatcher stalled: {:?}",
                 run.work
                     .iter()
@@ -1052,6 +1068,7 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
         }),
         stages: vec![
             WorkflowStage {
+                inherit_workspace: false,
                 retry: None,
                 title: "Prepare".into(),
                 instructions: "Create reviewed preparation evidence".into(),
@@ -1061,6 +1078,7 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
                 transition: WorkflowTransition::default(),
             },
             WorkflowStage {
+                inherit_workspace: false,
                 retry: None,
                 title: "Release review".into(),
                 instructions: "Review the prior report inputs and create a final document".into(),
@@ -1081,14 +1099,26 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
         .coordinator
         .start_automation(Uuid::new_v4(), wid, rev, unix_time())
         .unwrap();
-    // This drives one full three-level team per stage. Retain the existing
-    // per-team wait allowance instead of sharing one 30-second allowance.
-    let deadline = Instant::now() + Duration::from_secs(30 * a.stages.len() as u64 + 5);
+    // Wait for actual native call/dispatch progress, not polling/revision churn.
+    // Keep a finite overall cap as well as a 30s no-progress limit.
+    let deadline = Instant::now() + Duration::from_secs(180 * a.stages.len() as u64);
+    let mut stalled_at = Instant::now() + Duration::from_secs(30);
+    let mut observed = None;
     let mut after = None;
     let mut approved = false;
     loop {
         f.runtime.tick(&mut after).unwrap();
         let a = f.runtime.coordinator.automation_run(a.id).unwrap();
+        let progress = (
+            a.status,
+            a.current_stage,
+            f.script.models.lock().len(),
+            f.script.starts.lock().len(),
+        );
+        if observed != Some(progress) {
+            stalled_at = Instant::now() + Duration::from_secs(30);
+            observed = Some(progress);
+        }
         if a.status == AutomationStatus::WaitingDecision && !approved {
             assert!(
                 f.runtime
@@ -1106,14 +1136,30 @@ fn automation_dispatch_runs_real_team_stages_and_persists_artifact_handoff() {
             break;
         }
         assert!(
-            Instant::now() < deadline,
-            "Workflow stalled: {:?} {:?}, stage {}: {:?}",
+            Instant::now() < deadline && Instant::now() < stalled_at,
+            "Workflow stalled: {:?} {:?}, stage {}: {:?}; team work: {:?}",
             a.status,
             a.reason,
             a.current_stage,
             a.stages
                 .iter()
                 .map(|s| (s.started, s.completed))
+                .collect::<Vec<_>>(),
+            a.stages
+                .iter()
+                .filter(|s| s.started && !s.completed)
+                .map(|s| {
+                    f.runtime.coordinator.snapshot(s.team_run_id).map(|team| {
+                        (
+                            team.status,
+                            team.usage.model_calls,
+                            team.work
+                                .into_iter()
+                                .map(|w| (w.status, w.reason, w.attempts.last().map(|a| a.status)))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                })
                 .collect::<Vec<_>>()
         );
         thread::sleep(Duration::from_millis(10));

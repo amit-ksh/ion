@@ -114,6 +114,7 @@ export default function AutomationsScreen() {
               <Text style={[styles.body, { color: theme.textSecondary }]}>{s.teamId ? teamNames.get(s.teamId) ?? 'Team' : 'Choose a team on desktop'}{s.requiresDecision ? ' · User decision' : ''}</Text>
               <Text selectable style={[styles.body, { color: theme.text }]}>{s.instructions}</Text>
               <Text style={[styles.body, { color: theme.textSecondary }]}>{s.retry ? `Retry before effects: up to ${s.retry.maxAttempts - 1} · ${s.retry.delaySeconds}s delay` : 'Retries: off'}</Text>
+              {s.inheritWorkspace && <Text style={[styles.body, { color: theme.textSecondary }]}>Inherit code: on</Text>}
               {!!s.requiredFormats?.length && <Text style={[styles.body, { color: theme.textSecondary }]}>Required documents: {s.requiredFormats.join(', ').toUpperCase()}</Text>}
             </View>)}
           </View>}

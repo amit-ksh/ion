@@ -16,12 +16,14 @@ enum ReservedWorkspaceEdit {
 }
 pub(super) mod effect_recovery;
 mod files;
+pub(super) mod inheritance;
 mod integration;
 pub(super) fn reconcile_integrations(tx: &Transaction<'_>, now: u64) -> Result<()> {
+    inheritance::reconcile_owner_restart(tx, now)?;
     integration::reconcile_owner_restart(tx, now)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct WorkspaceRecord {
     workspace: TeamWorkspace,
     repository: PathBuf,
@@ -48,6 +50,7 @@ pub(super) fn require_settled_effects_except_gpu(
     run: Uuid,
     request: Option<Uuid>,
 ) -> Result<()> {
+    inheritance::require_ready(db, run)?;
     let pending: bool = db.query_row(
         "SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_app_effects WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_jobs WHERE run_id=?1 AND state IN ('staging','submitting','running','canceling')) OR EXISTS(SELECT 1 FROM ion_team_gpu_jobs WHERE run_id=?1 AND state NOT IN ('settled','cleaned') AND (?2 IS NULL OR request_id!=?2))",
         params![run.to_string(),request.map(|id| id.to_string())], |r| r.get(0))?;
@@ -198,13 +201,17 @@ impl TeamCoordinator {
         now: u64,
     ) -> Result<PathBuf> {
         let source = fs::canonicalize(source).context("Project workspace is unavailable")?;
-        let run = self.snapshot(run_id)?;
+        let db = self.connect()?;
+        let run = load(&db, run_id)?;
         active(&run, now)?;
-        if !run.access.workspace_write || !run.profiles.iter().any(|p| p.access.workspace_write) {
+        let handoff = inheritance::pin(self, &db, run_id, &source, now)?;
+        if handoff.is_none()
+            && (!run.access.workspace_write
+                || !run.profiles.iter().any(|p| p.access.workspace_write))
+        {
             return Ok(source);
         }
-        let existing: Option<(String, String)> = self
-            .connect()?
+        let existing: Option<(String, String)> = db
             .query_row(
                 "SELECT state,body FROM ion_team_workspaces WHERE run_id=?",
                 [run_id.to_string()],
@@ -232,10 +239,11 @@ impl TeamCoordinator {
             }
             record.workspace.path = fs::canonicalize(&record.workspace.path)?;
             verify(&record)?;
-            self.connect()?.execute(
+            db.execute(
                 "UPDATE ion_team_workspaces SET body=? WHERE run_id=?",
                 params![serde_json::to_string(&record)?, run_id.to_string()],
             )?;
+            inheritance::apply(self, run_id, &record, now)?;
             self.seal_workspace(run_id, now)?;
             return Ok(record.workspace.path);
         }
@@ -256,7 +264,15 @@ impl TeamCoordinator {
                 .all(|l| !l.starts_with("160000 ")),
             "Team coding workspaces with submodules require a reviewed snapshot adapter"
         );
-        let base = git(&repository, &["rev-parse", "HEAD"])?.trim().to_owned();
+        let base = if let Some(handoff) = &handoff {
+            ensure!(
+                repository == handoff.repository,
+                "Inherited repository identity changed"
+            );
+            handoff.workspace.base_commit.clone()
+        } else {
+            git(&repository, &["rev-parse", "HEAD"])?.trim().to_owned()
+        };
         ensure!(
             matches!(base.len(), 40 | 64) && base.bytes().all(|c| c.is_ascii_hexdigit()),
             "Invalid team base commit"
@@ -326,6 +342,7 @@ impl TeamCoordinator {
             "UPDATE ion_team_workspaces SET body=? WHERE run_id=? AND state='preparing'",
             params![serde_json::to_string(&record)?, run_id.to_string()],
         )?;
+        inheritance::apply(self, run_id, &record, now)?;
         self.seal_workspace(run_id, now)?;
         Ok(record.workspace.path)
     }
@@ -333,6 +350,7 @@ impl TeamCoordinator {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         active(&load(&tx, run_id)?, now)?;
+        inheritance::require_installed(&tx, run_id)?;
         if tx.execute(
             "UPDATE ion_team_workspaces SET state='ready' WHERE run_id=? AND state='preparing'",
             [run_id.to_string()],
@@ -361,6 +379,7 @@ impl TeamCoordinator {
         let db = self.connect()?;
         let run = load(&db, lease.run_id)?;
         active(&run, now)?;
+        inheritance::require_ready(&db, run.id)?;
         let work = checked_lease(&run, lease, now, false)?;
         let source = fs::canonicalize(source)?;
         match run.workspace {
@@ -568,34 +587,19 @@ impl TeamCoordinator {
                 .as_ref()
                 .context("No coding workspace exists for this run")?;
             let path = safe_edit_path(&workspace.path, relative)?;
-            let rows:Vec<(String,String,String)>=db.prepare("SELECT id,signature,state FROM ion_team_workspace_edits WHERE run_id=? ORDER BY rowid LIMIT 257")?.query_map([run.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
-            let mut before = None;
-            let mut after = None;
-            let mut ids = vec![];
-            for (id, signature, state) in rows {
-                let value: serde_json::Value = serde_json::from_str(&signature)?;
-                if state != "restored"
-                    && value["path"] == relative
-                    && value["operation"] != "createDirectory"
-                {
-                    ensure!(
-                        state == "applied",
-                        "Changed file has an uncertain edit; reconcile it before publication"
-                    );
-                    if before.is_none() {
-                        before = Some(value["old"].clone());
-                    }
-                    after = Some(value["new"].clone());
-                    ids.push(id);
-                }
-            }
-            let after = after.context("No team edits exist for this path")?;
-            let final_content = if after.is_null() {
-                None
-            } else {
-                Some(after.as_str().context("Invalid edit receipt")?)
-            };
-            compare_file(&path, final_content)?;
+            let record = integration::record(&db, run.id)?;
+            let normalized = path
+                .strip_prefix(&workspace.path)?
+                .to_string_lossy()
+                .replace('\\', "/");
+            let change = integration::receipted_changes(&db, run.id, &record)?
+                .into_iter()
+                .find(|c| c.path == normalized && !c.directory)
+                .context("No receipted changes remain for this path")?;
+            let before = change.before;
+            let after = change.after;
+            let ids = change.edit_ids;
+            compare_file(&path, after.as_deref())?;
             let content = serde_json::to_string_pretty(
                 &serde_json::json!({"path":relative,"base_commit":workspace.base_commit,"branch":workspace.branch,"before":before,"after":after,"edit_ids":ids,"source_checkout_changed":false}),
             )?;
@@ -608,7 +612,7 @@ impl TeamCoordinator {
         self.publish_document(lease, request, &name, "json", &content, now)
     }
     pub fn workspace_has_pending_effect(&self, run: Uuid) -> Result<bool> {
-        Ok(self.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=? AND state='pending')",[run.to_string()],|r|r.get(0))?)
+        Ok(self.connect()?.query_row("SELECT EXISTS(SELECT 1 FROM ion_team_workspace_edits WHERE run_id=?1 AND state='pending') OR EXISTS(SELECT 1 FROM ion_team_workspace_handoffs WHERE run_id=?1 AND state!='applied')",[run.to_string()],|r|r.get(0))?)
     }
 }
 fn compare_file(path: &Path, expected: Option<&str>) -> Result<()> {
@@ -631,15 +635,35 @@ fn compare_file(path: &Path, expected: Option<&str>) -> Result<()> {
     Ok(())
 }
 pub(super) fn safe_edit_path(root: &Path, relative: &str) -> Result<PathBuf> {
+    let value = checked_relative_path(relative)?;
+    let mut path = root.to_owned();
+    for part in value.components() {
+        let Component::Normal(name) = part else {
+            unreachable!()
+        };
+        path.push(name);
+        if let Ok(meta) = fs::symlink_metadata(&path) {
+            ensure!(!meta.file_type().is_symlink(), "File path contains a link");
+        }
+    }
+    let parent = fs::canonicalize(path.parent().context("File parent missing")?)?;
+    ensure!(
+        parent.starts_with(root),
+        "File path escapes the team workspace"
+    );
+    ensure!(parent.is_dir(), "File parent directory must exist");
+    Ok(parent.join(path.file_name().context("File name missing")?))
+}
+fn checked_relative_path(relative: &str) -> Result<&Path> {
     let value = Path::new(relative);
     ensure!(
-        !value.is_absolute()
+        !relative.is_empty()
+            && !value.is_absolute()
             && value
                 .components()
                 .all(|c| matches!(c, Component::Normal(_))),
         "Use a project-relative file path"
     );
-    let mut path = root.to_owned();
     for part in value.components() {
         let Component::Normal(name) = part else {
             unreachable!()
@@ -697,18 +721,8 @@ pub(super) fn safe_edit_path(root: &Path, relative: &str) -> Result<PathBuf> {
                 && !text.ends_with(".pfx"),
             "File path is private or reserved"
         );
-        path.push(name);
-        if let Ok(meta) = fs::symlink_metadata(&path) {
-            ensure!(!meta.file_type().is_symlink(), "File path contains a link");
-        }
     }
-    let parent = fs::canonicalize(path.parent().context("File parent missing")?)?;
-    ensure!(
-        parent.starts_with(root),
-        "File path escapes the team workspace"
-    );
-    ensure!(parent.is_dir(), "File parent directory must exist");
-    Ok(parent.join(path.file_name().context("File name missing")?))
+    Ok(value)
 }
 
 #[cfg(test)]

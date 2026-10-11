@@ -349,9 +349,18 @@ impl Waku {
                             .unwrap_or_default()
                     ),
                     format!(
-                        "{} · {}",
+                        "{} · {}{}",
                         workflow_ui::transition_label(&stage.transition),
-                        workflow_ui::retry_label(stage.retry)
+                        workflow_ui::retry_label(stage.retry),
+                        if stage.inherit_workspace {
+                            stage
+                                .workspace_from
+                                .and_then(|id| run.stages.iter().position(|s| s.team_run_id == id))
+                                .map(|source| format!(" · Code from stage {}", source + 1))
+                                .unwrap_or_else(|| " · Inherit code: on".into())
+                        } else {
+                            String::new()
+                        }
                     ),
                     stage
                         .route

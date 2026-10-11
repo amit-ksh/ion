@@ -968,6 +968,7 @@ impl TeamCoordinator {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let run = load(&tx, run_id)?;
         active(&run, now)?;
+        workspace::inheritance::require_ready(&tx, run_id)?;
         let mut work = run
             .work
             .iter()

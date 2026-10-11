@@ -1595,3 +1595,6 @@ fn team_file_recovery_retains_private_backups_and_rejects_unauthorized_changed_b
         "Unrecognized user bytes"
     );
 }
+
+#[path = "inheritance_tests.rs"]
+mod inheritance_tests;

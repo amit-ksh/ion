@@ -1,6 +1,6 @@
 # Agent teams: implementation progress and review checklist
 
-Updated 2026-10-08. Development branch: `codex/ion-agent-teams`, based on
+Updated 2026-10-11. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
@@ -2628,3 +2628,59 @@ The stream tests cover PCM/auth ordering, endpointed final text, canceled/late
 sockets, malformed/oversized responses and buffers, TLS failure and redirects.
 They use controlled local/fake transports and do not establish live service,
 OS microphone, Android/iOS TLS/redirect or visual acceptance.
+
+
+## Workflow code inheritance (2026-10-11)
+
+Later stages now have an explicit **Inherit code** control. It is off for legacy
+workflows and new stages; the first stage cannot enable it. Definitions, stage
+instructions and phone/desktop run details retain the pinned setting. A started
+stage records the actual completed predecessor, including skipped branch paths.
+Prompt generation can propose the same editable flag.
+
+The next team and code reservation commit together after its human gate and
+shared budgets have been checked. Git/receipt/file verification runs outside the
+dispatch transaction in background workspace preparation. An immutable,
+bounded manifest pins the predecessor, repository/source binding, original base,
+exact bytes and SHA-256 before copy effects. The owner installs it into a new
+isolated worktree. Both the original source and predecessor workspace stay intact.
+Claims are fenced until installation and the workspace are sealed.
+
+Read-only receiving stages keep write access denied. Existing Local/Nebius
+snapshot dispatch uses the installed workspace with the same selected harness,
+model, grants, fallback and remaining limits. Subsequent receipts extend exact
+prior bytes; final source review and generated change documents contain cumulative
+original-before/final-after content and original edit IDs. Native source
+application remains a separate human review action.
+
+A restart marks an in-progress copy uncertain. Recovery adopts only the full
+exact result, unchanged manifest, no unreceipted files and no private staging
+files. Partial/unknown copies are preserved for manual review and are never
+replayed. New source commits do not change the pinned code base; final source
+application rejects the changed-base conflict. The review/recovery checklist is
+in [code handoff between stages](27-workflow-code-handoff.md).
+
+Verification: the full **24 workspace/source regression tests** passed,
+including all five new workflow handoff groups. The final five groups passed
+again after repository/manifest hash binding, metadata-tamper rejection, stricter
+staging checks and exact post-restart adoption were added. Shared-client and full
+phone TypeScript checks passed. All **29 coordinator workflow/calendar/retry/history regressions** passed. The
+separate native dispatch fixture repeatedly reached its total-clock wait limit
+while agents were still making progress through review. Workspace preparation
+now reuses its existing read connection instead of adding schema initialization
+on ordinary tasks. That fixture retains a 30-second no-progress guard plus a
+finite overall bound, with original task, approval and completion assertions and
+better failure diagnostics. The native dispatch fixture then passed with its
+original exact task, approval and completion assertions. The five handoff groups
+passed again against the final connection-reuse implementation. Desktop, daemon
+and native worker compilation, generated protocol 37 equality, Rust formatting
+and whitespace checks passed. This is 54 distinct coordinator/workspace/native
+regression checks; reruns are not counted as additional coverage.
+
+This checkpoint does not complete the full release. Binary document publication,
+phone definition editing, additional app binding and notification delivery,
+other existing solo-harness usage, authoritative billing, registered-owner/gateway
+controls and broader GPU/resource integrations still have development or live
+acceptance remaining. Deferred new harness adapters stay outside scope. No
+visual test, live provider request, billable provisioning or extra dev watcher
+has been performed.

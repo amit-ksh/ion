@@ -121,6 +121,10 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             request_id TEXT NOT NULL UNIQUE REFERENCES ion_team_gpu_jobs(request_id));
         CREATE TABLE IF NOT EXISTS ion_team_workspaces (
             run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id), state TEXT NOT NULL, body TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_workspace_handoffs (
+            run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id),
+            previous_run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
+            state TEXT NOT NULL,body TEXT);
         CREATE TABLE IF NOT EXISTS ion_team_workspace_edits (
             id TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,

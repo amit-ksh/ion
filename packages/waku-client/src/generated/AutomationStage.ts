@@ -3,4 +3,8 @@ import type { AutomationRoute } from "./AutomationRoute";
 import type { WorkflowRetryPolicy } from "./WorkflowRetryPolicy";
 import type { WorkflowTransition } from "./WorkflowTransition";
 
-export type AutomationStage = { retry?: WorkflowRetryPolicy, route?: AutomationRoute, skipped?: boolean, transition?: WorkflowTransition, title: string, instructions: string, requiredFormats?: Array<string>, teamId: string, teamRunId: string, taskId: string, requiresDecision: boolean, approved: boolean, started: boolean, completed: boolean, };
+export type AutomationStage = { inheritWorkspace?: boolean,
+/**
+ * The actually completed predecessor, never an unselected branch.
+ */
+workspaceFrom?: string, retry?: WorkflowRetryPolicy, route?: AutomationRoute, skipped?: boolean, transition?: WorkflowTransition, title: string, instructions: string, requiredFormats?: Array<string>, teamId: string, teamRunId: string, taskId: string, requiresDecision: boolean, approved: boolean, started: boolean, completed: boolean, };

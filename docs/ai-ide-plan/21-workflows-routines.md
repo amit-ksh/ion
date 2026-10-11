@@ -1,7 +1,7 @@
 # Workflow and routine execution
 
-Updated 2026-10-09. Development is on `codex/ion-agent-teams`; integration into
-`ion-prod` and live acceptance remain separate. Protocol **36** requires matching
+Updated 2026-10-11. Development is on `codex/ion-agent-teams`; integration into
+`ion-prod` and live acceptance remain separate. Protocol **37** requires matching
 desktop, daemon and clients.
 
 ## Available behavior
@@ -21,8 +21,10 @@ desktop, daemon and clients.
   action/account/arguments approval provided by the Teams adapter.
 - Only a genuinely completed prior team permits the next stage. Its accepted
   UTF-8 reports are copied as bounded, immutable input data. Inputs do not grant
-  access. Each coding stage retains its own isolated workspace; code changes are
-  reviewed in its task rather than silently merged into the next stage.
+  access. Later stages may explicitly enable **Inherit code** to install the
+  completed predecessor's receipted changes in their own isolated workspace.
+  Final source integration remains a human review action. See
+  [code handoff and its review checklist](27-workflow-code-handoff.md).
 - Workflow-wide call, token, assignment and time limits constrain later stages.
   Unknown usage keeps the original reservation. Stage limits also retain the
   selected team's smaller caps. Exhaustion blocks further dispatch.
@@ -89,8 +91,7 @@ desktop, daemon and clients.
 
 ## Remaining development
 
-Binary document publication, safe code
-integration across stages, additional app binding controls, background notification delivery
+Binary document publication, additional app binding controls, background notification delivery
 and phone definition editing remain subsequent increments. Broader remote execution and registered-owner integrations are tracked in
 [the release checklist](20-agent-teams-release-checklist.md). Executed test receipts
 and monetary caps are still required. Presence of this workflow runner does not
@@ -261,7 +262,7 @@ all earlier visited stages. A branch cannot reset the budget, grants or deadline
 Move up/down remaps links to preserve stage identity and rejects a move that would
 create an invalid graph. Change incoming links before removing a linked stage.
 Desktop and phone run details show the pinned rule, chosen destination, matched
-result and skipped stages. Matching protocol **36** clients are required.
+result and skipped stages. Matching protocol **37** clients are required.
 
 ### Your branch review
 
@@ -325,7 +326,7 @@ checks are not reclassified as failures before effects.
 - [ ] Confirm native keyboard controls and matching phone policy display. No
   visual or device acceptance is claimed by compilation.
 
-Code integration, parallel fan-out/loops, binary document publication, broader
+Parallel fan-out/loops, binary document publication, broader
 GPU/gateway/cloud speech and authoritative billing still have development remaining.
 Deferred new harness adapters remain outside scope.
 

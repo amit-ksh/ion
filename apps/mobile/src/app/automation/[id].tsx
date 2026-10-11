@@ -73,6 +73,7 @@ export default function AutomationScreen() {
         <Text selectable style={[styles.body, { color: theme.text }]}>{stage.instructions}</Text>
         <Text style={[styles.body, { color: theme.textSecondary }]}>{workflowTransition(stage.transition)}</Text>
         <Text style={[styles.body, { color: theme.textSecondary }]}>{stage.retry ? `Retry before effects: up to ${stage.retry.maxAttempts - 1} · ${stage.retry.delaySeconds}s delay` : 'Retries: off'}</Text>
+        {stage.inheritWorkspace && <Text style={[styles.body, { color: theme.textSecondary }]}>{stage.workspaceFrom && run?.stages.some(s => s.teamRunId === stage.workspaceFrom) ? `Code from stage ${run.stages.findIndex(s => s.teamRunId === stage.workspaceFrom) + 1}` : 'Inherit code: on'}</Text>}
         {stage.route && <Text style={[styles.body, { color: theme.textSecondary }]}>Chosen: {workflowTarget(stage.route.target)}{stage.route.matched == null ? '' : stage.route.matched ? ' (matched)' : ' (did not match)'}</Text>}
         {stage.route?.artifactId && <Text selectable style={[styles.body, { color: theme.textSecondary }]}>Document {stage.route.artifactId} · SHA-256 {stage.route.sha256}</Text>}
         {!!stage.requiredFormats?.length && <Text style={[styles.body, { color: theme.textSecondary }]}>Required documents: {stage.requiredFormats.join(', ').toUpperCase()}</Text>}

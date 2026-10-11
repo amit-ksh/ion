@@ -4,6 +4,10 @@ import type { WorkflowTransition } from "./WorkflowTransition";
 
 export type WorkflowStage = {
 /**
+ * Copy the last completed stage's receipted code into this stage's isolated workspace.
+ */
+inheritWorkspace?: boolean,
+/**
  * Opt-in retries of confirmed failures before effects; old workflows keep it off.
  */
 retry?: WorkflowRetryPolicy, title: string, instructions: string, requiresDecision: boolean,

@@ -147,17 +147,20 @@ impl Waku {
         self.control_ui
             .stages
             .iter()
-            .map(|(title, instructions, gate, team, formats, route, retry)| {
-                Ok(WorkflowStage {
-                    retry: *retry,
-                    title: title.read(cx).content().to_owned(),
-                    instructions: instructions.read(cx).content().to_owned(),
-                    requires_decision: *gate,
-                    team_id: *team,
-                    required_formats: formats.clone(),
-                    transition: route.draft(cx)?,
-                })
-            })
+            .map(
+                |(title, instructions, gate, team, formats, route, retry, inherit_workspace)| {
+                    Ok(WorkflowStage {
+                        inherit_workspace: *inherit_workspace,
+                        retry: *retry,
+                        title: title.read(cx).content().to_owned(),
+                        instructions: instructions.read(cx).content().to_owned(),
+                        requires_decision: *gate,
+                        team_id: *team,
+                        required_formats: formats.clone(),
+                        transition: route.draft(cx)?,
+                    })
+                },
+            )
             .collect()
     }
     pub(super) fn remove_workflow_stage(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -295,6 +298,32 @@ impl Waku {
                         .selected(target == selected)
                     })
                     .collect()
+            },
+        )
+        .into_any_element()
+    }
+    pub(super) fn render_workflow_workspace(
+        &self,
+        index: usize,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let selected = self.control_ui.stages[index].7;
+        self.control_button(
+            format!("workflow-code-{index}"),
+            if selected {
+                "Inherit code: on"
+            } else {
+                "Inherit code: off"
+            },
+            cx,
+            move |this, _, cx| {
+                if index == 0 && !this.control_ui.stages.get(index).is_some_and(|s| s.7) {
+                    this.control_ui.error = Some("The first stage cannot inherit code.".into());
+                } else if let Some(stage) = this.control_ui.stages.get_mut(index) {
+                    stage.7 = !stage.7;
+                    this.control_ui.error = None;
+                }
+                cx.notify();
             },
         )
         .into_any_element()

@@ -103,6 +103,9 @@ pub struct Workflow {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowStage {
+    /// Copy the last completed stage's receipted code into this stage's isolated workspace.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inherit_workspace: bool,
     /// Opt-in retries of confirmed failures before effects; old workflows keep it off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -194,6 +197,9 @@ impl Workflow {
         reachable[0] = true;
         for (index, stage) in self.stages.iter().enumerate() {
             stage.document_contract()?;
+            if index == 0 && stage.inherit_workspace {
+                return Err("The first stage cannot inherit code; disable Inherit code");
+            }
             if let Some(retry) = stage.retry {
                 retry.validate()?;
             }
@@ -500,6 +506,12 @@ pub enum AutomationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationStage {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inherit_workspace: bool,
+    /// The actually completed predecessor, never an unselected branch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub workspace_from: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub retry: Option<WorkflowRetryPolicy>,

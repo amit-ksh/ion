@@ -10,6 +10,7 @@ fn workflow(f: &Fixture, gates: &[bool]) -> Workflow {
             .iter()
             .enumerate()
             .map(|(i, gate)| WorkflowStage {
+                inherit_workspace: false,
                 retry: None,
                 title: format!("Stage {i}"),
                 instructions: "Create a report and review its evidence".into(),

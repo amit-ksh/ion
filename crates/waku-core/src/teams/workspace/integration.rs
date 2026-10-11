@@ -24,7 +24,7 @@ pub(super) fn reconcile_owner_restart(tx: &Transaction<'_>, now: u64) -> Result<
     }
     Ok(())
 }
-fn record(db: &Connection, run: Uuid) -> Result<WorkspaceRecord> {
+pub(super) fn record(db: &Connection, run: Uuid) -> Result<WorkspaceRecord> {
     let body: String = db.query_row(
         "SELECT body FROM ion_team_workspaces WHERE run_id=? AND state='ready'",
         [run.to_string()],
@@ -67,8 +67,8 @@ fn bound_source(record: &WorkspaceRecord, source: &Path) -> Result<PathBuf> {
 }
 // Parents created by the reviewed manifest may not exist yet. Every existing
 // component must still be a real directory/file within the recorded source.
-fn prospective_path(record: &WorkspaceRecord, relative: &str) -> Result<PathBuf> {
-    safe_edit_path(&record.workspace.path, relative)?;
+pub(super) fn prospective_path(record: &WorkspaceRecord, relative: &str) -> Result<PathBuf> {
+    checked_relative_path(relative)?;
     let root = &record.workspace.source_path;
     let mut path = root.clone();
     for component in Path::new(relative).components() {
@@ -129,7 +129,14 @@ fn source_conflicts(record: &WorkspaceRecord, plan: &TeamIntegration) -> Vec<Str
     errors
 }
 fn verify_result(record: &WorkspaceRecord, plan: &TeamIntegration, source: bool) -> Result<()> {
-    for change in &plan.changes {
+    verify_changes(record, &plan.changes, source)
+}
+pub(super) fn verify_changes(
+    record: &WorkspaceRecord,
+    changes: &[TeamSourceChange],
+    source: bool,
+) -> Result<()> {
+    for change in changes {
         let path = if source {
             prospective_path(record, &change.path)?
         } else {
@@ -149,9 +156,30 @@ fn verify_result(record: &WorkspaceRecord, plan: &TeamIntegration, source: bool)
     Ok(())
 }
 fn manifest(db: &Connection, run: Uuid, record: &WorkspaceRecord) -> Result<Vec<TeamSourceChange>> {
+    let changes = receipted_changes(db, run, record)?;
+    ensure!(!changes.is_empty(), "No receipted changes remain to apply");
+    Ok(changes)
+}
+pub(super) fn receipted_changes(
+    db: &Connection,
+    run: Uuid,
+    record: &WorkspaceRecord,
+) -> Result<Vec<TeamSourceChange>> {
     let rows:Vec<(String,String,String)>=db.prepare("SELECT id,signature,state FROM ion_team_workspace_edits WHERE run_id=? AND state!='restored' ORDER BY rowid LIMIT 257")?.query_map([run.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
     ensure!(rows.len() <= 256, "Integration edit bound exceeded");
-    let mut changes: BTreeMap<String, TeamSourceChange> = BTreeMap::new();
+    let mut changes: BTreeMap<String, TeamSourceChange> = inheritance::inherited_changes(db, run)?
+        .into_iter()
+        .map(|c| {
+            (
+                if cfg!(windows) {
+                    c.path.to_lowercase()
+                } else {
+                    c.path.clone()
+                },
+                c,
+            )
+        })
+        .collect();
     for (id, signature, state) in rows {
         ensure!(
             state == "applied",
@@ -207,7 +235,30 @@ fn manifest(db: &Connection, run: Uuid, record: &WorkspaceRecord) -> Result<Vec<
             );
         }
     }
+    ensure!(
+        changes.len() <= 256,
+        "Cumulative workflow path bound exceeded"
+    );
     let all_paths: HashSet<_> = changes.values().map(|c| c.path.clone()).collect();
+    verify_paths(record, &all_paths)?;
+    let mut changes: Vec<_> = changes
+        .into_values()
+        .filter(|c| c.directory || c.before != c.after)
+        .collect();
+    changes.sort_by_key(|c| {
+        (
+            !c.directory,
+            Path::new(&c.path).components().count(),
+            c.path.clone(),
+        )
+    });
+    ensure!(
+        serde_json::to_vec(&changes)?.len() <= 16 * 1024 * 1024,
+        "Integration exceeds its preview bound"
+    );
+    Ok(changes)
+}
+pub(super) fn verify_paths(record: &WorkspaceRecord, all_paths: &HashSet<String>) -> Result<()> {
     // Reject extra staged, unstaged, and untracked changes instead of silently
     // bringing files edited outside the receipted tool boundary into the plan.
     let prefix = record
@@ -242,24 +293,9 @@ fn manifest(db: &Connection, run: Uuid, record: &WorkspaceRecord) -> Result<Vec<
             "Unreceipted workspace change: {relative}"
         );
     }
-    let mut changes: Vec<_> = changes
-        .into_values()
-        .filter(|c| c.directory || c.before != c.after)
-        .collect();
-    changes.sort_by_key(|c| {
-        (
-            !c.directory,
-            Path::new(&c.path).components().count(),
-            c.path.clone(),
-        )
-    });
-    ensure!(!changes.is_empty(), "No receipted changes remain to apply");
-    ensure!(
-        serde_json::to_vec(&changes)?.len() <= 16 * 1024 * 1024,
-        "Integration exceeds its preview bound"
-    );
-    Ok(changes)
+    Ok(())
 }
+
 impl TeamCoordinator {
     pub fn source_integration_run(&self, id: Uuid) -> Result<Uuid> {
         Ok(read(&self.connect()?, id)?.run_id)
@@ -542,7 +578,7 @@ impl TeamCoordinator {
         read(&db, id)
     }
 }
-fn apply_change(
+pub(super) fn apply_change(
     record: &WorkspaceRecord,
     id: Uuid,
     index: usize,
