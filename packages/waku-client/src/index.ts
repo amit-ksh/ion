@@ -16,3 +16,5 @@ export * from "./event-reducer";
 export * from "./transcript-presentation";
 export * from "./composer-preferences";
 export * from "./provider-probe-cache";
+
+export type * from "./gateway-automation";

@@ -1,6 +1,7 @@
 import type { AllowedTool } from './authority';
 import { DurableGatewayAuthority } from './durable-authority';
 import { createGatewayHandler } from './http';
+import { DurableAutomationRelay } from './automation-relay';
 import { DurableTaskRelay } from './task-relay';
 import { GatewayPush } from './push';
 import type { ComposioCatalog } from './composio';
@@ -27,36 +28,36 @@ export function startGateway(options: GatewayServerOptions): {
     throw new Error('A non-loopback gateway requires TLS');
   }
   const authority = new DurableGatewayAuthority(options.databasePath, options.allowedTools);
-  const relay = new DurableTaskRelay(options.databasePath);
-  let push: GatewayPush;
+  let relay: DurableTaskRelay | undefined;
+  let automations: DurableAutomationRelay | undefined;
+  let push: GatewayPush | undefined;
   try {
+    relay = new DurableTaskRelay(options.databasePath);
+    automations = new DurableAutomationRelay(options.databasePath);
     push = new GatewayPush(options.databasePath, authority, options.pushFetch);
-  } catch (error) {
-    relay.close();
-    authority.close();
-    throw error;
-  }
-  try {
+    const runtime = { relay, automations, push };
     const server = Bun.serve({
       hostname,
       port: options.port ?? 0,
       tls: options.tls,
       maxRequestBodySize: 70_000,
-      fetch: createGatewayHandler(authority, options.ownerToken, relay, push, options.composio, options.executor),
+      fetch: createGatewayHandler(authority, options.ownerToken, relay, push, options.composio, options.executor, automations),
       error: () => Response.json({ error: 'Request rejected' }, { status: 500 }),
     });
     return {
       server,
       close: async () => {
         await server.stop();
-        await push.close();
-        relay.close();
+        await runtime.push.close();
+        runtime.automations.close();
+        runtime.relay.close();
         authority.close();
       },
     };
   } catch (error) {
-    void push.close();
-    relay.close();
+    void push?.close();
+    automations?.close();
+    relay?.close();
     authority.close();
     throw error;
   }

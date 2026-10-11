@@ -53,6 +53,7 @@ export type RelayCommandKind = 'stop' | 'steer' | 'permission' | 'answer';
 export interface RelayCommand {
   id: string;
   deviceId: string;
+  publisherId: string;
   taskId: string;
   runtimeId: string;
   kind: RelayCommandKind;
@@ -117,6 +118,11 @@ export class DurableTaskRelay {
         [event.event_id, event.task_id, digest, event.cursor]);
     }
     this.db.run('CREATE TABLE IF NOT EXISTS relay_commands (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, task_id TEXT NOT NULL, runtime_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(device_id, idempotency_key))');
+    if (!this.db.query<{ name: string }, []>('PRAGMA table_info(relay_commands)').all().some((column) => column.name === 'publisher_id')) {
+      this.db.run("ALTER TABLE relay_commands ADD COLUMN publisher_id TEXT NOT NULL DEFAULT ''");
+      this.db.run("UPDATE relay_commands SET publisher_id=COALESCE((SELECT publisher_id FROM relay_tasks WHERE relay_tasks.id=relay_commands.task_id),'') WHERE publisher_id=''");
+      this.db.run("UPDATE relay_commands SET status='rejected' WHERE publisher_id='' AND status='queued'");
+    }
     this.db.run('CREATE TABLE IF NOT EXISTS relay_publisher_presence (device_id TEXT PRIMARY KEY, seen_at INTEGER NOT NULL)');
     this.db.run('CREATE TABLE IF NOT EXISTS relay_interactions (id TEXT PRIMARY KEY, publisher_id TEXT NOT NULL, task_id TEXT NOT NULL, runtime_id TEXT NOT NULL, request_id TEXT NOT NULL, body TEXT NOT NULL, fingerprint TEXT NOT NULL, status TEXT NOT NULL, published_at INTEGER NOT NULL, UNIQUE(task_id, runtime_id, request_id))');
     this.db.run('CREATE TABLE IF NOT EXISTS relay_computer_targets (task_id TEXT PRIMARY KEY, publisher_id TEXT NOT NULL, runtime_id TEXT NOT NULL, body TEXT NOT NULL)');
@@ -418,44 +424,45 @@ export class DurableTaskRelay {
         }
         return command;
       }
-      const task = this.db.query<{ body: string }, [string]>('SELECT body FROM relay_tasks WHERE id = ?1').get(taskId);
+      const task = this.db.query<{ body: string; publisher_id: string }, [string]>('SELECT body,publisher_id FROM relay_tasks WHERE id = ?1').get(taskId);
       if (!task || (JSON.parse(task.body) as RelayTask).runtimeId !== runtimeId) {
         throw new Error('Task runtime changed or is unavailable');
       }
       this.validateInteractionCommand(taskId, runtimeId, kind, payload);
       const id = randomUUID();
       const time = this.now();
-      this.db.run('INSERT INTO relay_commands (id, device_id, idempotency_key, task_id, runtime_id, kind, payload, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)',
-        [id, deviceId, idempotencyKey, taskId, runtimeId, kind, JSON.stringify(payload), 'queued', time, time]);
+      this.db.run('INSERT INTO relay_commands (id, device_id, idempotency_key, task_id, runtime_id, kind, payload, status, created_at, updated_at, publisher_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)',
+        [id, deviceId, idempotencyKey, taskId, runtimeId, kind, JSON.stringify(payload), 'queued', time, time, task.publisher_id]);
       return this.command(id)!;
     });
   }
 
   command(id: string): RelayCommand | null {
     const row = this.db.query<{
-      id: string; device_id: string; task_id: string; runtime_id: string; kind: RelayCommandKind;
+      id: string; device_id: string; publisher_id: string; task_id: string; runtime_id: string; kind: RelayCommandKind;
       payload: string; status: RelayCommand['status']; created_at: number; updated_at: number;
     }, [string]>('SELECT * FROM relay_commands WHERE id = ?1').get(id);
     if (!row) return null;
-    return { id: row.id, deviceId: row.device_id, taskId: row.task_id, runtimeId: row.runtime_id,
+    return { id: row.id, deviceId: row.device_id, publisherId: row.publisher_id, taskId: row.task_id, runtimeId: row.runtime_id,
       kind: row.kind, payload: JSON.parse(row.payload) as Record<string, string>,
       status: row.status, createdAt: row.created_at, updatedAt: row.updated_at };
   }
 
-  pendingCommands(): RelayCommand[] {
-    const rows = this.db.query<{ id: string }, []>(
-      "SELECT id FROM relay_commands WHERE status = 'queued' ORDER BY CASE WHEN kind = 'stop' THEN 0 ELSE 1 END, created_at LIMIT 50",
-    ).all();
+  pendingCommands(publisherId: string): RelayCommand[] {
+    const rows = this.db.query<{ id: string }, [string]>(
+      "SELECT id FROM relay_commands WHERE status='queued' AND publisher_id=?1 ORDER BY CASE WHEN kind='stop' THEN 0 ELSE 1 END,created_at LIMIT 50",
+    ).all(publisherId);
     return rows.map((row) => this.command(row.id)!);
   }
 
-  claim(id: string): RelayCommand {
+  claim(id: string, publisherId: string): RelayCommand {
     return this.write(() => {
       const command = this.command(id);
+      if (!command || !publisherId || command.publisherId !== publisherId) throw new Error('Command belongs to another publisher');
       if (command?.status === 'rejected') return command;
       if (!command || command.status !== 'queued') throw new Error('Command has no unused claim');
-      const task = this.db.query<{ body: string }, [string]>('SELECT body FROM relay_tasks WHERE id = ?1').get(command.taskId);
-      if (!task || (JSON.parse(task.body) as RelayTask).runtimeId !== command.runtimeId) {
+      const task = this.db.query<{ body: string; publisher_id: string }, [string]>('SELECT body,publisher_id FROM relay_tasks WHERE id = ?1').get(command.taskId);
+      if (!task || task.publisher_id !== publisherId || (JSON.parse(task.body) as RelayTask).runtimeId !== command.runtimeId) {
         this.db.run("UPDATE relay_commands SET status = 'rejected', updated_at = ?2 WHERE id = ?1", [id, this.now()]);
         return this.command(id)!;
       }
@@ -470,9 +477,10 @@ export class DurableTaskRelay {
     });
   }
 
-  settle(id: string, applied: boolean): RelayCommand {
+  settle(id: string, applied: boolean, publisherId: string): RelayCommand {
     return this.write(() => {
       const command = this.command(id);
+      if (!command || !publisherId || command.publisherId !== publisherId) throw new Error('Command belongs to another publisher');
       if (!command || command.status !== 'uncertain') throw new Error('Command is not awaiting a result');
       this.db.run('UPDATE relay_commands SET status = ?2, updated_at = ?3 WHERE id = ?1',
         [id, applied ? 'applied' : 'rejected', this.now()]);

@@ -2771,3 +2771,19 @@ have implementation remaining. Live Nebius speech/provisioning and native device
 acceptance require the user's later target, credentials and review. Deferred new
 harness adapters remain outside scope. No visual test, live generation request,
 billable provisioning, deployment or extra dev watcher was performed.
+
+## Registered desktop gateway workflow increment (2026-10-11)
+
+Added owner-specific metadata publication and native phone workflow/routine/run
+views with owner/project filters. Explicit Read workflows and Control workflows
+grants gate durable start, stage decision, stop and schedule controls. Owner and
+resource witnesses remain bound through claim and daemon revision checks. A phone
+persists its command/run identity before sending, reads lost receipts and fences
+foreground/credential changes. Start acknowledgement recovery reads the exact
+persisted run; other unknown effects remain unreplayed. Existing solo-task queues
+are now publisher-scoped as well.
+
+See [gateway implementation and unchecked live review](30-gateway-workflow-controls.md).
+This increment uses the existing desktop background worker. Headless cloud owner
+publication and broader historical gateway portfolio data remain development;
+existing deferred harness adapters remain out of scope.

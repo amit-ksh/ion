@@ -164,3 +164,23 @@ and remove the VM and its storage when the test is over. Review any
 `uncertain` proposal against the external account before making a new one.
 The desktop Composio **Test** is a separate catalog check and does not
 configure this gateway.
+
+## Registered desktop workflow relay
+
+The updated gateway advertises `features.automationRelay: 1` in `/v1/health`.
+Pair publishing desktops with **Publish desktop state**. Pair a phone with
+**Read workflows** and optionally **Control workflows** in `/owner`; existing
+Task or Review grants do not implicitly acquire workflow access. In the native
+phone, open **Personal gateway → Workflows & routines**.
+
+The desktop publishes a bounded metadata page to `PUT /v1/device/automations`.
+The phone reads `GET /v1/device/automations` and submits revision/fingerprint-bound
+start, stop, stage-decision or routine controls to
+`POST /v1/device/automations/commands`. Nonces, start IDs and claims are durable;
+only the registered publisher can consume its queue. Changed snapshots and
+expired/revoked grants fail before dispatch. Unknown claimed effects are not
+replayed. Existing individual-task queues also enforce publisher ownership.
+
+See [behavior, bounds, recovery and unchecked deployment/device review](../../docs/ai-ide-plan/30-gateway-workflow-controls.md).
+This relay currently requires the registered desktop worker to be running;
+standalone headless cloud owner publication remains separate development.

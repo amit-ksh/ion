@@ -134,7 +134,11 @@ assert live account acceptance, visual validation or production release readines
 - [x] Durable global usage ledger, desktop/phone filtered projections, existing Teams
   and ordinary Nebius/Claude/Codex/OpenCode receipts with unknown costs preserved.
 - [ ] Other existing solo-harness receipts and authoritative provider/cloud billing.
-- [ ] Registered-owner portfolio/gateway projection and remote workflow controls.
+- [x] Registered desktop gateway workflow/routine/run projection and revision-bound
+  phone controls, with scoped grants, durable identity and owner claim/recovery.
+  See [gateway behavior and review](30-gateway-workflow-controls.md).
+- [ ] Standalone headless cloud owner publication, broader gateway Inbox/usage and
+  paged historical workflow/evidence projections; live gateway/device acceptance.
 - [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
   exact final acknowledgment, cancellation and source/draft fences.
 - [ ] Cloud speech deployment, native TLS/redirect acceptance and real microphone

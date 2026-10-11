@@ -1,3 +1,4 @@
+import type { DurableAutomationRelay, AutomationSubmission } from './automation-relay';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { DurableGatewayAuthority } from './durable-authority';
 import type { DeviceGrant, ExternalEffect } from './authority';
@@ -106,6 +107,7 @@ export function createGatewayHandler(
   push: GatewayPush,
   composio?: ComposioCatalog,
   executor?: ComposioExecutor,
+  automations?: DurableAutomationRelay,
 ) {
   if (ownerSecret.length < 32 || !/^[A-Za-z0-9_-]+$/.test(ownerSecret)) {
     throw new Error('Owner token must be at least 32 URL-safe characters');
@@ -117,7 +119,7 @@ export function createGatewayHandler(
       const path = url.pathname;
       const method = request.method;
 
-      if (path === '/v1/health' && method === 'GET') return json({ status: 'ok' });
+      if (path === '/v1/health' && method === 'GET') return json({ status: 'ok', features: { automationRelay: automations ? 1 : 0 } });
       if (path === '/owner' && method === 'GET') return ownerAsset(ownerHtml, 'text/html; charset=utf-8');
       if (path === '/owner/style.css' && method === 'GET') return ownerAsset(ownerCss, 'text/css; charset=utf-8');
       if (path === '/owner/app.js' && method === 'GET') return ownerAsset(ownerJs, 'text/javascript; charset=utf-8');
@@ -188,6 +190,55 @@ export function createGatewayHandler(
         }
         const effect = rawEffect as ExternalEffect;
         return json(authority.propose(identity.id, identity.token, effect), 201);
+      }
+      if (automations && path.startsWith('/v1/device/automations')) {
+        const devices = authority.listDevices();
+        const enabled = (id: string, grant: DeviceGrant) => authority.listDevices().some((d) => d.id === id && !d.revoked && d.expiresAt > Date.now() && d.grants.includes(grant));
+        if (path === '/v1/device/automations' && method === 'GET') {
+          authorizedDevice(request, authority, 'automationRead');
+          const publishers = new Set(devices.filter((d) => !d.revoked && d.expiresAt > Date.now() && d.grants.includes('publish')).map((d) => d.id));
+          const names = new Map(devices.map((d) => [d.id, d.name]));
+          return json({ owners: automations.owners(publishers).map((o) => ({ ...o, name: names.get(o.publisherId) ?? 'Registered owner' })) });
+        }
+        if (path === '/v1/device/automations' && method === 'PUT') {
+          const input = await body(request);
+          const identity = authorizedDevice(request, authority, 'publish');
+          automations.publish(identity.id, input.projection);
+          return json({ published: true });
+        }
+        if (path === '/v1/device/automations/commands' && method === 'POST') {
+          const input = await body(request);
+          const identity = authorizedDevice(request, authority, 'automationControl');
+          if (!enabled(string(input.publisherId), 'publish')) throw new HttpFailure(409, 'Registered owner is unavailable');
+          return json(automations.enqueue(identity.id, input as unknown as AutomationSubmission), 201);
+        }
+        if (path === '/v1/device/automations/commands' && method === 'GET') {
+          const identity = authorizedDevice(request, authority, 'automationControl');
+          const key = url.searchParams.get('key');
+          return key ? json({ command: automations.byKey(identity.id, key) }) : json({ commands: automations.recent(identity.id) });
+        }
+        if (path === '/v1/device/automations/queue' && method === 'GET') {
+          const identity = authorizedDevice(request, authority, 'publish');
+          return json({ commands: automations.pending(identity.id) });
+        }
+        if (path === '/v1/device/automations/uncertain' && method === 'GET') {
+          const identity = authorizedDevice(request, authority, 'publish');
+          return json({ commands: automations.uncertain(identity.id) });
+        }
+        const claim = /^\/v1\/device\/automations\/commands\/([0-9a-f-]{36})\/claim$/.exec(path);
+        if (claim && method === 'POST') {
+          const identity = authorizedDevice(request, authority, 'publish');
+          const command = automations.command(claim[1]!);
+          return json(automations.claim(identity.id, claim[1]!, !!command && enabled(command.deviceId, 'automationControl')));
+        }
+        const settle = /^\/v1\/device\/automations\/commands\/([0-9a-f-]{36})\/settle$/.exec(path);
+        if (settle && method === 'POST') {
+          const input = await body(request);
+          const identity = authorizedDevice(request, authority, 'publish');
+          if (typeof input.applied !== 'boolean') throw new HttpFailure(400, 'Invalid command result');
+          return json(automations.settle(identity.id, settle[1]!, input.applied));
+        }
+        throw new HttpFailure(404, 'Not found');
       }
       if (path === '/v1/device/tasks' && method === 'GET') {
         authorizedDevice(request, authority, 'taskRead');
@@ -275,8 +326,8 @@ export function createGatewayHandler(
         return json(relay.resolveInteraction(identity.id, resolveInteraction[1]!));
       }
       if (path === '/v1/device/commands' && method === 'GET') {
-        authorizedDevice(request, authority, 'publish');
-        return json({ commands: relay.pendingCommands() });
+        const identity = authorizedDevice(request, authority, 'publish');
+        return json({ commands: relay.pendingCommands(identity.id) });
       }
       if (path === '/v1/device/commands' && method === 'POST') {
         const identity = authorizedDevice(request, authority, 'taskControl');
@@ -296,15 +347,15 @@ export function createGatewayHandler(
       }
       const claimCommand = /^\/v1\/device\/commands\/([0-9a-f-]{36})\/claim$/.exec(path);
       if (claimCommand && method === 'POST') {
-        authorizedDevice(request, authority, 'publish');
-        return json(relay.claim(claimCommand[1]!));
+        const identity = authorizedDevice(request, authority, 'publish');
+        return json(relay.claim(claimCommand[1]!, identity.id));
       }
       const settleCommand = /^\/v1\/device\/commands\/([0-9a-f-]{36})\/settle$/.exec(path);
       if (settleCommand && method === 'POST') {
-        authorizedDevice(request, authority, 'publish');
+        const identity = authorizedDevice(request, authority, 'publish');
         const input = await body(request);
         if (typeof input.applied !== 'boolean') throw new HttpFailure(400, 'Invalid command result');
-        return json(relay.settle(settleCommand[1]!, input.applied));
+        return json(relay.settle(settleCommand[1]!, input.applied, identity.id));
       }
       if (path === '/v1/device/review-queue' && method === 'GET') {
         const identity = authorizedDevice(request, authority, 'review');
@@ -328,7 +379,7 @@ export function createGatewayHandler(
         const identity = device(request);
         // Session inspection is available to any currently paired device,
         // including review-only phones.
-        const grants: DeviceGrant[] = ['inspect', 'propose', 'review', 'publish', 'taskRead', 'taskControl'];
+        const grants: DeviceGrant[] = ['inspect', 'propose', 'review', 'publish', 'taskRead', 'taskControl', 'automationRead', 'automationControl'];
         if (!grants.some((grant) => {
           try { authority.authenticate(identity.id, identity.token, grant); return true; }
           catch { return false; }

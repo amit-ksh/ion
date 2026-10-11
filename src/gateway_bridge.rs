@@ -16,6 +16,8 @@ use crate::credentials::{
     CredentialService, GatewayApi, GatewayRelayCommand, GatewayRelayComputerTarget,
     GatewayRelayInteraction, GatewayRelayTask,
 };
+mod automations;
+
 use crate::model::{ActivityKind, AgentSession, MessageRole};
 
 pub struct GatewayBridge {
@@ -187,11 +189,17 @@ fn sync_once(client: &DaemonClient, api: &GatewayApi, published: &mut Published)
     else {
         bail!("Daemon returned an invalid task list");
     };
-    let projects = projects
-        .into_iter()
-        .map(|project| (project.id, project.name))
+    let project_records = projects;
+    let projects = project_records
+        .iter()
+        .map(|project| (project.id, project.name.clone()))
         .collect::<HashMap<_, _>>();
     sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
+    // Give workflow stop/decision controls priority over transcript mirroring.
+    // Older gateways continue to receive the original task feed.
+    if api.has_automation_relay()? {
+        automations::sync(client, api, &project_records)?;
+    }
     let mut active_ids = Vec::new();
     for session in sessions.into_iter().take(200) {
         active_ids.push(session.id.to_string());

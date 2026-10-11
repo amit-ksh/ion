@@ -356,3 +356,12 @@ Existing normal New task and @team invocation remain unchanged. Protocol remains
 37. Fourteen new editor cases plus eleven existing start/recovery cases passed;
 full phone/shared TypeScript, binding equality and whitespace passed. Native
 visual/device and live generation acceptance remain the user's later review.
+
+## Personal gateway phone controls
+
+The paired native phone can view each registered desktop's bounded workflow,
+routine and run projection, filter by owner/project and control saved definitions
+with separate Read workflows / Control workflows grants. Commands are bound to
+the reviewed version and correct publishing owner. Direct daemon phone editing
+continues to use its existing connection. For setup, recovery limits and live
+acceptance, use [the gateway review checklist](30-gateway-workflow-controls.md).

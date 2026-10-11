@@ -1,3 +1,4 @@
+import type { AutomationCommand, AutomationOwner, AutomationSubmission } from "@waku/client";
 export interface GatewayPairing {
   baseUrl: string;
   id: string;
@@ -87,10 +88,18 @@ export function gatewayBaseUrl(input: string): string {
   return url.origin;
 }
 
+export class GatewayRequestError extends Error {
+  constructor(readonly status: number) { super(`Gateway request failed (HTTP ${status})`); }
+}
+
 async function request<T>(baseUrl: string, path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, { ...init, cache: 'no-store', redirect: 'error' });
-  if (!response.ok) throw new Error(`Gateway request failed (HTTP ${response.status})`);
-  return response.json() as Promise<T>;
+  const abort = new AbortController();
+  const timeout = setTimeout(() => abort.abort(), 20_000);
+  try {
+    const response = await fetch(`${baseUrl}${path}`, { ...init, signal: abort.signal, cache: 'no-store', redirect: 'error' });
+    if (!response.ok) throw new GatewayRequestError(response.status);
+    return await response.json() as T;
+  } finally { clearTimeout(timeout); }
 }
 
 function deviceHeaders(pairing: GatewayPairing): HeadersInit {
@@ -196,4 +205,45 @@ export async function enqueueGatewayTaskCommand(pairing: GatewayPairing, input: 
 export async function gatewayTaskCommand(pairing: GatewayPairing, id: string): Promise<GatewayTaskCommand> {
   if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error('Invalid task command ID');
   return request(pairing.baseUrl, `/v1/device/commands/${id}`, { headers: deviceHeaders(pairing) });
+}
+
+const automationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const automationHash = /^[a-f0-9]{64}$/;
+function automationCounter(value: unknown, max = Number.MAX_SAFE_INTEGER): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max; }
+function automationLabel(value: unknown, max: number): value is string { return typeof value === 'string' && value.length <= max; }
+function validAutomationOwner(owner: AutomationOwner & { name: string }): boolean {
+  if (!owner || !automationUuid.test(owner.publisherId) || owner.version !== 1 || !automationCounter(owner.revision) || !automationCounter(owner.publishedAt) || typeof owner.truncated !== 'boolean' || !automationLabel(owner.name, 240) ||
+      !Array.isArray(owner.projects) || owner.projects.length > 64 || !Array.isArray(owner.definitions) || owner.definitions.length > 64 || !Array.isArray(owner.runs) || owner.runs.length > 64) return false;
+  const projects = new Set<string>(); const definitions = new Set<string>(); const runs = new Set<string>();
+  for (const p of owner.projects) { if (!p || !automationUuid.test(p.id) || projects.has(p.id) || !automationLabel(p.name, 160)) return false; projects.add(p.id); }
+  for (const d of owner.definitions) {
+    if (!d || !automationUuid.test(d.id) || definitions.has(d.id) || !projects.has(d.projectId) || !automationHash.test(d.fingerprint) || !automationLabel(d.name, 160) || !['workflow','routine'].includes(d.kind) || d.revision !== owner.revision || typeof d.ready !== 'boolean' || !automationCounter(d.stageCount,24) ||
+        (d.kind === 'workflow' && (d.paused !== null || d.nextRun !== null || d.schedule !== null)) || (d.kind === 'routine' && (typeof d.paused !== 'boolean' || !automationCounter(d.nextRun) || !automationLabel(d.schedule,500)))) return false;
+    definitions.add(d.id);
+  }
+  for (const r of owner.runs) {
+    if (!r || !automationUuid.test(r.id) || runs.has(r.id) || !projects.has(r.projectId) || !automationUuid.test(r.definitionId) || !automationHash.test(r.fingerprint) || !automationLabel(r.name,160) || !automationCounter(r.revision) || !['running','waitingDecision','blocked','completed','canceled','skipped'].includes(r.status) || !automationCounter(r.stageCount,24) || r.stageCount === 0 || !automationCounter(r.currentStage,r.stageCount)) return false;
+    if (r.gate !== null && (!r.gate || r.status !== 'waitingDecision' || !automationCounter(r.gate.index,r.stageCount-1) || r.gate.index !== r.currentStage || !automationLabel(r.gate.title,160) || !automationLabel(r.gate.instructions,2000) || typeof r.gate.reviewComplete !== 'boolean')) return false;
+    if (r.status === 'waitingDecision' && r.gate === null) return false;
+    runs.add(r.id);
+  }
+  return true;
+}
+export async function gatewayAutomationOwners(pairing: GatewayPairing): Promise<(AutomationOwner & { name: string })[]> {
+  const feed = await request<{ owners: (AutomationOwner & { name: string })[] }>(pairing.baseUrl, '/v1/device/automations', { headers: deviceHeaders(pairing) });
+  if (!Array.isArray(feed.owners) || feed.owners.length > 64 || feed.owners.some((owner) => !validAutomationOwner(owner)) || new Set(feed.owners.map((o) => o.publisherId)).size !== feed.owners.length) throw new Error('Invalid workflow feed');
+  return feed.owners;
+}
+export async function gatewayEnqueueAutomation(pairing: GatewayPairing, input: AutomationSubmission): Promise<AutomationCommand> {
+  return request(pairing.baseUrl, '/v1/device/automations/commands', { method: 'POST', headers: { ...deviceHeaders(pairing), 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+}
+export async function gatewayAutomationCommandByKey(pairing: GatewayPairing, key: string): Promise<AutomationCommand | null> {
+  const result = await request<{ command: AutomationCommand | null }>(pairing.baseUrl, `/v1/device/automations/commands?key=${encodeURIComponent(key)}`, { headers: deviceHeaders(pairing) });
+  if (!Object.hasOwn(result, 'command')) throw new Error('Invalid workflow command lookup');
+  return result.command;
+}
+export async function gatewayAutomationCommands(pairing: GatewayPairing): Promise<AutomationCommand[]> {
+  const result = await request<{ commands: AutomationCommand[] }>(pairing.baseUrl, '/v1/device/automations/commands', { headers: deviceHeaders(pairing) });
+  if (!Array.isArray(result.commands) || result.commands.length > 32 || result.commands.some((command) => !command || command.deviceId !== pairing.id || !['queued','uncertain','applied','rejected'].includes(command.status))) throw new Error('Invalid workflow command history');
+  return result.commands;
 }

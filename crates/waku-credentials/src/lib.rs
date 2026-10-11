@@ -348,6 +348,96 @@ impl GatewayApi {
     }
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayAutomationCommand {
+    pub id: String,
+    pub publisher_id: String,
+    pub status: String,
+    pub action: GatewayAutomationAction,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum GatewayAutomationAction {
+    Start {
+        definition_id: String,
+        run_id: String,
+        expected_revision: u64,
+    },
+    Stop {
+        run_id: String,
+        expected_revision: u64,
+    },
+    Gate {
+        run_id: String,
+        expected_revision: u64,
+        stage: u16,
+        approved: bool,
+    },
+    Routine {
+        definition_id: String,
+        expected_revision: u64,
+        paused: bool,
+    },
+}
+
+impl GatewayApi {
+    pub fn has_automation_relay(&self) -> Result<bool> {
+        let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
+        Ok(health["features"]["automationRelay"].as_u64() == Some(1))
+    }
+    pub fn uncertain_automations(&self) -> Result<Vec<GatewayAutomationCommand>> {
+        #[derive(Deserialize)]
+        struct Queue {
+            commands: Vec<GatewayAutomationCommand>,
+        }
+        Ok(self
+            .request::<Queue>(
+                reqwest::Method::GET,
+                "v1/device/automations/uncertain",
+                None,
+            )?
+            .commands)
+    }
+    pub fn publish_automations(&self, projection: serde_json::Value) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::PUT,
+            "v1/device/automations",
+            Some(serde_json::json!({ "projection": projection })),
+        )?;
+        Ok(())
+    }
+    pub fn pending_automations(&self) -> Result<Vec<GatewayAutomationCommand>> {
+        #[derive(Deserialize)]
+        struct Queue {
+            commands: Vec<GatewayAutomationCommand>,
+        }
+        Ok(self
+            .request::<Queue>(reqwest::Method::GET, "v1/device/automations/queue", None)?
+            .commands)
+    }
+    pub fn claim_automation(&self, id: &str) -> Result<GatewayAutomationCommand> {
+        self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/automations/commands/{id}/claim"),
+            Some(serde_json::json!({})),
+        )
+    }
+    pub fn settle_automation(&self, id: &str, applied: bool) -> Result<GatewayAutomationCommand> {
+        self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/automations/commands/{id}/settle"),
+            Some(serde_json::json!({ "applied": applied })),
+        )
+    }
+}
+
 fn gateway_base_url(value: &str) -> Result<reqwest::Url> {
     let url = reqwest::Url::parse(value.trim()).context("Enter a valid gateway URL")?;
     let loopback = matches!(url.host_str(), Some("127.0.0.1" | "::1" | "localhost"));
