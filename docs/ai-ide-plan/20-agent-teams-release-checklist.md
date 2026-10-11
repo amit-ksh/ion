@@ -132,7 +132,7 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Larger binary publication/additional formats, embedded artifact previews and
   additional interpretation.
 - [x] Durable global usage ledger, desktop/phone filtered projections, existing Teams
-  and ordinary Nebius/Claude/Codex receipts with unknown costs preserved.
+  and ordinary Nebius/Claude/Codex/OpenCode receipts with unknown costs preserved.
 - [ ] Other existing solo-harness receipts and authoritative provider/cloud billing.
 - [ ] Registered-owner portfolio/gateway projection and remote workflow controls.
 - [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
@@ -541,3 +541,15 @@ retry fence, and all four retry groups after the indexed safety-query correction
 passed. Desktop/daemon/worker compilation, generated protocol 36 equality,
 shared/full phone TypeScript, formatting and whitespace passed. No live account,
 device/visual acceptance or deployment was performed.
+
+
+## OpenCode native usage checkpoint — 2026-10-11
+
+- [x] Existing resident OpenCode reader publishes witnessed live model steps,
+  actual model identities, validated cache/reasoning totals and known zero usage.
+- [x] Copied fork history, unrelated sessions, unstarted steps, totals and stale
+  metadata cannot mint calls; durable replay retains original ownership.
+- [ ] Complete [the OpenCode usage review](25-global-usage-review.md#opencode-usage-review-additions).
+- [ ] Capture remaining existing solo-harness receipts and authoritative billing;
+  projectless accounting still needs an explicit owner scope. Deferred new
+  harness adapters remain outside scope.

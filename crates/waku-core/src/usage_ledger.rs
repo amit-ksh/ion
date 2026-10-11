@@ -279,7 +279,10 @@ impl crate::control::ControlStore {
         use rusqlite::OptionalExtension;
         use waku_protocol::model::ProviderKind;
         ensure!(
-            matches!(receipt.provider, ProviderKind::Claude | ProviderKind::Codex),
+            matches!(
+                receipt.provider,
+                ProviderKind::Claude | ProviderKind::Codex | ProviderKind::OpenCode
+            ),
             "Unsupported native usage source"
         );
         ensure!(

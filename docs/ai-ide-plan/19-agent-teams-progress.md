@@ -2712,3 +2712,27 @@ resource/GPU and registered-owner/gateway work remain. Cloud speech deployment
 and live/native device acceptance still need the user's target and credentials.
 Deferred new harness adapters remain out of scope. No visual test, live provider,
 remote account mutation, billable provisioning or additional watcher was used.
+
+
+## Ordinary OpenCode usage (2026-10-11)
+
+The already implemented resident OpenCode reader now records witnessed live
+provider steps in the owner ledger. Session and actual assistant model binding,
+observed start/finish, bounded metadata, exact token breakdowns and durable hashed
+receipt identities exclude copied history, unrelated tasks, cumulative/context
+updates and client cost estimates. First ownership survives exact replay. The
+receipt total resolves the verified older/newer reasoning-count difference;
+ambiguous or malformed metadata remains unavailable. Render and the event pump
+perform no new accounting I/O. Normal task/team invocation remains unchanged.
+
+Verification: six new OpenCode receipt tests plus the six existing native
+Claude/Codex accounting tests passed (12 total). Nineteen existing OpenCode
+transport/permission/transcript tests passed; its two authenticated live tests
+remain explicitly ignored. Desktop/daemon/worker compilation, protocol 37
+binding equality, formatting and whitespace passed. See
+[usage behavior and review](25-global-usage-review.md#native-opencode-live-step-receipts-2026-10-11).
+
+Remaining implementation includes other existing solo receipts/projectless
+accounting, authoritative billing, phone definition editing, general checks,
+resource/GPU and registered-owner/gateway work. Live deployment and native/device
+acceptance remain separate. Deferred new harness adapters stay out of scope.

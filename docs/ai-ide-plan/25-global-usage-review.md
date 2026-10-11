@@ -1,7 +1,7 @@
 # Global usage ledger and review
 
-Implemented checkpoint: 2026-10-09, isolated `codex/ion-agent-teams` worktree,
-protocol **36**. The complete Ion release still has development remaining.
+Implemented checkpoint: 2026-10-11, isolated `codex/ion-agent-teams` worktree,
+protocol **37**. The complete Ion release still has development remaining.
 
 ## Available behavior
 
@@ -106,9 +106,46 @@ malformed/partial/zero receipts, Codex historical replay/context-fill/foreign tu
 changed receipt rejection, privacy of stored identities and concurrent exact
 settlement. No live provider or visual acceptance was performed.
 
+## Native OpenCode live step receipts (2026-10-11)
+
+The existing resident OpenCode adapter now publishes project-linked ordinary
+model steps to the same owner ledger. Its background SSE reader requires the
+selected session, freshly observed assistant metadata and an observed
+`step-start` before a `step-finish`. Each finished part has a durable hashed
+identity. Context updates, assistant totals and client price-table costs do not
+mint requests or invoices. Model identity comes from the actual assistant event.
+No new adapter or normal-task Teams bridge is enabled by this change.
+
+OpenCode forks regenerate message and part IDs while copying original timestamps
+and accounting fields. Copied completed messages remain excluded; incomplete
+messages created before the reader started also remain excluded. Completed or
+changed metadata cannot reopen a pending step. The bounded 256-message witness
+cache cannot reconstruct an already-running call missed during disconnection.
+Exact overlapping receipts retain their first task, project and observation time
+across restart; changed durable receipts reject without retrying provider work.
+
+Input adds uncached tokens and separate cache read/write counts once. Older
+OpenCode output includes reasoning; newer compatibility output separates it.
+A reported total must agree exactly with one of these breakdowns. If reasoning
+is nonzero and the total is absent or inconsistent, accounting remains
+unavailable instead of guessing. A complete zero receipt is known. Missing or
+malformed native receipts are not reconstructed as measured calls.
+
+Contract evidence: official [v1 step persistence](https://github.com/anomalyco/opencode/blob/v1.2.0/packages/opencode/src/session/processor.ts),
+[v1 normalization and fork copying](https://github.com/anomalyco/opencode/blob/v1.2.0/packages/opencode/src/session/index.ts),
+and the newer [separate input/output normalization](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/runner/publish-llm-event.ts).
+The reader uses receipt consistency rather than inferring semantics from a CLI
+version string. Monetary costs stay unavailable for these normal native rows.
+
+Six new owner-backed tests cover per-step counts, both reasoning contracts,
+cache totals, fork history, exact nested scope, malformed/ambiguous/zero receipts,
+completed/changed metadata, bounded witnesses, restart replay and original
+ownership. The full 12-test native accounting suite passed. No live provider,
+visual or device acceptance is claimed.
+
 ## Coverage still requiring development
 
-- Ordinary Claude and Codex usage observed after this upgrade is now captured by
+- Ordinary Claude, Codex and OpenCode usage observed after this upgrade is now captured by
   the native reader worker in this ledger, including its phone projection. This
   does not backfill old provider history. Other existing solo harnesses still
   need verified receipt capture and projectless tasks need an explicit ledger
@@ -148,7 +185,7 @@ dev watcher was performed.
 
 ## Your review checklist
 
-- [ ] Open Usage on desktop and phone connected to the same protocol 36 owner.
+- [ ] Open Usage on desktop and phone connected to the same protocol 37 owner.
   Confirm All projects/All tasks defaults and corresponding records/totals.
 - [ ] Run one ordinary Nebius task and a researcher/reviewer call. Confirm separate
   request rows, actual model/token receipts, and unavailable costs when not reported.
@@ -195,3 +232,16 @@ A sixth native regression verifies real calls after a context fill and exact
 restart replay. Native receipts retain an observation timestamp and unavailable
 call-start time rather than inventing a start time. The source behavior follows
 [Codex TokenUsageInfo](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/protocol.rs).
+
+### OpenCode usage review additions
+
+- [ ] Run a project-linked ordinary OpenCode task with several model/tool steps.
+  Confirm one ledger request per finished provider step and the actual model,
+  with the same rows on the connected phone.
+- [ ] Resume and fork the native session. Confirm copied complete/incomplete
+  history does not add calls; new live steps do. Already-running calls missed
+  at connection time remain unavailable.
+- [ ] Confirm cache and reasoning are not added twice, malformed or ambiguous
+  totals are not zero, and OpenCode price-table costs are not displayed as bills.
+- [ ] Restart the owner and verify exact overlapping receipt replay cannot
+  change the original project/task or duplicate totals.

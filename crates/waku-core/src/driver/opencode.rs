@@ -287,6 +287,7 @@ impl OpenCodeDriver {
                 "Native OpenCode Teams plugin is unavailable; update OpenCode and check native plugin setup"
             );
         }
+        let mut native_usage = workspace.as_ref().map(super::solo_usage::NativeUsage::new);
         let teams = workspace
             .map(|context| {
                 server
@@ -479,6 +480,9 @@ impl OpenCodeDriver {
                             let session = event_session(&value);
                             if session.is_some_and(|session| session != stream_session) {
                                 continue;
+                            }
+                            if let Some(usage) = native_usage.as_mut() {
+                                usage.observe_opencode(&value, &stream_session);
                             }
                             if let Some(teams) = &stream_teams {
                                 teams.observe(&value);

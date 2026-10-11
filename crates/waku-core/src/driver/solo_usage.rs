@@ -10,6 +10,7 @@ use waku_protocol::model::ProviderKind;
 
 const LIMIT: u64 = 1_000_000_000_000;
 const RECENT: usize = 256;
+mod opencode;
 pub(super) struct NativeUsage {
     store: ControlStore,
     project: Uuid,
@@ -18,6 +19,7 @@ pub(super) struct NativeUsage {
     seen: HashSet<Uuid>,
     order: VecDeque<Uuid>,
     codex_turns: VecDeque<String>,
+    opencode: opencode::OpenCodeUsage,
 }
 impl NativeUsage {
     pub(super) fn new(context: &WorkspaceContext) -> Self {
@@ -28,6 +30,7 @@ impl NativeUsage {
             seen: HashSet::new(),
             order: VecDeque::new(),
             codex_turns: VecDeque::new(),
+            opencode: opencode::OpenCodeUsage::default(),
         }
     }
     fn record(
@@ -36,9 +39,9 @@ impl NativeUsage {
         provider: ProviderKind,
         model: Option<String>,
         usage: ModelTokenUsage,
-    ) {
+    ) -> bool {
         if self.seen.contains(&source_id) {
-            return;
+            return true;
         }
         let receipt = NativeSoloReceipt {
             source_id,
@@ -56,7 +59,7 @@ impl NativeUsage {
             // Do not expose provider payloads or convert an accounting failure into
             // a provider action retry. A repeated receipt can retry persistence.
             eprintln!("[ion-usage] Native usage receipt could not be recorded");
-            return;
+            return false;
         }
         self.seen.insert(source_id);
         self.order.push_back(source_id);
@@ -65,6 +68,7 @@ impl NativeUsage {
         {
             self.seen.remove(&old);
         }
+        true
     }
     pub(super) fn observe_claude(&mut self, value: &Value, session: &str) {
         if value.get("type").and_then(Value::as_str) != Some("assistant") {
