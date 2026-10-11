@@ -187,3 +187,7 @@ controls without an open desktop. Persisted desktop pairings also publish from
 the daemon; temporary memory-only pairing retains the desktop bridge. See
 [headless owner setup and review](../../docs/ai-ide-plan/31-headless-gateway-owner.md).
 Individual-task mirroring still requires the desktop worker.
+
+
+For registered-owner paged Inbox/usage reads, phone read-grant setup and review,
+see [gateway history](../../docs/ai-ide-plan/32-gateway-inbox-usage-history.md).

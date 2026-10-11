@@ -18,3 +18,5 @@ export * from "./composer-preferences";
 export * from "./provider-probe-cache";
 
 export type * from "./gateway-automation";
+
+export * from "./gateway-portfolio";

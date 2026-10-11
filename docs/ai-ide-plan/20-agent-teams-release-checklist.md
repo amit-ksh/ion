@@ -140,7 +140,10 @@ assert live account acceptance, visual validation or production release readines
 - [x] Daemon-owned headless registered-owner workflow publication and phone controls,
   with private Linux pairing-file source and exact-start acknowledgement recovery.
   See [headless owner setup and review](31-headless-gateway-owner.md).
-- [ ] Broader gateway Inbox/usage and paged historical workflow/evidence projections;
+- [x] Registered-owner paged Inbox/global usage reads and native phone filters,
+  with separate read grants, whole-ledger totals, privacy projections and scope fences.
+  See [gateway history implementation and review](32-gateway-inbox-usage-history.md).
+- [ ] Paged historical gateway workflow/evidence projections and notification writes;
   Linux descriptor tests and live gateway/device acceptance.
 - [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
   exact final acknowledgment, cancellation and source/draft fences.
@@ -576,3 +579,17 @@ device/visual acceptance or deployment was performed.
 - [ ] Complete [the phone editing/device review](29-phone-automation-editing.md#your-review-checklist).
 - [ ] Broader registered-owner/gateway workflow controls and notification delivery;
   general checks, existing solo receipts/billing and resource/GPU work remain.
+
+
+## Gateway Inbox and usage history increment (2026-10-11)
+
+- [x] Durable typed owner read queue, separate Inbox/usage grants, publisher and
+  requester isolation, exact-query replies, revocation checks and body expiry.
+- [x] Outbound headless owner reads of existing historical Inbox/global usage and
+  all-project directory, 32-row/60 KB cursor paging and unchanged full totals.
+- [x] Native phone owner/project/task/notification/usage filters, exact ID/model
+  filters, older pages and focus/pairing/filter fences; no history-based effects.
+- [x] 90 distinct contract/regression tests and locked Rust/full TypeScript checks.
+- [ ] Complete [the native phone/live gateway review](32-gateway-inbox-usage-history.md#your-review-checklist).
+- [ ] Complete historical workflow/evidence gateway pages, notification writes,
+  remaining resource/accounting integrations and live speech/device acceptance.

@@ -18,6 +18,7 @@ use crate::credentials::{
 };
 
 mod automations;
+mod portfolio;
 
 use crate::model::{ActivityKind, AgentSession, MessageRole};
 
@@ -209,6 +210,9 @@ fn sync_once(
     // the daemon alone, including headless services.
     if temporary_pairing && api.has_automation_relay()? {
         automations::sync(client, api, &project_records)?;
+    }
+    if temporary_pairing {
+        portfolio::sync(client, api, &project_records)?;
     }
     sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
     let mut active_ids = Vec::new();

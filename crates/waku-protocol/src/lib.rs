@@ -65,3 +65,4 @@ pub mod control;
 pub mod teams;
 
 pub mod gateway;
+pub mod gateway_portfolio;

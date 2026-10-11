@@ -217,6 +217,7 @@ export default function GatewayScreen() {
             <Action label={busy ? 'Checking…' : 'Refresh approvals'} disabled={busy || !pairing.grants.includes('review')} onPress={() => void refresh()} color={theme.accent} />
             <Action label="Remove pairing" disabled={busy || notificationBusy} onPress={confirmRemove} color={theme.danger} />
           </View>
+          <Action label="Inbox & usage" disabled={busy} onPress={() => router.push('/gateway-portfolio')} color={theme.accent} />
           <Action label="Workflows & routines" disabled={busy} onPress={() => router.push('/gateway-automations')} color={theme.accent} />
           {!pairing.grants.includes('review') && <Text style={[styles.help, { color: theme.textSecondary }]}>This device has no review grant. Create a new invite with Review approvals in /owner to enable this screen.</Text>}
           {pairing.grants.includes('taskRead') && <Action

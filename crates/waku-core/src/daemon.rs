@@ -140,6 +140,7 @@ impl WakuBackend {
             self.control.clone(),
             self.teams.clone(),
             self.task_state.clone(),
+            self.task_store.clone(),
             &self.team_runtime,
             file_managed,
         ));

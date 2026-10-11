@@ -174,6 +174,7 @@ function AppNavigator() {
         }}
       />
       <Stack.Screen name="gateway" options={{ title: 'Personal gateway' }} />
+      <Stack.Screen name="gateway-portfolio" options={{ title: 'Gateway history' }} />
       <Stack.Screen name="gateway-automations" options={{ title: 'Gateway workflows' }} />
       <Stack.Screen name="gateway-task/[id]" options={{ title: 'Gateway task' }} />
     </Stack>

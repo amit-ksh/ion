@@ -174,3 +174,7 @@ target; see [the deployment checklist](../../services/speech/README.md).
 - [Headless registered-owner gateway controls](31-headless-gateway-owner.md):
   daemon workflow publication, private Linux service pairing, durable claims,
   exact-start recovery and outstanding deployment/device review.
+
+
+For registered-owner paged Inbox/usage reads, phone read-grant setup and review,
+see [gateway history](32-gateway-inbox-usage-history.md).

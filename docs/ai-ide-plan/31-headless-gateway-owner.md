@@ -132,3 +132,7 @@ provides native phone tasks, transcripts, decisions, artifacts and authoring.
 Live cloud/provider/speech deployment and installed-device acceptance still
 require the owner's later target, credentials and review. Deferred new harness
 adapters remain out of scope.
+
+
+For registered-owner paged Inbox/usage reads, phone read-grant setup and review,
+see [gateway history](32-gateway-inbox-usage-history.md).

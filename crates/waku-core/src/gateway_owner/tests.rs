@@ -87,6 +87,9 @@ impl Fixture {
             control,
             teams: Arc::new(TeamCoordinator::new(dir.join("control.db"))),
             tasks: Arc::new(Mutex::new(state)),
+            task_store: Arc::new(crate::persistence::StateStore::daemon(
+                dir.join("tasks.json"),
+            )),
             runtime: std::sync::Weak::new(),
         };
         Self {
@@ -251,6 +254,7 @@ fn headless_owner_publishes_metadata_claims_start_and_recovers_exact_receipt_aft
         control: f.engine.control.clone(),
         teams: Arc::new(TeamCoordinator::new(f.dir.join("control.db"))),
         tasks: f.engine.tasks.clone(),
+        task_store: f.engine.task_store.clone(),
         runtime: std::sync::Weak::new(),
     };
     relay.fail_settlement.set(false);
@@ -491,6 +495,7 @@ fn database_failure_keeps_unknown_claim_and_does_not_dispatch() {
         control: f.engine.control.clone(),
         teams: Arc::new(TeamCoordinator::new(corrupt)),
         tasks: f.engine.tasks.clone(),
+        task_store: f.engine.task_store.clone(),
         runtime: std::sync::Weak::new(),
     };
     assert_eq!(engine.apply(&action), Effect::Unknown);
@@ -509,6 +514,7 @@ fn shutdown_drains_an_inflight_local_effect_and_blocks_following_commands() {
             control: f.engine.control.clone(),
             teams: f.engine.teams.clone(),
             tasks: f.engine.tasks.clone(),
+            task_store: f.engine.task_store.clone(),
             runtime: std::sync::Weak::new(),
         }),
         file_managed: false,
@@ -537,4 +543,43 @@ fn shutdown_drains_an_inflight_local_effect_and_blocks_following_commands() {
     });
     owner.engine.sync(&relay, &owner.fence).unwrap();
     assert!(relay.events.borrow().is_empty());
+}
+
+#[test]
+fn registered_owner_portfolio_reads_real_filtered_history_and_ledger_without_starting_work() {
+    let f = Fixture::new();
+    let result = super::portfolio::read(
+        &f.engine,
+        serde_json::json!({"kind":"projects","query":{"after":null,"limit":1}}),
+    )
+    .unwrap();
+    assert_eq!(result["page"]["projects"][0]["id"], f.project.to_string());
+    assert!(!result.to_string().contains("private-workspace"));
+    let query = serde_json::json!({"kind":"inbox","query":{"projectId":null,"taskId":null,"kind":null,"view":"all","status":"all","after":null,"limit":32}});
+    let before = super::portfolio::read(&f.engine, query.clone()).unwrap();
+    assert_eq!(before["page"]["matchingCount"], 0);
+    let run = Uuid::new_v4();
+    assert_eq!(f.engine.apply(&f.start(run)), Effect::Applied);
+    f.engine
+        .teams
+        .tick_automations(&HashSet::from([f.project]), crate::model::unix_time())
+        .unwrap();
+    let history = super::portfolio::read(&f.engine, query).unwrap();
+    assert!(history["page"]["matchingCount"].as_u64().unwrap() > 0);
+    assert!(
+        history["page"]["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["kind"] == "decision" && row["runId"] == run.to_string())
+    );
+    let usage=super::portfolio::read(&f.engine,serde_json::json!({"kind":"usage","query":{"projectId":f.project,"taskId":null,"agentId":null,"provider":null,"environment":null,"kind":null,"model":null,"since":null,"after":null,"limit":32}})).unwrap();
+    assert_eq!(usage["page"]["summary"]["records"], 0); // no dispatched model call
+    assert_eq!(
+        f.engine.teams.automation_run(run).unwrap().status,
+        AutomationStatus::WaitingDecision
+    );
+    assert!(
+        super::portfolio::read(&f.engine, serde_json::json!({"kind":"stop","runId":run})).is_err()
+    );
 }

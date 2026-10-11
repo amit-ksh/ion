@@ -1,3 +1,4 @@
+import { validatePortfolioJob, portfolioId, type PortfolioSubmission, type PortfolioJob, type PortfolioOwner } from '@waku/client';
 import type { AutomationCommand, AutomationOwner, AutomationSubmission } from "@waku/client";
 export interface GatewayPairing {
   baseUrl: string;
@@ -246,4 +247,19 @@ export async function gatewayAutomationCommands(pairing: GatewayPairing): Promis
   const result = await request<{ commands: AutomationCommand[] }>(pairing.baseUrl, '/v1/device/automations/commands', { headers: deviceHeaders(pairing) });
   if (!Array.isArray(result.commands) || result.commands.length > 32 || result.commands.some((command) => !command || command.deviceId !== pairing.id || !['queued','uncertain','applied','rejected'].includes(command.status))) throw new Error('Invalid workflow command history');
   return result.commands;
+}
+
+export async function gatewayPortfolioOwners(pairing: GatewayPairing): Promise<PortfolioOwner[]> {
+  const result = await request<{ owners: PortfolioOwner[] }>(pairing.baseUrl, '/v1/device/portfolio', { method: 'GET', headers: deviceHeaders(pairing) });
+  if (!Array.isArray(result.owners) || result.owners.length > 64 || result.owners.some((owner) => !portfolioId(owner.publisherId) || typeof owner.name !== 'string' || owner.name.length > 160 || !Number.isSafeInteger(owner.publishedAt) || owner.publishedAt < 0) || new Set(result.owners.map((owner) => owner.publisherId)).size !== result.owners.length) throw new Error('Invalid registered owner directory');
+  return result.owners;
+}
+export async function submitGatewayPortfolio(pairing: GatewayPairing, input: PortfolioSubmission): Promise<PortfolioJob> {
+  const result: unknown = await request(pairing.baseUrl, '/v1/device/portfolio/queries', { method: 'POST', headers: { ...deviceHeaders(pairing), 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  validatePortfolioJob(result, pairing.id, input); return result;
+}
+export async function readGatewayPortfolio(pairing: GatewayPairing, input: PortfolioSubmission): Promise<PortfolioJob | null> {
+  const result = await request<{ job: unknown }>(pairing.baseUrl, `/v1/device/portfolio/queries?key=${encodeURIComponent(input.idempotencyKey)}`, { method: 'GET', headers: deviceHeaders(pairing) });
+  if (result.job === null) return null;
+  validatePortfolioJob(result.job, pairing.id, input); return result.job;
 }

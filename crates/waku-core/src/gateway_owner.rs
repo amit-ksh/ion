@@ -4,7 +4,7 @@ use crate::{
     credentials::{
         CredentialService, GatewayApi, GatewayAutomationAction, GatewayAutomationCommand,
     },
-    persistence::PersistedState,
+    persistence::{PersistedState, StateStore},
     teams::TeamCoordinator,
 };
 use anyhow::{Context as _, Result};
@@ -53,6 +53,7 @@ impl GatewayOwner {
         control: Arc<crate::control::ControlStore>,
         teams: Arc<TeamCoordinator>,
         tasks: Arc<Mutex<PersistedState>>,
+        task_store: Arc<StateStore>,
         runtime: &Arc<crate::team_runtime::TeamRuntime>,
         file_managed: bool,
     ) -> Self {
@@ -65,6 +66,7 @@ impl GatewayOwner {
                 control,
                 teams,
                 tasks,
+                task_store,
                 runtime: Arc::downgrade(runtime),
             }),
             file_managed,
@@ -85,7 +87,11 @@ impl GatewayOwner {
                 let result = match CredentialService::global().gateway_api() {
                     Ok(api) => {
                         connected = true;
-                        api.with_timeout(Duration::from_secs(5)).and_then(|api| engine.sync(&api, &fence))
+                        api.with_timeout(Duration::from_secs(5)).and_then(|api| {
+                            let controls = engine.sync(&api, &fence);
+                            let reads = portfolio::sync(&api, &engine, &fence);
+                            controls?; reads
+                        })
                     }
                     Err(_) if connected || file_managed => Err(anyhow::anyhow!("Gateway owner pairing unavailable")),
                     Err(_) => Ok(()), // An unpaired desktop requires no gateway work.
@@ -159,6 +165,7 @@ struct OwnerEngine {
     control: Arc<crate::control::ControlStore>,
     teams: Arc<TeamCoordinator>,
     tasks: Arc<Mutex<PersistedState>>,
+    task_store: Arc<StateStore>,
     runtime: std::sync::Weak<crate::team_runtime::TeamRuntime>,
 }
 #[derive(Debug, PartialEq)]
@@ -361,3 +368,5 @@ impl OwnerEngine {
 
 #[cfg(test)]
 mod tests;
+
+mod portfolio;

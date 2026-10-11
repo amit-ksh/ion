@@ -456,6 +456,51 @@ impl GatewayApi {
     }
 }
 
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayPortfolioJob {
+    pub id: String,
+    pub device_id: String,
+    pub publisher_id: String,
+    pub status: String,
+    pub query: serde_json::Value,
+}
+impl GatewayApi {
+    pub fn has_portfolio_relay(&self) -> Result<bool> {
+        let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
+        Ok(health["features"]["portfolioRelay"].as_u64() == Some(1))
+    }
+    pub fn publish_portfolio_owner(&self) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            reqwest::Method::PUT,
+            "v1/device/portfolio",
+            Some(serde_json::json!({"version":1})),
+        )?;
+        Ok(())
+    }
+    pub fn pending_portfolio(&self) -> Result<Vec<GatewayPortfolioJob>> {
+        #[derive(Deserialize)]
+        struct Queue {
+            jobs: Vec<GatewayPortfolioJob>,
+        }
+        Ok(self
+            .request::<Queue>(reqwest::Method::GET, "v1/device/portfolio/queue", None)?
+            .jobs)
+    }
+    pub fn complete_portfolio(&self, id: &str, result: Option<serde_json::Value>) -> Result<()> {
+        let body = match result {
+            Some(result) => serde_json::json!({"result":result}),
+            None => serde_json::json!({"rejected":true}),
+        };
+        let _: serde_json::Value = self.request(
+            reqwest::Method::POST,
+            &format!("v1/device/portfolio/queries/{id}/complete"),
+            Some(body),
+        )?;
+        Ok(())
+    }
+}
+
 fn gateway_base_url(value: &str) -> Result<reqwest::Url> {
     let url = reqwest::Url::parse(value.trim()).context("Enter a valid gateway URL")?;
     let loopback = matches!(url.host_str(), Some("127.0.0.1" | "::1" | "localhost"));

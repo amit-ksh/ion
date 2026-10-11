@@ -1,3 +1,5 @@
+import { portfolioGrant, type DurablePortfolioRelay } from './portfolio-relay';
+import { validatePortfolioQuery } from '../../waku-client/src/gateway-portfolio';
 import type { DurableAutomationRelay, AutomationSubmission } from './automation-relay';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { DurableGatewayAuthority } from './durable-authority';
@@ -108,6 +110,7 @@ export function createGatewayHandler(
   composio?: ComposioCatalog,
   executor?: ComposioExecutor,
   automations?: DurableAutomationRelay,
+  portfolio?: DurablePortfolioRelay,
 ) {
   if (ownerSecret.length < 32 || !/^[A-Za-z0-9_-]+$/.test(ownerSecret)) {
     throw new Error('Owner token must be at least 32 URL-safe characters');
@@ -119,7 +122,7 @@ export function createGatewayHandler(
       const path = url.pathname;
       const method = request.method;
 
-      if (path === '/v1/health' && method === 'GET') return json({ status: 'ok', features: { automationRelay: automations ? 1 : 0 } });
+      if (path === '/v1/health' && method === 'GET') return json({ status: 'ok', features: { automationRelay: automations ? 1 : 0, portfolioRelay: portfolio ? 1 : 0 } });
       if (path === '/owner' && method === 'GET') return ownerAsset(ownerHtml, 'text/html; charset=utf-8');
       if (path === '/owner/style.css' && method === 'GET') return ownerAsset(ownerCss, 'text/css; charset=utf-8');
       if (path === '/owner/app.js' && method === 'GET') return ownerAsset(ownerJs, 'text/javascript; charset=utf-8');
@@ -190,6 +193,66 @@ export function createGatewayHandler(
         }
         const effect = rawEffect as ExternalEffect;
         return json(authority.propose(identity.id, identity.token, effect), 201);
+      }
+      if (portfolio && path.startsWith('/v1/device/portfolio')) {
+        const enabled = (id: string, grant: DeviceGrant) => authority.listDevices().some((d) => d.id === id && !d.revoked && d.expiresAt > Date.now() && d.grants.includes(grant));
+        const allowedReader = (query?: import('./portfolio-relay').PortfolioQuery) => {
+          const identity = device(request), grant = query ? portfolioGrant(query) : null;
+          const grants: DeviceGrant[] = grant ? [grant] : ['inboxRead', 'usageRead'];
+          if (!grants.some((g) => { try { authority.authenticate(identity.id, identity.token, g); return true; } catch { return false; } })) throw new HttpFailure(401, 'History read access required');
+          return identity;
+        };
+        const stillAllowed = (id: string, query: import('./portfolio-relay').PortfolioQuery) => {
+          const grant = portfolioGrant(query); return grant ? enabled(id, grant) : enabled(id, 'inboxRead') || enabled(id, 'usageRead');
+        };
+        try {
+          if (path === '/v1/device/portfolio' && method === 'PUT') {
+            const input = await body(request), identity = authorizedDevice(request, authority, 'publish');
+            if (Object.keys(input).join(',') !== 'version' || input.version !== 1) throw new HttpFailure(400, 'Invalid portfolio version');
+            portfolio.publish(identity.id); return json({ published: true });
+          }
+          if (path === '/v1/device/portfolio' && method === 'GET') {
+            allowedReader(); const devices = authority.listDevices();
+            const publishers = new Set(devices.filter((d) => !d.revoked && d.expiresAt > Date.now() && d.grants.includes('publish')).map((d) => d.id));
+            const names = new Map(devices.map((d) => [d.id, d.name]));
+            return json({ owners: portfolio.owners(publishers).map((owner) => ({ ...owner, name: names.get(owner.publisherId) ?? 'Registered owner' })) });
+          }
+          if (path === '/v1/device/portfolio/queries' && method === 'POST') {
+            const input = await body(request); validatePortfolioQuery(input.query);
+            const identity = allowedReader(input.query);
+            if (!enabled(string(input.publisherId), 'publish')) throw new HttpFailure(409, 'Registered owner unavailable');
+            return json(portfolio.enqueue(identity.id, input), 201);
+          }
+          if (path === '/v1/device/portfolio/queries' && method === 'GET') {
+            const identity = allowedReader(), key = url.searchParams.get('key');
+            if (!key) throw new HttpFailure(400, 'Portfolio request key required');
+            const job = portfolio.byKey(identity.id, key);
+            if (job) { allowedReader(job.query); if (!enabled(job.publisherId, 'publish')) throw new HttpFailure(409, 'Registered owner unavailable'); }
+            return json({ job });
+          }
+          if (path === '/v1/device/portfolio/queue' && method === 'GET') {
+            const identity = authorizedDevice(request, authority, 'publish');
+            const jobs = portfolio.pending(identity.id).filter((job) => {
+              if (stillAllowed(job.deviceId, job.query)) return true;
+              portfolio.reject(identity.id, job.id); return false;
+            });
+            return json({ jobs });
+          }
+          const completion = /^\/v1\/device\/portfolio\/queries\/([0-9a-f-]{36})\/complete$/.exec(path);
+          if (completion && method === 'POST') {
+            const input = await body(request), identity = authorizedDevice(request, authority, 'publish');
+            const job = portfolio.job(completion[1]!);
+            if (!job || job.publisherId !== identity.id) throw new HttpFailure(404, 'Portfolio request not found');
+            if (!stillAllowed(job.deviceId, job.query)) return json(portfolio.reject(identity.id, job.id));
+            if (Object.keys(input).join(',') === 'rejected' && input.rejected === true) return json(portfolio.reject(identity.id, job.id));
+            if (Object.keys(input).join(',') !== 'result') throw new HttpFailure(400, 'Invalid portfolio answer');
+            return json(portfolio.complete(identity.id, job.id, input.result));
+          }
+          throw new HttpFailure(404, 'Not found');
+        } catch (error) {
+          if (error instanceof HttpFailure) throw error;
+          throw new HttpFailure(400, 'Portfolio read request rejected');
+        }
       }
       if (automations && path.startsWith('/v1/device/automations')) {
         const devices = authority.listDevices();
@@ -379,7 +442,7 @@ export function createGatewayHandler(
         const identity = device(request);
         // Session inspection is available to any currently paired device,
         // including review-only phones.
-        const grants: DeviceGrant[] = ['inspect', 'propose', 'review', 'publish', 'taskRead', 'taskControl', 'automationRead', 'automationControl'];
+        const grants: DeviceGrant[] = ['inspect', 'propose', 'review', 'publish', 'taskRead', 'taskControl', 'automationRead', 'automationControl', 'inboxRead', 'usageRead'];
         if (!grants.some((grant) => {
           try { authority.authenticate(identity.id, identity.token, grant); return true; }
           catch { return false; }

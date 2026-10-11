@@ -2810,3 +2810,24 @@ live provider/cloud call, billable resource or visual test was performed.
 See [implementation, setup and remaining owner review](31-headless-gateway-owner.md).
 Broader historical gateway portfolio data, resource/accounting work and live
 provider/device acceptance remain open. No deferred new harness adapter was added.
+
+
+## Gateway Inbox and usage history increment (2026-10-11)
+
+Added a durable typed read relay and independent phone Inbox/usage grants. The
+headless owner queries its real historical Inbox/global ledger and all-project
+directory. Cursor pages retain full counts/totals, unknown costs and accounting
+quality; private host paths and billing references stay off the phone. Native
+phone filters and paging are reachable from Personal gateway; focus, owner,
+credential and filter changes fence late answers. Read previews never approve
+or execute work. Memory-only desktop pairing retains its app-session bridge.
+
+Verification: 49 gateway, 27 phone, 10 daemon-owner and 4 protocol cases passed
+(90 distinct), plus locked desktop/daemon/worker compilation, full TypeScript,
+binding equality, formatting and whitespace checks. Native visual/device and
+live internet acceptance remain unchecked; no live provider/billable deployment
+was performed. See [setup and review](32-gateway-inbox-usage-history.md).
+
+Historical gateway workflow/evidence pages, notification writes, remaining
+resource/accounting integration and cloud speech/device acceptance remain open.
+Deferred new harness adapters were not added.
