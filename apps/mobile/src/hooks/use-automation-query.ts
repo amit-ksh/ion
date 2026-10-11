@@ -10,7 +10,7 @@ let nextVisibilityGeneration = 0;
 
 /** Only visible, foreground screens poll. A cached owner projection never
  * enables controls until a fresh query on this connection has completed. */
-export function useAutomationQuery<T>(key: readonly unknown[], load: (client: WakuClient) => Promise<T>) {
+export function useAutomationQuery<T>(key: readonly unknown[], load: (client: WakuClient) => Promise<T>, options?: { poll?: boolean }) {
   const daemon = useDaemon();
   const [focused, setFocused] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -42,7 +42,7 @@ export function useAutomationQuery<T>(key: readonly unknown[], load: (client: Wa
       return { value, client, generation: startedGeneration };
     },
     enabled, retry: false, staleTime: 0,
-    refetchInterval: enabled ? 8_000 : false,
+    refetchInterval: enabled && options?.poll !== false ? 8_000 : false,
     refetchIntervalInBackground: false,
   });
   useEffect(() => { if (enabled) void query.refetch(); }, [enabled, daemon.client, requiredGeneration]);

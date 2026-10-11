@@ -82,7 +82,7 @@ assert live account acceptance, visual validation or production release readines
   remain visible on desktop/phone and immutable for existing runs.
 - [x] Phone workflow/routine history and instructions, saved-definition Run now,
   schedule enable/pause, exact stage gates and Stop, with persisted submission
-  identity and fresh-owner/focus fences. Desktop retains definition editing.
+  identity and fresh-owner/focus fences. Desktop and phone support definition editing.
 
 ## Development still required for the full planned release
 
@@ -553,3 +553,19 @@ device/visual acceptance or deployment was performed.
 - [ ] Capture remaining existing solo-harness receipts and authoritative billing;
   projectless accounting still needs an explicit owner scope. Deferred new
   harness adapters remain outside scope.
+
+
+## Phone automation editing checkpoint — 2026-10-11
+
+- [x] Create/edit phone workflow stages, teams, gates, document formats, code
+  inheritance, retries, forward branches and aggregate limits; prompt generation
+  remains an explicit user action using the configured owner model.
+- [x] Edit team/workflow routines and calendar policies with owner previews.
+  Saves pause the schedule; existing Enable schedule and Run now retain authority.
+- [x] Owner/address-scoped persisted drafts, stable IDs, exact save acknowledgements,
+  one-read unknown-outcome reconciliation and conflict-preserving revision refresh.
+- [x] Fourteen new editor and eleven existing start/recovery tests; full phone/shared
+  TypeScript, protocol 37 equality and whitespace checks.
+- [ ] Complete [the phone editing/device review](29-phone-automation-editing.md#your-review-checklist).
+- [ ] Broader registered-owner/gateway workflow controls and notification delivery;
+  general checks, existing solo receipts/billing and resource/GPU work remain.

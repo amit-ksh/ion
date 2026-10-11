@@ -49,7 +49,7 @@ desktop, daemon and clients.
   definitions, their instructions and all-project or per-project run history.
   Run now, enable/pause an interval, inspect a run's stage instructions, approve
   or decline its exact gate, Stop run and open actual stage task transcripts.
-  Definitions are created/edited on desktop in this increment.
+  Definitions can also be created/edited on phone; see [phone editing](29-phone-automation-editing.md).
 - Phone start identity and definition revision are stored before sending. A
   disconnect, app restart or storage-cleanup failure retains the original ID;
   Run now retries that submission. Only a completed rejection plus confirmed
@@ -94,7 +94,7 @@ desktop, daemon and clients.
 ## Remaining development
 
 Larger binary document transfers/additional formats, app binding controls, background notification delivery
-and phone definition editing remain subsequent increments. Broader remote execution and registered-owner integrations are tracked in
+remain subsequent increments; phone definition editing is now implemented. Broader remote execution and registered-owner integrations are tracked in
 [the release checklist](20-agent-teams-release-checklist.md). Executed test receipts
 and monetary caps are still required. Presence of this workflow runner does not
 claim those capabilities or a finished Ion release.
@@ -341,3 +341,18 @@ fence passed. Desktop, daemon and native worker compilation, generated protocol
 Six native usage receipt regressions also passed, including post-context-fill
 Codex calls. No live provider, deployment, device/visual test or additional
 dev watcher was performed.
+
+
+## Phone definition editing — 2026-10-11
+
+Phone Workflows & routines now has New workflow, New routine and Edit. The
+native form supports generated/manual stages, teams, gates, formats, inheritance,
+retries, forward JSON branches, aggregate limits, calendar rules and owner schedule
+previews. Routine edits save paused; enabling is an explicit existing action.
+Owner-scoped drafts retain identity and expected revision, reconcile unknown
+acknowledgements without mutation replay, and preserve edits through conflicts.
+See [behavior, verification and device checklist](29-phone-automation-editing.md).
+Existing normal New task and @team invocation remain unchanged. Protocol remains
+37. Fourteen new editor cases plus eleven existing start/recovery cases passed;
+full phone/shared TypeScript, binding equality and whitespace passed. Native
+visual/device and live generation acceptance remain the user's later review.

@@ -146,6 +146,7 @@ function AppNavigator() {
         <Stack.Screen name="inbox-source" options={{ ...floatingHeader, title: "Review" }} />
         <Stack.Screen name="inbox" options={{ ...drawerHeader, title: "Inbox" }} />
         <Stack.Screen name="automations" options={{ ...drawerHeader, title: "Workflows & routines" }} />
+        <Stack.Screen name="automation-editor" options={{ ...floatingHeader, title: "Automation" }} />
         <Stack.Screen name="automation/[id]" options={{ ...floatingHeader, title: "Run" }} />
         <Stack.Screen
           name="daemons"

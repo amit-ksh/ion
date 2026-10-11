@@ -2736,3 +2736,38 @@ Remaining implementation includes other existing solo receipts/projectless
 accounting, authoritative billing, phone definition editing, general checks,
 resource/GPU and registered-owner/gateway work. Live deployment and native/device
 acceptance remain separate. Deferred new harness adapters stay out of scope.
+
+
+## Phone workflow/routine authoring (2026-10-11)
+
+Workflows & routines now creates/edits saved definitions directly on phone. Its
+native form retains the existing Ion theme, normal task/team invocation and
+owner-authoritative control RPCs. Stage teams, generated/manual instructions,
+gates, formats, inheritance, retries, forward JSON branches and aggregate limits
+are editable. Calendar routines choose team/workflow targets, preview exact owner
+occurrences and save paused before explicit schedule enablement.
+
+Owner/address-scoped bounded drafts retain definition UUID, original baseline and
+expected revision. Ordered persistence precedes save; exact acknowledgement/read
+reconciliation handles missing responses without replaying mutation. Unrelated
+revisions can be refreshed without discarding edits, while changed/deleted
+definitions require explicit review. Connection/foreground/dialog fences keep
+old responses and confirmations from crossing scope. The authoring screen does
+not poll full snapshots while typing. Native input APIs and picker FlatLists
+preserve the existing theme, system switches, scalable text and keyboard insets.
+
+Verification: 14 new editor/effect/recovery tests and all 11 existing automation
+start/recovery tests passed (25 distinct checks). Full phone/shared TypeScript,
+protocol 37 equality, mechanical UI detector and whitespace passed. See
+[phone behavior and device review](29-phone-automation-editing.md). The isolated
+worktree initially lacked package resolution for Bun/shared TypeScript; the
+existing worktree alias preload and cached dependency paths resolved that check
+environment. No production behavior was changed to make tests pass.
+
+The full release remains active: general checks, other existing solo receipt
+coverage/projectless accounting and authoritative billing, background notification
+and registered-owner/gateway controls, and broader resource/GPU integration still
+have implementation remaining. Live Nebius speech/provisioning and native device
+acceptance require the user's later target, credentials and review. Deferred new
+harness adapters remain outside scope. No visual test, live generation request,
+billable provisioning, deployment or extra dev watcher was performed.

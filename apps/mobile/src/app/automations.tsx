@@ -89,11 +89,13 @@ export default function AutomationsScreen() {
           keyExtractor={(p) => p.id ?? 'all'} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.projects}
           renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: item.id === project }} onPress={() => changeProject(item.id)}
             style={[styles.tab, { backgroundColor: project === item.id ? theme.overlayStrong : 'transparent' }]}><Text style={[styles.body, { color: theme.text }]}>{item.name}</Text></Pressable>} />
+        {tab !== 'Runs' && <AutomationButton label={tab === 'Workflows' ? 'New workflow' : 'New routine'} disabled={!fresh || busy !== null}
+          onPress={() => router.push({ pathname: '/automation-editor', params: { kind: tab === 'Workflows' ? 'workflow' : 'routine', ...(project ? { projectId: project } : {}) } })} />}
         {!fresh && data && <Text style={[styles.body, { color: theme.textSecondary }]}>Saved status · refresh to use controls</Text>}
         {(message || query.error) && <Text accessibilityRole="alert" style={[styles.body, { color: theme.danger }]}>{message ?? query.error?.message}</Text>}
         {busy && <ActivityIndicator color={theme.accent} accessibilityLabel="Updating automation" />}
       </View>}
-      ListEmptyComponent={<Text style={[styles.empty, { color: theme.textSecondary }]}>{query.isPending && query.isFetching ? 'Loading…' : tab === 'Runs' ? 'No runs on this page.' : `Create a ${tab === 'Workflows' ? 'workflow' : 'routine'} on desktop.`}</Text>}
+      ListEmptyComponent={<Text style={[styles.empty, { color: theme.textSecondary }]}>{query.isPending && query.isFetching ? 'Loading…' : tab === 'Runs' ? 'No runs on this page.' : `No ${tab === 'Workflows' ? 'workflows' : 'routines'} yet.`}</Text>}
       renderItem={({ item }) => {
         if (!('kind' in item)) return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: item.id } })}
           style={({ pressed }) => [styles.row, { borderBottomColor: theme.border, backgroundColor: pressed ? theme.overlay : 'transparent' }]}>
@@ -111,7 +113,7 @@ export default function AutomationsScreen() {
             <Text selectable style={[styles.body, { color: theme.text }]}>{item.kind === 'workflow' ? item.prompt : item.instructions}</Text>
             {item.kind === 'workflow' && item.stages.map((s, index) => <View key={index} style={styles.stage}>
               <Text style={[styles.body, { color: theme.text, fontWeight: '600' }]}>{index + 1}. {s.title}</Text>
-              <Text style={[styles.body, { color: theme.textSecondary }]}>{s.teamId ? teamNames.get(s.teamId) ?? 'Team' : 'Choose a team on desktop'}{s.requiresDecision ? ' · User decision' : ''}</Text>
+              <Text style={[styles.body, { color: theme.textSecondary }]}>{s.teamId ? teamNames.get(s.teamId) ?? 'Team' : 'Choose a team'}{s.requiresDecision ? ' · User decision' : ''}</Text>
               <Text selectable style={[styles.body, { color: theme.text }]}>{s.instructions}</Text>
               <Text style={[styles.body, { color: theme.textSecondary }]}>{s.retry ? `Retry before effects: up to ${s.retry.maxAttempts - 1} · ${s.retry.delaySeconds}s delay` : 'Retries: off'}</Text>
               {s.inheritWorkspace && <Text style={[styles.body, { color: theme.textSecondary }]}>Inherit code: on</Text>}
@@ -120,6 +122,7 @@ export default function AutomationsScreen() {
           </View>}
           {item.kind === 'routine' && item.lastError && <Text style={[styles.body, { color: theme.danger }]}>{item.lastError}</Text>}
           <View style={styles.actions}>
+            <AutomationButton label="Edit" disabled={!fresh || busy !== null} onPress={() => router.push({ pathname: '/automation-editor', params: { id: item.id, kind: item.kind } })} />
             <AutomationButton label="Run now" onPress={() => run(item)} disabled={!fresh || busy !== null} />
             {item.kind === 'routine' && <AutomationButton label={item.paused ? 'Enable schedule' : 'Pause'} onPress={() => pause(item)} disabled={!fresh || busy !== null} />}
           </View>
