@@ -10,6 +10,7 @@ pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1
 const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 
 pub mod composio;
+mod gateway_pairing_file;
 pub mod speech;
 pub use composio::ComposioAuthConfig;
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
@@ -59,6 +60,7 @@ impl CredentialKind {
 pub enum CredentialStatus {
     Missing,
     StoredInVault,
+    ManagedFile,
     MemoryOnly,
 }
 
@@ -69,8 +71,8 @@ pub enum CredentialTest {
     GatewayConnected(GatewaySession),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GatewayPairing {
     pub base_url: String,
     pub device_id: String,
@@ -185,6 +187,22 @@ pub struct GatewayApi {
 }
 
 impl GatewayApi {
+    /// Use a shorter request deadline for bounded owner publication passes.
+    pub fn with_timeout(mut self, timeout: std::time::Duration) -> Result<Self> {
+        anyhow::ensure!(
+            !timeout.is_zero() && timeout <= std::time::Duration::from_secs(12),
+            "Invalid gateway request deadline"
+        );
+        self.client = reqwest::blocking::Client::builder()
+            .timeout(timeout)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
+        Ok(self)
+    }
+    /// Compare capabilities without exposing the bearer token to a caller.
+    pub fn same_pairing(&self, other: &Self) -> bool {
+        self.url == other.url && self.device_id == other.device_id && self.token == other.token
+    }
     pub fn identity(&self) -> (&str, &str) {
         (self.url.as_str(), &self.device_id)
     }
@@ -357,7 +375,7 @@ pub struct GatewayAutomationCommand {
     pub action: GatewayAutomationAction,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -462,6 +480,7 @@ fn gateway_client() -> Result<reqwest::blocking::Client> {
 
 pub struct CredentialService {
     volatile: Mutex<HashMap<CredentialKind, String>>,
+    gateway_pairing_file: Mutex<Option<std::path::PathBuf>>,
 }
 
 impl CredentialService {
@@ -469,11 +488,37 @@ impl CredentialService {
         static SERVICE: OnceLock<CredentialService> = OnceLock::new();
         SERVICE.get_or_init(|| Self {
             volatile: Mutex::new(HashMap::new()),
+            gateway_pairing_file: Mutex::new(None),
         })
+    }
+
+    /// Configure once, before starting daemon workers. This source is private
+    /// to the owning process and is re-read on background requests for rotation.
+    /// Linux services can use a file instead of a desktop credential vault.
+    pub fn configure_gateway_pairing_file(&self, path: std::path::PathBuf) -> Result<()> {
+        anyhow::ensure!(
+            path.is_absolute(),
+            "Gateway pairing file must have an absolute path"
+        );
+        gateway_pairing_file::read(&path)?;
+        *self.gateway_pairing_file.lock().unwrap() = Some(path);
+        Ok(())
+    }
+
+    fn ensure_gateway_not_file_managed(&self, kind: CredentialKind) -> Result<()> {
+        if kind == CredentialKind::GatewayPairingToken
+            && self.gateway_pairing_file.lock().unwrap().is_some()
+        {
+            bail!(
+                "Gateway pairing is managed by ION_GATEWAY_PAIRING_FILE; rotate or remove that configuration before pairing again"
+            );
+        }
+        Ok(())
     }
 
     /// Returns only a storage status. Run on the background executor.
     pub fn set(&self, kind: CredentialKind, value: String) -> Result<CredentialStatus> {
+        self.ensure_gateway_not_file_managed(kind)?;
         let value = value.trim();
         if value.is_empty() {
             bail!("credential must not be empty")
@@ -496,6 +541,16 @@ impl CredentialService {
     }
 
     pub fn status(&self, kind: CredentialKind) -> CredentialStatus {
+        if kind == CredentialKind::GatewayPairingToken {
+            let path = self.gateway_pairing_file.lock().unwrap().clone();
+            if let Some(path) = path {
+                return if gateway_pairing_file::read(&path).is_ok() {
+                    CredentialStatus::ManagedFile
+                } else {
+                    CredentialStatus::Missing
+                };
+            }
+        }
         if self.volatile.lock().unwrap().contains_key(&kind) {
             return CredentialStatus::MemoryOnly;
         }
@@ -506,6 +561,7 @@ impl CredentialService {
     }
 
     pub fn delete(&self, kind: CredentialKind) -> Result<()> {
+        self.ensure_gateway_not_file_managed(kind)?;
         self.volatile.lock().unwrap().remove(&kind);
         vault::delete(kind.account()).context("could not confirm OS vault deletion")?;
         Ok(())
@@ -539,6 +595,7 @@ impl CredentialService {
         invite: &str,
         name: &str,
     ) -> Result<CredentialStatus> {
+        self.ensure_gateway_not_file_managed(CredentialKind::GatewayPairingToken)?;
         let url = gateway_base_url(base_url)?;
         if invite.trim().is_empty() || name.trim().is_empty() {
             bail!("Enter a pairing invite and device name");
@@ -580,6 +637,10 @@ impl CredentialService {
     }
 
     fn gateway_pairing(&self) -> Result<GatewayPairing> {
+        let path = self.gateway_pairing_file.lock().unwrap().clone();
+        if let Some(path) = path {
+            return gateway_pairing_file::read(&path);
+        }
         let pairing: GatewayPairing =
             serde_json::from_str(&self.secret(CredentialKind::GatewayPairingToken)?)
                 .context("Pair this desktop from the personal gateway owner console")?;

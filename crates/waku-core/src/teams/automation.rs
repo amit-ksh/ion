@@ -681,6 +681,36 @@ fn dispatch_next(
     Ok(())
 }
 impl TeamCoordinator {
+    /// Shared by RPC and the outbound gateway owner. A new start needs an
+    /// existing project; a retry can still read its pinned receipt after removal.
+    pub(crate) fn start_project_automation(
+        &self,
+        projects: &HashSet<Uuid>,
+        id: Uuid,
+        definition: Uuid,
+        expected: u64,
+        now: u64,
+    ) -> Result<AutomationRun> {
+        let exists: bool = self.connect()?.query_row(
+            "SELECT EXISTS(SELECT 1 FROM ion_automation_runs WHERE id=?)",
+            [id.to_string()],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            let definitions = self.control.load()?;
+            let project = definitions
+                .records
+                .iter()
+                .find_map(|record| match record {
+                    ControlRecord::Workflow(w) if w.id == definition => Some(w.project_id),
+                    ControlRecord::Routine(r) if r.id == definition => Some(r.project_id),
+                    _ => None,
+                })
+                .context("Choose a workflow or routine")?;
+            ensure!(projects.contains(&project), "Choose an existing project");
+        }
+        self.start_automation(id, definition, expected, now)
+    }
     pub fn start_automation(
         &self,
         id: Uuid,

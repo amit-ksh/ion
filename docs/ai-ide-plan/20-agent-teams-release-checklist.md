@@ -137,8 +137,11 @@ assert live account acceptance, visual validation or production release readines
 - [x] Registered desktop gateway workflow/routine/run projection and revision-bound
   phone controls, with scoped grants, durable identity and owner claim/recovery.
   See [gateway behavior and review](30-gateway-workflow-controls.md).
-- [ ] Standalone headless cloud owner publication, broader gateway Inbox/usage and
-  paged historical workflow/evidence projections; live gateway/device acceptance.
+- [x] Daemon-owned headless registered-owner workflow publication and phone controls,
+  with private Linux pairing-file source and exact-start acknowledgement recovery.
+  See [headless owner setup and review](31-headless-gateway-owner.md).
+- [ ] Broader gateway Inbox/usage and paged historical workflow/evidence projections;
+  Linux descriptor tests and live gateway/device acceptance.
 - [x] Shared desktop/native phone cloud speech partial streaming, bounded PCM,
   exact final acknowledgment, cancellation and source/draft fences.
 - [ ] Cloud speech deployment, native TLS/redirect acceptance and real microphone

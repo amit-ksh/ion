@@ -57,7 +57,8 @@ pub struct WakuBackend {
     checkpoint_capture_locks: Mutex<HashMap<(PathBuf, Uuid, usize), Arc<Mutex<()>>>>,
     usage_rates_dir: std::path::PathBuf,
     default_cwd: std::path::PathBuf,
-    control: crate::control::ControlStore,
+    control: Arc<crate::control::ControlStore>,
+    gateway_owner: Option<crate::gateway_owner::GatewayOwner>,
     teams: Arc<crate::teams::TeamCoordinator>,
     team_runtime: Arc<crate::team_runtime::TeamRuntime>,
     task_start_gates: Mutex<HashMap<Uuid, std::sync::Weak<Mutex<()>>>>,
@@ -107,9 +108,10 @@ impl WakuBackend {
             team_runtime,
             task_start_gates: Mutex::new(HashMap::new()),
             teams,
-            control: crate::control::ControlStore::new(
+            control: Arc::new(crate::control::ControlStore::new(
                 task_store.path().with_file_name("ion-control.db"),
-            ),
+            )),
+            gateway_owner: None,
             sessions: Mutex::new(HashMap::new()),
             terminals: Mutex::new(HashMap::new()),
             #[cfg(all(test, unix))]
@@ -125,6 +127,23 @@ impl WakuBackend {
             usage_rates_dir,
             default_cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         })
+    }
+
+    /// Explicit production opt-in: isolated backends/tests never contact a
+    /// real user's gateway. A configured Linux file also serves gateway app actions.
+    pub fn with_gateway_owner(mut self, pairing_file: Option<PathBuf>) -> anyhow::Result<Self> {
+        let file_managed = pairing_file.is_some();
+        if let Some(path) = pairing_file {
+            crate::credentials::CredentialService::global().configure_gateway_pairing_file(path)?;
+        }
+        self.gateway_owner = Some(crate::gateway_owner::GatewayOwner::new(
+            self.control.clone(),
+            self.teams.clone(),
+            self.task_state.clone(),
+            &self.team_runtime,
+            file_managed,
+        ));
+        Ok(self)
     }
 
     #[cfg(all(test, unix))]
@@ -277,7 +296,14 @@ fn migrate_projectless_state(
 
 impl Backend for WakuBackend {
     fn start(&self, publisher: crate::RuntimePublisher) -> anyhow::Result<()> {
-        self.team_runtime.start(publisher)
+        self.team_runtime.start(publisher)?;
+        if let Some(owner) = &self.gateway_owner
+            && let Err(error) = owner.start()
+        {
+            self.team_runtime.shutdown();
+            return Err(error);
+        }
+        Ok(())
     }
     fn handle(&self, request: Request, events: EventSink) -> anyhow::Result<ResponsePayload> {
         let session_id = request.session_id;
@@ -674,36 +700,15 @@ impl Backend for WakuBackend {
                 definition_id,
                 expected_definition_revision,
             } => {
-                let existing = self.teams.automation_run(id).ok();
-                if existing.is_none() {
-                    let definitions = self.control.load()?;
-                    let project_id = definitions
-                        .records
-                        .iter()
-                        .find_map(|r| match r {
-                            waku_protocol::control::ControlRecord::Workflow(w)
-                                if w.id == definition_id =>
-                            {
-                                Some(w.project_id)
-                            }
-                            waku_protocol::control::ControlRecord::Routine(r)
-                                if r.id == definition_id =>
-                            {
-                                Some(r.project_id)
-                            }
-                            _ => None,
-                        })
-                        .context("Choose a workflow or routine")?;
-                    anyhow::ensure!(
-                        self.task_state
-                            .lock()
-                            .projects
-                            .iter()
-                            .any(|p| p.id == project_id),
-                        "Choose an existing project"
-                    );
-                }
-                let run = self.teams.start_automation(
+                let projects = self
+                    .task_state
+                    .lock()
+                    .projects
+                    .iter()
+                    .map(|p| p.id)
+                    .collect();
+                let run = self.teams.start_project_automation(
+                    &projects,
                     id,
                     definition_id,
                     expected_definition_revision,
@@ -1565,6 +1570,9 @@ impl Backend for WakuBackend {
     }
 
     fn shutdown(&self) {
+        if let Some(owner) = &self.gateway_owner {
+            owner.shutdown();
+        }
         self.team_runtime.shutdown();
         let sessions = std::mem::take(&mut *self.sessions.lock());
         drop(sessions);

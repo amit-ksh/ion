@@ -173,7 +173,7 @@ Pair publishing desktops with **Publish desktop state**. Pair a phone with
 Task or Review grants do not implicitly acquire workflow access. In the native
 phone, open **Personal gateway → Workflows & routines**.
 
-The desktop publishes a bounded metadata page to `PUT /v1/device/automations`.
+The owner daemon publishes a bounded metadata page to `PUT /v1/device/automations`.
 The phone reads `GET /v1/device/automations` and submits revision/fingerprint-bound
 start, stop, stage-decision or routine controls to
 `POST /v1/device/automations/commands`. Nonces, start IDs and claims are durable;
@@ -182,5 +182,8 @@ expired/revoked grants fail before dispatch. Unknown claimed effects are not
 replayed. Existing individual-task queues also enforce publisher ownership.
 
 See [behavior, bounds, recovery and unchecked deployment/device review](../../docs/ai-ide-plan/30-gateway-workflow-controls.md).
-This relay currently requires the registered desktop worker to be running;
-standalone headless cloud owner publication remains separate development.
+Registered headless Linux owners can use a private pairing file and serve these
+controls without an open desktop. Persisted desktop pairings also publish from
+the daemon; temporary memory-only pairing retains the desktop bridge. See
+[headless owner setup and review](../../docs/ai-ide-plan/31-headless-gateway-owner.md).
+Individual-task mirroring still requires the desktop worker.

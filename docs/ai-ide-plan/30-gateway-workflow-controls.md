@@ -1,4 +1,4 @@
-# Gateway workflows and registered desktop owners
+# Gateway workflows and registered owners
 
 Updated 2026-10-11. Development branch: `codex/ion-agent-teams`.
 The personal gateway adds its own automation relay **version 1**; the direct daemon
@@ -7,9 +7,10 @@ for this feature. Older gateways continue receiving the original desktop task fe
 
 ## Available behavior
 
-- The existing outbound desktop worker publishes project names, saved workflow
+- The daemon background worker publishes project names, saved workflow
   and routine summaries, recent runs and pending stage decisions. Each feed belongs
-  to the desktop's registered publisher ID. The phone can select the owner,
+  to the owner's registered publisher ID. Linux services can use a private pairing
+  file; temporary memory-only desktop pairings retain their desktop bridge. The phone can select the owner,
   project and Workflows / Routines / Runs & decisions view.
 - A paired phone can start a saved definition, approve or decline its pending
   stage, stop a run, and enable or pause a routine. These use the owner's existing
@@ -134,9 +135,10 @@ cloud deployment, TLS/device or visual acceptance.
 
 ## Remaining development and acceptance
 
-This increment publishes from a running desktop worker. Standalone headless cloud
-owner publication, broader gateway Inbox/usage projections, full paged historical
-workflow feeds and evidence/document transfer remain separate development. The
+Headless registered-owner publication is now implemented; see the separate
+[service setup and review](31-headless-gateway-owner.md). Broader gateway Inbox/usage
+projections, full paged historical workflow feeds and evidence/document transfer
+remain separate development. The
 phone currently reviews bounded pending-stage instructions; full documents,
 profile access details and inherited code review remain in the direct owner UI.
 

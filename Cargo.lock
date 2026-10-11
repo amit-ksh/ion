@@ -8893,6 +8893,7 @@ name = "waku-credentials"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "reqwest 0.12.28",
  "rustls",
  "rustls-native-certs",

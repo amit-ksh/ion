@@ -809,6 +809,7 @@ fn parse_shell_environment(bytes: &[u8]) -> Option<ShellEnvironment> {
 fn is_shell_capture_variable(name: &OsStr) -> bool {
     [
         "WAKU_SHELL_ENV_CAPTURE_FILE",
+        "ION_GATEWAY_PAIRING_FILE",
         "DISABLE_AUTO_UPDATE",
         "ZSH_TMUX_AUTOSTARTED",
         "ZSH_TMUX_AUTOSTART",
@@ -1298,6 +1299,14 @@ mod tests {
         assert!(candidates.contains(&PathBuf::from("/bin/bash")));
         assert!(candidates.contains(&PathBuf::from("/bin/sh")));
         assert!(default_terminal_shell().is_file());
+    }
+
+    #[test]
+    fn service_pairing_file_is_not_imported_from_a_shell_profile() {
+        assert!(is_shell_capture_variable(OsStr::new(
+            "ION_GATEWAY_PAIRING_FILE"
+        )));
+        assert!(!is_shell_capture_variable(OsStr::new("PATH")));
     }
 
     #[cfg(unix)]

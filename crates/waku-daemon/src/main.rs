@@ -10,6 +10,12 @@ use waku_protocol::{DAEMON_TOKEN_ENV, DaemonReady, PROTOCOL_VERSION};
 fn main() -> anyhow::Result<()> {
     let arguments = Arguments::parse(std::env::args().skip(1))?;
     let token = daemon_token()?;
+    let gateway_pairing_file =
+        std::env::var_os("ION_GATEWAY_PAIRING_FILE").map(std::path::PathBuf::from);
+    // Capture the service source before workers start. Child harnesses must
+    // not inherit its credential-file location.
+    unsafe { std::env::remove_var("ION_GATEWAY_PAIRING_FILE") };
+
     // The bearer capability belongs only to this server process. Remove it
     // before any provider or workspace subprocess can inherit the daemon's
     // environment.
@@ -49,10 +55,14 @@ fn main() -> anyhow::Result<()> {
     )
     .context("could not load daemon settings")?;
     let task_store = waku_core::persistence::StateStore::daemon(task_path);
+    let backend = Arc::new(
+        waku_core::daemon::WakuBackend::new(settings, task_store)?
+            .with_gateway_owner(gateway_pairing_file)?,
+    );
     waku_core::serve(
         listener,
         token,
-        Arc::new(waku_core::daemon::WakuBackend::new(settings, task_store)?),
+        backend,
         shutdown,
         waku_core::ServerOptions {
             allowed_origins: arguments.allowed_origins.into_iter().collect(),

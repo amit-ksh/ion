@@ -36,6 +36,7 @@ pub mod deepseek_pool;
 pub mod deepseek_session;
 pub mod driver;
 mod frontmatter;
+mod gateway_owner;
 pub mod git_branch;
 pub mod git_commit;
 pub mod grok_session;

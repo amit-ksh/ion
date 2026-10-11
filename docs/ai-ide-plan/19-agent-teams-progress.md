@@ -2787,3 +2787,26 @@ See [gateway implementation and unchecked live review](30-gateway-workflow-contr
 This increment uses the existing desktop background worker. Headless cloud owner
 publication and broader historical gateway portfolio data remain development;
 existing deferred harness adapters remain out of scope.
+
+
+## Headless registered-owner workflow increment (2026-10-11)
+
+Moved persisted-pairing workflow publication and phone controls into a dedicated
+production daemon worker. A Linux service can use a private, owner-validated
+pairing file without an OS credential vault; that source also serves gateway app
+proposals. Same-project validation is shared by RPC and the outbound owner.
+Durable claim, exact response witnesses, revision checks, post-claim identity/
+grant checks and shutdown fences preserve effect ownership. Recovery reads exact
+persisted start receipts after restart and never replays missing/unknown effects.
+Temporary desktop pairing keeps its existing desktop bridge.
+
+Verification: 13 new contract/owner/environment tests plus 30 existing automation
+regressions passed (43 distinct). Locked desktop/daemon/selected-worker compilation,
+protocol 37 binding equality, formatting and whitespace passed. Linux descriptor
+acceptance is still unchecked: Ubuntu's registered WSL disk is missing and the
+configured Docker engines are unavailable. No service restart, runtime repair,
+live provider/cloud call, billable resource or visual test was performed.
+
+See [implementation, setup and remaining owner review](31-headless-gateway-owner.md).
+Broader historical gateway portfolio data, resource/accounting work and live
+provider/device acceptance remain open. No deferred new harness adapter was added.

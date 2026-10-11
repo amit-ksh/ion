@@ -13,9 +13,10 @@ use uuid::Uuid;
 use waku_client::{Command, DaemonClient, DaemonSupervisor, ResponsePayload};
 
 use crate::credentials::{
-    CredentialService, GatewayApi, GatewayRelayCommand, GatewayRelayComputerTarget,
-    GatewayRelayInteraction, GatewayRelayTask,
+    CredentialKind, CredentialService, CredentialStatus, GatewayApi, GatewayRelayCommand,
+    GatewayRelayComputerTarget, GatewayRelayInteraction, GatewayRelayTask,
 };
+
 mod automations;
 
 use crate::model::{ActivityKind, AgentSession, MessageRole};
@@ -133,7 +134,11 @@ fn bridge_loop(
             while let Ok(update) = receiver.try_recv() {
                 collect_interaction(&mut interactions, update);
             }
-            if let Err(error) = sync_once(&daemon.client(), &api, &mut published) {
+            let temporary_pairing = CredentialService::global()
+                .status(CredentialKind::GatewayPairingToken)
+                == CredentialStatus::MemoryOnly;
+            if let Err(error) = sync_once(&daemon.client(), &api, &mut published, temporary_pairing)
+            {
                 // A gateway restore or a partial network failure can erase
                 // server state that our in-memory cache believed existed.
                 // Replay the bounded snapshot and deduped event IDs next pass.
@@ -179,7 +184,12 @@ fn bridge_loop(
     }
 }
 
-fn sync_once(client: &DaemonClient, api: &GatewayApi, published: &mut Published) -> Result<()> {
+fn sync_once(
+    client: &DaemonClient,
+    api: &GatewayApi,
+    published: &mut Published,
+    temporary_pairing: bool,
+) -> Result<()> {
     dispatch_commands(client, api)?;
     let ResponsePayload::TaskState {
         projects,
@@ -194,12 +204,13 @@ fn sync_once(client: &DaemonClient, api: &GatewayApi, published: &mut Published)
         .iter()
         .map(|project| (project.id, project.name.clone()))
         .collect::<HashMap<_, _>>();
-    sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
-    // Give workflow stop/decision controls priority over transcript mirroring.
-    // Older gateways continue to receive the original task feed.
-    if api.has_automation_relay()? {
+    // A process-only pairing cannot cross into the daemon's credential vault.
+    // Preserve controls for that app session. Persisted pairings publish from
+    // the daemon alone, including headless services.
+    if temporary_pairing && api.has_automation_relay()? {
         automations::sync(client, api, &project_records)?;
     }
+    sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
     let mut active_ids = Vec::new();
     for session in sessions.into_iter().take(200) {
         active_ids.push(session.id.to_string());

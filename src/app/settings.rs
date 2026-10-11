@@ -441,6 +441,9 @@ impl Waku {
                         Ok(crate::credentials::CredentialStatus::StoredInVault) => {
                             "Desktop paired. Device token saved in the OS vault.".into()
                         }
+                        Ok(crate::credentials::CredentialStatus::ManagedFile) => {
+                            "Gateway pairing is managed by a private service file.".into()
+                        }
                         Ok(crate::credentials::CredentialStatus::MemoryOnly) => {
                             "Desktop paired for this app session only; OS vault unavailable.".into()
                         }
@@ -923,6 +926,7 @@ impl Waku {
             {
                 CredentialStatus::Missing => "Not configured",
                 CredentialStatus::StoredInVault => "Stored in OS vault",
+                CredentialStatus::ManagedFile => "Managed by a private service file",
                 CredentialStatus::MemoryOnly => "Stored for this app session only",
             };
             let input = self.credential_inputs.get(&kind).unwrap().clone();
@@ -1161,6 +1165,7 @@ impl Waku {
         {
             CredentialStatus::Missing => "Not paired",
             CredentialStatus::StoredInVault => "Device token stored in OS vault",
+            CredentialStatus::ManagedFile => "Device token managed by a private service file",
             CredentialStatus::MemoryOnly => "Paired for this app session only",
         };
         let mut gateway = div()

@@ -12,6 +12,9 @@ Environment=HOME=/var/lib/ion-runner
 Environment=XDG_DATA_HOME=/var/lib/ion-runner/.local/share
 Environment=WAKU_DAEMON_TOKEN_FILE=/etc/ion-daemon/daemon-token
 Environment=WAKU_NEBIUS_KEY_FILE=/etc/ion-daemon/nebius-key
+# Optional outbound gateway workflow controls. Register this service as its own
+# publishing owner; this private file is distinct from both secrets above.
+# Environment=ION_GATEWAY_PAIRING_FILE=/etc/ion-daemon/gateway-pairing.json
 ExecStart=/opt/ion/bin/waku-daemon --bind 127.0.0.1:8765
 Restart=on-failure
 RestartSec=5

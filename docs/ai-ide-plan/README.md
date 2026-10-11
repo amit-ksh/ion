@@ -170,3 +170,7 @@ target; see [the deployment checklist](../../services/speech/README.md).
   SDK/bridge options, account identity and deferred output/effects/usage contracts.
 - [Linux harness worker release recipe](../../packages/harness-worker/README.md):
   reviewed tracked source, pinned bases, nonroot identity and actual-binary checks.
+
+- [Headless registered-owner gateway controls](31-headless-gateway-owner.md):
+  daemon workflow publication, private Linux service pairing, durable claims,
+  exact-start recovery and outstanding deployment/device review.
