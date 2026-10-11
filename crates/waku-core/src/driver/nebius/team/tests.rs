@@ -1301,3 +1301,29 @@ fn native_team_command_check_contract_survives_delegation_and_denies_forged_loca
     assert_eq!(work.status, AssignmentStatus::Blocked);
     assert!(work.result.is_none());
 }
+
+#[test]
+fn native_team_pdf_publication_reads_labeled_summary_and_reports_original_binary() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let f = Fixture::new(false);
+    let claim = f.claim(f.run.work[0].id);
+    let bytes = crate::teams::test_pdf_bytes();
+    let encoded = STANDARD.encode(&bytes);
+    let mut step = 0;
+    let mut artifact = Uuid::nil();
+    assert_eq!(f.worker(NativeTeamStart::Fresh(claim),|_,_,messages,tools| {
+        assert!(tools.as_array().unwrap().iter().any(|t|t["function"]["name"]=="save_pdf"));
+        step+=1;
+        Ok(match step {
+            1=>call("save_pdf",json!({"name":"Report.pdf","content_base64":encoded,"summary":"Reviewed report"})),
+            2=>{ artifact=Uuid::parse_str(last_reply(messages)["artifact_id"].as_str().unwrap()).unwrap();call("read_document",json!({"artifact_id":artifact})) },
+            _=>{ let reply=last_reply(messages); assert_eq!(reply["summary"],"Reviewed report");assert_eq!(reply["content_interpreted"],false);assert!(reply.get("content").is_none());call("report_result",json!({"summary":"PDF published with labeled summary","artifact_ids":[artifact]})) }
+        })
+    }).unwrap(),NativeTeamExit::Settled);
+    assert_eq!(f.control.read_document(artifact).unwrap(), bytes);
+    assert_eq!(
+        f.store.snapshot(f.run.id).unwrap().status,
+        TeamRunStatus::Completed
+    );
+    assert_eq!(f.artifacts().len(), 1);
+}

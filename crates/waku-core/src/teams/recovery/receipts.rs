@@ -85,7 +85,7 @@ pub(super) fn tool(
                 return Ok(json!({"assignment_id":child.id,"task_id":child.task_id,"status":child.status,"replayed":false}).to_string());
             }
         }
-        "save_document" | "publish_change" => {
+        "save_document" | "save_pdf" | "publish_change" => {
             let row:Option<(String,String,String,Vec<u8>)>=db.query_row("SELECT artifact_id,name,format,content FROM ion_team_document_receipts WHERE work_id=? AND request_id=?",
                 params![work.id.to_string(),request.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
             if let Some((id, file, format, bytes)) = row {
@@ -98,7 +98,7 @@ pub(super) fn tool(
                                 .is_some_and(|s| s.as_bytes() == bytes),
                         "Pending document differs from its durable receipt"
                     );
-                } else {
+                } else if name == "publish_change" {
                     let change: Value = serde_json::from_slice(&bytes)?;
                     ensure!(
                         change["path"] == args["path"]
@@ -122,6 +122,15 @@ pub(super) fn tool(
                         && artifact.project_id == Some(run.project_id),
                     "Recovered document provenance changed"
                 );
+                ensure!(
+                    artifact.name == file
+                        && artifact.format == format
+                        && crate::control::verified_document(db, &artifact)? == bytes,
+                    "Recovered document evidence changed"
+                );
+                if name == "save_pdf" {
+                    documents::recover_pdf(db, &artifact, args, &bytes)?;
+                }
                 return Ok(
                     json!({"artifact_id":id,"name":file,"format":format,"replayed":false})
                         .to_string(),

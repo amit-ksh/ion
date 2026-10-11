@@ -587,11 +587,8 @@ fn dispatch_next(
                     crate::control::verified_document(tx, &artifact)? == bytes,
                     "Prior document changed during handoff"
                 );
-                inputs.push(PreparedInput {
-                    key: id.to_string(),
-                    name,
-                    content: String::from_utf8(bytes).context("Stage input is not UTF-8")?,
-                });
+                ensure!(artifact.name == name, "Prior document name changed");
+                inputs.push(documents::handoff(tx, &artifact, bytes)?);
             }
         }
     }

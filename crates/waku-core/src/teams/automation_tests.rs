@@ -683,7 +683,7 @@ fn workflow_documents_validate_before_save_and_legacy_empty_requirements_are_com
     let revision = f.definitions.load().unwrap().revision;
     for formats in [
         vec!["html", "html"],
-        vec!["pdf"],
+        vec!["docx"],
         vec!["exe"],
         vec!["HTML"],
         vec!["md", "txt", "html", "csv", "json", "md"],
@@ -1477,3 +1477,67 @@ fn inbox_history_records_workflow_gates_decisions_artifacts_and_completion_atomi
 
 #[path = "automation_retry_tests.rs"]
 mod retries;
+
+#[test]
+fn automation_pdf_contract_handoff_uses_labeled_summary_and_exact_file_evidence() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let f = Fixture::new();
+    let mut definition = workflow(&f, &[false, false]);
+    definition.stages[0].required_formats = vec!["pdf".into()];
+    let a = start(&f, definition);
+    tick(&f, 100);
+    f.materialize();
+    let team = f.store.snapshot(a.stages[0].team_run_id).unwrap();
+    let claim = f.claim(team.id, team.work[0].id);
+    assert_eq!(
+        claim.assignment.output_contract.required_formats,
+        vec!["pdf"]
+    );
+    let bytes = crate::teams::test_pdf_bytes();
+    let artifact = f
+        .store
+        .publish_pdf(
+            &claim.lease,
+            Uuid::new_v4(),
+            "Release.pdf",
+            &STANDARD.encode(&bytes),
+            "Agent-authored release summary",
+            102,
+        )
+        .unwrap();
+    let mut out = result();
+    out.artifact_ids = vec![artifact.id];
+    f.store
+        .report(&claim.lease, AssignmentOutcome::Completed(out), 103)
+        .unwrap();
+    tick(&f, 104);
+    let next = f.store.snapshot(a.stages[1].team_run_id).unwrap();
+    assert_eq!(next.inputs.len(), 2);
+    assert_eq!(
+        next.inputs[1].name,
+        format!("{}.artifact.json", artifact.id)
+    );
+    let db = f.store.connect().unwrap();
+    let content: String = db
+        .query_row(
+            "SELECT content FROM ion_team_input_files WHERE run_id=? AND key=?",
+            params![next.id.to_string(), artifact.id.to_string()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let descriptor: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(descriptor["summary"], "Agent-authored release summary");
+    assert_eq!(descriptor["content_interpreted"], false);
+    assert_eq!(descriptor["artifact_id"], artifact.id.to_string());
+    assert_eq!(
+        descriptor["sha256"],
+        artifact.evidence.as_ref().unwrap().sha256
+    );
+    assert_eq!(f.definitions.read_document(artifact.id).unwrap(), bytes);
+    complete_stage(&f, a.id, 105);
+    tick(&f, 107);
+    assert_eq!(
+        f.store.automation_run(a.id).unwrap().status,
+        AutomationStatus::Completed
+    );
+}

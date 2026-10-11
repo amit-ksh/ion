@@ -126,7 +126,11 @@ assert live account acceptance, visual validation or production release readines
 - [ ] Broader background notification delivery and live phone review.
 - [x] Artifact content hashes and original task/team producer metadata, bounded
   verified read/export/report/review/handoff and agent-only client publication.
-- [ ] Embedded artifact previews/additional interpretation.
+- [x] Bounded generated PDF publication, exact byte exports, sealed agent summaries,
+  native/source reads, workflow format requirements and explicit restart recovery.
+  See [PDF artifact review](28-generated-pdf-artifacts.md).
+- [ ] Larger binary publication/additional formats, embedded artifact previews and
+  additional interpretation.
 - [x] Durable global usage ledger, desktop/phone filtered projections, existing Teams
   and ordinary Nebius/Claude/Codex receipts with unknown costs preserved.
 - [ ] Other existing solo-harness receipts and authoritative provider/cloud billing.
@@ -138,8 +142,8 @@ assert live account acceptance, visual validation or production release readines
 
 Elapsed-interval routines and sequential workflow execution now reuse the Teams
 coordinator; see [workflow/routine behavior and review](21-workflows-routines.md).
-Opt-in confirmed-failure stage retries are implemented. Binary document publication
-remains development work. Code inheritance and cumulative source review are
+Opt-in confirmed-failure stage retries are implemented. Larger binary transfers and additional formats
+remain development work; bounded PDF publication is implemented. Code inheritance and cumulative source review are
 implemented with the review limits above. Full release completion
 also requires the unchecked execution and accounting items above.
 

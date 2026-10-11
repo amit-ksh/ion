@@ -2684,3 +2684,31 @@ controls and broader GPU/resource integrations still have development or live
 acceptance remaining. Deferred new harness adapters stay outside scope. No
 visual test, live provider request, billable provisioning or extra dev watcher
 has been performed.
+
+
+## Generated PDF artifacts (2026-10-11)
+
+Existing native Teams tools now publish bounded opaque PDFs with exact project,
+task, assignment, producer and request provenance. Bytes and an agent-authored
+summary commit atomically. Reads, exports, report/review, workflow requirements
+and interruption recovery verify that original evidence. PDF model reads and
+stage handoffs explicitly label the summary as agent-authored; they do not
+interpret the PDF or send binary bytes into model context. Native artifact
+export retains the exact file. Text excerpts preserve their original JSON
+escaping budget through a shared helper.
+
+Verification: nine new PDF/native/workflow/recovery/source/excerpt regressions,
+three existing text-document tests, three artifact-integrity tests, two workflow
+document tests and one original source scope regression passed (18 distinct
+checks). Desktop/daemon/worker compilation, protocol 37 equality, formatting and
+whitespace passed. Two fixture mistakes were corrected: Stop requires the real
+revision, and a second run must wait for the same agent's capacity. No production
+controls were loosened. See [PDF behavior and review](28-generated-pdf-artifacts.md).
+
+This is a completed bounded PDF publication increment, not a completed full
+release. Larger binary transfers/additional formats and previews, existing
+solo-harness usage and authoritative billing, general Local/remote checks,
+resource/GPU and registered-owner/gateway work remain. Cloud speech deployment
+and live/native device acceptance still need the user's target and credentials.
+Deferred new harness adapters remain out of scope. No visual test, live provider,
+remote account mutation, billable provisioning or additional watcher was used.

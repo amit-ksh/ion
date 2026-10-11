@@ -4410,3 +4410,6 @@ fn team_local_assignment_cannot_acquire_remote_transport() {
 
 #[path = "usage_ledger_tests.rs"]
 mod usage_accounting;
+
+#[path = "document_tests.rs"]
+pub(crate) mod binary_documents;

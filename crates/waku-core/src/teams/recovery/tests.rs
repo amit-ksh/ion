@@ -534,3 +534,80 @@ fn team_recovery_racing_app_assertions_commit_one_labeled_outcome() {
     let receipt: Value = serde_json::from_str(&receipt).unwrap();
     assert_eq!(receipt["confirmed_by"], "user");
 }
+
+#[test]
+fn team_recovery_pdf_acknowledges_original_bytes_once_and_rejects_changed_summary() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    for changed in [false, true] {
+        let f = Fixture::new();
+        let run = f.run();
+        let root = f.claim(run.id, run.work[0].id);
+        let request = Uuid::new_v4();
+        let bytes = crate::teams::test_pdf_bytes();
+        let encoded = STANDARD.encode(&bytes);
+        let artifact = f
+            .store
+            .publish_pdf(
+                &root.lease,
+                request,
+                "Report.pdf",
+                &encoded,
+                "Reviewed report",
+                102,
+            )
+            .unwrap();
+        let pending = call(
+            request,
+            "save_pdf",
+            json!({"name":"Report.pdf","content_base64":encoded,"summary":if changed {"Changed summary"} else {"Reviewed report"}}),
+        );
+        f.store
+            .save_runtime_checkpoint(&root.lease, &journal(json!([pending])), 102)
+            .unwrap();
+        let blocked = f
+            .store
+            .report(
+                &root.lease,
+                AssignmentOutcome::Blocked("Acknowledgement interrupted".into()),
+                103,
+            )
+            .unwrap();
+        let confirmation = f.store.confirm_recovery(
+            run.id,
+            root.assignment.id,
+            root.lease.attempt_id(),
+            blocked.revision,
+            TeamRecoveryConfirmation::PrepareContinuation,
+            104,
+        );
+        if changed {
+            assert!(confirmation.is_err());
+        } else {
+            assert!(confirmation.unwrap().1.work[0].can_resume);
+            let db = f.store.connect().unwrap();
+            let checkpoint: String = db
+                .query_row(
+                    "SELECT checkpoint FROM ion_team_continuations WHERE work_id=?",
+                    [root.assignment.id.to_string()],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            let value: Value = serde_json::from_str(&checkpoint).unwrap();
+            assert_eq!(value["pending"], json!([]));
+            let reply: Value = serde_json::from_str(
+                value["messages"].as_array().unwrap().last().unwrap()["content"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(reply["artifact_id"], artifact.id.to_string());
+            assert_eq!(
+                db.query_row("SELECT count(*) FROM ion_team_document_receipts", [], |r| r
+                    .get::<_, u32>(0))
+                    .unwrap(),
+                1
+            );
+        }
+        assert_eq!(f.definitions.read_document(artifact.id).unwrap(), bytes);
+    }
+}

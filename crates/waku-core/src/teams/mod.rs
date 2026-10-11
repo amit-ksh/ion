@@ -1582,6 +1582,14 @@ fn checked_lease<'a>(
     );
     Ok(work)
 }
+pub(crate) fn verify_binary_document(
+    db: &Connection,
+    artifact: &Artifact,
+    bytes: &[u8],
+) -> Result<()> {
+    documents::verify_pdf(db, artifact, bytes).map(|_| ())
+}
+
 fn validate_result(
     db: &Connection,
     run: &TeamRunSnapshot,
@@ -1648,4 +1656,9 @@ fn validate_result(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+pub(crate) fn test_pdf_bytes() -> Vec<u8> {
+    tests::binary_documents::pdf_bytes()
 }

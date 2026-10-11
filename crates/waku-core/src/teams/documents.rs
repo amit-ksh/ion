@@ -1,6 +1,8 @@
 //! Assignment documents are effects: authorize the lease and commit the payload,
 //! artifact provenance and exact tool receipt in one transaction.
 use super::*;
+mod pdf;
+pub(super) use pdf::{handoff, recover as recover_pdf, verify as verify_pdf};
 
 impl TeamCoordinator {
     pub(crate) fn read_source_document(
@@ -104,13 +106,48 @@ pub(super) fn publish_in_transaction(
         "Unsupported generated document format"
     );
     text(content, 64 * 1024, "Document content")?;
+    publish_bytes(
+        tx,
+        run,
+        work,
+        request_id,
+        name,
+        format,
+        content.as_bytes(),
+        now,
+    )
+}
+
+/// Callers validate their encoding/format; payload and receipt always commit together.
+fn publish_bytes(
+    tx: &Transaction<'_>,
+    run: &TeamRunSnapshot,
+    work: &TeamAssignment,
+    request_id: Uuid,
+    name: &str,
+    format: &str,
+    content: &[u8],
+    now: u64,
+) -> Result<Artifact> {
+    text(name, 160, "Document name")?;
+    ensure!(
+        !request_id.is_nil()
+            && !name.contains(['/', '\\', ':', '\0'])
+            && name != "."
+            && name != "..",
+        "Use a request ID and document filename without directories"
+    );
+    ensure!(
+        !content.is_empty() && content.len() <= 64 * 1024,
+        "Document exceeds its bound"
+    );
     let previous: Option<(String,String,String,Vec<u8>)> = tx.query_row(
             "SELECT artifact_id,name,format,content FROM ion_team_document_receipts WHERE work_id=? AND request_id=? AND length(content) BETWEEN 1 AND 65536",
             params![work.id.to_string(),request_id.to_string()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
         ).optional()?;
     if let Some((id, stored_name, stored_format, bytes)) = previous {
         ensure!(
-            stored_name == name && stored_format == format && bytes == content.as_bytes(),
+            stored_name == name && stored_format == format && bytes == content,
             "Document replay arguments changed"
         );
         let body: String = tx
@@ -124,7 +161,10 @@ pub(super) fn publish_in_transaction(
             anyhow::bail!("Document identity changed")
         };
         ensure!(
-            artifact.task_id == Some(work.task_id) && artifact.project_id == Some(run.project_id),
+            artifact.name == name
+                && artifact.format == format
+                && artifact.task_id == Some(work.task_id)
+                && artifact.project_id == Some(run.project_id),
             "Published document provenance changed"
         );
         ensure!(
@@ -150,7 +190,7 @@ pub(super) fn publish_in_transaction(
         reference: format!("ion-document:{id}"),
         created_at: now,
         evidence: Some(ArtifactEvidence::from_bytes(
-            content.as_bytes(),
+            content,
             ArtifactProvenance {
                 origin: ArtifactOrigin::TeamAssignment,
                 run_id: Some(run.id),
@@ -177,7 +217,7 @@ pub(super) fn publish_in_transaction(
             id.to_string(),
             name,
             format,
-            content.as_bytes()
+            content
         ],
     )?;
     tx.execute(

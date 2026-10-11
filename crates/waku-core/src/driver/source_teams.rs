@@ -111,15 +111,15 @@ pub(crate) fn execute(
                 }
                 let a: Args = serde_json::from_value(args.clone())?;
                 let coordinator = crate::teams::TeamCoordinator::new(context.control_path.clone());
-                let content = String::from_utf8(coordinator.read_source_document(
+                let bytes = coordinator.read_source_document(
                     context.task_id,
                     context.project_id,
                     a.run_id,
                     a.artifact_id,
-                )?)
-                .context("Team document is not UTF-8")?;
-                let excerpt = super::nebius::team::bounded_excerpt(&content, 8192);
-                json!({"run_id":a.run_id,"artifact_id":a.artifact_id,"content":excerpt,"truncated":excerpt.len()!=content.len()}).to_string()
+                )?;
+                let mut reply = coordinator.document_model_reply(a.artifact_id, &bytes)?;
+                reply["run_id"] = json!(a.run_id);
+                reply.to_string()
             }
             _ => anyhow::bail!("Unknown source team tool"),
         };

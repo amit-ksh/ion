@@ -9,7 +9,7 @@ desktop, daemon and clients.
 - Generate editable workflow stages from a prompt with the existing Nebius
   generator, or create them manually. Assign a saved team to every stage. Each
   team retains its per-agent harness, model, environment and grants.
-- Each stage can require HTML, Markdown, text, CSV and/or JSON output. These
+- Each stage can require HTML, Markdown, text, CSV, JSON and/or PDF output. These
   requirements are edited on desktop, pinned for the run and visible on desktop
   and phone. A missing format prevents its team lead from submitting completion.
 - **Run now** creates a durable automation run. Stages launch real Teams tasks
@@ -20,7 +20,9 @@ desktop, daemon and clients.
   links, then Approve stage or Decline. App mutations still require the exact
   action/account/arguments approval provided by the Teams adapter.
 - Only a genuinely completed prior team permits the next stage. Its accepted
-  UTF-8 reports are copied as bounded, immutable input data. Inputs do not grant
+  UTF-8 reports are copied as bounded, immutable input data. Generated PDFs pass
+  a labeled agent summary and exact-file descriptor; the PDF stays in Artifacts.
+  See [generated PDF behavior and review](28-generated-pdf-artifacts.md). Inputs do not grant
   access. Later stages may explicitly enable **Inherit code** to install the
   completed predecessor's receipted changes in their own isolated workspace.
   Final source integration remains a human review action. See
@@ -91,7 +93,7 @@ desktop, daemon and clients.
 
 ## Remaining development
 
-Binary document publication, additional app binding controls, background notification delivery
+Larger binary document transfers/additional formats, app binding controls, background notification delivery
 and phone definition editing remain subsequent increments. Broader remote execution and registered-owner integrations are tracked in
 [the release checklist](20-agent-teams-release-checklist.md). Executed test receipts
 and monetary caps are still required. Presence of this workflow runner does not

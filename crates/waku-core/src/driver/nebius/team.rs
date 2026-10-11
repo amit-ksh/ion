@@ -895,7 +895,8 @@ fn tools(access: &AgentAccess) -> Value {
         {"type":"function","function":{"name":"request_decision","description":"Ask the user to approve or decline this exact planning proposal. Suspends the assignment until the user answers in Decisions. Does not enlarge tool/access/spending grants. Must be the last tool in this response.","parameters":{"type":"object","properties":{"title":{"type":"string","maxLength":160},"proposal":{"type":"string","maxLength":8192}},"required":["title","proposal"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"await_children","description":"Yield until 1-16 of your direct child assignments settle. Must be the last tool in this response. Uncertain children require host reconciliation.","parameters":{"type":"object","properties":{"assignment_ids":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":16}},"required":["assignment_ids"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"save_document","description":"Publish a generated document attributed to this assignment. Returns the artifact ID for report_result.","parameters":{"type":"object","properties":{"name":{"type":"string"},"format":{"type":"string","enum":["html","md","txt","csv","json"]},"content":{"type":"string"}},"required":["name","format","content"],"additionalProperties":false}}},
-        {"type":"function","function":{"name":"read_document","description":"Read a bounded UTF-8 document belonging to this assignment or its child/dependency handoffs.","parameters":{"type":"object","properties":{"artifact_id":{"type":"string"}},"required":["artifact_id"],"additionalProperties":false}}},
+        {"type":"function","function":{"name":"save_pdf","description":"Publish a generated PDF up to 24 KiB, using canonical standard base64 and an agent-authored summary up to 4 KiB. Bytes are stored with exact provenance; PDF content is not parsed. Returns the artifact ID for report_result.","parameters":{"type":"object","properties":{"name":{"type":"string","maxLength":160},"content_base64":{"type":"string","maxLength":32768},"summary":{"type":"string","maxLength":4096}},"required":["name","content_base64","summary"],"additionalProperties":false}}},
+        {"type":"function","function":{"name":"read_document","description":"Read bounded text or the labeled agent summary and hash of an opaque PDF belonging to this assignment or its child/dependency handoffs.","parameters":{"type":"object","properties":{"artifact_id":{"type":"string"}},"required":["artifact_id"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"review_child","description":"Review one of your direct child results in inReview. Cite document or declared check evidence and compare its expected output. accepted releases consumers; rework atomically creates a correction task for the same agent with unchanged contract/access and bounded rounds. Await its returned replacement assignment.","parameters":{"type":"object","properties":{"assignment_id":{"type":"string"},"verdict":{"type":"string","enum":["accepted","rework"]},"feedback":{"type":"string"},"artifact_ids":{"type":"array","items":{"type":"string"},"maxItems":64},"checks":{"type":"array","items":{"type":"string"},"maxItems":64}},"required":["assignment_id","verdict","feedback"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"report_result","description":"Submit a result summary, document evidence and required declared observations and exact command receipt references after every child is accepted. Required commands must match the pinned argv/files/time, exit successfully and still match current source. A submitted child result awaits parent review. Must be the last tool in this response; never claim tests you did not run.","parameters":{"type":"object","properties":{"summary":{"type":"string"},"artifact_ids":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":64},"checks":{"type":"array","items":{"type":"string"},"maxItems":64},"executed_checks":{"type":"array","maxItems":16,"items":{"type":"object","properties":{"name":{"type":"string","maxLength":256},"requestId":{"type":"string"}},"required":["name","requestId"],"additionalProperties":false}}},"required":["summary","artifact_ids"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"report_blocker","description":"Report a blocker requiring setup or user input. Must be the last tool in this response.","parameters":{"type":"object","properties":{"reason":{"type":"string"}},"required":["reason"],"additionalProperties":false}}}
@@ -1257,6 +1258,29 @@ fn execute_with_cancel(
                     .to_string(),
             ))
         }
+        "save_pdf" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Args {
+                name: String,
+                content_base64: String,
+                summary: String,
+            }
+            let a: Args = serde_json::from_value(args)?;
+            let artifact = coordinator.publish_pdf(
+                &claimed.lease,
+                call.request_id,
+                &a.name,
+                &a.content_base64,
+                &a.summary,
+                now,
+            )?;
+            Ok(ToolOutcome::Reply(
+                json!({"artifact_id":artifact.id,"name":artifact.name,
+                "format":artifact.format,"evidence":artifact.evidence})
+                .to_string(),
+            ))
+        }
         "read_document" => {
             #[derive(Deserialize)]
             #[serde(deny_unknown_fields)]
@@ -1265,9 +1289,11 @@ fn execute_with_cancel(
             }
             let a: Args = serde_json::from_value(args)?;
             let bytes = coordinator.read_assignment_document(&claimed.lease, a.artifact_id, now)?;
-            let content = String::from_utf8(bytes).context("Document is not UTF-8 text")?;
-            let excerpt = bounded_excerpt(&content, 8192);
-            Ok(ToolOutcome::Reply(json!({"artifact_id":a.artifact_id,"content":excerpt,"truncated":excerpt.len() != content.len()}).to_string()))
+            Ok(ToolOutcome::Reply(
+                coordinator
+                    .document_model_reply(a.artifact_id, &bytes)?
+                    .to_string(),
+            ))
         }
         "review_child" => {
             #[derive(Deserialize)]
@@ -1455,22 +1481,9 @@ fn line_limit() -> u16 {
     200
 }
 pub(crate) fn bounded_excerpt(value: &str, max: usize) -> &str {
-    let mut cost = 0;
-    let mut end = 0;
-    for (offset, character) in value.char_indices() {
-        let bytes = match character {
-            '"' | '\\' => 2,
-            '\u{0}'..='\u{1f}' => 6,
-            _ => character.len_utf8(),
-        };
-        if cost + bytes > max {
-            break;
-        }
-        cost += bytes;
-        end = offset + character.len_utf8();
-    }
-    &value[..end]
+    crate::control::json_excerpt(value, max)
 }
+
 fn scoped_path(root: &Path, relative: &str) -> Result<PathBuf> {
     anyhow::ensure!(relative.len() <= 512, "File path is too long");
     let path = fs::canonicalize(checked_path(root, relative)?)?;
