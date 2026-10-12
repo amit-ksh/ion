@@ -33,7 +33,9 @@ Top-level fields are `version=1`, `mounts`, `devices`, `read_trees`,
   Device paths must be explicit leaves below /dev, with no wildcard or FD alias.
 - `read_trees`: explicit nonoverlapping file/directory roots. No blanket
   /, /proc, /sys, /dev, /run, /ion or /tmp permission. Root symlinks fail;
-  reviewed internal symlinks must resolve to another approved read tree or
+  explicit static proc/driver and sys CPU/NUMA/NVIDIA/PCI metadata categories
+  match the file-boundary parser. Dynamic process/FD/memory, BAR/config and
+  broad kernel/security trees fail. Reviewed internal symlinks must resolve to another approved read tree or
   explicitly approved device.
 - `writable_parent`: an approved scratch parent, such as /tmp. Caller-supplied
   writable roots must be proper descendants, nonoverlapping, actual directories
@@ -62,7 +64,7 @@ validation never removes or silently hides an unsupported object.
 | --- | --- |
 | Profile | 64 KiB; 512 mounts; 64 devices; 32 read roots |
 | Mountinfo | 256 KiB; 512 records; 4 KiB per line |
-| Paths | 4 KiB UTF-8; clean absolute components, no controls or pattern characters |
+| Paths | 4 KiB UTF-8; clean absolute components, no controls; owner roots reject patterns, enumerated filenames remain literal |
 | Tree inspection | 100,000 entries; depth 64; 16 MiB encoded records and a separate 16 MiB enumeration-name budget |
 | Witness | 64 KiB before adding its 64-character snapshot hash |
 
@@ -88,13 +90,13 @@ another create or Local fallback.
 
 [Test suite](../../packages/job-worker/test_runtime_boundary.py):
 
-- **31 tests pass** on the real Linux x86_64 Docker fixture, cached image
+- **33 tests pass** on the real Linux x86_64 Docker fixture, cached image
   sha256:2200d363e2a9be95997968a5aecdc823a29d57a301b2593b2cecb76677bf4cca.
 - Includes bounded parsers, exact mount matching, result backing aliases, actual
   FIFO/socket/character/block/hardlink rejection, private owner/mode checks,
   directory swap detection, tree byte/depth/entry caps, actual procfs reads,
   and identical full root/demoted-child snapshot witnesses.
-- Windows runs the 15 portable parser cases; 16 Linux filesystem cases are
+- Windows runs the 16 portable parser cases; 17 Linux filesystem cases are
   explicitly skipped there. Windows checks do not establish Linux isolation.
 - Fixture uses network=none, pull=never, no credentials and no GPU. MKNOD is a
   test capability for creating negative fixture nodes, not a production worker

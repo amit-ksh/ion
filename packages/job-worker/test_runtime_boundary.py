@@ -90,6 +90,31 @@ class RuntimeParserTests(unittest.TestCase):
             value['writable_parent']=parent
             self.rejected(value)
 
+    def test_static_driver_and_metadata_categories_match_file_boundary_contract(self):
+        accepted=['/proc/cpuinfo','/proc/meminfo','/proc/devices','/proc/version',
+                  '/proc/uptime','/proc/stat','/proc/driver/nvidia',
+                  '/proc/driver/nvidia/gpus/0000:01:00.0/information',
+                  '/proc/driver/nvidia-caps/mig/config','/sys/module/nvidia/initstate',
+                  '/sys/devices/system/cpu/online','/sys/devices/system/node/node0/cpulist',
+                  '/sys/devices/soc0/family','/sys/devices/pci0000:00/0000:00:01.0/vendor']
+        for path in accepted:
+            value=profile()
+            value['read_trees']=[path]
+            self.assertEqual(runtime.parse_profile(encoded(value))['read_trees'],[path])
+        rejected=['/home','/proc/self/status','/proc/123/mem','/proc/net','/proc/sys',
+                  '/proc/driver','/proc/driver/nvidia-other','/proc/driver/nvidia/fd/0',
+                  '/proc/driver/nvidia/mem','/sys/devices','/sys/module','/sys/kernel/debug',
+                  '/sys/fs/cgroup','/sys/devices/pci-foreign/vendor',
+                  '/sys/devices/pci0000:00/0000:00:01.0',
+                  '/sys/devices/pci0000:00/0000:00:01.0/resource0',
+                  '/sys/devices/pci0000:00/0000:00:01.0/config',
+                  '/sys/class/drm/card0/device/vendor','/'+'/'.join('x' for _ in range(65))]
+        for path in rejected:
+            value=profile()
+            value['read_trees']=[path]
+            with self.subTest(path=path):
+                self.rejected(value)
+
     def test_device_policy_cannot_use_wildcards_wrong_type_or_boolean_numbers(self):
         for key, bad in [('type','block'), ('major',True), ('minor',-1),
                          ('major',1<<32), ('read',1), ('path','/dev/stdout'), ('path','/dev/nvidia*'), ('path','/usr/device'),
@@ -212,6 +237,20 @@ class NativeFilesystemTests(unittest.TestCase):
         self.assertEqual(first,self.walk())
         path.write_bytes(b'larger content')
         self.assertNotEqual(first['sha256'],self.walk()['sha256'])
+
+    def test_actual_image_filenames_are_literal_not_profile_patterns(self):
+        for name in ('[','literal*name','question?mark'):
+            path=self.read/name
+            path.write_bytes(b'reviewed image file')
+            path.chmod(0o644)
+        (self.read/'alias').symlink_to('[')
+        self.assertEqual(self.walk()['entries'],5)
+        # The same spelling in an owner-selected root stays explicitly rejected.
+        for name in ('[','literal*name','question?mark'):
+            value=profile()
+            value['read_trees']=[str(self.read/name)]
+            with self.assertRaises(runtime.BoundaryError):
+                runtime.parse_profile(encoded(value))
 
     def test_fifo_and_socket_nodes_fail_without_opening_or_waiting(self):
         import socket
