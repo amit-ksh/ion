@@ -90,6 +90,12 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS ion_team_job_projects (
             request_id TEXT PRIMARY KEY REFERENCES ion_team_jobs(request_id),
             archive BLOB NOT NULL, file_uuid TEXT);
+        CREATE TABLE IF NOT EXISTS ion_team_job_admission (
+            request_id TEXT PRIMARY KEY REFERENCES ion_team_jobs(request_id),
+            project_id TEXT NOT NULL, allocation TEXT NOT NULL, policy TEXT,
+            compute_released INTEGER NOT NULL DEFAULT 0 CHECK(compute_released IN (0,1)),
+            layer_released INTEGER NOT NULL DEFAULT 0 CHECK(layer_released IN (0,1)));
+        CREATE INDEX IF NOT EXISTS ion_team_job_admission_project ON ion_team_job_admission(project_id);
         CREATE TABLE IF NOT EXISTS ion_team_gpu_jobs (
             request_id TEXT PRIMARY KEY,run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             work_id TEXT NOT NULL REFERENCES ion_team_work(id),attempt_id TEXT NOT NULL,

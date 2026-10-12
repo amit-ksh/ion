@@ -1,4 +1,5 @@
 //! Durable command jobs are separate from model-call budgets and receipts.
+pub(crate) mod admission;
 use super::*;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
@@ -66,7 +67,7 @@ impl JobResponse {
                 && self.project_sha256.as_deref()
                     == request.project_snapshot.as_ref().map(|p| p.sha256.as_str())
                 && self.request_id == request.request_id
-                && self.elapsed_milliseconds <= u64::from(request.timeout_seconds + 10) * 1000
+                && self.elapsed_milliseconds <= (u64::from(request.timeout_seconds) + 10) * 1000
                 && self.outputs.len() + self.output_errors.len() == request.output_paths.len(),
             "Remote command receipt identity or output contract changed"
         );
@@ -379,6 +380,13 @@ impl TeamCoordinator {
         ensure!(count < maximum, "Remote command count limit reached");
         tx.execute("INSERT INTO ion_team_jobs(request_id,run_id,work_id,attempt_id,image,project,signature,request,state) VALUES(?,?,?,?,?,?,?,?,?)",
             params![request.request_id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),image.to_string(),project,signature,serde_json::to_string(request)?,if archive.is_some(){"staging"}else{"submitting"}])?;
+        admission::reserve(
+            &tx,
+            request.request_id,
+            run.project_id,
+            &current,
+            archive.map_or(0, |a| a.len() as u64),
+        )?;
         if let Some(archive) = archive {
             tx.execute(
                 "INSERT INTO ion_team_job_projects(request_id,archive) VALUES(?,?)",
@@ -452,7 +460,11 @@ impl TeamCoordinator {
         Ok(())
     }
     pub(crate) fn reject_job(&self, request: Uuid) -> Result<()> {
-        ensure!(self.connect()?.execute("UPDATE ion_team_jobs SET state='rejected' WHERE request_id=? AND state IN ('staging','submitting') AND operation IS NULL",[request.to_string()])? == 1,"Job submission outcome already changed");
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure!(tx.execute("UPDATE ion_team_jobs SET state='rejected' WHERE request_id=? AND state IN ('staging','submitting') AND operation IS NULL",[request.to_string()])? == 1,"Job submission outcome already changed");
+        admission::reject(&tx, request)?;
+        tx.commit()?;
         Ok(())
     }
     /// Only the trusted transport calls this after verifying a terminal operation.
@@ -460,16 +472,17 @@ impl TeamCoordinator {
     pub(crate) fn finish_job(&self, request: Uuid, receipt: Option<&JobResponse>) -> Result<()> {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (run, work, state): (String, String, String) = tx.query_row(
-            "SELECT run_id,work_id,state FROM ion_team_jobs WHERE request_id=?",
+        let (run, work, state, saved_request): (String, String, String, String) = tx.query_row(
+            "SELECT run_id,work_id,state,request FROM ion_team_jobs WHERE request_id=?",
             [request.to_string()],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )?;
         ensure!(
             matches!(state.as_str(), "running" | "canceling"),
             "Remote job receipt already finalized or lacks an operation"
         );
         if let Some(receipt) = receipt {
+            receipt.validate_against(&serde_json::from_str(&saved_request)?)?;
             ensure!(
                 receipt.request_id == request,
                 "Job receipt identity changed"
@@ -492,6 +505,9 @@ impl TeamCoordinator {
                 request.to_string()
             ],
         )?;
+        if receipt.is_some() {
+            admission::release_compute(&tx, request)?;
+        }
         if let Some(receipt) = receipt {
             let snapshot = load(&tx, Uuid::parse_str(&run)?)?;
             let assignment = snapshot

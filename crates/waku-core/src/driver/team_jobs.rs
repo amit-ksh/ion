@@ -36,6 +36,8 @@ struct Policy {
     resources: Option<ResourceLimits>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     project_snapshot: Option<crate::teams::project::ProjectPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    admission: Option<crate::teams::jobs::admission::AdmissionPolicy>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -138,6 +140,7 @@ fn validate_policy(p: &Policy) -> Result<()> {
             "Sandbox aggregate resource policy exceeds its bound"
         );
     }
+    crate::teams::jobs::admission::validate_policy(&serde_json::to_value(p)?)?;
     let mut seen = HashSet::new();
     for executable in &p.executables {
         ensure!(
@@ -779,6 +782,7 @@ mod tests {
                 executables: vec!["/usr/bin/python3".into()],
                 resources: None,
                 project_snapshot: None,
+                admission: None,
             };
             let request = JobRequest {
                 project_snapshot: None,
@@ -834,6 +838,123 @@ mod tests {
             memory_bytes: 128 * 1024 * 1024,
             processes: 32,
         }
+    }
+    fn with_admission(f: &mut Fixture) {
+        f.policy.resources = Some(child_limits());
+        f.policy.resources.as_mut().unwrap().group = Some(group_limits());
+        let cap = crate::teams::jobs::admission::CommandResourceVector {
+            jobs: 1,
+            cpu_millis: 500,
+            memory_bytes: 128 * 1024 * 1024,
+            processes: 32,
+            storage_bytes: 1024 * 1024 * 1024,
+        };
+        f.policy.admission = Some(crate::teams::jobs::admission::AdmissionPolicy {
+            version: 1,
+            owner_limit: cap.clone(),
+            project_limit: cap,
+        });
+    }
+    #[test]
+    fn team_job_admission_receipt_releases_compute_only_and_replay_has_one_hold() {
+        let mut f = Fixture::new(true, true);
+        with_admission(&mut f);
+        f.reserve().unwrap();
+        assert_eq!(f.store.command_resource_usage(None).unwrap().used.jobs, 1);
+        f.store
+            .bind_job_operation(f.request.request_id, Uuid::new_v4())
+            .unwrap();
+        f.store
+            .finish_job(f.request.request_id, Some(&response(&f.request, 7)))
+            .unwrap();
+        let usage = f.store.command_resource_usage(None).unwrap();
+        assert_eq!(usage.used.jobs, 0);
+        assert_eq!(usage.used.storage_bytes, f.policy.max_layer_bytes);
+        assert_eq!(f.reserve().unwrap().unwrap().exit_code, 7);
+        let db = rusqlite::Connection::open(f.dir.join("control.db")).unwrap();
+        assert_eq!(
+            db.query_row("SELECT count(*) FROM ion_team_job_admission", [], |r| r
+                .get::<_, u64>(0))
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn team_job_admission_invalid_receipt_and_no_receipt_retain_compute() {
+        let mut f = Fixture::new(true, true);
+        with_admission(&mut f);
+        f.reserve().unwrap();
+        f.store
+            .bind_job_operation(f.request.request_id, Uuid::new_v4())
+            .unwrap();
+        let mut invalid = response(&f.request, 0);
+        invalid.elapsed_milliseconds = u64::MAX;
+        assert!(
+            f.store
+                .finish_job(f.request.request_id, Some(&invalid))
+                .is_err()
+        );
+        assert_eq!(f.store.command_resource_usage(None).unwrap().used.jobs, 1);
+        f.store.finish_job(f.request.request_id, None).unwrap();
+        assert_eq!(f.store.command_resource_usage(None).unwrap().used.jobs, 1);
+    }
+    #[test]
+    fn team_job_admission_precreate_rejection_releases_capacity() {
+        let mut f = Fixture::new(true, true);
+        with_admission(&mut f);
+        f.reserve().unwrap();
+        f.store.reject_job(f.request.request_id).unwrap();
+        let usage = f.store.command_resource_usage(None).unwrap();
+        assert_eq!(usage.used.jobs, 0);
+        assert_eq!(usage.used.storage_bytes, 0);
+        assert!(usage.limit.is_none());
+    }
+    #[test]
+    fn team_job_admission_blocks_actual_native_submission_before_post() {
+        let mut f = Fixture::new(true, true);
+        with_admission(&mut f);
+        f.policy.max_commands = 128;
+        f.reserve().unwrap();
+        f.store
+            .bind_job_operation(f.request.request_id, Uuid::new_v4())
+            .unwrap();
+        f.store.finish_job(f.request.request_id, None).unwrap();
+        let mut host: Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/job-worker/job-host.json"
+        )))
+        .unwrap();
+        host["resource_group_boundary"] = json!("linux-cgroup2-sandbox/v1");
+        let server = Server::new(vec![(200, serde_json::to_vec(&host).unwrap())]);
+        let result = run_with_host(
+            &f.store,
+            &f.claim,
+            &f.dir,
+            Uuid::new_v4(),
+            CommandArgs {
+                argv: f.request.argv.clone(),
+                input_paths: vec![],
+                output_paths: vec![],
+                timeout_seconds: 10,
+            },
+            &AtomicBool::new(false),
+            |_| {
+                Ok((
+                    f.policy.clone(),
+                    Client::fixture(&server.url, "fixture-project"),
+                ))
+            },
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("aggregate resource reservation limit")
+        );
+        let requests = server.finish();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].line.starts_with("GET /inspect/"));
+        assert_eq!(f.store.command_resource_usage(None).unwrap().used.jobs, 1);
     }
     #[test]
     fn team_job_group_resource_policy_is_owner_pinned_and_bounded() {
