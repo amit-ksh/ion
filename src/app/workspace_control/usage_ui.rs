@@ -292,6 +292,12 @@ impl Waku {
                 cx.notify();
             },
         ));
+        bar = bar.child(self.control_button(
+            "usage-command-resources",
+            "Command resources",
+            cx,
+            |this, _, cx| this.open_command_resources(cx),
+        ));
         let mut filters = div().flex().flex_wrap().gap(px(8.0));
         let project = ui
             .project

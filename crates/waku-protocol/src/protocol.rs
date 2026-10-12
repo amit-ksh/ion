@@ -210,6 +210,9 @@ pub enum Command {
         after: Option<u64>,
         limit: u16,
     },
+    LoadCommandResourceUsage {
+        project_id: Option<Uuid>,
+    },
     ListRemoteExecutions {
         query: crate::remote_control::RemoteExecutionQuery,
     },
@@ -654,6 +657,9 @@ pub enum ResponsePayload {
     },
     CloudBillingCharges {
         page: crate::cloud_billing::CloudBillingChargePage,
+    },
+    CommandResourceUsage {
+        usage: crate::command_resources::CommandResourceUsage,
     },
     RemoteExecutions {
         page: crate::remote_control::RemoteExecutionPage,

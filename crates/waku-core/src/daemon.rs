@@ -518,6 +518,11 @@ impl Backend for WakuBackend {
                 self.team_runtime.wake();
                 Ok(ResponsePayload::TeamRun { snapshot })
             }
+            Command::LoadCommandResourceUsage { project_id } => {
+                Ok(ResponsePayload::CommandResourceUsage {
+                    usage: self.teams.command_resource_usage(project_id)?,
+                })
+            }
             Command::ListRemoteExecutions { query } => Ok(ResponsePayload::RemoteExecutions {
                 page: self.teams.list_remote_executions(query)?,
             }),
@@ -2658,6 +2663,7 @@ fn handle_driver_command(
         | Command::QueueTeamTask { .. }
         | Command::QueueTeamFollowUp { .. }
         | Command::PrepareTeamRun { .. }
+        | Command::LoadCommandResourceUsage { .. }
         | Command::ListRemoteExecutions { .. }
         | Command::ListTeamRuns { .. }
         | Command::ListTeamDecisions { .. }
