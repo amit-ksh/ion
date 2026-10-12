@@ -95,6 +95,31 @@ pub(super) fn read(engine: &OwnerEngine, value: serde_json::Value) -> Result<ser
             engine.control.cloud_budgets(query.after, query.limit)?,
             now,
         ),
+        PortfolioQuery::CloudBilling { query } => gateway_portfolio::billing::accounts_result(
+            engine.control.cloud_billing(query.after, query.limit)?,
+            now,
+        ),
+        PortfolioQuery::CloudBillingReports { query } => {
+            gateway_portfolio::billing::reports_result(
+                engine.control.cloud_billing_reports(
+                    query.scope_id,
+                    query.after.as_deref(),
+                    query.limit,
+                )?,
+                now,
+            )
+        }
+        PortfolioQuery::CloudBillingCharges { query } => {
+            gateway_portfolio::billing::charges_result(
+                engine.control.cloud_billing_charges(
+                    query.scope_id,
+                    &query.export_id,
+                    query.after,
+                    query.limit,
+                )?,
+                now,
+            )
+        }
         PortfolioQuery::Projects { query } => {
             let projects = engine.tasks.lock().projects.clone();
             gateway_portfolio::projects_result(&projects, &query, now)

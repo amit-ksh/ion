@@ -1,4 +1,13 @@
 import {
+  isGatewayBilling,
+  isGatewayBillingQuery,
+  validateGatewayBillingQuery,
+  validateGatewayBillingResult,
+  type GatewayBillingQuery,
+  type GatewayBillingResult,
+} from "./gateway-billing";
+export * from "./gateway-billing";
+import {
   isWorkflowHistory,
   isWorkflowHistoryQuery,
   validateWorkflowHistoryQuery,
@@ -28,12 +37,14 @@ export interface GatewayCloudBudget {
 }
 export type PortfolioQuery =
   | WorkflowHistoryQuery
+  | GatewayBillingQuery
   | { kind: "cloudBudgets"; query: { after: string | null; limit: number } }
   | { kind: "inbox"; query: InboxQuery }
   | { kind: "usage"; query: UsageLedgerQuery }
   | { kind: "projects"; query: { after: string | null; limit: number } };
 export type PortfolioResult =
   | WorkflowHistoryResult
+  | GatewayBillingResult
   | {
       kind: "cloudBudgets";
       page: {
@@ -132,6 +143,10 @@ const bytes = (v: unknown) => portfolioUtf8Bytes(JSON.stringify(v));
 export function validatePortfolioQuery(
   value: unknown,
 ): asserts value is PortfolioQuery {
+  if (obj(value) && isGatewayBilling(value.kind)) {
+    validateGatewayBillingQuery(value);
+    return;
+  }
   if (obj(value) && isWorkflowHistory(value.kind)) {
     validateWorkflowHistoryQuery(value);
     return;
@@ -205,6 +220,10 @@ export function validatePortfolioResult(
     bytes(value) > 60_000
   )
     throw new Error("Invalid portfolio result");
+  if (isGatewayBillingQuery(request)) {
+    validateGatewayBillingResult(value, request);
+    return;
+  }
   if (isWorkflowHistoryQuery(request)) {
     validateWorkflowHistoryResult(value, request);
     return;
@@ -497,7 +516,9 @@ export function portfolioReadGrant(
   validatePortfolioQuery(query);
   return query.kind === "inbox"
     ? "inboxRead"
-    : query.kind === "usage" || query.kind === "cloudBudgets"
+    : query.kind === "usage" ||
+        query.kind === "cloudBudgets" ||
+        isGatewayBilling(query.kind)
       ? "usageRead"
       : query.kind === "workflowHistory" || query.kind === "workflowRun"
         ? "automationRead"

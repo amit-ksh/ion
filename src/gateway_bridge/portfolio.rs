@@ -118,6 +118,62 @@ fn read(
             };
             gateway_portfolio::cloud_budgets_result(page, now)
         }
+        PortfolioQuery::CloudBilling { query } => {
+            let ResponsePayload::CloudBilling { page } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::LoadCloudBilling {
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )?
+            else {
+                bail!("Invalid billing account response");
+            };
+            gateway_portfolio::billing::accounts_result(page, now)
+        }
+        PortfolioQuery::CloudBillingReports { query } => {
+            let scope_id = query.scope_id;
+            let ResponsePayload::CloudBillingReports { page } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::LoadCloudBillingReports {
+                    scope_id,
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )?
+            else {
+                bail!("Invalid billing export response");
+            };
+            anyhow::ensure!(
+                page.scope_id == scope_id,
+                "Billing account identity changed"
+            );
+            gateway_portfolio::billing::reports_result(page, now)
+        }
+        PortfolioQuery::CloudBillingCharges { query } => {
+            let scope_id = query.scope_id;
+            let export_id = query.export_id;
+            let ResponsePayload::CloudBillingCharges { page } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::LoadCloudBillingCharges {
+                    scope_id,
+                    export_id: export_id.clone(),
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )?
+            else {
+                bail!("Invalid billing charge response");
+            };
+            anyhow::ensure!(
+                page.report.scope_id == scope_id && page.report.export_id == export_id,
+                "Billing export identity changed"
+            );
+            gateway_portfolio::billing::charges_result(page, now)
+        }
         PortfolioQuery::Projects { query } => {
             gateway_portfolio::projects_result(projects, &query, now)
         }

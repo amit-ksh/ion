@@ -364,6 +364,18 @@ export default function GatewayPortfolioScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <AutomationButton
+              label="Cloud billing"
+              disabled={
+                !state.ownerId || !state.pairing?.grants.includes("usageRead")
+              }
+              onPress={() =>
+                router.push({
+                  pathname: "/gateway-cloud-billing",
+                  params: { owner: state.ownerId },
+                })
+              }
+            />
+            <AutomationButton
               label="GPU budgets"
               disabled={
                 !state.ownerId || !state.pairing?.grants.includes("usageRead")
