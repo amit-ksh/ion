@@ -1,0 +1,119 @@
+# GPU file and device confinement
+
+Implemented **2026-10-12** for the separate strict offline GPU worker profile.
+The helper is `packages/job-worker/ion_job_landlock.py`; tests are
+`packages/job-worker/test_landlock.py`. Historical ordinary jobs do not opt into
+this contract.
+
+## Contract
+
+`install(read_paths, writable_roots, devices)` returns the **queried kernel ABI**
+only after every rule and the restrictive domain have loaded. It requires Linux
+native little-endian x86_64 or aarch64, 64-bit pointers/longs, Landlock ABI **5 or
+newer**, a demoted positive UID/GID, and no kernel fallback.
+
+Inputs come from the trusted runtime verifier:
+
+- Up to 128 canonical absolute read/execute roots. Root-owned regular files and
+  directories must not be writable by group or others; their ancestors receive
+  the same ownership/mode check. Protected collector, process/kernel, runtime,
+  global scratch and device trees cannot receive blanket grants.
+- Exactly three disjoint child-owned directories, mode 0700: fresh work, home
+  and private temporary storage. Writable roots cannot cover protected or image
+  trees. The caller establishes freshness and private mount origins.
+- Up to 64 exact character devices with
+  `path/type/major/minor/read/write/ioctl`. Integer identities and strict Boolean
+  rights are required; reopened object type, root ownership and actual
+  `st_rdev` are rechecked. No wildcard device grant exists.
+- Paths are bounded to 4096 UTF-8 bytes and 64 components. Dot, parent, duplicate,
+  control-character and trailing-slash forms are rejected. All grant roles must
+  be disjoint: additive ancestor rules cannot broaden exact device rights.
+
+Each component is pinned through an `O_PATH|O_NOFOLLOW|O_CLOEXEC` directory FD.
+Root symlinks are refused. Setup descriptors close on success and failure.
+
+The fixed rights cover all filesystem operations through ABI 5, including
+device ioctl. Read grants permit read/execute; writable roots additionally permit
+regular-file/directory creation, deletion, refer and truncation. Device, FIFO,
+socket and symlink creation remain denied, as do device ioctls unless the exact
+device grants that right. The ioctl right covers a driver class of operations,
+not individually reviewed CUDA ioctl numbers; some common kernel ioctls are
+outside that right. [Linux Landlock UAPI](https://raw.githubusercontent.com/torvalds/linux/v6.12/include/uapi/linux/landlock.h).
+
+The helper uses native syscall identities 444/445/446, with the packed 12-byte
+path-rule structure and an 8-byte filesystem ruleset prefix. Sources:
+[x86_64 table](https://raw.githubusercontent.com/torvalds/linux/v6.12/arch/x86/entry/syscalls/syscall_64.tbl),
+[common table used by native arm64](https://raw.githubusercontent.com/torvalds/linux/v6.12/scripts/syscall.tbl).
+
+## Required launcher ordering
+
+1. Verify the root-owned profile, original approval hash, mounts, exact devices,
+   private scratch origins and collector alias exclusion.
+2. Demote and repeat the compact runtime witness.
+3. Load the strict socket/IPC/mount/escape seccomp rules.
+4. Close every inherited FD above 2; verify the standard descriptor contract.
+5. Install Landlock and close its setup FDs; then exec user code.
+
+Landlock preserves important rights associated with previously opened FDs.
+The test intentionally demonstrates that a prior readable collector FD remains
+readable after installation. Descriptor closure is therefore a required guard
+premise. Restrictions inherit across descendants; already-running sibling
+threads require separate treatment, which is why the fixed launcher remains
+single-threaded.
+[Kernel contract and FD/inheritance caveats](https://docs.kernel.org/userspace-api/landlock.html).
+
+## Verification evidence
+
+Windows pure/failure suite: **16 passed**, with seven Linux tests explicitly
+skipped. Real disposable Linux suite: **23 passed**, no skips.
+
+The real run used cached `python:3.12-slim` image
+`sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f`,
+kernel `6.18.40.1-microsoft-standard-WSL2`, native x86_64 and actually queried
+Landlock ABI **7**. Reviewed files were copied into the disposable container;
+there was no host filesystem bind. Networking was disabled and the outer
+seccomp policy was disabled to isolate the helper's enforcement.
+
+Real tests cover:
+
+- Permitted regular reads/writes, truncation, private hardlinks/renames and
+  approved executable startup.
+- Collector, unapproved image file and global scratch denial; forbidden special
+  object creation.
+- Device ioctl denial without approval and actual driver reachability with the
+  exact ioctl grant.
+- Thread, fork and exec inheritance.
+- Execute-by-FD permission checks, including denial for a preopened executable
+  outside the approved tree.
+- Prior-FD limitations and required guard closure.
+- Rejected root symlinks without leaking setup descriptors.
+
+Evidence log: `.waku-cache/gpu-landlock-linux.log`. Pure tests additionally
+exercise old/disabled/missing ABI, exact UAPI layouts, rule/NNP/restrict failure,
+bounds, owner/mode/device mismatch, overlap rejection and descriptor cleanup.
+
+To run pure tests:
+
+```text
+python -m unittest discover -s packages/job-worker -p test_landlock.py -v
+```
+
+The seven native tests require `ION_TEST_LANDLOCK=1` in a disposable Linux image
+with actual ABI >=5 and root-owned reviewed test files. An unsupported opted-in
+runtime fails the suite; it is not silently skipped.
+
+## Remaining acceptance
+
+- The fixed installed worker must call this helper in the required order and
+  emit its trusted original-request receipt; helper tests alone do not prove
+  that integration.
+- Actual aarch64 execution remains untested.
+- A reviewed CUDA image, exact driver/device/mount topology and local CUDA
+  kernel/training test remain unaccepted. This Python image supplies no GPU.
+- Bind/overlay behavior, hostile aliases and the actual managed-job runtime need
+  acceptance alongside the snapshot verifier. Landlock does not establish mount
+  origin or isolate a privileged host that changes the runtime.
+- No Nebius allocation, cloud deployment, billing settlement or phone review
+  occurred during these checks. GPU agent submission remains disabled.
+
+Related: [offline runtime research](RESEARCH-gpu-runtime-boundary.md).
