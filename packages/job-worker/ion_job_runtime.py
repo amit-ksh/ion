@@ -24,6 +24,19 @@ LOCAL_FS = frozenset(('overlay', 'ext4', 'xfs', 'btrfs', 'tmpfs', 'ramfs',
                       'proc', 'sysfs', 'cgroup2', 'devtmpfs', 'devpts', 'mqueue'))
 PROTECTED_READ_ROOTS = frozenset(('/', '/dev', '/proc', '/sys', '/run', '/ion', '/tmp'))
 
+# Keep protected metadata categories aligned with ion_job_landlock.read_path.
+STATIC_PROC_FILES = frozenset(('/proc/cpuinfo', '/proc/meminfo', '/proc/devices',
+                               '/proc/version', '/proc/uptime', '/proc/stat'))
+NVIDIA_PROC_TREES = ('/proc/driver/nvidia', '/proc/driver/nvidia-caps',
+                     '/proc/driver/nvidia-nvlink', '/proc/driver/nvidia-nvswitch')
+SYS_METADATA_TREES = ('/sys/devices/system/cpu', '/sys/devices/system/node',
+                      '/sys/module/nvidia', '/sys/module/nvidia_uvm',
+                      '/sys/module/nvidia_modeset', '/sys/module/nvidia_drm',
+                      '/sys/module/nvidia_peermem')
+PCI_METADATA_FILES = frozenset(('vendor', 'device', 'subsystem_vendor', 'subsystem_device',
+                                'class', 'numa_node', 'local_cpulist', 'local_cpus',
+                                'uevent', 'modalias'))
+
 
 class BoundaryError(ValueError):
     """Unsupported, ambiguous or changed runtime; arbitrary child must not start."""
@@ -52,11 +65,11 @@ def _integer(value, maximum):
     return value
 
 
-def _path(value, root=False):
+def _path(value, root=False, literal=False):
     if (not isinstance(value, str) or not value.startswith('/') or len(value.encode('utf-8')) > MAX_PATH
-        or any(ord(c) < 32 or ord(c) == 127 for c in value) or '\\' in value or any(c in value for c in '*?[]')
+        or any(ord(c) < 32 or ord(c) == 127 for c in value) or '\\' in value or (not literal and any(c in value for c in '*?[]'))
         or (value != '/' and (value.endswith('/') or any(p in ('', '.', '..') for p in value[1:].split('/'))))
-        or (value == '/' and not root)):
+        or (value == '/' and not root) or len(value[1:].split('/')) > MAX_DEPTH):
         _fail()
     return value
 
@@ -82,6 +95,29 @@ def _duplicates(pairs):
         result[key] = value
     return result
 
+
+def read_path(value):
+    """The same pure read-root contract is used by profile parsing and install."""
+    path = _path(value)
+    if path in ('/home',) or any(_below(path, root) for root in ('/ion', '/run', '/dev', '/tmp')):
+        _fail()
+    if _below(path, '/proc'):
+        # Static driver/host metadata only. No dynamic process subtree, including
+        # self, thread-self, numeric PIDs, task/*, fd, fdinfo, map_files or mem.
+        if (any(component in ('fd', 'fdinfo', 'map_files', 'mem') for component in path.split('/'))
+                or (path not in STATIC_PROC_FILES and not any(_below(path, root) for root in NVIDIA_PROC_TREES))):
+            _fail()
+    if _below(path, '/sys'):
+        metadata_tree = any(_below(path, root) for root in SYS_METADATA_TREES)
+        # PCI BAR/resource and arbitrary driver directories can expose hardware
+        # interfaces despite regular-file stat types. Grant only named info leaves.
+        pci_metadata = (re.fullmatch(r'/sys/devices/pci[0-9a-fA-F]{4}:[0-9a-fA-F]{2}'
+                                     r'(?:/[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7])+'
+                                     r'/[a-z_]+', path) is not None
+                        and path.rsplit('/', 1)[-1] in PCI_METADATA_FILES)
+        if not metadata_tree and not pci_metadata and path != '/sys/devices/soc0/family':
+            _fail()
+    return path
 
 def parse_profile(data):
     if not isinstance(data, bytes) or not 1 <= len(data) <= MAX_PROFILE:
@@ -136,7 +172,7 @@ def parse_profile(data):
         if len(set(read_trees)) != len(read_trees):
             _fail()
         for path in read_trees:
-            _path(path)
+            read_path(path)
             if (path in PROTECTED_READ_ROOTS or _below(path, '/dev') or _below(path, '/run')
                 or _below(path, '/ion') or _below(path, value['writable_parent'])
                 or any(_below(path, p) or _below(p, path) for p in paths)):
@@ -412,7 +448,7 @@ def _tree(path, profile, approved_devices, seen_devices, budget, writable=False,
                 record({'path': current, 'alias': target, **_metadata(before)})
             else:
                 resolved = str(Path(current).resolve(strict=True))
-                _path(resolved)
+                _path(resolved, literal=True)
                 if not (any(_below(resolved, p) for p in profile['read_trees'])
                         or resolved in approved_devices):
                     _fail()
@@ -452,14 +488,14 @@ def _tree(path, profile, approved_devices, seen_devices, budget, writable=False,
                         if budget[2] > MAX_ENTRIES:
                             _fail()
                         child_path = current.rstrip('/') + '/' + entry.name
-                        _path(child_path)
+                        _path(child_path, literal=True)
                         budget[3] += len(child_path.encode('utf-8'))
                         if budget[3] > MAX_TREE_BYTES:
                             _fail()
                         names.append(entry.name)
                 for child in sorted(names):
                     child_path = current.rstrip('/') + '/' + child
-                    _path(child_path)
+                    _path(child_path, literal=True)
                     inspect(fd, child, child_path, depth + 1)
                 _same(before, os.fstat(fd))
             finally:
