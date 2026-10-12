@@ -1,4 +1,11 @@
 import {
+  validateGatewayRemoteQuery,
+  validateGatewayRemoteResult,
+  type GatewayRemoteQuery,
+  type GatewayRemoteResult,
+} from "./gateway-remote";
+export * from "./gateway-remote";
+import {
   isGatewayBilling,
   isGatewayBillingQuery,
   validateGatewayBillingQuery,
@@ -38,6 +45,7 @@ export interface GatewayCloudBudget {
 export type PortfolioQuery =
   | WorkflowHistoryQuery
   | GatewayBillingQuery
+  | GatewayRemoteQuery
   | { kind: "cloudBudgets"; query: { after: string | null; limit: number } }
   | { kind: "inbox"; query: InboxQuery }
   | { kind: "usage"; query: UsageLedgerQuery }
@@ -45,6 +53,7 @@ export type PortfolioQuery =
 export type PortfolioResult =
   | WorkflowHistoryResult
   | GatewayBillingResult
+  | GatewayRemoteResult
   | {
       kind: "cloudBudgets";
       page: {
@@ -143,6 +152,10 @@ const bytes = (v: unknown) => portfolioUtf8Bytes(JSON.stringify(v));
 export function validatePortfolioQuery(
   value: unknown,
 ): asserts value is PortfolioQuery {
+  if (obj(value) && value.kind === "remoteExecutions") {
+    validateGatewayRemoteQuery(value);
+    return;
+  }
   if (obj(value) && isGatewayBilling(value.kind)) {
     validateGatewayBillingQuery(value);
     return;
@@ -220,6 +233,10 @@ export function validatePortfolioResult(
     bytes(value) > 60_000
   )
     throw new Error("Invalid portfolio result");
+  if (request.kind === "remoteExecutions") {
+    validateGatewayRemoteResult(value, request);
+    return;
+  }
   if (isGatewayBillingQuery(request)) {
     validateGatewayBillingResult(value, request);
     return;
@@ -516,7 +533,8 @@ export function portfolioReadGrant(
   validatePortfolioQuery(query);
   return query.kind === "inbox"
     ? "inboxRead"
-    : query.kind === "usage" ||
+    : query.kind === "remoteExecutions" ||
+        query.kind === "usage" ||
         query.kind === "cloudBudgets" ||
         isGatewayBilling(query.kind)
       ? "usageRead"

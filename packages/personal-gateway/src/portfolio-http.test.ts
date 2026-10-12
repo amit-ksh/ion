@@ -993,3 +993,302 @@ test("billing gateway reads enforce usageRead account/export identity redaction 
     await f.gateway.close();
   }
 });
+
+test("remote inventory reads require Usage grant and reject cross-filter private or stale cursor results", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      reader = await f.pair(["usageRead"]),
+      denied = await f.pair(["taskRead", "taskControl"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const projectId = randomUUID(),
+      rootTaskId = randomUUID(),
+      requestId = randomUUID();
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query: {
+        kind: "remoteExecutions",
+        query: {
+          projectId,
+          kind: "gpu",
+          unresolvedOnly: true,
+          after: null,
+          limit: 1,
+        },
+      },
+    };
+    expect(
+      (await f.call("/v1/device/portfolio/queries", "POST", denied, input))
+        .status,
+    ).toBe(401);
+    const job = (await (
+      await f.call("/v1/device/portfolio/queries", "POST", reader, input)
+    ).json()) as { id: string };
+    const row = {
+      kind: "gpu",
+      requestId,
+      rootTaskId,
+      projectId,
+      teamName: "Research",
+      objective: "Train",
+      state: "canceling",
+      operationAvailable: false,
+      jobAvailable: true,
+      cancellationAvailable: true,
+      cleanupState: "pending",
+      stopRequested: true,
+      settled: false,
+    };
+    const result = {
+      kind: "remoteExecutions",
+      page: { entries: [row], nextCursor: { kind: "gpu", requestId } },
+      pageTruncated: false,
+      servedAt: Date.now(),
+    };
+    for (const patch of [
+      { operationId: "private-operation" },
+      { remoteProject: "private-project" },
+      { projectId: randomUUID() },
+      { settled: true },
+      { kind: "command" },
+    ])
+      expect(
+        (
+          await f.call(
+            `/v1/device/portfolio/queries/${job.id}/complete`,
+            "POST",
+            publisher,
+            {
+              result: {
+                ...result,
+                page: { ...result.page, entries: [{ ...row, ...patch }] },
+              },
+            },
+          )
+        ).status,
+      ).toBe(400);
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          publisher,
+          { result },
+        )
+      ).status,
+    ).toBe(200);
+    const receipt = (await (
+      await f.call(
+        `/v1/device/portfolio/queries?key=${input.idempotencyKey}`,
+        "GET",
+        reader,
+      )
+    ).json()) as any;
+    expect(receipt.job.result).toEqual(result);
+    expect(
+      (
+        await f.call("/v1/device/portfolio/queries", "POST", reader, {
+          ...input,
+          idempotencyKey: randomUUID(),
+          query: {
+            ...input.query,
+            query: {
+              ...input.query.query,
+              after: { kind: "model", requestId },
+            },
+          },
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await f.call(
+          `/v1/device/tasks/${rootTaskId}?publisherId=${publisher.id}`,
+          "GET",
+          reader,
+        )
+      ).status,
+    ).toBe(401);
+    const pending = (await (
+      await f.call("/v1/device/portfolio/queries", "POST", reader, {
+        ...input,
+        idempotencyKey: randomUUID(),
+      })
+    ).json()) as { id: string };
+    await f.call(`/v1/owner/devices/${reader.id}/revoke`, "POST", f.owner, {});
+    const rejected = (await (
+      await f.call(
+        `/v1/device/portfolio/queries/${pending.id}/complete`,
+        "POST",
+        publisher,
+        { result },
+      )
+    ).json()) as any;
+    expect(rejected.status).toBe("rejected");
+    expect(rejected.result).toBeNull();
+  } finally {
+    await f.gateway.close();
+  }
+});
+
+test("original task context and existing controls pin publisher and runtime without granting Usage readers writes", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      other = await f.pair(["publish"]),
+      reader = await f.pair(["taskRead"]),
+      controller = await f.pair(["taskRead", "taskControl"]),
+      usage = await f.pair(["usageRead"]);
+    const task = {
+      id: randomUUID(),
+      projectId: randomUUID(),
+      projectName: "Ion",
+      title: "Team task",
+      provider: "nebius",
+      status: "working",
+      runtimeId: randomUUID(),
+      updatedAt: Date.now(),
+    };
+    await f.call(`/v1/device/tasks/${task.id}`, "PUT", publisher, { task });
+    const path = `/v1/device/tasks/${task.id}?publisherId=${publisher.id}`;
+    expect((await f.call(path, "GET", usage)).status).toBe(401);
+    const context = (await (await f.call(path, "GET", reader)).json()) as any;
+    expect(context.publisherId).toBe(publisher.id);
+    expect(context.task.id).toBe(task.id);
+    expect(context.task.runtimeId).toBe(task.runtimeId);
+    expect(
+      (
+        await f.call(
+          `/v1/device/tasks/${task.id}?publisherId=${other.id}`,
+          "GET",
+          reader,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (await f.call(`${path}&publisherId=${other.id}`, "GET", reader)).status,
+    ).toBe(400);
+    const input = {
+      idempotencyKey: randomUUID(),
+      taskId: task.id,
+      runtimeId: task.runtimeId,
+      kind: "stop",
+      payload: {},
+    };
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${publisher.id}`,
+          "POST",
+          usage,
+          input,
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${publisher.id}`,
+          "POST",
+          reader,
+          input,
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${other.id}`,
+          "POST",
+          controller,
+          input,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${publisher.id}`,
+          "POST",
+          controller,
+          { ...input, runtimeId: randomUUID() },
+        )
+      ).status,
+    ).toBe(400);
+    const response = await f.call(
+      `/v1/device/commands?publisherId=${publisher.id}`,
+      "POST",
+      controller,
+      input,
+    );
+    expect(response.status).toBe(201);
+    const command = (await response.json()) as any;
+    expect(command.publisherId).toBe(publisher.id);
+    expect(command.runtimeId).toBe(task.runtimeId);
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${other.id}`,
+          "POST",
+          controller,
+          input,
+        )
+      ).status,
+    ).toBe(400);
+    const replay = (await (
+      await f.call(
+        `/v1/device/commands?publisherId=${publisher.id}`,
+        "POST",
+        controller,
+        input,
+      )
+    ).json()) as any;
+    expect(replay.id).toBe(command.id);
+    const replacement = {
+      ...task,
+      runtimeId: randomUUID(),
+      updatedAt: Date.now(),
+    };
+    await f.call(`/v1/device/tasks/${task.id}`, "PUT", publisher, {
+      task: replacement,
+    });
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${publisher.id}`,
+          "POST",
+          controller,
+          { ...input, idempotencyKey: randomUUID() },
+        )
+      ).status,
+    ).toBe(400);
+    const old = (await (
+      await f.call(
+        `/v1/device/commands?publisherId=${publisher.id}`,
+        "POST",
+        controller,
+        input,
+      )
+    ).json()) as any;
+    expect(old.id).toBe(command.id);
+    await f.call(
+      `/v1/owner/devices/${controller.id}/revoke`,
+      "POST",
+      f.owner,
+      {},
+    );
+    expect(
+      (
+        await f.call(
+          `/v1/device/commands?publisherId=${publisher.id}`,
+          "POST",
+          controller,
+          input,
+        )
+      ).status,
+    ).toBe(401);
+  } finally {
+    await f.gateway.close();
+  }
+});

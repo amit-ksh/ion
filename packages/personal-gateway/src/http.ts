@@ -593,6 +593,27 @@ export function createGatewayHandler(
           throw new HttpFailure(400, "Invalid notification publication");
         return json(push.publishInbox(identity.id, input.batch));
       }
+      const scopedTask =
+        /^\/v1\/device\/tasks\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(
+          path,
+        );
+      if (scopedTask && method === "GET") {
+        authorizedDevice(request, authority, "taskRead");
+        const names = [...url.searchParams.keys()];
+        const publisherId = url.searchParams.get("publisherId");
+        if (
+          names.length !== 1 ||
+          names[0] !== "publisherId" ||
+          !publisherId ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+            publisherId,
+          )
+        )
+          throw new HttpFailure(400, "Invalid task owner query");
+        const task = relay.taskForPublisher(publisherId, scopedTask[1]!);
+        if (!task) throw new HttpFailure(404, "Owner task is unavailable");
+        return json({ publisherId, task });
+      }
       if (path === "/v1/device/tasks" && method === "GET") {
         authorizedDevice(request, authority, "taskRead");
         return json(relay.listTasks());
@@ -732,6 +753,16 @@ export function createGatewayHandler(
       if (path === "/v1/device/commands" && method === "POST") {
         const identity = authorizedDevice(request, authority, "taskControl");
         const input = await body(request);
+        const expectedPublisher =
+          url.searchParams.get("publisherId") ?? undefined;
+        if (
+          expectedPublisher !== undefined &&
+          ([...url.searchParams.keys()].length !== 1 ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+              expectedPublisher,
+            ))
+        )
+          throw new HttpFailure(400, "Invalid command owner query");
         return json(
           relay.enqueue(
             identity.id,
@@ -740,6 +771,7 @@ export function createGatewayHandler(
             string(input.runtimeId),
             string(input.kind) as RelayCommandKind,
             input.payload as Record<string, string>,
+            expectedPublisher,
           ),
           201,
         );
