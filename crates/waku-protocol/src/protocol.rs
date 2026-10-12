@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 40;
+pub const PROTOCOL_VERSION: u32 = 41;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -182,6 +182,30 @@ pub enum Command {
     LoadInbox,
     LoadInboxNotifications {
         after: Option<u64>,
+    },
+    LoadCloudBilling {
+        after: Option<Uuid>,
+        limit: u16,
+    },
+    SaveCloudBillingScope {
+        scope: crate::cloud_billing::CloudBillingScope,
+        expected_revision: Option<u64>,
+    },
+    SyncCloudBillingReport {
+        scope_id: Uuid,
+        expected_revision: u64,
+        export_id: String,
+    },
+    LoadCloudBillingReports {
+        scope_id: Uuid,
+        after: Option<String>,
+        limit: u16,
+    },
+    LoadCloudBillingCharges {
+        scope_id: Uuid,
+        export_id: String,
+        after: Option<u64>,
+        limit: u16,
     },
     LoadCloudBudgets {
         after: Option<Uuid>,
@@ -588,6 +612,21 @@ pub enum ResponsePayload {
     },
     InboxHistory {
         page: crate::inbox::InboxPage,
+    },
+    CloudBilling {
+        page: crate::cloud_billing::CloudBillingPage,
+    },
+    CloudBillingScope {
+        status: crate::cloud_billing::CloudBillingScopeStatus,
+    },
+    CloudBillingReport {
+        report: crate::cloud_billing::CloudBillingReport,
+    },
+    CloudBillingReports {
+        page: crate::cloud_billing::CloudBillingReportPage,
+    },
+    CloudBillingCharges {
+        page: crate::cloud_billing::CloudBillingChargePage,
     },
     CloudBudgets {
         page: crate::cloud_spending::CloudBudgetPage,

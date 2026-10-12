@@ -212,6 +212,10 @@ export default function UsageScreen() {
           <View style={styles.header}>
             <ConnectionBanner />
             <AutomationButton
+              label="Cloud billing"
+              onPress={() => router.push("/cloud-billing")}
+            />
+            <AutomationButton
               label="GPU budgets"
               onPress={() => router.push("/cloud-budgets")}
             />

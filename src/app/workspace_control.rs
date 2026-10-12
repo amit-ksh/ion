@@ -7,6 +7,7 @@ use waku_client::teams::{
     TeamRunStatus, TeamRunSummary,
 };
 mod automation_ui;
+mod billing_ui;
 mod budget_ui;
 mod document_preview;
 mod inbox;
@@ -104,6 +105,7 @@ enum FormKind {
     Routine,
 }
 pub(super) struct ControlUi {
+    billing: billing_ui::BillingUi,
     preview: document_preview::DocumentPreview,
     pub page: Option<Page>,
     pub snapshot: ControlSnapshot,
@@ -295,6 +297,7 @@ struct Notice {
 impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
         Self {
+            billing: billing_ui::BillingUi::new(window, cx),
             preview: document_preview::DocumentPreview::new(cx),
             page: Some(Page::Dashboard),
             snapshot: ControlSnapshot::default(),
@@ -915,6 +918,9 @@ impl Waku {
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.settings_page = None;
         self.control_ui.preview.clear();
+        if self.control_ui.page != Some(page) {
+            self.control_ui.billing.close();
+        }
         if self.control_ui.page != Some(page) {
             self.control_ui.activity_generation += 1;
             self.control_ui.activity_busy = false;
@@ -1863,6 +1869,9 @@ impl Waku {
         let theme = Theme::current(cx);
         if self.control_ui.preview.artifact.is_some() {
             return self.render_document_preview(cx);
+        }
+        if page == Page::Usage && self.control_ui.billing.open {
+            return self.render_cloud_billing(cx);
         }
         if page == Page::Usage && self.control_ui.budgets.open {
             return self.render_cloud_budgets(cx);

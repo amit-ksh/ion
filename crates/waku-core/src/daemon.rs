@@ -674,6 +674,50 @@ impl Backend for WakuBackend {
                     },
                 })
             }
+            Command::LoadCloudBilling { after, limit } => Ok(ResponsePayload::CloudBilling {
+                page: self.control.cloud_billing(after, limit)?,
+            }),
+            Command::SaveCloudBillingScope {
+                scope,
+                expected_revision,
+            } => Ok(ResponsePayload::CloudBillingScope {
+                status: self
+                    .control
+                    .save_cloud_billing_scope(scope, expected_revision)?,
+            }),
+            Command::SyncCloudBillingReport {
+                scope_id,
+                expected_revision,
+                export_id,
+            } => Ok(ResponsePayload::CloudBillingReport {
+                report: self.control.sync_cloud_billing(
+                    scope_id,
+                    expected_revision,
+                    &export_id,
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)?
+                        .as_secs(),
+                )?,
+            }),
+            Command::LoadCloudBillingReports {
+                scope_id,
+                after,
+                limit,
+            } => Ok(ResponsePayload::CloudBillingReports {
+                page: self
+                    .control
+                    .cloud_billing_reports(scope_id, after.as_deref(), limit)?,
+            }),
+            Command::LoadCloudBillingCharges {
+                scope_id,
+                export_id,
+                after,
+                limit,
+            } => Ok(ResponsePayload::CloudBillingCharges {
+                page: self
+                    .control
+                    .cloud_billing_charges(scope_id, &export_id, after, limit)?,
+            }),
             Command::LoadCloudBudgets { after, limit } => Ok(ResponsePayload::CloudBudgets {
                 page: self.control.cloud_budgets(after, limit)?,
             }),
@@ -2580,6 +2624,11 @@ fn handle_driver_command(
         | Command::LoadUsageLedger { .. }
         | Command::ListInboxHistory { .. }
         | Command::LoadInboxNotifications { .. }
+        | Command::LoadCloudBilling { .. }
+        | Command::SaveCloudBillingScope { .. }
+        | Command::SyncCloudBillingReport { .. }
+        | Command::LoadCloudBillingReports { .. }
+        | Command::LoadCloudBillingCharges { .. }
         | Command::LoadCloudBudgets { .. }
         | Command::LoadInbox
         | Command::ApplyGatewayInbox { .. }

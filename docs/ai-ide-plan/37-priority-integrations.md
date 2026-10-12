@@ -102,3 +102,13 @@ TypeScript pass. Formatting and whitespace/source checks are recorded alongside
 this checkpoint. Transport tests use local/fake services and real installed
 Markdown parsers. No watcher, visual test, deployment, paid provider call or real
 microphone/phone acceptance was run. The full implementation goal remains active.
+
+## Billing checkpoint (2026-10-12)
+
+[Native billing report implementation and review](38-nebius-billing-reports.md)
+adds desktop connections/sync and direct-phone account/export/charge history.
+Reported exact charges, scoped immutable identity, snapshot replacement and
+original resource attribution are implemented. Provider/live acceptance, gateway
+redaction, credential refresh/discovery and job/tariff/finality reconciliation
+remain open. This does not complete broader remote controls, HTML/PDF rendering,
+shared speech acceptance or the whole implementation goal.

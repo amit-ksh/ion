@@ -276,6 +276,16 @@ impl Waku {
                     cx.notify();
                 }),
             );
+        bar = bar.child(self.control_button(
+            "usage-cloud-billing",
+            "Cloud billing",
+            cx,
+            |this, _, cx| {
+                this.control_ui.billing.open = true;
+                this.refresh_cloud_billing(cx);
+                cx.notify();
+            },
+        ));
         let mut filters = div().flex().flex_wrap().gap(px(8.0));
         let project = ui
             .project

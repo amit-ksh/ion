@@ -29,6 +29,7 @@ macro_rules! tr {
 pub mod attachments;
 pub mod blob;
 pub mod checkpoint;
+pub mod cloud_billing;
 pub mod cloud_spending;
 pub mod composer;
 pub mod computer_use;

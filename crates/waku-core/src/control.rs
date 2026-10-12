@@ -192,6 +192,7 @@ impl ControlStore {
         inbox_history::install_control(&db)?;
         crate::usage_ledger::schema(&db)?;
         crate::cloud_spending::schema(&db)?;
+        crate::cloud_billing::schema(&db)?;
         Ok(db)
     }
     pub(crate) fn read(db: &Connection) -> Result<ControlSnapshot> {

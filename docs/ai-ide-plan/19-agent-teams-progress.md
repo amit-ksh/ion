@@ -2995,3 +2995,36 @@ resource or microphone acceptance was run. Existing warnings remain.
 Billing reconciliation, broader aggregate resource/egress and remote lifecycle,
 rich document rendering and shared speech/live acceptance remain open. The goal
 is active; this checkpoint does not mark the full implementation complete.
+
+## 2026-10-12 — scoped native billing reports
+
+Desktop Usage → Cloud billing now saves account/contract/currency/origin scopes
+and explicitly syncs existing successful single-month native FOCUS 1.2 exports.
+GET-only transport validates source identity, approved origin and native metadata;
+IAM does not reach archive requests and signed URLs do not persist. Bounded
+worker parsing preserves exact signed costs, credits/taxes/corrections, complete
+account charges and original resource attribution. Atomic snapshots replace the
+selected scope/month amount instead of summing repeated exports. Original
+historical reports and paginated charges survive restart. Stale/partial reads and
+changed replay content fail. Imported identity remains immutable and GPU holds
+are unchanged. Contract/currency partitions and pre-release schema migration
+preserve original definitions/revisions.
+
+Desktop has virtualized monthly/history/charge views and keyboard controls.
+Direct phone Usage → Cloud billing reads saved accounts, exports and charges with
+owner/foreground and response identity fences; these reads do not call providers.
+Protocol is **41** and generated bindings were updated. Further AI provider
+connections remain deferred; previously stashed usage work was not resumed.
+
+[Setup, supported bounds, automated evidence and later review](38-nebius-billing-reports.md).
+Live reports, gateway billing redaction, owner credential refresh/discovery and
+job/tariff/finality reconciliation remain open. Broader remote/resource/egress,
+rich HTML/PDF and speech deployment/device acceptance still remain. The goal
+remains active; no billing account or deployment resource was accessed.
+
+Checkpoint verification: **22 distinct tests passed** (17 core billing/store/
+transport boundaries and 5 phone reader helpers). Complete mobile, gateway and
+shared-client TypeScript, locked desktop/daemon/worker checks, protocol-41 binding
+freshness, formatting, whitespace and frontend source checks passed. Tests use
+fake/local source data; these results do not establish live report or UI/device
+acceptance. Existing Rust warnings remain.

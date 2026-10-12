@@ -672,3 +672,29 @@ harness adapters remain outside scope.
 37 focused tests and complete mobile TypeScript/locked desktop/daemon/worker checks
 passed. No visual/device/live provider/deployment or paid resource was tested.
 These changes are in the Teams worktree and are not merged into `ion-prod`.
+
+## 2026-10-12 — native billing report checkpoint
+
+- [x] Exact account/contract/currency/origin scopes, conflict/replay handling,
+  immutable imported identity and preserved pre-release migration.
+- [x] Explicit native GET-only FOCUS export sync, metadata/origin checks,
+  transient signed URLs, separate IAM and bounded archive/CSV worker parsing.
+- [x] Exact signed costs, whole account categories, original resource attribution,
+  atomic monthly snapshot selection and persistent export/charge history.
+- [x] GPU monetary holds remain unchanged by reported charges.
+- [x] Desktop Usage billing controls and direct-phone read-only billing history;
+  protocol **41** and generated types updated.
+- [ ] Real source/role/archive acceptance, gateway redaction, credential refresh/
+  discovery, original job/account/tariff/finality reconciliation.
+- [ ] Broader remote/resource/egress, rendered HTML/PDF and shared speech acceptance.
+- [ ] Complete the [billing setup/review checklist](38-nebius-billing-reports.md).
+
+No real token, live report, paid resource, deployment or visual test was used.
+The full implementation remains in progress; additional providers stay deferred.
+
+Checkpoint verification: **22 distinct tests passed** (17 core billing/store/
+transport boundaries and 5 phone reader helpers). Complete mobile, gateway and
+shared-client TypeScript, locked desktop/daemon/worker checks, protocol-41 binding
+freshness, formatting, whitespace and frontend source checks passed. Tests use
+fake/local source data; these results do not establish live report or UI/device
+acceptance. Existing Rust warnings remain.
