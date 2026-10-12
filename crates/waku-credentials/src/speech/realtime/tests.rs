@@ -259,3 +259,71 @@ fn wss_selects_crypto_explicitly_and_does_not_send_bearer_before_tls() {
     assert!(error.to_string().contains("TLS"));
     worker.join().unwrap();
 }
+
+#[test]
+fn explicit_connection_test_requires_stream_format_ack_without_audio() {
+    for acknowledge in [true, false] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let service = SpeechService::new(
+            format!("http://{}/", listener.local_addr().unwrap()),
+            "fixture-private".into(),
+        )
+        .unwrap();
+        let worker = std::thread::spawn(move || {
+            let (mut http, _) = listener.accept().unwrap();
+            http.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") {
+                http.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            let request = String::from_utf8(request).unwrap();
+            assert!(request.starts_with("GET /v1/models "));
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .contains("authorization: bearer fixture-private")
+            );
+            let body = r#"{"data":[{"id":"nvidia/nemotron-3.5-asr-streaming-0.6b"}]}"#;
+            write!(
+                http,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+            drop(http);
+            let (tcp, _) = listener.accept().unwrap();
+            tcp.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut socket = tungstenite::accept(tcp).unwrap();
+            socket
+                .send(Message::Text(r#"{"type":"session.created"}"#.into()))
+                .unwrap();
+            let Message::Text(config) = socket.read().unwrap() else {
+                panic!("expected format only");
+            };
+            let config: Value = serde_json::from_str(&config).unwrap();
+            assert_eq!(config["type"], "session.update");
+            assert_eq!(config["session"]["sample_rate"], 16000);
+            if acknowledge {
+                socket
+                    .send(Message::Text(r#"{"type":"session.updated"}"#.into()))
+                    .unwrap();
+                // The readiness check closes immediately; it must not send PCM or commit.
+                assert!(socket.read().is_err());
+            } else {
+                socket
+                    .send(Message::Text(
+                        r#"{"type":"error","message":"fixture-private"}"#.into(),
+                    ))
+                    .unwrap();
+            }
+        });
+        let result = service.test();
+        assert_eq!(result.is_ok(), acknowledge);
+        if let Err(error) = result {
+            assert!(!error.to_string().contains("fixture-private"));
+        }
+        worker.join().unwrap();
+    }
+}

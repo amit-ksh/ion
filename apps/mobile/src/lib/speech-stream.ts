@@ -1,4 +1,4 @@
-import { speechToken, speechUrl, type SpeechEndpoint } from './speech-endpoint';
+import { speechToken, speechUrl, type SpeechEndpoint } from "./speech-endpoint";
 
 export interface SpeechSocket {
   readonly readyState: number;
@@ -34,8 +34,8 @@ export class CloudSpeechStream {
   private audioBytes = 0;
   private pending: ArrayBuffer[] = [];
   private pendingBytes = 0;
-  private committed = '';
-  private partial = '';
+  private committed = "";
+  private partial = "";
   private finishing = false;
   private commitSent = false;
   private previewTimer: ReturnType<typeof setTimeout> | null = null;
@@ -46,6 +46,8 @@ export class CloudSpeechStream {
   private resolveFinished: ((text: string) => void) | null = null;
   private rejectFinished: ((error: Error) => void) | null = null;
   private readonly connected: Promise<void>;
+  private resolveConfigured: (() => void) | null = null;
+  private rejectConfigured: ((error: Error) => void) | null = null;
 
   static async open(
     endpoint: SpeechEndpoint,
@@ -53,9 +55,49 @@ export class CloudSpeechStream {
     signal: AbortSignal,
     callbacks: Callbacks,
   ): Promise<CloudSpeechStream> {
+    if (signal.aborted) throw new Error("Dictation canceled");
     const stream = new CloudSpeechStream(endpoint, factory, signal, callbacks);
     await stream.connected;
     return stream;
+  }
+  /** Validate the real streaming route without requesting microphone access or sending audio. */
+  static async test(
+    endpoint: SpeechEndpoint,
+    factory: SpeechSocketFactory,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const stream = await this.open(endpoint, factory, signal, {
+      onPreview: () => {},
+      onFailure: () => {},
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        stream.resolveConfigured = resolve;
+        stream.rejectConfigured = reject;
+        if (stream.closed || signal.aborted)
+          reject(new Error("Speech connection check canceled"));
+        else stream.requestFormat(16_000);
+      });
+    } finally {
+      stream.cancel();
+    }
+  }
+  private requestFormat(sampleRate: number): void {
+    this.sampleRate = sampleRate;
+    // Install the deadline before send; a fixture/native acknowledgment may arrive synchronously.
+    this.startupTimer = setTimeout(
+      () =>
+        this.fail(
+          new Error("Speech service did not accept the microphone format"),
+        ),
+      15_000,
+    );
+    this.send(
+      JSON.stringify({
+        type: "session.update",
+        session: { sample_rate: sampleRate, language: "auto" },
+      }),
+    );
   }
   private constructor(
     endpoint: SpeechEndpoint,
@@ -63,7 +105,7 @@ export class CloudSpeechStream {
     signal: AbortSignal,
     callbacks: Callbacks,
   ) {
-    const url = `${speechUrl(endpoint.baseUrl).replace(/^https:/, 'wss:')}/v1/audio/transcriptions/realtime`;
+    const url = `${speechUrl(endpoint.baseUrl).replace(/^https:/, "wss:")}/v1/audio/transcriptions/realtime`;
     const token = speechToken(endpoint.token);
     this.signal = signal;
     this.callbacks = callbacks;
@@ -78,29 +120,29 @@ export class CloudSpeechStream {
       try {
         this.receive(event.data);
       } catch {
-        this.fail(new Error('Invalid or incomplete speech streaming response'));
+        this.fail(new Error("Invalid or incomplete speech streaming response"));
       }
     };
     this.socket.onerror = () =>
       this.fail(
         new Error(
-          'Speech streaming connection failed. Check the service, TLS and token.',
+          "Speech streaming connection failed. Check the service, TLS and token.",
         ),
       );
     this.socket.onclose = () =>
-      this.fail(new Error('Speech streaming disconnected before completion'));
+      this.fail(new Error("Speech streaming disconnected before completion"));
     this.startupTimer = setTimeout(
-      () => this.fail(new Error('Speech service did not become ready')),
+      () => this.fail(new Error("Speech service did not become ready")),
       15_000,
     );
-    signal.addEventListener('abort', this.aborted);
+    signal.addEventListener("abort", this.aborted);
     if (signal.aborted) this.aborted();
   }
-  private readonly aborted = () => this.fail(new Error('Dictation canceled'));
+  private readonly aborted = () => this.fail(new Error("Dictation canceled"));
 
   append(pcm: ArrayBuffer, sampleRate: number): void {
     if (this.closed || this.finishing)
-      throw new Error('Speech recording is no longer active');
+      throw new Error("Speech recording is no longer active");
     if (
       !Number.isInteger(sampleRate) ||
       sampleRate < 16_000 ||
@@ -110,38 +152,23 @@ export class CloudSpeechStream {
       pcm.byteLength > sampleRate * 2
     ) {
       this.fail(
-        new Error('Microphone format changed or audio chunk is too large'),
+        new Error("Microphone format changed or audio chunk is too large"),
       );
-      throw new Error('Invalid microphone format');
+      throw new Error("Invalid microphone format");
     }
     if (!pcm.byteLength) return;
     if (this.audioBytes + pcm.byteLength > sampleRate * 2 * 60) {
-      this.fail(new Error('Dictation reached the 60-second limit'));
-      throw new Error('Dictation reached the 60-second limit');
+      this.fail(new Error("Dictation reached the 60-second limit"));
+      throw new Error("Dictation reached the 60-second limit");
     }
-    if (!this.sampleRate) {
-      this.sampleRate = sampleRate;
-      this.send(
-        JSON.stringify({
-          type: 'session.update',
-          session: { sample_rate: sampleRate, language: 'auto' },
-        }),
-      );
-      this.startupTimer = setTimeout(
-        () =>
-          this.fail(
-            new Error('Speech service did not accept the microphone format'),
-          ),
-        15_000,
-      );
-    }
+    if (!this.sampleRate) this.requestFormat(sampleRate);
     this.audioBytes += pcm.byteLength;
     if (!this.configured) {
       if (this.pendingBytes + pcm.byteLength > sampleRate * 2 * 2) {
         this.fail(
-          new Error('Speech service is too slow to start; audio was discarded'),
+          new Error("Speech service is too slow to start; audio was discarded"),
         );
-        throw new Error('Speech service is too slow to start');
+        throw new Error("Speech service is too slow to start");
       }
       this.pending.push(pcm.slice(0));
       this.pendingBytes += pcm.byteLength;
@@ -152,7 +179,7 @@ export class CloudSpeechStream {
 
   finish(): Promise<string> {
     if (this.closed || this.finishing || !this.audioBytes)
-      return Promise.reject(new Error('No new microphone audio to finalize'));
+      return Promise.reject(new Error("No new microphone audio to finalize"));
     this.finishing = true;
     const result = new Promise<string>((resolve, reject) => {
       this.resolveFinished = resolve;
@@ -162,7 +189,7 @@ export class CloudSpeechStream {
       () =>
         this.fail(
           new Error(
-            'Speech service did not confirm a final transcript. Try a shorter recording.',
+            "Speech service did not confirm a final transcript. Try a shorter recording.",
           ),
         ),
       20_000,
@@ -185,41 +212,43 @@ export class CloudSpeechStream {
       this.socket.bufferedAmount > 512 * 1024
     ) {
       this.fail(
-        new Error('Speech connection cannot keep up; audio was discarded'),
+        new Error("Speech connection cannot keep up; audio was discarded"),
       );
-      throw new Error('Speech connection cannot keep up');
+      throw new Error("Speech connection cannot keep up");
     }
     try {
       this.socket.send(data);
     } catch {
-      this.fail(new Error('Speech streaming connection failed'));
-      throw new Error('Speech streaming connection failed');
+      this.fail(new Error("Speech streaming connection failed"));
+      throw new Error("Speech streaming connection failed");
     }
   }
   private commit(): void {
-    this.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+    this.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
     this.commitSent = true;
   }
   private receive(data: unknown): void {
-    if (typeof data !== 'string' || data.length > MAX_EVENT)
-      throw new Error('Invalid speech event');
+    if (typeof data !== "string" || data.length > MAX_EVENT)
+      throw new Error("Invalid speech event");
     const event = JSON.parse(data) as {
       type?: string;
       delta?: unknown;
       transcript?: unknown;
     };
     switch (event.type) {
-      case 'session.created':
-        if (this.created) throw new Error('Duplicate session creation');
+      case "session.created":
+        if (this.created) throw new Error("Duplicate session creation");
         this.created = true;
         if (this.startupTimer) clearTimeout(this.startupTimer);
         this.startupTimer = null;
         this.resolveConnected();
         return;
-      case 'session.updated':
+      case "session.updated":
         if (!this.created || !this.sampleRate || this.configured)
-          throw new Error('Unexpected format acknowledgment');
+          throw new Error("Unexpected format acknowledgment");
         this.configured = true;
+        this.resolveConfigured?.();
+        this.resolveConfigured = this.rejectConfigured = null;
         if (this.startupTimer) clearTimeout(this.startupTimer);
         this.startupTimer = null;
         for (const pcm of this.pending) this.send(pcm);
@@ -227,34 +256,34 @@ export class CloudSpeechStream {
         this.pendingBytes = 0;
         if (this.finishing) this.commit();
         return;
-      case 'conversation.item.input_audio_transcription.delta':
+      case "conversation.item.input_audio_transcription.delta":
         if (
           !this.configured ||
-          typeof event.delta !== 'string' ||
+          typeof event.delta !== "string" ||
           this.committed.length + this.partial.length + event.delta.length + 1 >
             MAX_TEXT
         )
-          throw new Error('Invalid preview');
+          throw new Error("Invalid preview");
         this.partial += event.delta;
         break;
-      case 'conversation.item.input_audio_transcription.completed': {
-        if (!this.configured || typeof event.transcript !== 'string')
-          throw new Error('Invalid segment');
+      case "conversation.item.input_audio_transcription.completed": {
+        if (!this.configured || typeof event.transcript !== "string")
+          throw new Error("Invalid segment");
         const text = event.transcript.trim();
         if (this.committed.length + text.length + 1 > MAX_TEXT)
-          throw new Error('Transcript too long');
-        if (text) this.committed += `${this.committed ? ' ' : ''}${text}`;
-        this.partial = '';
+          throw new Error("Transcript too long");
+        if (text) this.committed += `${this.committed ? " " : ""}${text}`;
+        this.partial = "";
         break;
       }
-      case 'input_audio_buffer.committed':
+      case "input_audio_buffer.committed":
         if (!this.commitSent || this.partial || !this.committed)
-          throw new Error('Incomplete final transcript');
+          throw new Error("Incomplete final transcript");
         this.resolveFinished?.(this.committed);
         this.teardown();
         return;
-      case 'error':
-        this.fail(new Error('Speech service rejected the streaming session'));
+      case "error":
+        this.fail(new Error("Speech service rejected the streaming session"));
         return;
       default:
         return;
@@ -270,6 +299,8 @@ export class CloudSpeechStream {
   private fail(error: Error): void {
     if (this.closed) return;
     this.rejectConnected(error);
+    this.rejectConfigured?.(error);
+    this.resolveConfigured = this.rejectConfigured = null;
     this.rejectFinished?.(error);
     const notify = this.created;
     this.teardown();
@@ -286,9 +317,9 @@ export class CloudSpeechStream {
     this.previewTimer = this.startupTimer = this.finishTimer = null;
     this.pending = [];
     this.pendingBytes = 0;
-    this.committed = '';
-    this.partial = '';
-    this.signal.removeEventListener('abort', this.aborted);
+    this.committed = "";
+    this.partial = "";
+    this.signal.removeEventListener("abort", this.aborted);
     const wasConnecting = this.socket.readyState === 0;
     this.socket.onmessage = this.socket.onerror = this.socket.onclose = null;
     this.socket.onopen = wasConnecting

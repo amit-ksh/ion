@@ -174,7 +174,7 @@ impl SpeechLanguage {
 
 pub fn runtime_version() -> Result<String> {
     if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
-        service.test()?;
+        service.test_inventory()?;
         return Ok("Cloud speech - Nemotron 3.5 ASR".into());
     }
     let output = Command::new(executable())
@@ -286,7 +286,7 @@ fn executable() -> PathBuf {
 /// artifact against its pinned size and SHA-256 before returning success.
 pub fn prepare_model() -> Result<()> {
     if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
-        return service.test();
+        return service.test_inventory();
     }
     runtime_version()?;
     let output = Command::new(executable())

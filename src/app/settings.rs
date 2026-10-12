@@ -717,7 +717,7 @@ impl Waku {
                             }
                             CredentialAction::Test => match service.test(kind)? {
                                 CredentialTest::SpeechVerified => Ok((
-                                    "Speech service connected; Nemotron 3.5 ASR is loaded.".into(),
+                                    "Speech service connected; Nemotron 3.5 ASR streaming is ready.".into(),
                                     None,
                                 )),
                                 CredentialTest::NebiusModels(models) => Ok((

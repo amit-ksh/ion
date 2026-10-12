@@ -59,8 +59,10 @@ no visual test, live service deployment or physical microphone review was run.
 ## Remaining operator and device checks
 
 Use the [deployment and review checklist](../../services/speech/README.md).
-The model-inventory Test confirms HTTP readiness only. A working microphone
-stream requires a deployed server build, direct WSS route and trusted certificate.
+Explicit Test now checks model inventory plus authenticated WebSocket session
+creation and a PCM16 format acknowledgment, without audio. Real recognition and
+platform TLS/redirect acceptance still require a deployed server and device review.
+See the 2026-10-12 readiness checkpoint in the deployment guide.
 
 - [ ] Supply and configure VM/DNS/private service token, then verify the server.
 - [ ] Test desktop, Android and iOS previews, complete final text and editing.

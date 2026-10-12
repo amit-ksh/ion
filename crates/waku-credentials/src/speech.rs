@@ -30,7 +30,7 @@ impl SpeechService {
             .redirect(reqwest::redirect::Policy::none())
             .build()?)
     }
-    pub fn test(&self) -> Result<()> {
+    pub fn test_inventory(&self) -> Result<()> {
         let response = self
             .client()?
             .get(gateway_base_url(&self.base_url)?.join("v1/models")?)
@@ -53,6 +53,13 @@ impl SpeechService {
                     .is_some_and(|id| id.contains("nemotron-3.5") || id.contains("nemotron-3_5")))),
             "Load the Nemotron 3.5 ASR model on the speech service"
         );
+        Ok(())
+    }
+    /// Verify inventory plus authenticated streaming/format acknowledgments without audio.
+    /// Call only for an explicit connection check, not as a per-recording probe.
+    pub fn test(&self) -> Result<()> {
+        self.test_inventory()?;
+        drop(self.start_live(16_000, "auto")?);
         Ok(())
     }
     /// Open an authenticated PCM stream on a blocking worker. No redirects or retries.

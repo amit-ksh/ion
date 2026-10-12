@@ -489,6 +489,13 @@ impl MarkdownView {
         }
     }
 
+    /// Read-only row whose tree was parsed on a worker. No parsing or streaming state.
+    pub fn document_block(block: Block) -> Self {
+        let mut view = Self::new();
+        view.tail.push(TopBlock { range: 0..0, block });
+        view
+    }
+
     /// A view attached to an already-streaming body. Its first rendered text
     /// becomes the full-opacity baseline; later appends fade normally.
     pub fn seeded() -> Self {

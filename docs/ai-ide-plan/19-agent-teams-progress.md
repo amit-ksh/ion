@@ -2963,3 +2963,35 @@ implementation includes provider billing/finality, broader remote/resource/egres
 controls, other existing solo usage receipts, larger document formats/previews
 and shared speech integration/acceptance. Deferred adapters stay out of scope.
 The full goal remains active.
+
+## 2026-10-12 — priorities, verified document reading and streaming readiness
+
+The user prioritized billing, broader remote controls, document previews and
+speech integration before more AI provider connections. Unfinished solo native
+Pi/OMP/OpenCode2 accounting is preserved separately in Git stash. Deferred
+adapters remain outside the active scope.
+
+Desktop Artifacts/Inbox/team documents now have verified, cached native Preview
+with Markdown reading/source and JSON formatted/source modes. Long blocks and
+source rows are bounded, reads/parsing run on a worker, navigation is fenced and
+links/images remain inert. Gateway workflow documents gain the same Markdown/
+JSON reading/source choice on the phone after complete hash verification.
+HTML/CSV/text remain inert source; PDF remains export-only. Rich HTML/PDF,
+additional formats and direct-phone artifact-library parity are still development.
+
+Desktop Test and phone Test and save now check inventory plus authenticated
+streaming session/format acknowledgment without microphone audio. Phone checks
+cancel on screen exit/backgrounding and reject late saves. Saved secrets can only
+be reused on explicit Test for the exact saved origin. Deployment, platform TLS/
+redirect behavior, real recognition and device acceptance remain unverified.
+
+Verification: 37 distinct tests passed (4 native documents, 4 phone documents,
+10 credential/streaming and 19 phone readiness/stream/WAV). Locked desktop/daemon/
+worker compilation, full mobile TypeScript, formatting, whitespace and frontend
+source checks passed. No watcher, visual test, live deployment/provider, paid
+resource or microphone acceptance was run. Existing warnings remain.
+
+[Priority scope, billing source evidence and owner review](37-priority-integrations.md).
+Billing reconciliation, broader aggregate resource/egress and remote lifecycle,
+rich document rendering and shared speech/live acceptance remain open. The goal
+is active; this checkpoint does not mark the full implementation complete.

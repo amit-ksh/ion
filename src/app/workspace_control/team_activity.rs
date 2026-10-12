@@ -1248,7 +1248,11 @@ impl Waku {
                     format!("assignment-document-{}-{}", row.id, document.id),
                     format!("{} · {}", document.name, document.format.to_uppercase()),
                     cx,
-                    move |this, _, cx| this.export_control_artifact(record.clone(), cx),
+                    move |this, _, cx| {
+                        if let ControlRecord::Artifact(artifact) = &record {
+                            this.open_document_preview(artifact.clone(), cx);
+                        }
+                    },
                 )
                 .child(icon("icons/file.svg", 14.0, theme.text_secondary)),
             );

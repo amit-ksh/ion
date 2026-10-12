@@ -1,3 +1,6 @@
+import { documentPreviewRows } from "@/lib/document-preview";
+import { useMarkdownStyles } from "@/components/md-block-row";
+import { renderBlock } from "@/md/render";
 import {
   portfolioId,
   type PortfolioQuery,
@@ -30,15 +33,26 @@ export default function GatewayWorkflowEvidenceScreen() {
   const params = useLocalSearchParams<{ run: string; owner: string }>(),
     theme = useTheme(),
     insets = useSafeAreaInsets();
+  const markdown = useMarkdownStyles();
+  const [readingView, setReadingView] = useState(true);
+  const markdownStyles = useMemo(
+    () => ({
+      ...markdown,
+      body: { ...markdown.body, fontSize: 16, lineHeight: 24 },
+    }),
+    [markdown],
+  );
   const [after, setAfter] = useState<string | null>(null),
     [previous, setPrevious] = useState<(string | null)[]>([]);
   const [reading, setReading] = useState(false),
     [message, setMessage] = useState<{ text: string; error: boolean } | null>(
       null,
     ),
-    [preview, setPreview] = useState<{ name: string; text: string } | null>(
-      null,
-    );
+    [preview, setPreview] = useState<{
+      name: string;
+      text: string;
+      format: string;
+    } | null>(null);
   const valid =
     typeof params.run === "string" &&
     portfolioId(params.run) &&
@@ -158,8 +172,14 @@ export default function GatewayWorkflowEvidenceScreen() {
         await exportWorkflowDocument(record, bytes, current);
         if (current())
           setMessage({ text: "Verified document exported.", error: false });
-      } else
-        setPreview({ name: record.name, text: workflowDocumentText(bytes) });
+      } else {
+        setReadingView(true);
+        setPreview({
+          name: record.name,
+          format: record.format,
+          text: workflowDocumentText(bytes),
+        });
+      }
     } catch (error) {
       if (current())
         setMessage({
@@ -174,17 +194,13 @@ export default function GatewayWorkflowEvidenceScreen() {
       if (mounted.current) setReading(false);
     }
   }
-  // Large documents remain in memory; the source preview is virtualized instead
-  // of rendering the whole document on every frame.
+  // Derived once per document/mode. Only visible bounded rows render.
   const previewRows = useMemo(
     () =>
       preview
-        ? (preview.text.match(/[\s\S]{1,1200}/gu) ?? []).map((text, index) => ({
-            index,
-            text,
-          }))
+        ? documentPreviewRows(preview.format, preview.text, readingView)
         : [],
-    [preview],
+    [preview, readingView],
   );
   if (preview)
     return (
@@ -192,7 +208,7 @@ export default function GatewayWorkflowEvidenceScreen() {
         <Stack.Screen options={{ title: preview.name }} />
         <FlatList
           data={previewRows}
-          keyExtractor={(row) => String(row.index)}
+          keyExtractor={(row) => row.id}
           contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
           ListHeaderComponent={
             <View style={styles.header}>
@@ -200,19 +216,52 @@ export default function GatewayWorkflowEvidenceScreen() {
                 {preview.name}
               </Text>
               <Text style={[styles.body, { color: theme.textSecondary }]}>
-                Verified document source
+                {readingView && ["md", "json"].includes(preview.format)
+                  ? "Verified document · Reading view"
+                  : "Verified document · Source"}
               </Text>
+              {["md", "json"].includes(preview.format) && (
+                <View style={styles.actions}>
+                  <AutomationButton
+                    label="Reading view"
+                    disabled={readingView}
+                    onPress={() => setReadingView(true)}
+                  />
+                  <AutomationButton
+                    label="Source"
+                    disabled={!readingView}
+                    onPress={() => setReadingView(false)}
+                  />
+                </View>
+              )}
               <AutomationButton
                 label="Back to documents"
                 onPress={() => setPreview(null)}
               />
             </View>
           }
-          renderItem={({ item }) => (
-            <Text selectable style={[styles.source, { color: theme.text }]}>
-              {item.text}
-            </Text>
-          )}
+          renderItem={({ item }) =>
+            item.node ? (
+              <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+                {renderBlock(
+                  item.node,
+                  {
+                    styles: markdownStyles,
+                    veil: null,
+                    now: 0,
+                    ordinal: { value: 0 },
+                    hadSpans: false,
+                    onOpenLink: () => {},
+                  },
+                  item.id,
+                )}
+              </View>
+            ) : (
+              <Text selectable style={[styles.source, { color: theme.text }]}>
+                {item.text}
+              </Text>
+            )
+          }
         />
       </View>
     );
@@ -322,7 +371,7 @@ export default function GatewayWorkflowEvidenceScreen() {
             <View style={styles.actions}>
               {doc.format !== "pdf" && (
                 <AutomationButton
-                  label="Read source"
+                  label="Preview"
                   disabled={state.loading || reading}
                   onPress={() => void document(doc, false)}
                 />

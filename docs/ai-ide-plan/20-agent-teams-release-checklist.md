@@ -647,3 +647,28 @@ acceptance remain unverified. Provider billing/finality, broader remote/resource
 egress controls, other existing solo usage receipts, larger document formats/
 previews and shared speech deployment/device acceptance remain open. Deferred
 harness adapters remain outside scope.
+
+## 2026-10-12 — prioritized integration checkpoint
+
+- [x] Preserve unfinished extra native usage work separately and defer further
+  provider connections while billing/remote/previews/speech are prioritized.
+- [x] Desktop verified document Preview from Artifacts, Inbox and team results,
+  cached Markdown reading/source and formatted JSON/source, bounded virtual rows,
+  worker reads/parsing and stale-result fences.
+- [x] Gateway workflow phone Markdown/JSON reading/source views after verification,
+  with inert links/images and existing publisher/foreground fences.
+- [x] Explicit desktop/phone speech Test verifies HTTP inventory and authenticated
+  streaming session/format acknowledgment without microphone audio.
+- [x] Phone screen/background cancellation, late-save refusal and exact-origin
+  saved-secret reuse only on explicit Test.
+- [ ] Billing identity/report ingestion, period/currency/correction reconciliation
+  and authoritative retained resource costs/finality.
+- [ ] Broader aggregate host/project and egress controls, remote lifecycle/inventory
+  and the remaining GPU device/runtime gates.
+- [ ] Rendered HTML/PDF pages, additional formats and direct-phone artifact parity.
+- [ ] Shared speech deployment, native TLS/redirect and real device recognition.
+- [ ] Complete the owner [priority review checklist](37-priority-integrations.md).
+
+37 focused tests and complete mobile TypeScript/locked desktop/daemon/worker checks
+passed. No visual/device/live provider/deployment or paid resource was tested.
+These changes are in the Teams worktree and are not merged into `ion-prod`.

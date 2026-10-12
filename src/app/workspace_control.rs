@@ -8,6 +8,7 @@ use waku_client::teams::{
 };
 mod automation_ui;
 mod budget_ui;
+mod document_preview;
 mod inbox;
 mod routine_ui;
 mod team_activity;
@@ -103,6 +104,7 @@ enum FormKind {
     Routine,
 }
 pub(super) struct ControlUi {
+    preview: document_preview::DocumentPreview,
     pub page: Option<Page>,
     pub snapshot: ControlSnapshot,
     pub(super) snapshot_loaded: bool,
@@ -293,6 +295,7 @@ struct Notice {
 impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
         Self {
+            preview: document_preview::DocumentPreview::new(cx),
             page: Some(Page::Dashboard),
             snapshot: ControlSnapshot::default(),
             snapshot_loaded: false,
@@ -911,6 +914,7 @@ impl Waku {
     }
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.settings_page = None;
+        self.control_ui.preview.clear();
         if self.control_ui.page != Some(page) {
             self.control_ui.activity_generation += 1;
             self.control_ui.activity_busy = false;
@@ -1857,6 +1861,9 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let theme = Theme::current(cx);
+        if self.control_ui.preview.artifact.is_some() {
+            return self.render_document_preview(cx);
+        }
         if page == Page::Usage && self.control_ui.budgets.open {
             return self.render_cloud_budgets(cx);
         }
@@ -2349,6 +2356,15 @@ impl Waku {
                     ));
                 }
                 if let Some(record @ ControlRecord::Artifact(_)) = notice.record {
+                    if let ControlRecord::Artifact(artifact) = &record {
+                        let artifact = artifact.clone();
+                        actions = actions.child(self.control_button(
+                            format!("notice-preview-{index}"),
+                            "Preview",
+                            cx,
+                            move |this, _, cx| this.open_document_preview(artifact.clone(), cx),
+                        ));
+                    }
                     actions = actions.child(self.control_button(
                         format!("notice-document-{index}"),
                         "Save document",
@@ -2619,7 +2635,14 @@ impl Waku {
                         ));
                     }
                 }
-                if matches!(record, ControlRecord::Artifact(_)) {
+                if let ControlRecord::Artifact(artifact) = &record {
+                    let artifact = artifact.clone();
+                    actions = actions.child(self.control_button(
+                        format!("document-preview-{id}"),
+                        "Preview",
+                        cx,
+                        move |this, _, cx| this.open_document_preview(artifact.clone(), cx),
+                    ));
                     actions = actions.child(self.control_button(
                         format!("document-export-{id}"),
                         "Save document",

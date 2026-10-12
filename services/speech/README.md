@@ -66,8 +66,9 @@ editable and does not automatically submit a task. Cloud capture creates no WAV
 on either client; phone offline capture still uses a temporary cache WAV.
 
 The phone requires a native build with the installed Expo Audio 57 microphone
-stream API; browser dictation is disabled. Model-inventory Test checks HTTP/model
-readiness, not successful microphone streaming. Deployments must support the
+stream API; browser dictation is disabled. Test checks the bounded model inventory and an authenticated WebSocket session
+with a PCM16 format acknowledgment. It sends no audio and requests no microphone
+permission; successful recognition still requires a device check. Deployments must support the
 explicit transcription WebSocket route and a trusted TLS certificate.
 
 ## Review checklist
@@ -94,3 +95,24 @@ recommends NVIDIA NIM for production deployment. A larger shared installation
 should assess NIM and an authenticated HTTP adapter before scaling. See the
 [server contract](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/server.md)
 and [HTTP API](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/api.md).
+
+## Streaming readiness checkpoint (2026-10-12)
+
+Desktop Test and phone Test and save now verify both inventory and the direct
+transcription socket. They require session creation and a 16 kHz/auto-language
+format acknowledgment, then close without PCM or commit. Recording uses its
+actual device sample rate; this check does not claim microphone or ASR quality.
+The phone cancels an in-flight check on screen exit/backgrounding and refuses to
+save its late result. Reusing a saved token is allowed only by an explicit Test
+for its exact saved origin. A changed URL requires a new token.
+
+- [ ] Confirm Test fails for inventory-only, missing WebSocket route and rejected
+  format, with no microphone prompt/audio upload.
+- [ ] Leave/background the phone during Test: no late save or confirmation.
+- [ ] Test an existing saved origin without re-entering the token; change origins
+  and verify the old secret is never sent to the new service.
+- [ ] Complete the deployment, native TLS/redirect and real dictation checks above.
+
+Automated checks cover native loopback inventory/socket acknowledgment, no PCM/
+commit, sanitized errors, rejected inventory, cancellation and bounded payloads.
+No Nebius speech service was deployed or tested live.
