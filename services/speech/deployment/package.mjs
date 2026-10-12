@@ -30,6 +30,7 @@ export const BUNDLE_FILES = [
   "docs/ai-ide-plan/41-speech-service-acceptance.md",
   "docs/ai-ide-plan/50-speech-deployment-device-review.md",
   "docs/ai-ide-plan/52-physical-device-review.md",
+  "docs/ai-ide-plan/54-native-speech-recognition.md",
 ].sort();
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const ASSET_LIMIT = 256 * 1024;

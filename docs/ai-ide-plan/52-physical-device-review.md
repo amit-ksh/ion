@@ -76,7 +76,7 @@ Execute on **both** phones:
 
 A cloud speech deployment cannot start until an actual Linux/Nebius target and trusted HTTPS hostname exist. Use [the deployment package and 46-case device review](50-speech-deployment-device-review.md). All 46 initial cases remain pending, including readiness without a microphone prompt, real dictation, wrong token/origin, cancellation/background, TLS/socket redirects and concurrent desktop/phone recognition.
 
-The installed Windows CPU binary and 741,548,352-byte Nemotron model passed integrity/metadata inspection. No real recognition has run. The ignored smoke WAV is empty; supply reviewed nonempty mono PCM16 fixtures and sufficient free RAM before loading the actual model. Phone dictation through the paired desktop daemon can be reviewed separately from cloud speech after that daemon's local speech service is working. Existing setup: [speech acceptance](41-speech-service-acceptance.md).
+The installed Windows CPU binary and 741,548,352-byte Nemotron model passed integrity/metadata inspection. Subsequent [actual local CPU synthetic recognition and concurrent streams](54-native-speech-recognition.md) passed; no human microphone, phone or cloud recognition is established. The ignored smoke WAV is empty; supply reviewed nonempty mono PCM16 fixtures and sufficient free RAM before loading the actual model. Phone dictation through the paired desktop daemon can be reviewed separately from cloud speech after that daemon's local speech service is working. Existing setup: [speech acceptance](41-speech-service-acceptance.md).
 
 ## Outstanding owner inputs
 

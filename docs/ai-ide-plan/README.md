@@ -192,3 +192,7 @@ see [gateway history](32-gateway-inbox-usage-history.md).
 - [Command resource Usage](53-command-resource-usage.md): cached native diagnostics, project scope and keyboard review.
 
 Live Nebius speech deployment and native phone acceptance remain open. Additional harness adapters remain deferred.
+
+- [Actual local speech recognition](54-native-speech-recognition.md): installed CPU model, single/concurrent synthetic audio, bounded memory and remaining phone/cloud gates.
+- [GPU runtime boundary research](RESEARCH-gpu-runtime-boundary.md): current kernel/device/mount/IPC contracts and the distinction between startup snapshots and confinement.
+- [Command storage cleanup contract](RESEARCH-command-storage-cleanup.md): documented native lifecycle/storage limitations; no guessed deletion/release proof.

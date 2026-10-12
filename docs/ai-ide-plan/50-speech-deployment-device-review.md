@@ -228,3 +228,7 @@ without model loading. A real source package was generated and verified from
 its copied command, with the same manifest digest. Formatting, syntax and
 whitespace checks passed. No device was accessed, no physical observation was
 marked passed, and no live speech deployment or recognition was tested.
+
+## Subsequent actual-model local acceptance
+
+The root later ran the installed Windows CPU service with the verified actual model and offline synthesized 6.185-second PCM16 fixture. Readiness/auth negotiation, single recognition, two concurrent recognition streams and cancel acknowledgment passed, with zero measured word errors. [Exact evidence and limits](54-native-speech-recognition.md). Earlier metadata-only results above remain historical; the new local check does not close Linux/HTTPS deployment or any of the 46 phone cases.
