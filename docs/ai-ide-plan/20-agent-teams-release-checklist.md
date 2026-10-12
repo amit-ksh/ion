@@ -623,3 +623,27 @@ This checkpoint does not unlock the still-gated GPU training submission path or
 close broader resource/egress/readiness, notification delivery, larger document
 formats/previews, other existing solo usage receipts or shared speech acceptance.
 Deferred new harness adapters remain outside scope. No live resources were started.
+
+
+## Historical Inbox push checkpoint (2026-10-12)
+
+- [x] Indexed ascending owner notification feed across historical Inbox sources;
+  silent first publication, recency/current-state filters and All/Issues only/Off.
+- [x] Headless owner and temporary desktop pairing publish the same bounded feed
+  on existing workers; no network or database work is reachable from render.
+- [x] Durable gateway cursor and generic alert queue commit together; exact replay,
+  backlog coalescing, expiration and revoked phone/publisher cancellation.
+- [x] Separate native phone Inbox opt-in requiring `inboxRead`; older task push
+  registrations remain task-only. New route cannot change an old gateway's task setting.
+- [x] Content-free Inbox push template without internal routing IDs. Tapping opens
+  the current gateway Inbox and authorizes no notification or agent mutation.
+- [x] Owner/pairing/foreground checks around OS permission/token registration;
+  independent disable controls, old-token receipt fencing and bounded receipt polling.
+- [ ] Complete [background notification setup/device acceptance](36-inbox-background-notifications.md#your-setup-and-review-checklist).
+
+Direct wire protocol is now **40**. This implements the background Inbox alert
+path with best-effort delivery; physical Android/iOS and configured Expo credential
+acceptance remain unverified. Provider billing/finality, broader remote/resource/
+egress controls, other existing solo usage receipts, larger document formats/
+previews and shared speech deployment/device acceptance remain open. Deferred
+harness adapters remain outside scope.

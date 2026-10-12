@@ -65,6 +65,8 @@ export type { InboxHistoryStatus } from "./InboxHistoryStatus";
 export type { InboxHistoryView } from "./InboxHistoryView";
 export type { InboxItemState } from "./InboxItemState";
 export type { InboxKind } from "./InboxKind";
+export type { InboxNotificationBatch } from "./InboxNotificationBatch";
+export type { InboxNotificationEvent } from "./InboxNotificationEvent";
 export type { InboxPage } from "./InboxPage";
 export type { InboxQuery } from "./InboxQuery";
 export type { InboxSnapshot } from "./InboxSnapshot";

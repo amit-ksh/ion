@@ -2921,3 +2921,45 @@ egress controls, other existing solo usage receipts, larger document interpretat
 previews, background notification delivery and shared speech/live device acceptance.
 The GPU submission gate remains closed where its original prerequisites are unmet;
 unimplemented harness adapters remain deferred. The overall goal remains active.
+
+
+## Historical Inbox background notifications (2026-10-12)
+
+Added an indexed ascending, content-free owner notification feed and publication
+from both headless owner and temporary desktop pairing workers. First publication
+establishes a silent baseline after task-history migration. New eligible Inbox
+facts respect current unread/ack/archive state, recency and All/Issues only/Off;
+suppressed facts still advance the durable cursor.
+
+Gateway cursor and alert queue commit together, with exact replay after a lost
+publication reply, bounded pending alert coalescing, expiration, phone/publisher
+revocation and receipt/token-rotation fences. The native phone has a separate
+explicit Inbox opt-in and grant, distinct Android channel and foreground/owner
+checks around token registration. Old task subscriptions stay task-only, and the
+new endpoint cannot change an older gateway's task setting. A generic alert opens
+the current paired Inbox and never approves or marks anything read.
+
+Automatic approval review rejected the initially proposed Expo payload containing
+internal routing IDs. The implemented alternative sends only a fixed generic
+Inbox message and scope; publisher/device/event identifiers stay in the owned
+gateway. All external transport tests use fake fetch. Push is best effort: uncertain
+sends do not repeat, so a missed alert remains visible in durable history. No real
+phone notification or cloud call was sent.
+
+Verification: 100 distinct focused tests passed (4 owner feed, 67 full gateway,
+29 shared-client/phone helpers). Tests include legacy migration, separate grants
+and opt-ins, atomic cursor replay/restart, uncertain sends, mute/revocation,
+coalescing/expiration, rotated token failures, receipt window, malformed metadata,
+current pairing navigation and older-gateway behavior. Complete mobile/gateway/
+client TypeScript, locked desktop/daemon/worker checks, protocol-40 generated
+binding freshness, formatting, whitespace and frontend source checks passed.
+Existing Rust warnings remain. No visual test, watcher, live provider/deployment,
+physical phone acceptance or billable resource was started.
+
+Review/setup: [Inbox background notifications](36-inbox-background-notifications.md).
+Update owner, phone and gateway together; direct wire protocol is **40**. EAS/native
+notification credentials and real device acceptance are still required. Remaining
+implementation includes provider billing/finality, broader remote/resource/egress
+controls, other existing solo usage receipts, larger document formats/previews
+and shared speech integration/acceptance. Deferred adapters stay out of scope.
+The full goal remains active.

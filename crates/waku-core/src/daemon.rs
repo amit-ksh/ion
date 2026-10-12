@@ -661,6 +661,19 @@ impl Backend for WakuBackend {
                 page.task_history_syncing = syncing;
                 Ok(ResponsePayload::InboxHistory { page })
             }
+            Command::LoadInboxNotifications { after } => {
+                let syncing = self.control.sync_task_inbox(&self.task_store)?;
+                Ok(ResponsePayload::InboxNotifications {
+                    batch: if syncing {
+                        None
+                    } else {
+                        Some(
+                            self.control
+                                .inbox_notification_batch(after, crate::model::unix_time())?,
+                        )
+                    },
+                })
+            }
             Command::LoadCloudBudgets { after, limit } => Ok(ResponsePayload::CloudBudgets {
                 page: self.control.cloud_budgets(after, limit)?,
             }),
@@ -2566,6 +2579,7 @@ fn handle_driver_command(
         | Command::LoadTaskState
         | Command::LoadUsageLedger { .. }
         | Command::ListInboxHistory { .. }
+        | Command::LoadInboxNotifications { .. }
         | Command::LoadCloudBudgets { .. }
         | Command::LoadInbox
         | Command::ApplyGatewayInbox { .. }

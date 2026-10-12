@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 39;
+pub const PROTOCOL_VERSION: u32 = 40;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -180,6 +180,9 @@ pub enum Command {
     LoadTaskState,
     LoadWorkspaceControl,
     LoadInbox,
+    LoadInboxNotifications {
+        after: Option<u64>,
+    },
     LoadCloudBudgets {
         after: Option<Uuid>,
         limit: u16,
@@ -579,6 +582,9 @@ pub enum ResponsePayload {
     },
     UsageLedger {
         page: crate::usage_ledger::UsageLedgerPage,
+    },
+    InboxNotifications {
+        batch: Option<crate::inbox_notifications::InboxNotificationBatch>,
     },
     InboxHistory {
         page: crate::inbox::InboxPage,

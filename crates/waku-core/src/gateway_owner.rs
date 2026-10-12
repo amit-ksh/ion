@@ -91,7 +91,8 @@ impl GatewayOwner {
                             let controls = engine.sync(&api, &fence);
                             let reads = portfolio::sync(&api, &engine, &fence);
                             let notifications = inbox::sync(&api, &engine, &fence);
-                            controls?; reads?; notifications
+                            let alerts = notifications::sync(&api, &engine, &fence);
+                            controls?; reads?; notifications?; alerts
                         })
                     }
                     Err(_) if connected || file_managed => Err(anyhow::anyhow!("Gateway owner pairing unavailable")),
@@ -371,4 +372,5 @@ impl OwnerEngine {
 mod tests;
 
 mod inbox;
+mod notifications;
 mod portfolio;

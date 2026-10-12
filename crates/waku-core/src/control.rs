@@ -13,6 +13,7 @@ use waku_protocol::control::*;
 mod gateway_inbox;
 mod inbox;
 pub(crate) mod inbox_history;
+mod notifications;
 
 pub struct ControlStore {
     path: PathBuf,

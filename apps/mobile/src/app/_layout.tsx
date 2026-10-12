@@ -57,8 +57,13 @@ const floatingHeader = {
 export default function RootLayout() {
   useEffect(
     () =>
-      listenForGatewayNotifications((taskId) => {
-        router.push({ pathname: "/gateway-task/[id]", params: { id: taskId } });
+      listenForGatewayNotifications((destination) => {
+        if (destination.scope === "inbox") router.push("/gateway-portfolio");
+        else
+          router.push({
+            pathname: "/gateway-task/[id]",
+            params: { id: destination.taskId },
+          });
       }),
     [],
   );

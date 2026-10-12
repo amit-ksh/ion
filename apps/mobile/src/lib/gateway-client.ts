@@ -1,3 +1,4 @@
+import type { PushTopic } from "@waku/client";
 import {
   validateInboxCommand,
   type InboxCommand,
@@ -238,12 +239,18 @@ export async function gatewayTasks(pairing: GatewayPairing): Promise<{
   });
 }
 
+function pushPath(topic: PushTopic): string {
+  if (topic !== "taskRequests" && topic !== "inbox")
+    throw new Error("Invalid notification topic");
+  return topic === "inbox" ? "/v1/device/inbox/push" : "/v1/device/push";
+}
 export async function gatewayPushStatus(
   pairing: GatewayPairing,
+  topic: PushTopic = "taskRequests",
 ): Promise<boolean> {
   const result = await request<{ enabled: boolean }>(
     pairing.baseUrl,
-    "/v1/device/push",
+    pushPath(topic),
     { headers: deviceHeaders(pairing) },
   );
   return result.enabled === true;
@@ -252,8 +259,9 @@ export async function gatewayPushStatus(
 export async function registerGatewayPush(
   pairing: GatewayPairing,
   token: string,
+  topic: PushTopic = "taskRequests",
 ): Promise<void> {
-  await request(pairing.baseUrl, "/v1/device/push", {
+  await request(pairing.baseUrl, pushPath(topic), {
     method: "PUT",
     headers: { ...deviceHeaders(pairing), "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
@@ -262,8 +270,9 @@ export async function registerGatewayPush(
 
 export async function unregisterGatewayPush(
   pairing: GatewayPairing,
+  topic: PushTopic = "taskRequests",
 ): Promise<void> {
-  await request(pairing.baseUrl, "/v1/device/push", {
+  await request(pairing.baseUrl, pushPath(topic), {
     method: "DELETE",
     headers: deviceHeaders(pairing),
   });

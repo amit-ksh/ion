@@ -26,3 +26,5 @@ export * from "./gateway-history";
 export * from "./gateway-inbox";
 
 export * from "./cloud-budgets";
+
+export * from "./gateway-notifications";

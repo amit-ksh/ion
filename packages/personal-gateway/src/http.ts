@@ -156,6 +156,7 @@ export function createGatewayHandler(
             automationRelay: automations ? 1 : 0,
             portfolioRelay: portfolio ? 1 : 0,
             inboxControl: inbox ? 1 : 0,
+            inboxNotifications: 1,
           },
         });
       if (path === "/owner" && method === "GET")
@@ -581,23 +582,46 @@ export function createGatewayHandler(
         }
         throw new HttpFailure(404, "Not found");
       }
+      if (path === "/v1/device/inbox/publication" && method === "GET") {
+        const identity = authorizedDevice(request, authority, "publish");
+        return json({ after: push.publicationCursor(identity.id) });
+      }
+      if (path === "/v1/device/inbox/publication" && method === "PUT") {
+        const identity = authorizedDevice(request, authority, "publish");
+        const input = await body(request);
+        if (Object.keys(input).join(",") !== "batch")
+          throw new HttpFailure(400, "Invalid notification publication");
+        return json(push.publishInbox(identity.id, input.batch));
+      }
       if (path === "/v1/device/tasks" && method === "GET") {
         authorizedDevice(request, authority, "taskRead");
         return json(relay.listTasks());
       }
-      if (path === "/v1/device/push" && method === "GET") {
-        const identity = authorizedDevice(request, authority, "taskRead");
-        return json({ enabled: push.isRegistered(identity.id) });
-      }
-      if (path === "/v1/device/push" && method === "PUT") {
-        const identity = authorizedDevice(request, authority, "taskRead");
-        const input = await body(request);
-        push.register(identity.id, string(input.token));
-        return json({ enabled: true });
-      }
-      if (path === "/v1/device/push" && method === "DELETE") {
-        const identity = authorizedDevice(request, authority, "taskRead");
-        push.unregister(identity.id);
+      if (
+        (path === "/v1/device/push" || path === "/v1/device/inbox/push") &&
+        ["GET", "PUT", "DELETE"].includes(method)
+      ) {
+        const topic =
+          path === "/v1/device/inbox/push"
+            ? "inbox"
+            : (url.searchParams.get("topic") ?? "taskRequests");
+        if (topic !== "taskRequests" && topic !== "inbox")
+          throw new HttpFailure(400, "Invalid push topic");
+        const identity = authorizedDevice(
+          request,
+          authority,
+          topic === "inbox" ? "inboxRead" : "taskRead",
+        );
+        if (method === "GET")
+          return json({ enabled: push.isRegistered(identity.id, topic) });
+        if (method === "PUT") {
+          const input = await body(request);
+          if (Object.keys(input).join(",") !== "token")
+            throw new HttpFailure(400, "Invalid push registration");
+          push.register(identity.id, string(input.token), topic);
+          return json({ enabled: true });
+        }
+        push.unregister(identity.id, topic);
         return json({ enabled: false });
       }
       if (path === "/v1/device/heartbeat" && method === "POST") {

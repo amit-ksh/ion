@@ -916,3 +916,44 @@ impl GatewayApi {
         Ok(())
     }
 }
+
+impl GatewayApi {
+    pub fn has_inbox_notifications(&self) -> Result<bool> {
+        let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
+        Ok(health["features"]["inboxNotifications"].as_u64() == Some(1))
+    }
+    pub fn inbox_publication_cursor(&self) -> Result<Option<u64>> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Cursor {
+            after: Option<u64>,
+        }
+        let reply: Cursor =
+            self.request(reqwest::Method::GET, "v1/device/inbox/publication", None)?;
+        anyhow::ensure!(
+            reply.after.is_none_or(|v| v <= 9_007_199_254_740_991),
+            "Invalid notification cursor"
+        );
+        Ok(reply.after)
+    }
+    pub fn publish_inbox_notifications(&self, batch: serde_json::Value) -> Result<()> {
+        let next = batch["next"]
+            .as_u64()
+            .context("Missing notification cursor")?;
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Receipt {
+            next: u64,
+        }
+        let reply: Receipt = self.request(
+            reqwest::Method::PUT,
+            "v1/device/inbox/publication",
+            Some(serde_json::json!({"batch":batch})),
+        )?;
+        anyhow::ensure!(
+            reply.next == next,
+            "Notification publication receipt changed"
+        );
+        Ok(())
+    }
+}
