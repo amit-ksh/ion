@@ -180,12 +180,13 @@ pub(super) fn execute(
             } else {
                 format!("{name}.{format}")
             };
-            store.import_document(
+            store.publish_generated_document(
                 snapshot.revision,
                 name,
                 format.into(),
-                Some(context.project_id),
-                Some(context.task_id),
+                context.project_id,
+                context.task_id,
+                call.id.clone(),
                 content.as_bytes().to_vec(),
             )?;
             "Generated document saved in Artifacts.".into()

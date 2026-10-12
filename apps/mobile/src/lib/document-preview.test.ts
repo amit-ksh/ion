@@ -50,3 +50,28 @@ test("raw HTML inside Markdown stays readable and inert", () => {
   expect(rows[0].node?.type).toBe("paragraph");
   expect(JSON.stringify(rows[0].node)).toContain("<script>");
 });
+
+test("reading text does not require a browser TextEncoder in the native runtime", () => {
+  const original = globalThis.TextEncoder;
+  try {
+    Object.assign(globalThis, { TextEncoder: undefined });
+    expect(
+      documentPreviewRows("txt", "नमस्ते", true)
+        .map((row) => row.text)
+        .join(""),
+    ).toBe("नमस्ते");
+  } finally {
+    Object.assign(globalThis, { TextEncoder: original });
+  }
+});
+
+test("JSON reading retains bounded complete source when formatting would expand it", () => {
+  for (const text of [
+    "[".repeat(1000) + "1" + "]".repeat(1000),
+    "[" + Array(4000).fill("1e20").join(",") + "]",
+  ]) {
+    const rows = documentPreviewRows("json", text, true);
+    expect(rows.map((row) => row.text).join("")).toBe(text);
+    expect(rows.every((row) => row.text.length <= 1000)).toBe(true);
+  }
+});

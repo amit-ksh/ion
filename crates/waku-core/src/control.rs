@@ -10,6 +10,7 @@ use std::{
 use uuid::Uuid;
 use waku_protocol::control::*;
 
+mod artifact_library;
 mod gateway_inbox;
 mod inbox;
 pub(crate) mod inbox_history;
@@ -190,6 +191,7 @@ impl ControlStore {
         db.busy_timeout(Duration::from_secs(5))?;
         db.execute_batch("CREATE TABLE IF NOT EXISTS ion_control_records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ion_control_kind ON ion_control_records(kind); CREATE TABLE IF NOT EXISTS ion_control_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL); INSERT OR IGNORE INTO ion_control_revision VALUES(1,0);")?;
         inbox_history::install_control(&db)?;
+        artifact_library::schema(&db)?;
         crate::usage_ledger::schema(&db)?;
         crate::cloud_spending::schema(&db)?;
         crate::cloud_billing::schema(&db)?;
@@ -240,6 +242,35 @@ impl ControlStore {
             task_id,
             bytes,
             ArtifactProvenance::default(),
+        )
+    }
+    /// Only the trusted native tool call supplies publisher provenance.
+    pub(crate) fn publish_generated_document(
+        &self,
+        revision: u64,
+        name: String,
+        format: String,
+        project: Uuid,
+        task: Uuid,
+        call_id: String,
+        bytes: Vec<u8>,
+    ) -> Result<ControlSnapshot> {
+        ensure!(
+            !project.is_nil() && !task.is_nil() && !call_id.is_empty() && call_id.len() <= 512,
+            "Generated document needs trusted task/tool provenance"
+        );
+        self.publish_document(
+            revision,
+            name,
+            format,
+            Some(project),
+            Some(task),
+            bytes,
+            ArtifactProvenance {
+                origin: ArtifactOrigin::AgentGenerated,
+                activity_id: Some(call_id),
+                ..Default::default()
+            },
         )
     }
     fn publish_document(

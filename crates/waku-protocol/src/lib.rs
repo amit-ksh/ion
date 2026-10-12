@@ -26,6 +26,7 @@ macro_rules! tr {
     };
 }
 
+pub mod artifact_library;
 pub mod attachments;
 pub mod blob;
 pub mod checkpoint;

@@ -870,6 +870,12 @@ impl Backend for WakuBackend {
             Command::ImportWorkspaceArtifact { .. } => bail!(
                 "Artifacts are published by agents. Ask a task or team to create the document."
             ),
+            Command::ListArtifactLibrary { query } => Ok(ResponsePayload::ArtifactLibrary {
+                page: self.control.list_artifacts(&query)?,
+            }),
+            Command::ReadArtifactDocument { query } => Ok(ResponsePayload::ArtifactDocument {
+                document: self.control.read_artifact_document(&query)?,
+            }),
             Command::ReadWorkspaceArtifact { id } => Ok(ResponsePayload::BlobData {
                 bytes: self.control.read_document(id)?,
             }),
@@ -2665,6 +2671,8 @@ fn handle_driver_command(
         | Command::PreviewRoutineSchedule { .. }
         | Command::GenerateWorkflow { .. }
         | Command::ImportWorkspaceArtifact { .. }
+        | Command::ListArtifactLibrary { .. }
+        | Command::ReadArtifactDocument { .. }
         | Command::ReadWorkspaceArtifact { .. }
         | Command::SaveTaskState { .. }
         | Command::RemoveSession

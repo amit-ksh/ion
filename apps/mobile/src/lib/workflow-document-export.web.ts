@@ -1,23 +1,20 @@
 import type { WorkflowDocument } from "@waku/client";
-import { workflowExportName } from "./gateway-workflow-document";
+import {
+  workflowExportName,
+  workflowDocumentMime,
+} from "./gateway-workflow-document";
 export async function exportWorkflowDocument(
-  record: WorkflowDocument,
+  record: Pick<WorkflowDocument, "name" | "format" | "id">,
   bytes: Uint8Array,
   current: () => boolean,
 ): Promise<void> {
   if (!current()) throw new Error("Document export scope changed");
-  const mime =
-    record.format === "pdf"
-      ? "application/pdf"
-      : record.format === "html"
-        ? "text/html"
-        : record.format === "json"
-          ? "application/json"
-          : "text/plain";
+  const mime = workflowDocumentMime(record.format);
   const url = URL.createObjectURL(
     new Blob([bytes.slice().buffer], { type: mime }),
   );
   try {
+    if (!current()) throw new Error("Document export scope changed");
     const link = document.createElement("a");
     link.href = url;
     link.download = workflowExportName(record, Date.now().toString());
