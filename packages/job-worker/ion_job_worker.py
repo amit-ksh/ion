@@ -3,6 +3,7 @@
 import base64
 import ctypes
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -246,6 +247,35 @@ def stop_tree(process):
         reap_descendants()
 
 
+def verify_group_approval():
+    encoded = os.environ.get('ION_JOB_RESOURCE_LIMITS')
+    if encoded is None:
+        return
+    if len(encoded) > 1024:
+        raise ValueError('Child resource policy exceeds its bound')
+    limits = json.loads(encoded)
+    if not isinstance(limits, dict):
+        raise ValueError('Invalid child resource policy')
+    if 'group' not in limits:
+        return
+    guard = Path('/usr/local/libexec/ion-job-guard.py')
+    info = guard.lstat()
+    if (guard.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+        or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) & 0o022):
+        raise ValueError('Trusted resource guard unavailable')
+    for parent in guard.parents:
+        info = parent.lstat()
+        if parent.is_symlink() or not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError('Trusted resource guard directory unavailable')
+    spec = importlib.util.spec_from_file_location('ion_fixed_group_guard', guard)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        module.verify_resource_group(limits['group'])
+    except (module.BoundaryError, OSError, ValueError):
+        raise ValueError('Approved sandbox resource group unavailable') from None
+
+
 def run(request, workspace, project_data=None):
     # The remote VM/container is the isolation boundary. No local runtime invokes this worker.
     inputs = [(name,data,False) for name,data in validate(request)]
@@ -263,6 +293,7 @@ def run(request, workspace, project_data=None):
         if os.geteuid() != 0 or uid <= 0 or gid <= 0:
             raise ValueError('Use a trusted root supervisor and nonroot command identity')
         identity = (uid, gid)
+        verify_group_approval()
 
     home = root.parent / 'home'
     home.mkdir(mode=0o700)

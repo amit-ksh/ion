@@ -126,6 +126,75 @@ def install_filter(lib):
         lib.seccomp_release(context)
 
 
+def group_policy(value):
+    if (not isinstance(value, dict) or set(value) != {'version', 'cpu_millis', 'memory_bytes', 'processes'}
+        or any(type(v) is not int for v in value.values()) or value['version'] != 1
+        or not 100 <= value['cpu_millis'] <= 32000
+        or not 64*1024*1024 <= value['memory_bytes'] <= 8*1024*1024*1024
+        or not 2 <= value['processes'] <= 256):
+        raise BoundaryError()
+    return value
+
+
+def group_values(policy, cpu, memory, swap, processes):
+    # Integer comparisons preserve fractional CPU quotas without floating rounding.
+    policy = group_policy(policy)
+    values = cpu.split()
+    if len(values) != 2 or not all(re.fullmatch(r'[0-9]{1,12}', v) for v in values):
+        raise BoundaryError()
+    quota, period = map(int, values)
+    if (not 1000 <= period <= 1000000 or quota < 1
+        or quota*1000 > policy['cpu_millis']*period):
+        raise BoundaryError()
+    for actual, maximum in [(memory, policy['memory_bytes']), (processes, policy['processes'])]:
+        if not re.fullmatch(r'[0-9]{1,20}', actual) or not 1 <= int(actual) <= maximum:
+            raise BoundaryError()
+    if swap != '0':
+        raise BoundaryError()
+
+
+def verify_resource_group(policy):
+    # Read the private sandbox's kernel cgroup root, never an owner/model file path.
+    # Both supervisor and fixed demoted launcher verify before any user code runs.
+    group_policy(policy)
+    if sys.platform != 'linux':
+        raise BoundaryError()
+    with open('/proc/self/cgroup', 'rb') as source:
+        membership = source.read(4097)
+    if membership != b'0::/\n':
+        raise BoundaryError()
+    root = Path('/sys/fs/cgroup')
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        info = os.fstat(descriptor)
+        if info.st_uid != 0 or stat.S_IMODE(info.st_mode) & 0o022:
+            raise BoundaryError()
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.fstatfs.argtypes = [ctypes.c_int, ctypes.c_void_p]
+        libc.fstatfs.restype = ctypes.c_int
+        buffer = ctypes.create_string_buffer(512)
+        if libc.fstatfs(descriptor, buffer) != 0 or ctypes.c_long.from_buffer(buffer).value != 0x63677270:
+            raise BoundaryError()
+        def read(name):
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor)
+            with os.fdopen(fd, 'rb') as source:
+                file = os.fstat(source.fileno())
+                if not stat.S_ISREG(file.st_mode) or file.st_uid != 0 or stat.S_IMODE(file.st_mode) & 0o022:
+                    raise BoundaryError()
+                data = source.read(4097)
+            if len(data) > 4096:
+                raise BoundaryError()
+            return data.decode('ascii').strip()
+        if read('cgroup.type') != 'domain':
+            raise BoundaryError()
+        # Migration/create controls must also be root-owned and unavailable to the child UID.
+        read('cgroup.procs')
+        read('cgroup.subtree_control')
+        group_values(policy, read('cpu.max'), read('memory.max'), read('memory.swap.max'), read('pids.max'))
+    finally:
+        os.close(descriptor)
+
+
 def install_resources():
     # Old saved jobs omit the policy. New owner launches require it explicitly;
     # this preserves exact historical request/recovery and GPU image contracts.
@@ -135,14 +204,16 @@ def install_resources():
     if len(encoded) > 1024:
         raise BoundaryError()
     limits = json.loads(encoded)
-    if (not isinstance(limits, dict) or set(limits) != {'version', 'cpu_seconds',
+    if (not isinstance(limits, dict) or set(limits) - {'group'} != {'version', 'cpu_seconds',
         'address_space_bytes', 'max_file_bytes', 'processes', 'open_files'}
-        or any(type(v) is not int for v in limits.values()) or limits['version'] != 1
+        or any(type(v) is not int for key, v in limits.items() if key != 'group') or limits['version'] != 1
         or not 1 <= limits['cpu_seconds'] <= 120
         or not 64*1024*1024 <= limits['address_space_bytes'] <= 8*1024*1024*1024
         or not 64*1024 <= limits['max_file_bytes'] <= 1024*1024*1024
         or not 1 <= limits['processes'] <= 256 or not 16 <= limits['open_files'] <= 256):
         raise BoundaryError()
+    if 'group' in limits:
+        verify_resource_group(limits['group'])
     import resource
     for kind, name in [(resource.RLIMIT_CPU, 'cpu_seconds'),
                        (resource.RLIMIT_AS, 'address_space_bytes'),

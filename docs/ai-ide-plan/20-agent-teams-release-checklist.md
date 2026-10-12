@@ -750,3 +750,11 @@ Native document final gates passed: locked desktop/daemon/worker compilation, Ru
 - [x] 268 distinct checkpoint tests pass; merged gateway70 and phone/shared28, full TypeScript, protocol43 freshness and formatting/source checks rerun after approval-review recovery.
 - [ ] Complete [gateway remote owner review](43-gateway-remote-controls.md).
 - [ ] Finish broader host/GPU/resource/egress, billing settlement and direct-phone document rendering parity.
+
+## 2026-10-12 — aggregate command sandbox caps
+
+- [x] Optional pinned owner group policy and exact image marker; historic policy/body signatures preserved when absent.
+- [x] Supervisor/guard verify finite cgroup2 CPU/memory/no-swap/task controls before arbitrary code, with nonroot children unable to change/migrate limits.
+- [x] 69 tests pass, including actual Linux CPU throttling, shared fork limits and memory OOM accounting; 3 explicit fixture gates remain unrun.
+- [ ] Accept the exact managed runtime, rebuild/import immutable images and configure actual caps using [the resource review](45-sandbox-resource-groups.md).
+- [ ] Finish cross-run host/project admission, aggregate storage and wider device/egress/GPU/CUDA enforcement.

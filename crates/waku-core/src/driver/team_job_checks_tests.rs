@@ -716,6 +716,7 @@ fn approve_project(f: &mut Fixture) {
         max_file_bytes: 16 * 1024 * 1024,
         processes: 256,
         open_files: 64,
+        group: None,
     });
     f.policy.project_snapshot = Some(project_policy());
 }

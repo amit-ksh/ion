@@ -328,7 +328,7 @@ sys.exit(9)
         self.assertEqual(manifest,{'version':1,'worker':'ion-job-worker/1','credential_free':True,
                                    'network':'disabled','supervisor':'root','child':'nonroot',
                                    'network_boundary':'linux-seccomp-socket-deny/v1',
-                                   'resource_boundary':'linux-rlimit/v1','project_snapshot':'ion-project-archive/v1'})
+                                   'resource_boundary':'linux-rlimit/v1','project_snapshot':'ion-project-archive/v1','resource_group_boundary':'linux-cgroup2-sandbox/v1'})
         for arg in ['--help','--version']:
             result = subprocess.run([BINARY,arg],capture_output=True,timeout=5)
             self.assertEqual(result.returncode,0)

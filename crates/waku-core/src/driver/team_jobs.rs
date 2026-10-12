@@ -47,6 +47,16 @@ struct ResourceLimits {
     max_file_bytes: u64,
     processes: u32,
     open_files: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group: Option<ResourceGroupLimits>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResourceGroupLimits {
+    version: u16,
+    cpu_millis: u32,
+    memory_bytes: u64,
+    processes: u32,
 }
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -118,6 +128,16 @@ fn validate_policy(p: &Policy) -> Result<()> {
             "Command child resource policy exceeds its bound"
         );
     }
+    if let Some(group) = p.resources.as_ref().and_then(|r| r.group.as_ref()) {
+        ensure!(
+            group.version == 1
+                && (100..=32000).contains(&group.cpu_millis)
+                && (64 * 1024 * 1024..=8 * 1024 * 1024 * 1024).contains(&group.memory_bytes)
+                && (2..=256).contains(&group.processes)
+                && group.processes <= p.resources.as_ref().unwrap().processes,
+            "Sandbox aggregate resource policy exceeds its bound"
+        );
+    }
     let mut seen = HashSet::new();
     for executable in &p.executables {
         ensure!(
@@ -173,8 +193,17 @@ fn manifest(client: &Client, p: &Policy) -> Result<Value> {
     let original = json!({"version":1,"worker":"ion-job-worker/1","credential_free":true,"network":"disabled","supervisor":"root","child":"nonroot","network_boundary":"linux-seccomp-socket-deny/v1","resource_boundary":"linux-rlimit/v1"});
     let mut extended = original.clone();
     extended["project_snapshot"] = json!("ion-project-archive/v1");
+    let mut original_group = original.clone();
+    original_group["resource_group_boundary"] = json!("linux-cgroup2-sandbox/v1");
+    let mut extended_group = extended.clone();
+    extended_group["resource_group_boundary"] = json!("linux-cgroup2-sandbox/v1");
+    let group_approved = p.resources.as_ref().is_some_and(|r| r.group.is_some());
     ensure!(
-        host == original || host == extended,
+        if group_approved {
+            host == original_group || host == extended_group
+        } else {
+            host == original || host == extended || host == original_group || host == extended_group
+        },
         "Command worker/image contract changed"
     );
     Ok(host)
@@ -795,6 +824,77 @@ mod tests {
             max_file_bytes: 16 * 1024 * 1024,
             processes: 256,
             open_files: 64,
+            group: None,
+        }
+    }
+    fn group_limits() -> ResourceGroupLimits {
+        ResourceGroupLimits {
+            version: 1,
+            cpu_millis: 500,
+            memory_bytes: 128 * 1024 * 1024,
+            processes: 32,
+        }
+    }
+    #[test]
+    fn team_job_group_resource_policy_is_owner_pinned_and_bounded() {
+        let mut f = Fixture::new(true, true);
+        let legacy = serde_json::to_value(&f.policy).unwrap();
+        f.policy.resources = Some(child_limits());
+        assert!(
+            serde_json::to_value(f.policy.resources.as_ref().unwrap())
+                .unwrap()
+                .get("group")
+                .is_none()
+        );
+        f.policy.resources.as_mut().unwrap().group = Some(group_limits());
+        validate_policy(&f.policy).unwrap();
+        let value = body(&f.policy, &f.request).unwrap();
+        let encoded = value["env"]["ION_JOB_RESOURCE_LIMITS"].as_str().unwrap();
+        let limits: Value = serde_json::from_str(encoded).unwrap();
+        assert_eq!(
+            limits["group"],
+            json!({"version":1,"cpu_millis":500,"memory_bytes":134217728,"processes":32})
+        );
+        assert!(legacy.get("resources").is_none());
+        for (field, invalid) in [
+            ("version", 2),
+            ("cpu_millis", 0),
+            ("cpu_millis", 32001),
+            ("memory_bytes", 1),
+            ("memory_bytes", 8u64 * 1024 * 1024 * 1024 + 1),
+            ("processes", 1),
+            ("processes", 257),
+        ] {
+            let mut bad = serde_json::to_value(&f.policy).unwrap();
+            bad["resources"]["group"][field] = invalid.into();
+            let policy: Policy = serde_json::from_value(bad).unwrap();
+            assert!(validate_policy(&policy).is_err(), "{field}");
+        }
+        f.policy.resources.as_mut().unwrap().processes = 16;
+        assert!(validate_policy(&f.policy).is_err());
+    }
+    #[test]
+    fn team_job_group_approval_requires_exact_image_manifest_before_reservation() {
+        let mut f = Fixture::new(true, true);
+        f.policy.resources = Some(child_limits());
+        f.policy.resources.as_mut().unwrap().group = Some(group_limits());
+        let shipped: Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/job-worker/job-host.json"
+        )))
+        .unwrap();
+        for accepted in [true, false] {
+            let mut host = shipped.clone();
+            if !accepted {
+                host.as_object_mut()
+                    .unwrap()
+                    .remove("resource_group_boundary");
+            }
+            let server = Server::new(vec![(200, bytes(host))]);
+            let client = Client::fixture(&server.url, "fixture-project");
+            assert_eq!(manifest(&client, &f.policy).is_ok(), accepted);
+            assert_eq!(server.finish().len(), 1);
+            assert!(!f.store.has_pending_effect(f.claim.lease.run_id()).unwrap());
         }
     }
     #[test]

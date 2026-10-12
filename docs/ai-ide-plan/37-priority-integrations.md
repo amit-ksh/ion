@@ -55,6 +55,8 @@ Deployment/native TLS and recognition acceptance remain unverified.
 - [x] **Remote inventory:** bounded cross-project owner/direct-phone collection,
       original-run navigation and stop/cleanup distinctions. See [inventory](40-remote-execution-controls.md)
       and [merged gateway phone parity](43-gateway-remote-controls.md).
+- [x] **Command sandbox aggregate caps:** owner-pinned cgroup2 CPU/memory/no-swap/task
+      verification and real local kernel enforcement tests. See [resource groups](45-sandbox-resource-groups.md).
 - [ ] **Broader remote controls:** aggregate host/project CPU/RAM/process/storage
       and egress enforcement and wider lifecycle recovery controls;
       finish GPU device/FUSE/CUDA and image/runtime gates for remaining training work.

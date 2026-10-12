@@ -292,7 +292,6 @@ Review the full [project transfer and retention checklist](../../docs/ai-ide-pla
 before registering/importing it. Namespace blob lifetime/deletion and live
 provider execution have not been accepted here.
 
-
 ## 2026-10-08: Windows executable project snapshots
 
 Windows owners preserve the tracked Git executable bit in project archives.
@@ -326,3 +325,18 @@ The successful fixture export includes `host-executable-request.json` and
 
 Git mode source: [ls-files stage metadata](https://git-scm.com/docs/git-ls-files)
 and [update-index executable bits](https://git-scm.com/docs/git-update-index).
+
+## Verified aggregate sandbox caps (2026-10-12)
+
+The optional `resources.group` approval verifies real cgroup2 CPU bandwidth,
+charged memory (with no swap) and process/thread caps across the supervisor and
+all command descendants. The image requires the exact
+`resource_group_boundary: linux-cgroup2-sandbox/v1` marker. The supervisor and
+demoted guard both verify kernel controls before arbitrary code; malformed,
+unlimited, relaxed or unsupported runtime caps fail. This reads existing settings
+and does not provision or reconfigure the host. Historic missing fields keep
+original request/recovery behavior.
+
+[Configuration, native evidence, boundaries and later review](../../docs/ai-ide-plan/45-sandbox-resource-groups.md).
+Cross-run admission, storage totals, GPU/VRAM and real managed-runtime acceptance
+remain separate work.
