@@ -6,11 +6,13 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use waku_protocol::cloud_billing::*;
 mod decimal;
+mod discovery;
 mod focus;
 #[cfg(test)]
 mod tests;
 mod transport;
 pub(crate) fn schema(db: &Connection) -> Result<()> {
+    discovery::schema(db)?;
     db.execute_batch("CREATE TABLE IF NOT EXISTS ion_cloud_billing_scopes(id TEXT PRIMARY KEY,account_id TEXT NOT NULL,contract_id TEXT NOT NULL,currency TEXT NOT NULL,revision INTEGER NOT NULL,body TEXT NOT NULL,UNIQUE(account_id,contract_id,currency));")?;
     let columns: Vec<String> = db
         .prepare("PRAGMA table_info(ion_cloud_billing_scopes)")?

@@ -191,6 +191,9 @@ pub enum Command {
         scope: crate::cloud_billing::CloudBillingScope,
         expected_revision: Option<u64>,
     },
+    DiscoverCloudBillingExports {
+        query: crate::cloud_billing::CloudBillingExportQuery,
+    },
     SyncCloudBillingReport {
         scope_id: Uuid,
         expected_revision: u64,
@@ -639,6 +642,9 @@ pub enum ResponsePayload {
     },
     CloudBillingScope {
         status: crate::cloud_billing::CloudBillingScopeStatus,
+    },
+    CloudBillingExports {
+        page: crate::cloud_billing::CloudBillingExportPage,
     },
     CloudBillingReport {
         report: crate::cloud_billing::CloudBillingReport,
