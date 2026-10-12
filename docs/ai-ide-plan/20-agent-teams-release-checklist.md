@@ -771,3 +771,18 @@ Native document final gates passed: locked desktop/daemon/worker compilation, Ru
 - [ ] Implement native phone HTML/PDF rendering, wider resource/GPU controls and remaining billing reconciliation; complete actual speech deployment/device acceptance.
 
 The full implementation remains in progress on `codex/ion-agent-teams`; no `ion-prod` merge or live deployment is included.
+
+## 2026-10-12 — combined protocol45 integration checkpoint
+
+- [x] Commit shared native PDF rendering and verified direct-phone page/zoom controls at `91a03a9`.
+- [x] Merge independent phone HTML Reading `84016e8` at `fe47f6d`; cache post-hash semantic reading/source rows outside render.
+- [x] Merge independent billing discovery `c3ad30f` at `72ba192`; explicit existing ready-report selection followed by separate Sync.
+- [x] Regenerate combined protocol **45** bindings from this checkout and pass binding freshness.
+- [x] 197 distinct tests pass: protocol110, core billing27, artifact10, renderer5, phone43 and native billing reply2.
+- [x] Fresh merged core/protocol verification, locked desktop/daemon/worker compilation, full TypeScript, formatting and source checks pass.
+- [ ] Upgrade phone/desktop/daemon together; complete [billing review](46-billing-export-discovery.md#owner-setup-and-review), [HTML review](47-phone-html-reading.md#ownerdevice-review-checklist) and [PDF review](48-phone-pdf-pages.md#owner-review-later).
+- [ ] Complete owner IAM vault/refresh, original job/account/tariff/finality reconciliation and retained storage/transfer policy.
+- [ ] Finish wider host/project/storage/egress/GPU/CUDA controls, gateway PDF page transport and larger document/publication contracts.
+- [ ] Supply a real speech deployment target and complete macOS/physical-device/live provider acceptance. No such deployment/resource was used for this checkpoint.
+
+This completes the described integration increment, not the full Ion implementation. Additional harness adapters remain deferred, and these changes have not been merged into `ion-prod`.

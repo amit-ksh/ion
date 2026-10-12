@@ -49,9 +49,13 @@ Deployment/native TLS and recognition acceptance remain unverified.
       snapshots, historical provenance and desktop/direct-phone/gateway reads.
       See [native reports](38-nebius-billing-reports.md) and
       [gateway history](39-gateway-billing-history.md).
-- [ ] **Billing reconciliation:** credential refresh/discovery and original
-      job/account/tariff/finality reconciliation. Do not infer a final invoice or
-      release a hold from a job terminal state or a completed export.
+- [x] **Billing export discovery:** bounded explicit native GET of existing ready
+      single-month FOCUS exports for the saved contract. Select an export, then use
+      the separate Sync action. [Discovery setup/review](46-billing-export-discovery.md).
+- [ ] **Billing reconciliation:** owner credential vault/refresh, original
+      job/account/tariff/finality reconciliation and retained storage/transfer policy.
+      Do not infer a final invoice or release a hold from a job terminal state or a
+      completed export. Direct-phone discovery and scheduled sync are separate work.
 - [x] **Remote inventory:** bounded cross-project owner/direct-phone collection,
       original-run navigation and stop/cleanup distinctions. See [inventory](40-remote-execution-controls.md)
       and [merged gateway phone parity](43-gateway-remote-controls.md).
@@ -133,6 +137,13 @@ adds desktop connections/sync and direct-phone account/export/charge history.
 Reported exact charges, scoped immutable identity, snapshot replacement and
 original resource attribution are implemented. [Gateway billing redaction and
 history](39-gateway-billing-history.md) and [cross-project remote inventory](40-remote-execution-controls.md)
-are also implemented. Provider/live acceptance, credential refresh/discovery,
-job/tariff/finality reconciliation, wider GPU/resource/egress controls and shared
-speech acceptance remain open. The whole implementation goal remains active.
+are also implemented. Existing export discovery and phone document reading/pages
+are added in [discovery](46-billing-export-discovery.md), [HTML Reading](47-phone-html-reading.md)
+and [PDF pages](48-phone-pdf-pages.md). Provider/device acceptance, owner credential
+vault/refresh, original job/account/tariff/finality reconciliation, wider GPU/resource/
+egress controls and actual shared speech deployment remain open. The full implementation
+remains in progress.
+
+## Latest combined checkpoint: protocol45
+
+Billing discovery and phone HTML/PDF integrations are merged and verified: **197 distinct tests pass**, with freshly rebuilt merged core/protocol, locked desktop/daemon/worker, complete TypeScript and binding freshness gates. See the [current release checklist](20-agent-teams-release-checklist.md#2026-10-12--combined-protocol45-integration-checkpoint). Physical-device/macOS/live acceptance and the remaining development listed above stay open.
