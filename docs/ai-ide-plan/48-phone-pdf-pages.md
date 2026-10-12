@@ -27,7 +27,7 @@ The existing parent route pins owner ID/address, client/connection/foreground an
 - The protocol test covers the exact source contract, byte serialization and refusal of private fields.
 - Seven phone PDF tests cover request/response scope, original item/page/zoom substitution, canonical encoding and SHA, static PNG boundaries, late read/hash and yielded large-decode cancellation. Existing library/export/reading regressions also run.
 
-Final test counts and merged compile/type/binding gates are recorded in the progress and release checklist after branch integration. Tests use local published PDF/image fixtures and the real Windows renderer. Native phone Image/UI, macOS and real paired-owner behavior are not established by these automated results. No watcher, visual test, deployment, provider credential, microphone or paid resource was used.
+The PDF checkpoint passed **49 tests**: 5 shared renderer, 10 owner artifact, 1 protocol and 33 phone PDF/library/export/reading tests. Locked desktop/daemon/worker compilation, complete TypeScript, protocol45 generation, formatting and source checks passed. After the HTML merge, all **43 phone document tests** pass together. Final combined billing integration gates are recorded in the progress and release checklist. Tests use local published PDF/image fixtures and the real Windows renderer. Native phone Image/UI, macOS and real paired-owner behavior are not established by these automated results. No watcher, visual test, deployment, provider credential, microphone or paid resource was used.
 
 ## Owner review later
 

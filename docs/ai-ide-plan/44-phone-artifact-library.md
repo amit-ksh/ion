@@ -1,5 +1,12 @@
 # Direct phone artifact library
 
+Later integration: [structured phone HTML Reading](47-phone-html-reading.md) and
+[verified direct-owner PDF pages](48-phone-pdf-pages.md) are now implemented in
+the combined branch at protocol **45**. The version44 evidence below describes
+the original library checkpoint. Upgrade current phone/owner builds together;
+gateway PDF rendering, browser CSS fidelity and actual device/macOS acceptance
+remain open.
+
 ## Implemented scope
 
 The native phone's task drawer now has **Artifacts** beside Inbox, Usage and

@@ -66,9 +66,14 @@ Deployment/native TLS and recognition acceptance remain unverified.
 - [x] **Direct-phone artifact library:** proven AI publication metadata, bounded
       project/task/format filters, verified Markdown/JSON/source reading and original
       chunked export. See [phone artifacts](44-phone-artifact-library.md).
+- [x] **Phone document reading:** structured offline native HTML Reading in direct
+      Artifacts and gateway workflow evidence; verified direct-owner native PDF pages,
+      page/zoom controls and exact original export. See [HTML Reading](47-phone-html-reading.md)
+      and [PDF pages](48-phone-pdf-pages.md).
 - [ ] **Document acceptance/parity:** macOS compile/render, native browser/device/UI
-      acceptance, additional publication formats/limits and native phone HTML/PDF
-      rendering. Phone source/export does not complete rendered-document parity.
+      acceptance, additional publication formats/limits, gateway PDF page transport
+      and full browser/CSS fidelity on phone. Structured Reading has an explicit
+      supported subset; it does not reproduce authored page styling.
 - [x] **Speech acceptance tooling:** executable bounded readiness and explicit
       recognition/concurrency checks; private launch preflight verifies pinned model
       bytes and stable client-compatible API name. [40 merged tests pass](41-speech-service-acceptance.md).
@@ -101,6 +106,8 @@ Existing detailed research: [GPU billing and identity](RESEARCH-nebius-gpu-price
       copy; both themes and long document names.
 - [ ] Changed/missing evidence refuses preview; navigating away during a read
       cannot reopen it. HTML scripts/image/link references cause no requests/actions.
+- [ ] Direct phone: current protocol45 owner, Artifacts filters, HTML Reading/Source,
+      PDF page/zoom/scroll, changed source and interrupted decode/digest/export.
 - [ ] Gateway phone: current publisher/run, reading/source toggles, background/
       pairing change while reading, revocation and exported content integrity.
 - [ ] Speech: Test without a microphone prompt; inventory-only service fails;

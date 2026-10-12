@@ -1,6 +1,6 @@
 # Agent teams: implementation progress and review checklist
 
-Updated 2026-10-11. Development branch: `codex/ion-agent-teams`, based on
+Updated 2026-10-12. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
 
