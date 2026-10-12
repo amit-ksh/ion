@@ -2,23 +2,45 @@
 Description=ion Nemotron 3.5 speech service
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
 
 [Service]
 Type=simple
 User=ion-speech
 Group=ion-speech
 Environment=HOME=/var/lib/ion-speech
+Environment=NEMO_SPEECH_MODEL_DIR=/var/lib/ion-speech/models
 EnvironmentFile=/etc/ion/speech.env
 WorkingDirectory=/var/lib/ion-speech
-ExecStart=/opt/ion-speech/bin/nemo-speech serve --host 127.0.0.1 --port 8080 --asr-model nemotron-3.5 --no-ui --max-upload-mb 50 --threads 4 --read-timeout 120 --write-timeout 120
+ExecStartPre=/opt/ion-speech/ion-speech-launch.sh --check
+ExecStart=/opt/ion-speech/ion-speech-launch.sh
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
 ReadWritePaths=/var/lib/ion-speech
 UMask=0077
+# Review these CPU/RAM/process ceilings against the owner's chosen VM and build.
+# They cap host resources, not CUDA device memory or model concurrency.
+CPUQuota=200%
+MemoryHigh=6G
+MemoryMax=8G
+TasksMax=128
+LimitNOFILE=4096
 
 [Install]
 WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+{
+  "name": "@ion/speech-acceptance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test acceptance/acceptance.test.mjs",
+    "check": "node --check accept.mjs"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  }
+}
