@@ -84,6 +84,30 @@ class PlanTests(unittest.TestCase):
             with self.assertRaises(landlock.BoundaryError):
                 landlock.plan(reads, writes, devices)
 
+    def test_only_explicit_static_driver_and_host_metadata_paths_are_accepted(self):
+        accepted = ['/proc/driver/nvidia', '/proc/driver/nvidia/gpus/0000:01:00.0/information',
+                    '/proc/driver/nvidia-caps/mig/config', '/proc/devices', '/proc/cpuinfo',
+                    '/sys/module/nvidia/initstate', '/sys/devices/soc0/family',
+                    '/sys/devices/system/cpu/online', '/sys/devices/system/node/node0/cpulist',
+                    '/sys/devices/pci0000:00/0000:00:01.0/vendor']
+        for path in accepted:
+            self.assertEqual(landlock.read_path(path), path)
+            landlock.plan([path], WRITES, [DEVICE])
+        denied = ['/proc', '/proc/driver', '/proc/driver/nvidia-other', '/proc/self/status',
+                  '/proc/self/fd', '/proc/thread-self/status', '/proc/123/fd/0',
+                  '/proc/123/fdinfo', '/proc/123/map_files', '/proc/123/mem',
+                  '/proc/driver/nvidia/fd', '/proc/driver/nvidia/gpus/mem',
+                  '/proc/sys', '/proc/net', '/sys', '/sys/devices', '/sys/module',
+                  '/sys/kernel/debug', '/sys/kernel/security', '/sys/fs/cgroup',
+                  '/sys/devices/pci0000:00/0000:00:01.0',
+                  '/sys/devices/pci0000:00/0000:00:01.0/resource0',
+                  '/sys/devices/pci0000:00/0000:00:01.0/config',
+                  '/sys/devices/pci-foreign/vendor', '/sys/class/drm/card0/device/vendor']
+        for path in denied:
+            with self.subTest(path=path):
+                with self.assertRaises(landlock.BoundaryError):
+                    landlock.plan([path], WRITES, [DEVICE])
+
     def test_masks_handle_denied_special_creation_and_minimal_ioctl(self):
         denied = (1 << 6) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12)
         self.assertEqual(landlock.HANDLED_FS & denied, denied)
@@ -381,6 +405,22 @@ denied_op(lambda:os.symlink(denied,str(pathlib.Path(roots[0])/'symlink')))
 denied_op(lambda:os.mknod(str(pathlib.Path(roots[0])/'device'),stat.S_IFCHR|0o600,os.makedev(1,3)))
 assert subprocess.run([sys.executable,'-I','-c','pass']).returncode==0
 p.unlink()
+""")
+
+    def test_explicit_proc_sys_metadata_is_readable_without_blanket_kernel_view(self):
+        self.child("""
+reads=['/usr','/etc/ld.so.cache','/proc/cpuinfo','/sys/devices/system/cpu/online']
+ll.install(reads,roots,[device])
+assert pathlib.Path('/proc/cpuinfo').read_bytes()
+assert pathlib.Path('/sys/devices/system/cpu/online').read_bytes()
+denied_op(lambda:open('/proc/meminfo','rb'))
+denied_op(lambda:open('/proc/self/status','rb'))
+denied_op(lambda:open('/sys/kernel/uevent_seqnum','rb'))
+denied_op(lambda:open('/proc/cpuinfo','wb'))
+# Docker mounts sysfs readonly: VFS may reject before the LSM write check.
+try: open('/sys/devices/system/cpu/online','wb')
+except OSError as e: assert e.errno in (errno.EACCES,errno.EPERM,errno.EROFS),e
+else: raise AssertionError('sysfs metadata became writable')
 """)
 
     def test_device_driver_ioctl_is_denied_without_approved_right(self):
