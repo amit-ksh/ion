@@ -4539,6 +4539,8 @@ fn remote_inventory_filters_and_cursor_scope_fences() {
     other_request.project_id = Uuid::new_v4();
     let other = f.store.prepare(other_request, 100).unwrap();
     let id = Uuid::new_v4();
+    f.claim(run.id, run.work[0].id);
+    remote_inventory_seed(&f, &run, Model, Uuid::new_v4(), "PENDING");
     remote_inventory_seed(&f, &run, Command, id, "canceling");
     remote_inventory_seed(&f, &other, Gpu, Uuid::new_v4(), "running");
     let mut query = remote_inventory_query();
@@ -4547,6 +4549,15 @@ fn remote_inventory_filters_and_cursor_scope_fences() {
     let page = f.store.list_remote_executions(query.clone()).unwrap();
     assert_eq!(page.entries.len(), 1);
     assert!(page.entries[0].stop_requested);
+    f.store
+        .stop(run.id, f.store.snapshot(run.id).unwrap().revision, 102)
+        .unwrap();
+    let mut model_query = query.clone();
+    model_query.kind = Some(Model);
+    let model = f.store.list_remote_executions(model_query).unwrap();
+    assert_eq!(model.entries.len(), 1);
+    assert!(model.entries[0].stop_requested);
+    assert!(!model.entries[0].settled);
     query.after = Some(RemoteExecutionCursor {
         kind: Command,
         request_id: id,

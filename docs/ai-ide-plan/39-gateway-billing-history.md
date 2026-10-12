@@ -46,3 +46,9 @@ No billable provider operation, real account credential, gateway deployment, phy
 ## Remaining scope
 
 Live provider import review needs a configured Nebius billing account and IAM access. Billing finality, matching cloud charges to Ion requests/resources and releasing GPU holds require a separate reconciliation contract. Gateway billing intentionally remains read-only. No new AI provider adapter is included.
+
+## Merged automated checkpoint
+
+The combined implementation passes 105 distinct tests: 68 gateway regression tests, 29 mobile/shared-client transport and reader tests, four native billing projection tests and four native remote inventory tests. Full mobile, gateway and shared-client TypeScript checks pass. These checks use test data and do not establish live-provider, UI or physical-device acceptance.
+
+Final merged gates passed: locked desktop/daemon/worker compile checks, current protocol-42 generated bindings, complete TypeScript checks, Rust/Prettier formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.

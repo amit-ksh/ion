@@ -35,3 +35,9 @@ Protocol version is **42**. Rebuild/reconnect the desktop daemon and phone clien
 The current sandbox API only declares a writable-layer size limit. Worker per-process CPU/address-space/file/process limits are implemented separately; this view adds no aggregate CPU/RAM allocation guarantee. Resource usage observations do not establish an enforced allocation.
 
 Production GPU enablement still needs verified aggregate budget/resource policy, network/egress and metadata/service-account boundaries, accepted images/tariffs and real lifecycle/cleanup evidence. The collection observes records already accepted by the existing guarded paths and does not weaken their launch gates. Gateway remote control/write authority and full phone recovery parity remain separate development items. No provider credentials, paid resource or live deployment were used.
+
+## Merged automated checkpoint
+
+The combined implementation passes 105 distinct tests: 68 gateway regression tests, 29 mobile/shared-client transport and reader tests, four native billing projection tests and four native remote inventory tests. Full mobile, gateway and shared-client TypeScript checks pass. These checks use test data and do not establish live-provider, UI or physical-device acceptance.
+
+Final merged gates passed: locked desktop/daemon/worker compile checks, current protocol-42 generated bindings, complete TypeScript checks, Rust/Prettier formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.

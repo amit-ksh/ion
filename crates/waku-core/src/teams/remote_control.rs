@@ -58,7 +58,7 @@ impl TeamCoordinator {
    'teamName',json_extract(r.body,'$.team.name'),'objective',json_extract(w.body,'$.objective'),
    'state',o.state,'remoteProject',o.project,'operationId',o.operation,'jobId',o.job_id,
    'cancellationOperationId',o.cancellation_operation,'cleanupState',o.cleanup_state,
-   'stopRequested',json(CASE WHEN o.stop_requested THEN 'true' ELSE 'false' END),
+   'stopRequested',json(CASE WHEN NOT o.settled AND (o.stop_requested OR r.status IN ('stopping','canceled') OR w.status='canceling') THEN 'true' ELSE 'false' END),
    'settled',json(CASE WHEN o.settled THEN 'true' ELSE 'false' END))
    FROM selected o JOIN ion_team_runs r ON r.id=o.run_id JOIN ion_team_work w ON w.id=o.work_id AND w.run_id=o.run_id
    ORDER BY o.kind,o.id LIMIT ?6"))?;

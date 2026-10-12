@@ -171,7 +171,7 @@ export default function RemoteExecutionsScreen() {
             <Text style={[styles.body, { color: theme.text }]}>
               {item.teamName} · {item.state} ·{" "}
               {item.settled
-                ? "Terminal receipt recorded"
+                ? "Terminal observation recorded"
                 : item.stopRequested
                   ? "Stop requested · awaiting terminal receipt"
                   : "Unresolved"}
@@ -187,6 +187,9 @@ export default function RemoteExecutionsScreen() {
                   ? " · Operation handle unavailable"
                   : ""}
               {item.jobId ? ` · Job ${item.jobId}` : ""}
+              {item.cancellationOperationId
+                ? ` · Cancellation operation ${item.cancellationOperationId}`
+                : ""}
               {item.cleanupState ? ` · Cleanup ${item.cleanupState}` : ""}
             </Text>
             <AutomationButton

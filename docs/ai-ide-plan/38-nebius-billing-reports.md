@@ -89,8 +89,8 @@ verified zero. These bounds and the actual archive shape need live acceptance.
 
 - [ ] Accept a real export/roles/archive layout and source precision with the chosen
   account; compare the displayed totals with the native report.
-- [ ] Add gateway billing views with explicit read grants and redacted private
-  billing references; no new gateway billing query is exposed by this checkpoint.
+- [x] Read-only gateway billing views with Usage read grants and redacted private
+  billing references were added in [39-gateway-billing-history.md](39-gateway-billing-history.md).
 - [ ] Add owner credential-vault/refresh and automatic discovery or scheduled report
   sync. Current imports use an explicit existing export ID and operator IAM setup.
 - [ ] Finish original-job/account/tariff reconciliation and retained cost policy,

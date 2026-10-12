@@ -3034,3 +3034,13 @@ acceptance. Existing Rust warnings remain.
 Desktop and direct-phone Usage now include a bounded cross-project inventory of sandbox model calls, commands and GPU jobs, with project/type/unresolved filters and original-run control navigation. Reads never call providers. Missing operation handles stay unresolved; GPU cancellation remains distinct from cleanup and monetary settlement. Protocol is **42**, with generated types updated. Background loading, virtualized rows, keyboard controls and stale owner/page fences are included.
 
 [Implementation and later review checklist](40-remote-execution-controls.md). The wider remote/GPU launch, aggregate resource/egress, rich HTML/PDF, billing reconciliation and speech deployment/device acceptance work remains open. Additional provider adapters remain deferred.
+
+## 2026-10-12 — independent gateway billing branch merged
+
+`codex/ion-gateway-billing` was implemented independently from the same baseline, committed as `3ac2e07`, then merged into `codex/ion-agent-teams` at `ccef8c2`. Gateway phone users with Usage read permission can now read saved account summaries, individual historical exports and paginated charges. Connection/account/contract/archive and cloud container/resource identities are redacted; exact signed decimals, export identities and report digests remain intact. All reads use the existing owner grant, receipt and stale-pairing fences, with no provider or billing write authority.
+
+Review: [gateway billing](39-gateway-billing-history.md) and [remote executions](40-remote-execution-controls.md). The remote inventory also preserves a team stop request while a model operation is still unresolved, and shows original cancellation handles.
+
+Merged verification: **105 distinct tests passed** (68 gateway regression, 29 mobile/shared-client readers and transport, 4 native billing projections and 4 native remote collection tests). Complete mobile, gateway and shared-client TypeScript passed. Additional compile/binding and formatting checks are recorded below after their final result. No live provider, account credential, paid resource, deployment, physical-phone or visual test was used. Additional provider adapters remain deferred.
+
+Final merged gates passed: locked desktop/daemon/worker compile checks, current protocol-42 generated bindings, complete TypeScript checks, Rust/Prettier formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.

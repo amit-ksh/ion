@@ -704,3 +704,17 @@ acceptance. Existing Rust warnings remain.
 Desktop and direct-phone Usage now include a bounded cross-project inventory of sandbox model calls, commands and GPU jobs, with project/type/unresolved filters and original-run control navigation. Reads never call providers. Missing operation handles stay unresolved; GPU cancellation remains distinct from cleanup and monetary settlement. Protocol is **42**, with generated types updated. Background loading, virtualized rows, keyboard controls and stale owner/page fences are included.
 
 [Implementation and later review checklist](40-remote-execution-controls.md). The wider remote/GPU launch, aggregate resource/egress, rich HTML/PDF, billing reconciliation and speech deployment/device acceptance work remains open. Additional provider adapters remain deferred.
+
+## 2026-10-12 — merged remote inventory and gateway billing
+
+- [x] Independent gateway billing branch committed and merged into the current implementation branch.
+- [x] Read-only account, historical-export and charge pages with Usage read grants, private-reference redaction, exact decimals and original provenance.
+- [x] Cross-project native/direct-phone remote inventory, original-run navigation, missing-handle and stop-request status, GPU cleanup distinction, bounded paging and stale-result fences.
+- [x] **105 distinct automated tests passed** across merged gateway, phone/shared client and native projection/collection boundaries; full TypeScript checks passed.
+- [ ] Complete the [gateway billing review](39-gateway-billing-history.md) and [remote controls review](40-remote-execution-controls.md) with configured sources/devices.
+- [ ] Implement remaining billing/job/finality reconciliation, broader GPU/resource/egress controls and gateway/phone remote recovery parity.
+- [ ] Complete rendered HTML/PDF document previews and shared speech deployment/device integration.
+
+The full implementation is still in progress. No live provider or paid deployment was used.
+
+Final merged gates passed: locked desktop/daemon/worker compile checks, current protocol-42 generated bindings, complete TypeScript checks, Rust/Prettier formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.

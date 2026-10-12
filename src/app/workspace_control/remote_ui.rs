@@ -134,7 +134,7 @@ impl Waku {
                                         entry.team_name,
                                         entry.state,
                                         if entry.settled {
-                                            "Terminal receipt recorded"
+                                            "Terminal observation recorded"
                                         } else if entry.stop_requested {
                                             "Stop requested · awaiting terminal receipt"
                                         } else {
@@ -152,6 +152,9 @@ impl Waku {
                                     }
                                     if let Some(id) = &entry.job_id {
                                         handle.push_str(&format!(" · Job {id}"));
+                                    }
+                                    if let Some(id) = &entry.cancellation_operation_id {
+                                        handle.push_str(&format!(" · Cancellation operation {id}"));
                                     }
                                     if let Some(state) = &entry.cleanup_state {
                                         handle.push_str(&format!(" · Cleanup {state}"));
