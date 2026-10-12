@@ -18,7 +18,12 @@ import {
   artifactText,
   readArtifactDocument,
 } from "@/lib/artifact-library";
-import { documentPreviewRows } from "@/lib/document-preview";
+import {
+  documentPreviewRows,
+  prepareDocumentReading,
+  type DocumentPreviewRow,
+  type DocumentReadingPreview,
+} from "@/lib/document-preview";
 import { useDaemon } from "@/lib/daemon-context";
 import { exportWorkflowDocument } from "@/lib/workflow-document-export";
 import { renderBlock } from "@/md/render";
@@ -64,6 +69,8 @@ export default function ArtifactDocumentScreen() {
       document: ArtifactLibraryItem;
       bytes: Uint8Array;
       text: string | null;
+      sourceRows: DocumentPreviewRow[];
+      readingPreview: DocumentReadingPreview | null;
     } | null>(null),
     [message, setMessage] = useState<{
       scope: string;
@@ -164,7 +171,7 @@ export default function ArtifactDocumentScreen() {
           .join("");
       },
     )
-      .then((bytes) => {
+      .then(async (bytes) => {
         if (!current()) return;
         let text: string | null = null;
         try {
@@ -172,7 +179,27 @@ export default function ArtifactDocumentScreen() {
         } catch {
           /* Invalid textual bytes remain exportable as exact original content. */
         }
-        setLoaded({ scope: started, document: selected.document, bytes, text });
+        const sourceRows =
+          text !== null
+            ? documentPreviewRows(selected.document.format, text, false)
+            : [];
+        const readingPreview =
+          text !== null
+            ? await prepareDocumentReading(
+                selected.document.format,
+                text,
+                current,
+              )
+            : null;
+        if (!current()) return;
+        setLoaded({
+          scope: started,
+          document: selected.document,
+          bytes,
+          text,
+          sourceRows,
+          readingPreview,
+        });
       })
       .catch((error) => {
         if (current())
@@ -201,13 +228,12 @@ export default function ArtifactDocumentScreen() {
     loaded?.scope === scope
       ? loaded
       : null;
-  const rows = useMemo(
-    () =>
-      preview?.text !== null && preview?.text !== undefined
-        ? documentPreviewRows(preview.document.format, preview.text, reading)
-        : [],
-    [preview, reading],
-  );
+  // Verified source and semantic layout are prepared once; render reads memory only.
+  const rows = preview
+    ? reading
+      ? (preview.readingPreview?.rows ?? [])
+      : preview.sourceRows
+    : [];
   async function save() {
     if (
       !preview ||
@@ -309,13 +335,19 @@ export default function ArtifactDocumentScreen() {
                   {preview.text === null
                     ? "Verified original document · Export available"
                     : reading &&
-                        ["md", "json"].includes(preview.document.format)
-                      ? "Verified document · Reading view"
+                        ["md", "json", "html", "htm"].includes(
+                          preview.document.format,
+                        )
+                      ? preview.readingPreview?.sourceFallback
+                        ? "Verified document · Source"
+                        : "Verified document · Reading view"
                       : "Verified document · Source"}
                 </Text>
                 <View style={styles.actions}>
                   {preview.text !== null &&
-                    ["md", "json"].includes(preview.document.format) && (
+                    ["md", "json", "html", "htm"].includes(
+                      preview.document.format,
+                    ) && (
                       <>
                         <AutomationButton
                           label="Reading view"
@@ -366,7 +398,9 @@ export default function ArtifactDocumentScreen() {
                 {["html", "htm"].includes(preview.document.format) &&
                   preview.text !== null && (
                     <Text style={[styles.body, { color: theme.textSecondary }]}>
-                      HTML source · Scripts, links and images stay inactive.
+                      {reading
+                        ? preview.readingPreview?.note
+                        : "HTML Source · Scripts, links and media remain inactive."}
                     </Text>
                   )}
               </>

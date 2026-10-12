@@ -27,11 +27,16 @@ test("source mode preserves Unicode and long blocks stay bounded without losing 
       .join(""),
   ).toBe(source);
 });
-test("HTML remains inert source, JSON reading is formatted and invalid JSON remains readable", () => {
+test("HTML Reading excludes authored script bodies, JSON reading formats and preserves invalid source", () => {
   const html = "<script>fetch('https://remote.test')</script>";
-  expect(documentPreviewRows("html", html, true)).toEqual([
-    { id: "0", text: html, node: null },
-  ]);
+  const htmlRows = documentPreviewRows("html", html, true);
+  expect(JSON.stringify(htmlRows)).not.toContain("fetch(");
+  expect(htmlRows[0].node?.type).toBe("paragraph");
+  expect(
+    documentPreviewRows("html", html, false)
+      .map((row) => row.text)
+      .join(""),
+  ).toBe(html);
   expect(documentPreviewRows("json", '{"a":1}', true)[0].text).toBe(
     '{\n  "a": 1\n}',
   );
