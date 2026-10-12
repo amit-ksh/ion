@@ -29,6 +29,7 @@ pub(crate) mod project;
 mod projections;
 mod recovery;
 pub(crate) mod remote;
+mod remote_control;
 mod reviews;
 mod storage;
 #[cfg(test)]

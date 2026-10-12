@@ -3028,3 +3028,9 @@ shared-client TypeScript, locked desktop/daemon/worker checks, protocol-41 bindi
 freshness, formatting, whitespace and frontend source checks passed. Tests use
 fake/local source data; these results do not establish live report or UI/device
 acceptance. Existing Rust warnings remain.
+
+## 2026-10-12 — cross-project remote execution inventory
+
+Desktop and direct-phone Usage now include a bounded cross-project inventory of sandbox model calls, commands and GPU jobs, with project/type/unresolved filters and original-run control navigation. Reads never call providers. Missing operation handles stay unresolved; GPU cancellation remains distinct from cleanup and monetary settlement. Protocol is **42**, with generated types updated. Background loading, virtualized rows, keyboard controls and stale owner/page fences are included.
+
+[Implementation and later review checklist](40-remote-execution-controls.md). The wider remote/GPU launch, aggregate resource/egress, rich HTML/PDF, billing reconciliation and speech deployment/device acceptance work remains open. Additional provider adapters remain deferred.

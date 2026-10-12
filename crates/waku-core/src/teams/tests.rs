@@ -4413,3 +4413,178 @@ mod usage_accounting;
 
 #[path = "document_tests.rs"]
 pub(crate) mod binary_documents;
+
+fn remote_inventory_query() -> waku_protocol::remote_control::RemoteExecutionQuery {
+    waku_protocol::remote_control::RemoteExecutionQuery {
+        project_id: None,
+        kind: None,
+        unresolved_only: true,
+        after: None,
+        limit: 2,
+    }
+}
+fn remote_inventory_seed(
+    f: &Fixture,
+    run: &TeamRunSnapshot,
+    kind: waku_protocol::remote_control::RemoteExecutionKind,
+    id: Uuid,
+    state: &str,
+) {
+    use waku_protocol::remote_control::RemoteExecutionKind::*;
+    let db = f.store.connect().unwrap();
+    let work = &run.work[0];
+    let attempt = Uuid::new_v4().to_string();
+    let values = params![
+        id.to_string(),
+        run.id.to_string(),
+        work.id.to_string(),
+        attempt,
+        state
+    ];
+    match kind {
+        Model => {
+            db.execute("INSERT INTO ion_team_model_calls(id,run_id,work_id,attempt_id,generation,step,model,started_at) VALUES(?1,?2,?3,?4,1,1,'private-model',100)",params![id.to_string(),run.id.to_string(),work.id.to_string(),attempt]).unwrap();
+            db.execute("INSERT INTO ion_team_remote_calls(call_id,work_id,attempt_id,image,project,operation,state,started_at) VALUES(?1,?3,?4,'image','cloud-a',NULL,?5,100)",values).unwrap();
+        }
+        Command => {
+            db.execute("INSERT INTO ion_team_jobs(request_id,run_id,work_id,attempt_id,image,project,signature,request,state,operation) VALUES(?1,?2,?3,?4,'image','cloud-a','signature','private-command-and-environment',?5,NULL)",values).unwrap();
+        }
+        Gpu => {
+            db.execute("INSERT INTO ion_team_gpu_jobs(request_id,run_id,work_id,attempt_id,project,signature,body,policy,reserved_micros,currency,deadline_at,state,compute_ids) VALUES(?1,?2,?3,?4,'cloud-gpu','signature','private-body','private-policy',999,'USD',1000,?5,'[]')",values).unwrap();
+        }
+    }
+}
+#[test]
+fn remote_inventory_pages_all_kinds_without_exposing_requests() {
+    use waku_protocol::remote_control::RemoteExecutionKind::*;
+    let f = Fixture::new();
+    let run = f.run();
+    for (kind, n) in [(Model, 1), (Model, 2), (Command, 1), (Gpu, 1)] {
+        remote_inventory_seed(&f, &run, kind, Uuid::from_u128(n), "submitting");
+    }
+    let mut query = remote_inventory_query();
+    let page = f.store.list_remote_executions(query.clone()).unwrap();
+    assert_eq!(page.entries.len(), 2);
+    assert!(page.entries.iter().all(|e| e.kind == Model));
+    assert_eq!(
+        page.next_cursor.as_ref().unwrap().request_id,
+        Uuid::from_u128(2)
+    );
+    query.after = page.next_cursor;
+    let next = f.store.list_remote_executions(query).unwrap();
+    assert_eq!(
+        next.entries.iter().map(|e| e.kind).collect::<Vec<_>>(),
+        vec![Command, Gpu]
+    );
+    assert!(next.next_cursor.is_none());
+    let serialized = serde_json::to_string(&next).unwrap();
+    assert!(!serialized.contains("private"));
+    assert!(!serialized.contains("signature"));
+    assert!(next.entries.iter().all(|e| e.project_id == run.project_id
+        && e.root_task_id == run.root_task_id
+        && !e.settled));
+}
+#[test]
+fn remote_inventory_terminal_gpu_requires_cleanup() {
+    use waku_protocol::remote_control::RemoteExecutionKind::*;
+    let f = Fixture::new();
+    let run = f.run();
+    let gpu = Uuid::new_v4();
+    for (kind, state) in [(Model, "SUCCESS"), (Command, "settled"), (Gpu, "CANCELLED")] {
+        remote_inventory_seed(
+            &f,
+            &run,
+            kind,
+            if kind == Gpu { gpu } else { Uuid::new_v4() },
+            state,
+        );
+    }
+    let page = f
+        .store
+        .list_remote_executions(remote_inventory_query())
+        .unwrap();
+    assert_eq!(page.entries.len(), 1);
+    assert_eq!(page.entries[0].request_id, gpu);
+    assert!(!page.entries[0].settled);
+    f.store.connect().unwrap().execute("INSERT INTO ion_team_gpu_cleanup(request_id,body,state) VALUES(?,'private-cleanup-body','verified')",[gpu.to_string()]).unwrap();
+    assert!(
+        f.store
+            .list_remote_executions(remote_inventory_query())
+            .unwrap()
+            .entries
+            .is_empty()
+    );
+    let mut query = remote_inventory_query();
+    query.unresolved_only = false;
+    query.limit = 64;
+    let page = f.store.list_remote_executions(query).unwrap();
+    assert_eq!(page.entries.len(), 3);
+    assert!(page.entries.iter().all(|e| e.settled));
+    assert_eq!(
+        page.entries
+            .iter()
+            .find(|e| e.kind == Gpu)
+            .unwrap()
+            .cleanup_state
+            .as_deref(),
+        Some("verified")
+    );
+}
+#[test]
+fn remote_inventory_filters_and_cursor_scope_fences() {
+    use waku_protocol::remote_control::{RemoteExecutionCursor, RemoteExecutionKind::*};
+    let f = Fixture::new();
+    let run = f.run();
+    let mut other_request = f.request();
+    other_request.project_id = Uuid::new_v4();
+    let other = f.store.prepare(other_request, 100).unwrap();
+    let id = Uuid::new_v4();
+    remote_inventory_seed(&f, &run, Command, id, "canceling");
+    remote_inventory_seed(&f, &other, Gpu, Uuid::new_v4(), "running");
+    let mut query = remote_inventory_query();
+    query.project_id = Some(run.project_id);
+    query.kind = Some(Command);
+    let page = f.store.list_remote_executions(query.clone()).unwrap();
+    assert_eq!(page.entries.len(), 1);
+    assert!(page.entries[0].stop_requested);
+    query.after = Some(RemoteExecutionCursor {
+        kind: Command,
+        request_id: id,
+    });
+    query.kind = Some(Gpu);
+    assert!(f.store.list_remote_executions(query.clone()).is_err());
+    query.kind = None;
+    query.project_id = Some(Uuid::new_v4());
+    assert!(f.store.list_remote_executions(query.clone()).is_err());
+    query.after = None;
+    query.limit = 65;
+    assert!(f.store.list_remote_executions(query.clone()).is_err());
+    query.limit = 0;
+    assert!(f.store.list_remote_executions(query).is_err());
+}
+#[test]
+fn remote_inventory_cursor_survives_terminal_state_change() {
+    use waku_protocol::remote_control::{RemoteExecutionCursor, RemoteExecutionKind::*};
+    let f = Fixture::new();
+    let run = f.run();
+    let first = Uuid::from_u128(1);
+    let next = Uuid::from_u128(2);
+    remote_inventory_seed(&f, &run, Command, first, "running");
+    remote_inventory_seed(&f, &run, Command, next, "running");
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE ion_team_jobs SET state='settled' WHERE request_id=?",
+            [first.to_string()],
+        )
+        .unwrap();
+    let mut query = remote_inventory_query();
+    query.after = Some(RemoteExecutionCursor {
+        kind: Command,
+        request_id: first,
+    });
+    let page = f.store.list_remote_executions(query).unwrap();
+    assert_eq!(page.entries.len(), 1);
+    assert_eq!(page.entries[0].request_id, next);
+}

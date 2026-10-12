@@ -277,6 +277,12 @@ impl Waku {
                 }),
             );
         bar = bar.child(self.control_button(
+            "usage-remote-executions",
+            "Remote executions",
+            cx,
+            |this, _, cx| this.open_remote_executions(cx),
+        ));
+        bar = bar.child(self.control_button(
             "usage-cloud-billing",
             "Cloud billing",
             cx,

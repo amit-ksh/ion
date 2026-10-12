@@ -11,6 +11,7 @@ mod billing_ui;
 mod budget_ui;
 mod document_preview;
 mod inbox;
+mod remote_ui;
 mod routine_ui;
 mod team_activity;
 mod team_apps;
@@ -106,6 +107,7 @@ enum FormKind {
 }
 pub(super) struct ControlUi {
     billing: billing_ui::BillingUi,
+    remote: remote_ui::RemoteUi,
     preview: document_preview::DocumentPreview,
     pub page: Option<Page>,
     pub snapshot: ControlSnapshot,
@@ -298,6 +300,7 @@ impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
         Self {
             billing: billing_ui::BillingUi::new(window, cx),
+            remote: remote_ui::RemoteUi::new(cx),
             preview: document_preview::DocumentPreview::new(cx),
             page: Some(Page::Dashboard),
             snapshot: ControlSnapshot::default(),
@@ -916,6 +919,7 @@ impl Waku {
             }))
     }
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.control_ui.remote.close();
         self.settings_page = None;
         self.control_ui.preview.clear();
         if self.control_ui.page != Some(page) {
@@ -1869,6 +1873,9 @@ impl Waku {
         let theme = Theme::current(cx);
         if self.control_ui.preview.artifact.is_some() {
             return self.render_document_preview(cx);
+        }
+        if page == Page::Usage && self.control_ui.remote.open {
+            return self.render_remote_executions(cx);
         }
         if page == Page::Usage && self.control_ui.billing.open {
             return self.render_cloud_billing(cx);

@@ -100,6 +100,7 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             compute_ids TEXT NOT NULL,UNIQUE(work_id,request_id));
         CREATE INDEX IF NOT EXISTS ion_team_gpu_attempt ON ion_team_gpu_jobs(attempt_id,state);
         CREATE INDEX IF NOT EXISTS ion_team_gpu_project ON ion_team_gpu_jobs(project,state);
+        CREATE INDEX IF NOT EXISTS ion_team_gpu_run ON ion_team_gpu_jobs(run_id,request_id);
         CREATE UNIQUE INDEX IF NOT EXISTS ion_team_gpu_resource ON ion_team_gpu_jobs(project,job_id) WHERE job_id IS NOT NULL;
         CREATE UNIQUE INDEX IF NOT EXISTS ion_team_gpu_operation ON ion_team_gpu_jobs(project,creation_operation) WHERE creation_operation IS NOT NULL;
         CREATE TABLE IF NOT EXISTS ion_team_gpu_preflight (
