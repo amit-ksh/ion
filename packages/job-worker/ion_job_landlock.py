@@ -7,6 +7,7 @@ No historical ordinary job invokes this helper.
 import ctypes
 import os
 import platform
+import re
 import stat
 import sys
 
@@ -36,6 +37,17 @@ READ_TREE = EXECUTE | READ_FILE | READ_DIR
 WRITE_TREE = READ_TREE | WRITE_FILE | REMOVE_DIR | REMOVE_FILE | MAKE_DIR | MAKE_REG | REFER | TRUNCATE
 DEVICE_KEYS = {'path', 'type', 'major', 'minor', 'read', 'write', 'ioctl'}
 DENIED_TREES = ('/ion', '/proc', '/sys', '/run', '/dev')
+STATIC_PROC_FILES = frozenset(('/proc/cpuinfo', '/proc/meminfo', '/proc/devices',
+                               '/proc/version', '/proc/uptime', '/proc/stat'))
+NVIDIA_PROC_TREES = ('/proc/driver/nvidia', '/proc/driver/nvidia-caps',
+                     '/proc/driver/nvidia-nvlink', '/proc/driver/nvidia-nvswitch')
+SYS_METADATA_TREES = ('/sys/devices/system/cpu', '/sys/devices/system/node',
+                      '/sys/module/nvidia', '/sys/module/nvidia_uvm',
+                      '/sys/module/nvidia_modeset', '/sys/module/nvidia_drm',
+                      '/sys/module/nvidia_peermem')
+PCI_METADATA_FILES = frozenset(('vendor', 'device', 'subsystem_vendor', 'subsystem_device',
+                                'class', 'numa_node', 'local_cpulist', 'local_cpus',
+                                'uevent', 'modalias'))
 IMAGE_TREES = ('/usr', '/etc', '/lib', '/lib64', '/bin', '/sbin', '/opt', '/boot', '/root', '/var')
 
 
@@ -75,13 +87,37 @@ def _overlap(left, right):
     return _beneath(left, right) or _beneath(right, left)
 
 
+def read_path(value):
+    """The same pure read-root contract is used by profile parsing and install."""
+    path = _path(value)
+    if path in ('/home',) or any(_beneath(path, root) for root in ('/ion', '/run', '/dev', '/tmp')):
+        raise BoundaryError()
+    if _beneath(path, '/proc'):
+        # Static driver/host metadata only. No dynamic process subtree, including
+        # self, thread-self, numeric PIDs, task/*, fd, fdinfo, map_files or mem.
+        if (any(component in ('fd', 'fdinfo', 'map_files', 'mem') for component in path.split('/'))
+                or (path not in STATIC_PROC_FILES and not any(_beneath(path, root) for root in NVIDIA_PROC_TREES))):
+            raise BoundaryError()
+    if _beneath(path, '/sys'):
+        metadata_tree = any(_beneath(path, root) for root in SYS_METADATA_TREES)
+        # PCI BAR/resource and arbitrary driver directories can expose hardware
+        # interfaces despite regular-file stat types. Grant only named info leaves.
+        pci_metadata = (re.fullmatch(r'/sys/devices/pci[0-9a-fA-F]{4}:[0-9a-fA-F]{2}'
+                                     r'(?:/[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7])+'
+                                     r'/[a-z_]+', path) is not None
+                        and path.rsplit('/', 1)[-1] in PCI_METADATA_FILES)
+        if not metadata_tree and not pci_metadata and path != '/sys/devices/soc0/family':
+            raise BoundaryError()
+    return path
+
+
 def plan(read_paths, writable_roots, devices):
     """Validate and freeze the bounded owner inputs; performs no I/O."""
     if (type(read_paths) not in (list, tuple) or not 1 <= len(read_paths) <= MAX_READ_PATHS
             or type(writable_roots) not in (list, tuple) or len(writable_roots) != 3
             or type(devices) not in (list, tuple) or len(devices) > MAX_DEVICES):
         raise BoundaryError()
-    reads = tuple(_path(value) for value in read_paths)
+    reads = tuple(read_path(value) for value in read_paths)
     writes = tuple(_path(value) for value in writable_roots)
     nodes = []
     for device in devices:
@@ -96,9 +132,6 @@ def plan(read_paths, writable_roots, devices):
         if any(_beneath(node['path'], root) for root in ('/ion', '/proc', '/sys', '/run', '/tmp')):
             raise BoundaryError()
         nodes.append(node)
-    for path in reads:
-        if path in ('/tmp', '/home') or any(_beneath(path, root) for root in DENIED_TREES + ('/tmp',)):
-            raise BoundaryError()
     for path in writes:
         if path in ('/tmp', '/home') or any(_overlap(path, root) for root in DENIED_TREES + IMAGE_TREES):
             raise BoundaryError()
@@ -223,6 +256,8 @@ def install(read_paths, writable_roots, devices):
                             or info.st_uid != 0 or info.st_mode & 0o022):
                         raise BoundaryError()
                     rights = READ_TREE if stat.S_ISDIR(info.st_mode) else EXECUTE | READ_FILE
+                    if _beneath(path, '/proc') or _beneath(path, '/sys'):
+                        rights &= ~EXECUTE
                 elif kind == 'write':
                     if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
                             or info.st_gid != os.getegid() or stat.S_IMODE(info.st_mode) != 0o700):

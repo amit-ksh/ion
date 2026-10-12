@@ -45,6 +45,41 @@ path-rule structure and an 8-byte filesystem ruleset prefix. Sources:
 [x86_64 table](https://raw.githubusercontent.com/torvalds/linux/v6.12/arch/x86/entry/syscalls/syscall_64.tbl),
 [common table used by native arm64](https://raw.githubusercontent.com/torvalds/linux/v6.12/scripts/syscall.tbl).
 
+
+## Explicit kernel metadata reads
+
+The pure `read_path()` contract allows owner-reviewed static metadata without a
+blanket `/proc` or `/sys` grant. The runtime profile parser must use the same accepted
+categories and reject unsupported roots before startup.
+
+Allowed categories are exact static proc files (`cpuinfo`, `meminfo`, `devices`,
+`version`, `uptime`, `stat`); the named NVIDIA proc driver trees; CPU/NUMA and
+named NVIDIA module metadata trees in sysfs; exact `/sys/devices/soc0/family`;
+and named information leaves under canonical PCI device paths. PCI BAR/resource
+and config files are excluded. No numeric PID, `self`, `thread-self`, `fd`,
+`fdinfo`, `map_files` or `mem` proc hierarchy is allowed. Kernel metadata grants
+receive read permissions with execution removed.
+
+NVIDIA documents runtime driver/GPU information below `/proc/driver/nvidia`.
+Its current kernel procfs implementation exposes version, parameter and GPU
+information reads. This supports an explicit reviewed metadata exception.
+[NVIDIA proc interface](https://http.download.nvidia.com/XFree86/Linux-x86_64/550.78/README/procinterface.html),
+[current NVIDIA procfs source](https://raw.githubusercontent.com/NVIDIA/open-gpu-kernel-modules/main/kernel-open/nvidia/nv-procfs.c).
+
+NVIDIA's modprobe helper reads driver parameters and `/proc/devices`, checks
+named module `initstate` metadata, and reads `/sys/devices/soc0/family`. Module
+loading, device creation and sysfs writes remain unavailable to the child.
+[NVIDIA modprobe source](https://raw.githubusercontent.com/NVIDIA/nvidia-modprobe/main/modprobe-utils/nvidia-modprobe-utils.c).
+
+These sources establish real driver metadata uses. Exact closed CUDA library
+read requirements still require a reviewed GPU image and real kernel/training
+execution; the category policy is an Ion implementation choice.
+
+A native test reads only explicitly granted `/proc/cpuinfo` and
+`/sys/devices/system/cpu/online`, while unapproved metadata and process views
+remain denied. Docker's sysfs mount is itself readonly, so that write assertion
+accepts the VFS `EROFS` result and does not attribute it solely to Landlock.
+
 ## Required launcher ordering
 
 1. Verify the root-owned profile, original approval hash, mounts, exact devices,
@@ -64,8 +99,8 @@ single-threaded.
 
 ## Verification evidence
 
-Windows pure/failure suite: **16 passed**, with seven Linux tests explicitly
-skipped. Real disposable Linux suite: **23 passed**, no skips.
+Windows pure/failure suite: **17 passed**, with eight Linux tests explicitly
+skipped. Real disposable Linux suite: **25 passed**, no skips.
 
 The real run used cached `python:3.12-slim` image
 `sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f`,
@@ -86,9 +121,11 @@ Real tests cover:
 - Execute-by-FD permission checks, including denial for a preopened executable
   outside the approved tree.
 - Prior-FD limitations and required guard closure.
-- Rejected root symlinks without leaking setup descriptors.
+- Rejected root and ancestor symlinks without leaking setup descriptors.
+- Explicit proc/sys metadata read grants with unapproved views still denied.
 
-Evidence log: `.waku-cache/gpu-landlock-linux.log`. Pure tests additionally
+Latest evidence log: `.waku-cache/gpu-landlock-metadata-linux.log`.
+Initial evidence log: `.waku-cache/gpu-landlock-linux.log`. Pure tests additionally
 exercise old/disabled/missing ABI, exact UAPI layouts, rule/NNP/restrict failure,
 bounds, owner/mode/device mismatch, overlap rejection and descriptor cleanup.
 
@@ -98,7 +135,7 @@ To run pure tests:
 python -m unittest discover -s packages/job-worker -p test_landlock.py -v
 ```
 
-The seven native tests require `ION_TEST_LANDLOCK=1` in a disposable Linux image
+The eight native tests require `ION_TEST_LANDLOCK=1` in a disposable Linux image
 with actual ABI >=5 and root-owned reviewed test files. An unsupported opted-in
 runtime fails the suite; it is not silently skipped.
 
