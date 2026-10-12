@@ -287,6 +287,12 @@ function TaskDrawerContent({
             <AppSymbol name={{ ios: 'tray', android: 'inbox', web: 'inbox' }} size={18} tintColor={theme.textSecondary} />
             <Text style={{ fontSize: 15, color: theme.text }}>Inbox</Text>
           </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Artifacts"
+            onPress={() => { onClose(); router.push('/artifacts'); }}
+            style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>
+            <AppSymbol name={{ ios: 'doc', android: 'description', web: 'description' }} size={18} tintColor={theme.textSecondary} />
+            <Text style={{ fontSize: 15, color: theme.text }}>Artifacts</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Usage"
             onPress={() => { onClose(); router.push('/usage'); }}
             style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>

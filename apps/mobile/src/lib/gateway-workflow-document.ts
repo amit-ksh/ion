@@ -129,7 +129,7 @@ export function workflowDocumentText(bytes: Uint8Array): string {
   return text.join("");
 }
 export function workflowExportName(
-  document: WorkflowDocument,
+  document: Pick<WorkflowDocument, "name" | "format" | "id">,
   suffix: string,
 ): string {
   const format = /^[a-z0-9]{1,12}$/.test(document.format.toLowerCase())
@@ -141,4 +141,16 @@ export function workflowExportName(
       .replace(/^[. ]+|[. ]+$/g, "")
       .slice(0, 60) || "document";
   return `${stem}-${document.id.slice(0, 8)}-${suffix.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32)}.${format}`;
+}
+
+export function workflowDocumentMime(format: string): string {
+  if (["html", "htm"].includes(format)) return "text/html";
+  return (
+    {
+      pdf: "application/pdf",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      json: "application/json",
+      csv: "text/csv",
+    }[format] ?? "text/plain"
+  );
 }

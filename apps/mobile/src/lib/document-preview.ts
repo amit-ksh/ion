@@ -12,6 +12,41 @@ function chunks(text: string): DocumentPreviewRow[] {
     node: null,
   }));
 }
+// Estimate whitespace growth before JSON.stringify: deep nesting must not turn
+// a bounded input into a giant allocation. Source remains complete on fallback.
+function canFormatJson(text: string, bytes: number): boolean {
+  let depth = 0,
+    quoted = false,
+    escaped = false,
+    bound = bytes;
+  for (const character of text) {
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') quoted = false;
+      continue;
+    }
+    if (character === '"') quoted = true;
+    else if (character === "{" || character === "[") {
+      depth++;
+      bound += 1 + 2 * depth;
+    } else if (character === "}" || character === "]") {
+      depth--;
+      bound += 1 + 2 * Math.max(0, depth);
+    } else if (character === ",") bound += 1 + 2 * depth;
+    else if (character === ":") bound++;
+    if (depth > 64 || bound > 65_536) return false;
+  }
+  return true;
+}
+function utf8Size(text: string): number {
+  let size = 0;
+  for (const character of text) {
+    const point = character.codePointAt(0)!;
+    size += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+  }
+  return size;
+}
 /** Reading never creates external image requests, navigation or app commands. */
 function inert(
   node: Record<string, unknown>,
@@ -53,12 +88,15 @@ export function documentPreviewRows(
   text: string,
   reading: boolean,
 ): DocumentPreviewRow[] {
-  if (new TextEncoder().encode(text).byteLength > 65_536)
+  const byteLength = utf8Size(text);
+  if (byteLength > 65_536)
     throw new Error("Document preview exceeds its text limit");
   if (!reading) return chunks(text);
   if (format === "json") {
     try {
-      return chunks(JSON.stringify(JSON.parse(text), null, 2));
+      if (!canFormatJson(text, byteLength)) return chunks(text);
+      const formatted = JSON.stringify(JSON.parse(text), null, 2);
+      return chunks(utf8Size(formatted) <= 65_536 ? formatted : text);
     } catch {
       return chunks(text);
     } // Preserve inspectable original source even if the agent wrote invalid JSON.

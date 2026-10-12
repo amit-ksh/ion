@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 43;
+pub const PROTOCOL_VERSION: u32 = 44;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -368,6 +368,12 @@ pub enum Command {
         #[ts(type = "string")]
         bytes: Vec<u8>,
     },
+    ListArtifactLibrary {
+        query: crate::artifact_library::ArtifactLibraryQuery,
+    },
+    ReadArtifactDocument {
+        query: crate::artifact_library::ArtifactDocumentQuery,
+    },
     ReadWorkspaceArtifact {
         id: Uuid,
     },
@@ -604,6 +610,12 @@ pub enum ResponsePayload {
     TeamAudit {
         events: Vec<crate::teams::TeamAuditEvent>,
     },
+    ArtifactLibrary {
+        page: crate::artifact_library::ArtifactLibraryPage,
+    },
+    ArtifactDocument {
+        document: crate::artifact_library::ArtifactDocument,
+    },
     WorkspaceControl {
         snapshot: crate::control::ControlSnapshot,
     },
@@ -759,7 +771,7 @@ impl From<anyhow::Error> for RpcError {
     }
 }
 
-mod base64_bytes {
+pub(crate) mod base64_bytes {
     use base64::Engine as _;
     use serde::{Deserialize as _, Deserializer, Serializer};
 

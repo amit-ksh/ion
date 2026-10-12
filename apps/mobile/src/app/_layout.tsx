@@ -160,6 +160,14 @@ function AppNavigator() {
       <Stack.Screen name="speech" options={{ title: "Cloud speech" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
         <Stack.Screen
+          name="artifacts"
+          options={{ ...drawerHeader, title: "Artifacts" }}
+        />
+        <Stack.Screen
+          name="artifact-document"
+          options={{ ...floatingHeader, title: "Document" }}
+        />
+        <Stack.Screen
           name="usage"
           options={{ ...drawerHeader, title: "Usage" }}
         />
