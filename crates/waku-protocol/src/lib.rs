@@ -32,6 +32,7 @@ pub mod blob;
 pub mod checkpoint;
 pub mod cloud_billing;
 pub mod cloud_spending;
+pub mod command_resources;
 pub mod composer;
 pub mod computer_use;
 pub mod distribution;
