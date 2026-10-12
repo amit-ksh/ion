@@ -364,6 +364,18 @@ export default function GatewayPortfolioScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <AutomationButton
+              label="Remote executions"
+              disabled={
+                !state.ownerId || !state.pairing?.grants.includes("usageRead")
+              }
+              onPress={() =>
+                router.push({
+                  pathname: "/gateway-remote-executions",
+                  params: { owner: state.ownerId },
+                })
+              }
+            />
+            <AutomationButton
               label="Cloud billing"
               disabled={
                 !state.ownerId || !state.pairing?.grants.includes("usageRead")

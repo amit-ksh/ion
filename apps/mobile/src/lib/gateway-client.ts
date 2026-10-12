@@ -230,6 +230,51 @@ export async function gatewayReviewStatus(
   );
 }
 
+export async function gatewayOwnerTask(
+  pairing: GatewayPairing,
+  publisherId: string,
+  taskId: string,
+): Promise<GatewayTask> {
+  if (
+    !portfolioId(publisherId) ||
+    !portfolioId(taskId) ||
+    !pairing.grants.includes("taskRead") ||
+    pairing.expiresAt <= Date.now()
+  )
+    throw new Error("Pair with Read tasks to open the original owner task");
+  const reply = await request<unknown>(
+    pairing.baseUrl,
+    `/v1/device/tasks/${taskId}?publisherId=${publisherId}`,
+    { headers: deviceHeaders(pairing) },
+  );
+  const object = (v: unknown): v is Record<string, any> =>
+    !!v && typeof v === "object" && !Array.isArray(v);
+  if (
+    !object(reply) ||
+    Object.keys(reply).sort().join(",") !== "publisherId,task" ||
+    reply.publisherId !== publisherId ||
+    !object(reply.task)
+  )
+    throw new Error("Task response crossed owner scope");
+  const task = reply.task;
+  if (
+    Object.keys(task).sort().join(",") !==
+      "id,projectId,projectName,provider,publisherSeenAt,runtimeId,status,title,updatedAt" ||
+    task.id !== taskId ||
+    !portfolioId(task.projectId) ||
+    (task.runtimeId !== null && !portfolioId(task.runtimeId)) ||
+    !["projectName", "provider", "status", "title"].every(
+      (k) => typeof task[k] === "string" && task[k].length <= 1000,
+    ) ||
+    !Number.isSafeInteger(task.updatedAt) ||
+    task.updatedAt < 0 ||
+    (task.publisherSeenAt !== null &&
+      (!Number.isSafeInteger(task.publisherSeenAt) || task.publisherSeenAt < 0))
+  )
+    throw new Error("Invalid original task snapshot");
+  return task as GatewayTask;
+}
+
 export async function gatewayTasks(pairing: GatewayPairing): Promise<{
   tasks: GatewayTask[];
   publishedAt: number | null;
@@ -317,22 +362,75 @@ export async function enqueueGatewayTaskCommand(
     kind: "stop" | "steer" | "permission" | "answer";
     payload: Record<string, string>;
   },
+  publisherId?: string,
 ): Promise<GatewayTaskCommand> {
-  return request(pairing.baseUrl, "/v1/device/commands", {
-    method: "POST",
-    headers: { ...deviceHeaders(pairing), "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  if (
+    publisherId !== undefined &&
+    (!portfolioId(publisherId) ||
+      !portfolioId(input.taskId) ||
+      !portfolioId(input.runtimeId) ||
+      !portfolioId(input.idempotencyKey) ||
+      !pairing.grants.includes("taskControl") ||
+      pairing.expiresAt <= Date.now())
+  )
+    throw new Error("Invalid command owner or task control grant");
+  const reply = await request<
+    GatewayTaskCommand & { publisherId?: string; deviceId?: string }
+  >(
+    pairing.baseUrl,
+    publisherId === undefined
+      ? "/v1/device/commands"
+      : `/v1/device/commands?publisherId=${publisherId}`,
+    {
+      method: "POST",
+      headers: {
+        ...deviceHeaders(pairing),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  if (
+    publisherId !== undefined &&
+    (reply.publisherId !== publisherId ||
+      reply.deviceId !== pairing.id ||
+      reply.taskId !== input.taskId ||
+      reply.runtimeId !== input.runtimeId ||
+      reply.kind !== input.kind ||
+      !portfolioId(reply.id) ||
+      !["queued", "uncertain", "applied", "rejected"].includes(reply.status))
+  )
+    throw new Error("Command receipt crossed owner or task scope");
+  return reply;
 }
 
 export async function gatewayTaskCommand(
   pairing: GatewayPairing,
   id: string,
+  publisherId?: string,
 ): Promise<GatewayTaskCommand> {
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid task command ID");
-  return request(pairing.baseUrl, `/v1/device/commands/${id}`, {
+  if (
+    !portfolioId(id) ||
+    (publisherId !== undefined && !portfolioId(publisherId))
+  )
+    throw new Error("Invalid task command ID or owner");
+  const reply = await request<
+    GatewayTaskCommand & { publisherId?: string; deviceId?: string }
+  >(pairing.baseUrl, `/v1/device/commands/${id}`, {
     headers: deviceHeaders(pairing),
   });
+  if (
+    publisherId !== undefined &&
+    (reply.publisherId !== publisherId ||
+      reply.deviceId !== pairing.id ||
+      reply.id !== id ||
+      !portfolioId(reply.taskId) ||
+      !portfolioId(reply.runtimeId) ||
+      !["stop", "steer", "permission", "answer"].includes(reply.kind) ||
+      !["queued", "uncertain", "applied", "rejected"].includes(reply.status))
+  )
+    throw new Error("Command receipt crossed owner scope");
+  return reply;
 }
 
 const automationUuid =
