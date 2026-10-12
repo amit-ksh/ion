@@ -53,9 +53,10 @@ Deployment/native TLS and recognition acceptance remain unverified.
       job/account/tariff/finality reconciliation. Do not infer a final invoice or
       release a hold from a job terminal state or a completed export.
 - [x] **Remote inventory:** bounded cross-project owner/direct-phone collection,
-      original-run navigation and stop/cleanup distinctions. See [inventory](40-remote-execution-controls.md).
+      original-run navigation and stop/cleanup distinctions. See [inventory](40-remote-execution-controls.md)
+      and [merged gateway phone parity](43-gateway-remote-controls.md).
 - [ ] **Broader remote controls:** aggregate host/project CPU/RAM/process/storage
-      and egress enforcement, gateway parity and wider lifecycle recovery controls;
+      and egress enforcement and wider lifecycle recovery controls;
       finish GPU device/FUSE/CUDA and image/runtime gates for remaining training work.
 - [x] **Desktop document rendering:** verified static HTML layout/source and native
       PDF pages with background page/zoom rendering, bounded pixels, DPI handling and

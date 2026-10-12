@@ -741,4 +741,12 @@ Native document final gates passed: locked desktop/daemon/worker compilation, Ru
 - [x] Structural cursor/query limits and persistent core collection identity checks.
 - [x] Protocol43 generated bindings current; 108 protocol and 5 real owner/core inventory tests pass.
 - [x] Locked desktop/daemon/worker compile and full mobile/gateway/client TypeScript checks pass.
-- [ ] Merge and verify independent gateway/mobile inventory implementation with this native contract.
+- [x] Merge and verify independent gateway/mobile inventory implementation with this native contract.
+
+## 2026-10-12 — gateway remote inventory merged verification
+
+- [x] Independent gateway remote branch merged at `c0f9109`.
+- [x] Usage read inventory; separately granted owner/project/runtime-bound original-task navigation and existing controls.
+- [x] 268 distinct checkpoint tests pass; merged gateway70 and phone/shared28, full TypeScript, protocol43 freshness and formatting/source checks rerun after approval-review recovery.
+- [ ] Complete [gateway remote owner review](43-gateway-remote-controls.md).
+- [ ] Finish broader host/GPU/resource/egress, billing settlement and direct-phone document rendering parity.
