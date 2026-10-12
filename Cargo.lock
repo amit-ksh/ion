@@ -8836,11 +8836,11 @@ dependencies = [
  "uuid",
  "waku-client",
  "waku-credentials",
+ "waku-document",
  "waku-protocol",
  "webview2-com",
  "windows 0.61.3",
  "windows-core 0.61.2",
- "windows-future 0.2.1",
  "windows-sys 0.61.2",
  "wry",
 ]
@@ -8909,6 +8909,7 @@ dependencies = [
  "uuid",
  "waku-client",
  "waku-credentials",
+ "waku-document",
  "waku-protocol",
  "windows-sys 0.61.2",
 ]
@@ -8937,6 +8938,17 @@ dependencies = [
  "waku-core",
  "waku-protocol",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "waku-document"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "image",
+ "objc2-core-graphics",
+ "windows 0.61.3",
+ "windows-future 0.2.1",
 ]
 
 [[package]]

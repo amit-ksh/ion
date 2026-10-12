@@ -9,6 +9,7 @@ import {
   AutomationRefresh,
 } from "@/components/automation-controls";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { ArtifactPdfPreview } from "@/components/artifact-pdf-preview";
 import { useScreenHeaderInset } from "@/components/screen-header";
 import { useMarkdownStyles } from "@/components/md-block-row";
 import { useTheme } from "@/hooks/use-theme";
@@ -334,13 +335,34 @@ export default function ArtifactDocumentScreen() {
                     onPress={() => void save()}
                   />
                 </View>
-                {preview.text === null && (
-                  <Text style={[styles.body, { color: theme.textSecondary }]}>
-                    {["pdf", "docx"].includes(preview.document.format)
-                      ? "Export the verified original to read it in your document app."
-                      : "This document has no supported text preview. Export the verified original."}
-                  </Text>
-                )}
+                {preview.document.format === "pdf" &&
+                  preview.document.bytes <= 65536 &&
+                  daemon.client && (
+                    <ArtifactPdfPreview
+                      key={scope}
+                      client={daemon.client}
+                      document={preview.document}
+                      current={() =>
+                        mounted.current &&
+                        visible.current &&
+                        AppState.currentState === "active" &&
+                        scopeRef.current === preview.scope &&
+                        daemonRef.current.client === daemon.client &&
+                        daemonRef.current.phase === "connected"
+                      }
+                    />
+                  )}
+                {preview.text === null &&
+                  !(
+                    preview.document.format === "pdf" &&
+                    preview.document.bytes <= 65536
+                  ) && (
+                    <Text style={[styles.body, { color: theme.textSecondary }]}>
+                      {["pdf", "docx"].includes(preview.document.format)
+                        ? "Export the verified original to read it in your document app."
+                        : "This document has no supported text preview. Export the verified original."}
+                    </Text>
+                  )}
                 {["html", "htm"].includes(preview.document.format) &&
                   preview.text !== null && (
                     <Text style={[styles.body, { color: theme.textSecondary }]}>

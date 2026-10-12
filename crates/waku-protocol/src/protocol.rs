@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 44;
+pub const PROTOCOL_VERSION: u32 = 45;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -374,6 +374,9 @@ pub enum Command {
     ReadArtifactDocument {
         query: crate::artifact_library::ArtifactDocumentQuery,
     },
+    RenderArtifactPdfPage {
+        query: crate::artifact_library::ArtifactPdfQuery,
+    },
     ReadWorkspaceArtifact {
         id: Uuid,
     },
@@ -615,6 +618,9 @@ pub enum ResponsePayload {
     },
     ArtifactDocument {
         document: crate::artifact_library::ArtifactDocument,
+    },
+    ArtifactPdfPage {
+        page: crate::artifact_library::ArtifactPdfPage,
     },
     WorkspaceControl {
         snapshot: crate::control::ControlSnapshot,

@@ -1,0 +1,17 @@
+[package]
+name = "waku-document"
+version = "0.1.0"
+edition = "2024"
+description = "Bounded offline native document rendering for Ion clients and owners"
+license = "GPL-3.0-only"
+
+[dependencies]
+anyhow = "1.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-future = "=0.2.1"
+windows = { version = "0.61", features = ["Data_Pdf", "Foundation", "Storage_Streams", "Win32_System_WinRT", "Win32_UI_HiDpi", "Win32_Foundation"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGImage", "CGPDFDocument", "CGPDFPage", "CGContext", "CGBitmapContext", "CGDataProvider", "CGColorSpace", "CGGeometry", "CGAffineTransform"] }

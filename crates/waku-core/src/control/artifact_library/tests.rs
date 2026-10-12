@@ -343,3 +343,96 @@ fn changed_publisher_provenance_invalidates_the_cursor_even_with_same_public_met
     .unwrap();
     assert!(fixture.store.list_artifacts(&query).is_err());
 }
+
+fn pdf_fixture() -> Vec<u8> {
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 300] /Resources << >> /Contents 4 0 R >>",
+        "<< /Length 0 >>\nstream\n\nendstream",
+    ];
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    let mut offsets = vec![0];
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(bytes.len());
+        bytes.extend(format!("{} 0 obj\n{body}\nendobj\n", i + 1).bytes());
+    }
+    let start = bytes.len();
+    bytes.extend(format!("xref\n0 {}\n0000000000 65535 f \n", offsets.len()).bytes());
+    for offset in offsets.iter().skip(1) {
+        bytes.extend(format!("{offset:010} 00000 n \n").bytes());
+    }
+    bytes.extend(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF\n",
+            offsets.len()
+        )
+        .bytes(),
+    );
+    bytes
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+#[test]
+fn pdf_pages_verify_selected_original_and_bound_native_output() {
+    use sha2::{Digest, Sha256};
+    let fixture = Library::new();
+    let snapshot = fixture
+        .store
+        .publish_generated_document(
+            fixture.store.load().unwrap().revision,
+            "page.pdf".into(),
+            "pdf".into(),
+            fixture.project,
+            fixture.task,
+            Uuid::new_v4().to_string(),
+            pdf_fixture(),
+        )
+        .unwrap();
+    let artifact = snapshot
+        .records
+        .iter()
+        .find_map(|r| match r {
+            ControlRecord::Artifact(a) if a.name == "page.pdf" => Some(a),
+            _ => None,
+        })
+        .unwrap();
+    let query = ArtifactPdfQuery {
+        expected: item(artifact).unwrap(),
+        page: 0,
+        width: 800,
+    };
+    let page = fixture.store.render_artifact_pdf(&query).unwrap();
+    assert_eq!(page.document, query.expected);
+    assert_eq!(
+        (
+            page.page,
+            page.pages,
+            page.requested_width,
+            page.width,
+            page.height
+        ),
+        (0, 1, 800, 800, 1200)
+    );
+    assert!(page.png.starts_with(&[137, 80, 78, 71, 13, 10, 26, 10]));
+    assert_eq!(page.sha256, format!("{:x}", Sha256::digest(&page.png)));
+    for change in 0..7 {
+        let mut invalid = query.clone();
+        match change {
+            0 => invalid.page = 32,
+            1 => invalid.width = 10000,
+            2 => invalid.expected.bytes = 65537,
+            3 => invalid.expected.format = "html".into(),
+            4 => invalid.expected.project_id = Uuid::new_v4(),
+            5 => invalid.expected.sha256 = "0".repeat(64),
+            _ => invalid.page = 1,
+        }
+        assert!(fixture.store.render_artifact_pdf(&invalid).is_err());
+    }
+    std::fs::write(
+        fixture.store.document_dir().join(artifact.id.to_string()),
+        b"%PDF-changed",
+    )
+    .unwrap();
+    assert!(fixture.store.render_artifact_pdf(&query).is_err());
+}

@@ -216,7 +216,37 @@ export async function readArtifactDocument(
     encoded.length !== Math.ceil(expected.bytes / 3) * 4
   )
     throw new Error("Document byte count changed.");
-  const bytes = new Uint8Array(expected.bytes);
+  const bytes = await decodeArtifactBytes(encoded, expected.bytes, current);
+  const actual = await digest(bytes);
+  allowed();
+  if (actual !== expected.sha256)
+    throw new Error(
+      "Document digest changed. Refresh before reading or exporting.",
+    );
+  return bytes;
+}
+/** Complete canonical bytes, bounded allocation and yielding owner-scope checks. */
+export async function decodeArtifactBytes(
+  encoded: string,
+  count: number,
+  current: () => boolean,
+): Promise<Uint8Array> {
+  if (
+    typeof encoded !== "string" ||
+    !Number.isSafeInteger(count) ||
+    count < 1 ||
+    count > 16 * 1024 * 1024 ||
+    encoded.length !== Math.ceil(count / 3) * 4
+  )
+    throw new Error("Document byte count changed.");
+  const allowed = () => {
+    if (!current())
+      throw new Error(
+        "Document read scope changed. Reopen it from the current artifact library.",
+      );
+  };
+  allowed();
+  const bytes = new Uint8Array(count);
   const alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let written = 0;
@@ -253,12 +283,6 @@ export async function readArtifactDocument(
     }
   }
   allowed();
-  const actual = await digest(bytes);
-  allowed();
-  if (actual !== expected.sha256)
-    throw new Error(
-      "Document digest changed. Refresh before reading or exporting.",
-    );
   return bytes;
 }
 export function artifactText(

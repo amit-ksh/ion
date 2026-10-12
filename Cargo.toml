@@ -6,9 +6,10 @@ description = "An AI work IDE that coordinates code, apps, and computers through
 license = "GPL-3.0-only"
 
 [workspace]
-members = ["crates/waku-client", "crates/waku-core", "crates/waku-daemon", "crates/waku-protocol", "crates/waku-computer-use", "crates/waku-credentials"]
+members = ["crates/waku-document", "crates/waku-client", "crates/waku-core", "crates/waku-daemon", "crates/waku-protocol", "crates/waku-computer-use", "crates/waku-credentials"]
 default-members = [
   ".",
+  "crates/waku-document",
   "crates/waku-client",
   "crates/waku-core",
   "crates/waku-daemon",
@@ -44,6 +45,7 @@ unicode-segmentation = "1.12"
 unicode-linebreak = "0.1.5"
 url = "2"
 uuid = { version = "1.18", features = ["v4", "serde"] }
+waku-document = { path = "crates/waku-document" }
 waku-client = { path = "crates/waku-client" }
 waku-credentials = { path = "crates/waku-credentials" }
 waku-protocol = { path = "crates/waku-protocol" }
@@ -163,7 +165,6 @@ tar = "0.4"
 embed-resource = "3.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-future = "=0.2.1"
 raw-window-handle = "0.6"
 # The browser surface. WebView2 is evergreen on Windows 10 and in-box on 11.
 # Waku drives it through `webview2-com` rather than wry because it needs the
@@ -176,11 +177,7 @@ webview2-com = "0.38"
 # hands straight to `SetRootVisualTarget` with no ABI bridging. `windows-sys`
 # stays for the plain Win32 calls that do not need COM.
 windows = { version = "0.61", features = [
-  "Data_Pdf",
   "Foundation",
-  "Storage_Streams",
-  "Win32_System_WinRT",
-  "Win32_UI_HiDpi",
   "Win32_Foundation",
   "Win32_Graphics_DirectComposition",
   "Win32_System_Com",

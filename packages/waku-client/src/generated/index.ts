@@ -19,6 +19,8 @@ export type { ArtifactLibraryItem } from "./ArtifactLibraryItem";
 export type { ArtifactLibraryPage } from "./ArtifactLibraryPage";
 export type { ArtifactLibraryQuery } from "./ArtifactLibraryQuery";
 export type { ArtifactOrigin } from "./ArtifactOrigin";
+export type { ArtifactPdfPage } from "./ArtifactPdfPage";
+export type { ArtifactPdfQuery } from "./ArtifactPdfQuery";
 export type { ArtifactProvenance } from "./ArtifactProvenance";
 export type { AssignmentAttempt } from "./AssignmentAttempt";
 export type { AssignmentResult } from "./AssignmentResult";

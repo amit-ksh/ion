@@ -288,10 +288,60 @@ impl ControlStore {
             next_cursor,
         })
     }
+    /// One process-wide raster worker admission, never a blocking lock or UI operation.
+    pub fn render_artifact_pdf(&self, query: &ArtifactPdfQuery) -> Result<ArtifactPdfPage> {
+        use sha2::{Digest, Sha256};
+        static RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        ensure!(
+            query.expected.format == "pdf"
+                && query.expected.bytes > 0
+                && query.expected.bytes <= waku_document::MAX_DOCUMENT_BYTES as u64
+                && query.page < waku_document::MAX_PAGES
+                && [800, 1200, 1600].contains(&query.width),
+            "Select a supported PDF page/zoom; larger originals remain exportable"
+        );
+        let _permit = RENDER.try_lock().map_err(|_| {
+            anyhow::anyhow!("Another PDF page is rendering. Retry when it finishes.")
+        })?;
+        let (original, source_hash) = self.verified_artifact_document(&ArtifactDocumentQuery {
+            expected: query.expected.clone(),
+        })?;
+        let raster = waku_document::render_pdf(&original.bytes, query.page, query.width)?;
+        let png = raster.png()?;
+        // Keep replacement/removal during rendering from returning stale publication bytes.
+        let db = self.connect()?;
+        let artifact = stored(&db, query.expected.id)?;
+        ensure!(
+            item(&artifact)? == query.expected && record_sha256(&artifact)? == source_hash,
+            "PDF publication changed during rendering. Refresh the library."
+        );
+        let verified = verified_document(&db, &artifact)?;
+        ensure!(
+            verified == original.bytes,
+            "PDF content changed during rendering. Refresh the library."
+        );
+        Ok(ArtifactPdfPage {
+            document: original.document,
+            page: raster.page,
+            pages: raster.pages,
+            requested_width: query.width,
+            width: raster.width,
+            height: raster.height,
+            sha256: format!("{:x}", Sha256::digest(&png)),
+            png,
+        })
+    }
     pub fn read_artifact_document(
         &self,
         query: &ArtifactDocumentQuery,
     ) -> Result<ArtifactDocument> {
+        self.verified_artifact_document(query)
+            .map(|(document, _)| document)
+    }
+    fn verified_artifact_document(
+        &self,
+        query: &ArtifactDocumentQuery,
+    ) -> Result<(ArtifactDocument, String)> {
         let mut db = self.connect()?;
         let tx = db.transaction()?;
         let artifact = stored(&tx, query.expected.id)?;
@@ -308,8 +358,9 @@ impl ControlStore {
                 .is_some_and(|e| e.matches(&bytes)),
             "Artifact content digest changed"
         );
+        let hash = record_sha256(&artifact)?;
         tx.commit()?;
-        Ok(ArtifactDocument { document, bytes })
+        Ok((ArtifactDocument { document, bytes }, hash))
     }
 }
 #[cfg(test)]
