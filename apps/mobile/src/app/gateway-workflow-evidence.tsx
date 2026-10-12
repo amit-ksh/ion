@@ -1,3 +1,5 @@
+import { PdfPageViewer, pdfDigest } from "@/components/artifact-pdf-preview";
+import { readGatewayPdfPage } from "@/lib/gateway-pdf";
 import {
   documentPreviewRows,
   prepareDocumentReading,
@@ -18,6 +20,7 @@ import {
   AppState,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -39,6 +42,12 @@ export default function GatewayWorkflowEvidenceScreen() {
     theme = useTheme(),
     insets = useSafeAreaInsets();
   const markdown = useMarkdownStyles();
+  const [pdfPreview, setPdfPreview] = useState<{
+    document: WorkflowDocument;
+    revision: number;
+    scope: string;
+    ticket: number;
+  } | null>(null);
   const [readingView, setReadingView] = useState(true);
   const markdownStyles = useMemo(
     () => ({
@@ -111,6 +120,7 @@ export default function GatewayWorkflowEvidenceScreen() {
   useEffect(() => {
     epoch.current++;
     setPreview(null);
+    setPdfPreview(null);
     setMessage(null);
   }, [scope]);
   useEffect(() => {
@@ -122,9 +132,11 @@ export default function GatewayWorkflowEvidenceScreen() {
       visible.current = true;
       epoch.current++;
       setPreview(null);
+      setPdfPreview(null);
       const subscription = AppState.addEventListener("change", () => {
         epoch.current++;
         setPreview(null);
+        setPdfPreview(null);
       });
       return () => {
         visible.current = false;
@@ -156,6 +168,7 @@ export default function GatewayWorkflowEvidenceScreen() {
     setReading(true);
     setMessage(null);
     setPreview(null);
+    setPdfPreview(null);
     const current = () =>
       mounted.current &&
       visible.current &&
@@ -187,6 +200,13 @@ export default function GatewayWorkflowEvidenceScreen() {
         await exportWorkflowDocument(record, bytes, current);
         if (current())
           setMessage({ text: "Verified document exported.", error: false });
+      } else if (record.format === "pdf") {
+        setPdfPreview({
+          document: record,
+          revision: page.revision,
+          scope: started,
+          ticket,
+        });
       } else {
         if (bytes.length > 65_536)
           throw new Error(
@@ -236,6 +256,70 @@ export default function GatewayWorkflowEvidenceScreen() {
       ? activePreview.readingPreview.rows
       : activePreview.sourceRows
     : [];
+  const currentPdf = () =>
+    !!pdfPreview &&
+    mounted.current &&
+    visible.current &&
+    AppState.currentState === "active" &&
+    epoch.current === pdfPreview.ticket &&
+    scopeRef.current === pdfPreview.scope &&
+    state.pairing !== null &&
+    state.pairing.expiresAt > Date.now() &&
+    state.pairing.grants.includes("evidenceRead") &&
+    page?.revision === pdfPreview.revision &&
+    !state.loading;
+  if (pdfPreview && state.pairing && currentPdf())
+    return (
+      <ScrollView
+        style={[styles.screen, { backgroundColor: theme.background }]}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+      >
+        <Stack.Screen options={{ title: pdfPreview.document.name }} />
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text }]}>
+            {pdfPreview.document.name}
+          </Text>
+          <View style={styles.actions}>
+            <AutomationButton
+              label="Back to documents"
+              onPress={() => {
+                epoch.current++;
+                setPdfPreview(null);
+              }}
+            />
+            <AutomationButton
+              label="Export document"
+              disabled={reading}
+              onPress={() => void document(pdfPreview.document, true)}
+            />
+          </View>
+          <PdfPageViewer
+            source={state.pairing}
+            identity={JSON.stringify([
+              pdfPreview.document,
+              pdfPreview.revision,
+              pdfPreview.scope,
+            ])}
+            name={pdfPreview.document.name}
+            current={currentPdf}
+            read={(index, width, active) =>
+              readGatewayPdfPage(
+                state.pairing!,
+                state.ownerId,
+                params.run,
+                pdfPreview.revision,
+                pdfPreview.document,
+                index,
+                width,
+                active,
+                Crypto.randomUUID,
+                pdfDigest,
+              )
+            }
+          />
+        </View>
+      </ScrollView>
+    );
   if (activePreview)
     return (
       <View style={[styles.screen, { backgroundColor: theme.background }]}>
@@ -320,7 +404,11 @@ export default function GatewayWorkflowEvidenceScreen() {
           <RefreshControl
             refreshing={state.loading}
             onRefresh={() => {
-              if (!reading) void state.refresh();
+              if (!reading) {
+                epoch.current++;
+                setPdfPreview(null);
+                void state.refresh();
+              }
             }}
             tintColor={theme.textSecondary}
           />
@@ -329,7 +417,11 @@ export default function GatewayWorkflowEvidenceScreen() {
           <View style={styles.header}>
             <AutomationRefresh
               refreshing={state.loading || reading}
-              onRefresh={() => void state.refresh()}
+              onRefresh={() => {
+                epoch.current++;
+                setPdfPreview(null);
+                void state.refresh();
+              }}
             />
             <Text style={[styles.body, { color: theme.textSecondary }]}>
               {page
@@ -413,13 +505,13 @@ export default function GatewayWorkflowEvidenceScreen() {
               SHA-256 {doc.sha256}
             </Text>
             <View style={styles.actions}>
-              {doc.format !== "pdf" && (
+              {
                 <AutomationButton
                   label="Preview"
                   disabled={state.loading || reading}
                   onPress={() => void document(doc, false)}
                 />
-              )}
+              }
               <AutomationButton
                 label="Export document"
                 disabled={state.loading || reading}

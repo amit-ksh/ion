@@ -207,6 +207,8 @@ export type { WireDriverEvent } from "./WireDriverEvent";
 export type { WireDriverStartOptions } from "./WireDriverStartOptions";
 export type { WireSessionOptions } from "./WireSessionOptions";
 export type { Workflow } from "./Workflow";
+export type { WorkflowPdfDocument } from "./WorkflowPdfDocument";
+export type { WorkflowPdfQuery } from "./WorkflowPdfQuery";
 export type { WorkflowRetryPolicy } from "./WorkflowRetryPolicy";
 export type { WorkflowStage } from "./WorkflowStage";
 export type { WorkflowTarget } from "./WorkflowTarget";

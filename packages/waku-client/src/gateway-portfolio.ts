@@ -1,4 +1,11 @@
 import {
+  validateGatewayPdfQuery,
+  validateGatewayPdfResult,
+  type GatewayPdfQuery,
+  type GatewayPdfResult,
+} from "./gateway-pdf";
+export * from "./gateway-pdf";
+import {
   validateGatewayRemoteQuery,
   validateGatewayRemoteResult,
   type GatewayRemoteQuery,
@@ -43,6 +50,7 @@ export interface GatewayCloudBudget {
   requests: number;
 }
 export type PortfolioQuery =
+  | GatewayPdfQuery
   | WorkflowHistoryQuery
   | GatewayBillingQuery
   | GatewayRemoteQuery
@@ -51,6 +59,7 @@ export type PortfolioQuery =
   | { kind: "usage"; query: UsageLedgerQuery }
   | { kind: "projects"; query: { after: string | null; limit: number } };
 export type PortfolioResult =
+  | GatewayPdfResult
   | WorkflowHistoryResult
   | GatewayBillingResult
   | GatewayRemoteResult
@@ -152,6 +161,10 @@ const bytes = (v: unknown) => portfolioUtf8Bytes(JSON.stringify(v));
 export function validatePortfolioQuery(
   value: unknown,
 ): asserts value is PortfolioQuery {
+  if (obj(value) && value.kind === "workflowPdfPage") {
+    validateGatewayPdfQuery(value);
+    return;
+  }
   if (obj(value) && value.kind === "remoteExecutions") {
     validateGatewayRemoteQuery(value);
     return;
@@ -233,6 +246,10 @@ export function validatePortfolioResult(
     bytes(value) > 60_000
   )
     throw new Error("Invalid portfolio result");
+  if (request.kind === "workflowPdfPage") {
+    validateGatewayPdfResult(value, request);
+    return;
+  }
   if (request.kind === "remoteExecutions") {
     validateGatewayRemoteResult(value, request);
     return;
@@ -540,7 +557,9 @@ export function portfolioReadGrant(
       ? "usageRead"
       : query.kind === "workflowHistory" || query.kind === "workflowRun"
         ? "automationRead"
-        : query.kind === "workflowEvidence" || query.kind === "workflowDocument"
+        : query.kind === "workflowEvidence" ||
+            query.kind === "workflowDocument" ||
+            query.kind === "workflowPdfPage"
           ? "evidenceRead"
           : null;
 }

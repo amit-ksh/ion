@@ -2,14 +2,30 @@ use super::*;
 use waku_protocol::gateway_portfolio::{self, PortfolioQuery};
 
 pub(super) fn sync(api: &GatewayApi, engine: &OwnerEngine, fence: &StopFence) -> Result<()> {
+    sync_queries(api, engine, fence, false)
+}
+pub(super) fn sync_pdf(api: &GatewayApi, engine: &OwnerEngine, fence: &StopFence) -> Result<()> {
+    sync_queries(api, engine, fence, true)
+}
+fn sync_queries(
+    api: &GatewayApi,
+    engine: &OwnerEngine,
+    fence: &StopFence,
+    pdf_only: bool,
+) -> Result<()> {
     if fence.stopped() || !api.has_portfolio_relay()? || !api.authorized()? {
         return Ok(());
     }
     let started = Instant::now();
-    api.publish_portfolio_owner()?;
+    if !pdf_only {
+        api.publish_portfolio_owner()?;
+    }
     for job in api.pending_portfolio()?.into_iter().take(16) {
         if fence.stopped() || started.elapsed() >= PASS_BUDGET {
             break;
+        }
+        if pdf_only && job.query["kind"] != "workflowPdfPage" {
+            continue;
         }
         if job.publisher_id != api.identity().1
             || job.status != "queued"
@@ -64,6 +80,7 @@ pub(super) fn read(engine: &OwnerEngine, value: serde_json::Value) -> Result<ser
                 now,
             )
         }
+        PortfolioQuery::WorkflowPdfPage { query } => engine.teams.read_workflow_pdf_page(&query),
         PortfolioQuery::WorkflowDocument { query } => {
             let run = engine.teams.automation_run(query.run_id)?;
             let teams = run

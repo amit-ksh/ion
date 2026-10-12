@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result, bail};
 use crossbeam_channel::{Receiver, Sender, unbounded};
@@ -120,6 +120,8 @@ fn bridge_loop(
     let mut published = Published::default();
     let mut interactions = HashMap::new();
     let mut last_error = String::new();
+    let mut last_regular = Instant::now() - Duration::from_secs(5);
+    let mut last_pdf: Option<Instant> = None;
     while !stop.load(Ordering::Acquire) {
         if let Ok(api) = CredentialService::global().gateway_api()
             && api.has_publish_grant().unwrap_or(false)
@@ -140,8 +142,18 @@ fn bridge_loop(
             let temporary_pairing = CredentialService::global()
                 .status(CredentialKind::GatewayPairingToken)
                 == CredentialStatus::MemoryOnly;
-            if let Err(error) = sync_once(&daemon.client(), &api, &mut published, temporary_pairing)
-            {
+            let synced = if last_regular.elapsed() >= Duration::from_secs(5) {
+                last_regular = Instant::now();
+                sync_once(&daemon.client(), &api, &mut published, temporary_pairing)
+            } else if temporary_pairing {
+                portfolio::sync_pdf(&daemon.client(), &api)
+            } else {
+                Ok(false)
+            };
+            if synced.as_ref().is_ok_and(|pdf| *pdf) {
+                last_pdf = Some(Instant::now());
+            }
+            if let Err(error) = synced {
                 // A gateway restore or a partial network failure can erase
                 // server state that our in-memory cache believed existed.
                 // Replay the bounded snapshot and deduped event IDs next pass.
@@ -178,7 +190,12 @@ fn bridge_loop(
                 collect_interaction(&mut interactions, update);
             }
         }
-        for _ in 0..50 {
+        let ticks = if last_pdf.is_some_and(|last| last.elapsed() < Duration::from_secs(15)) {
+            5
+        } else {
+            50
+        };
+        for _ in 0..ticks {
             if stop.load(Ordering::Acquire) {
                 return;
             }
@@ -192,7 +209,7 @@ fn sync_once(
     api: &GatewayApi,
     published: &mut Published,
     temporary_pairing: bool,
-) -> Result<()> {
+) -> Result<bool> {
     dispatch_commands(client, api)?;
     let ResponsePayload::TaskState {
         projects,
@@ -213,8 +230,9 @@ fn sync_once(
     if temporary_pairing && api.has_automation_relay()? {
         automations::sync(client, api, &project_records)?;
     }
+    let mut read_pdf = false;
     if temporary_pairing {
-        portfolio::sync(client, api, &project_records)?;
+        read_pdf = portfolio::sync(client, api, &project_records)?;
         inbox::sync(client, api)?;
         notifications::sync(client, api)?;
     }
@@ -281,7 +299,7 @@ fn sync_once(
     }
     api.reconcile_tasks(&active_ids)?;
     api.heartbeat()?;
-    Ok(())
+    Ok(read_pdf)
 }
 
 fn dispatch_commands(client: &DaemonClient, api: &GatewayApi) -> Result<()> {

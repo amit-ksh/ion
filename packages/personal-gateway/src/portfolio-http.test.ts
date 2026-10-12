@@ -1292,3 +1292,122 @@ test("original task context and existing controls pin publisher and runtime with
     await f.gateway.close();
   }
 });
+
+test("PDF page transfers require evidence grants, exact publisher/source/chunk and live unrevoked reader", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      foreign = await f.pair(["publish"]),
+      reader = await f.pair(["evidenceRead"]),
+      history = await f.pair(["automationRead"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const query = {
+      kind: "workflowPdfPage",
+      query: {
+        runId: randomUUID(),
+        revision: 7,
+        expected: {
+          id: randomUUID(),
+          name: "Report.pdf",
+          format: "pdf",
+          projectId: randomUUID(),
+          taskId: null,
+          stage: 0,
+          teamRunId: randomUUID(),
+          assignmentId: randomUUID(),
+          bytes: 100,
+          sha256: "a".repeat(64),
+          createdAt: 100,
+        },
+        page: 0,
+        width: 800,
+        transferId: null,
+        offset: 0,
+        limit: 32768,
+      },
+    };
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query,
+    };
+    expect(
+      (await f.call("/v1/device/portfolio/queries", "POST", history, input))
+        .status,
+    ).toBe(401);
+    const queued = await f.call(
+      "/v1/device/portfolio/queries",
+      "POST",
+      reader,
+      input,
+    );
+    expect(queued.status).toBe(201);
+    const job = (await queued.json()) as { id: string };
+    const result = {
+      kind: "workflowPdfPage",
+      page: {
+        runId: query.query.runId,
+        revision: 7,
+        document: query.query.expected,
+        transferId: randomUUID(),
+        page: 0,
+        pages: 1,
+        requestedWidth: 800,
+        width: 800,
+        height: 1000,
+        bytes: 32768,
+        sha256: "b".repeat(64),
+        expiresAt: Date.now() + 599000,
+        offset: 0,
+        nextOffset: null,
+        data: Buffer.alloc(32768).toString("base64"),
+      },
+      pageTruncated: false,
+      servedAt: Date.now(),
+    };
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          foreign,
+          { result },
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries/${job.id}/complete`,
+          "POST",
+          publisher,
+          {
+            result: {
+              ...result,
+              page: {
+                ...result.page,
+                document: {
+                  ...result.page.document,
+                  assignmentId: randomUUID(),
+                },
+              },
+            },
+          },
+        )
+      ).status,
+    ).toBe(400);
+    await f.call(`/v1/owner/devices/${reader.id}/revoke`, "POST", f.owner, {});
+    const denied = (await (
+      await f.call(
+        `/v1/device/portfolio/queries/${job.id}/complete`,
+        "POST",
+        publisher,
+        { result },
+      )
+    ).json()) as { status: string; result: unknown };
+    expect(denied.status).toBe("rejected");
+    expect(denied.result).toBeNull();
+  } finally {
+    await f.gateway.close();
+  }
+});

@@ -383,6 +383,9 @@ pub enum Command {
     RenderArtifactPdfPage {
         query: crate::artifact_library::ArtifactPdfQuery,
     },
+    ReadWorkflowPdfPage {
+        query: crate::gateway_portfolio::pdf::WorkflowPdfQuery,
+    },
     ReadWorkspaceArtifact {
         id: Uuid,
     },
@@ -627,6 +630,10 @@ pub enum ResponsePayload {
     },
     ArtifactPdfPage {
         page: crate::artifact_library::ArtifactPdfPage,
+    },
+    WorkflowPdfPage {
+        #[ts(type = "unknown")]
+        result: serde_json::Value,
     },
     WorkspaceControl {
         snapshot: crate::control::ControlSnapshot,

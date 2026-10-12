@@ -392,3 +392,32 @@ test("project totals cannot claim fewer projects than a returned page", () => {
   };
   expect(() => validatePortfolioResult(page, query)).toThrow("project page");
 });
+
+test("faster PDF polling extends the bounded poll count while preserving exact request identity and deadline", async () => {
+  const f = fixture();
+  let reads = 0;
+  const api = {
+    ...f.api,
+    maxPolls: 240,
+    read: async () =>
+      ++reads < 80 ? f.job : { ...f.job, status: "complete" as const, result },
+  };
+  expect(
+    await loadGatewayPortfolio(
+      pairing,
+      publisherId,
+      query,
+      nonce,
+      () => true,
+      api,
+    ),
+  ).toEqual(result);
+  expect(reads).toBe(80);
+  for (const maxPolls of [0, 241, Number.NaN])
+    await expect(
+      loadGatewayPortfolio(pairing, publisherId, query, nonce, () => true, {
+        ...api,
+        maxPolls,
+      }),
+    ).rejects.toThrow(/poll bound/);
+});
