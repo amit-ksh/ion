@@ -36,8 +36,8 @@ The owner does not write guest kernel settings or invent unverified ConTree API
 fields. The operator/runtime must configure the sandbox's real cgroup limits.
 The fixed root supervisor and demoted guard independently verify the actual
 cgroup before arbitrary code can run. They require a private unified cgroup root,
-real cgroup2 filesystem, domain type, root-owned non-writable controls, finite
-CPU/memory/task caps no greater than the approval and zero swap. CPU quota uses
+real cgroup2 filesystem, domain type, root-owned non-writable controls, the checking process's membership in that exact
+kernel group, finite CPU/memory/task caps no greater than the approval and zero swap. CPU quota uses
 integer cross-multiplication. Unlimited, malformed, missing or incompatible
 controls refuse execution. The guard removes the approval environment before
 user exec, then keeps the existing nonroot/no-new-privileges/socket boundary.
@@ -75,10 +75,11 @@ bounded temporary filesystem. The six group tests run with a read-only root.
   13 installed native CLI, 9 installed socket-guard and 30 native owner/command tests.
   One optional owner-generated executable archive case and two Rust fixture-export
   cases were not run; they are explicit separate acceptance gates. Existing Rust
-  warnings remain. Final locked desktop/daemon/worker gates are recorded after
-  the phone artifact branch merge.
+  warnings remain. After the phone artifact branch merge, locked desktop/daemon/worker
+  compilation, freshly built merged core tests, protocol44 binding freshness and
+  complete mobile/gateway/client TypeScript checks passed.
 
-Current locally tested derivative image ID: `sha256:33d6f3675fc101ec0cf0179b87fac3208cf981ab2b8013950290b1aceb4d91eb`. It copies current
+Current locally tested derivative image ID: `sha256:2200d363e2a9be95997968a5aecdc823a29d57a301b2593b2cecb76677bf4cca`. It copies current
 worker/guard/manifest/test files onto the verified local base without installing
 packages or using cloud credentials. Native group tests use no-new-privileges and
 read-only root; legacy CLI/guard tests use a writable disposable image because

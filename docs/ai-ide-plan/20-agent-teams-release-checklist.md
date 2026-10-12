@@ -758,3 +758,16 @@ Native document final gates passed: locked desktop/daemon/worker compilation, Ru
 - [x] 69 tests pass, including actual Linux CPU throttling, shared fork limits and memory OOM accounting; 3 explicit fixture gates remain unrun.
 - [ ] Accept the exact managed runtime, rebuild/import immutable images and configure actual caps using [the resource review](45-sandbox-resource-groups.md).
 - [ ] Finish cross-run host/project admission, aggregate storage and wider device/egress/GPU/CUDA enforcement.
+
+## 2026-10-12 — phone artifacts and merged resource checks
+
+- [x] Merge independent phone artifact branch `9b52c5f` into this branch at `f2e6cc8`.
+- [x] Bounded cross-project/task/format library with explicit AI provenance, pinned metadata and complete original-byte verification.
+- [x] Native phone Markdown/JSON/source reading and chunked original export, with pairing/foreground/read/digest/write fences.
+- [x] Verifier confirms actual process membership in the approved finite kernel group.
+- [x] 104 distinct increment tests pass, including freshly built merged artifact and command tests; 3 fixture gates remain unrun.
+- [x] Locked desktop/daemon/worker compile, protocol44 freshness, complete TypeScript and formatting/whitespace/source checks pass.
+- [ ] Complete [phone artifact device review](44-phone-artifact-library.md#verification-and-review) and [runtime group review](45-sandbox-resource-groups.md#later-owner-setup-and-review).
+- [ ] Implement native phone HTML/PDF rendering, wider resource/GPU controls and remaining billing reconciliation; complete actual speech deployment/device acceptance.
+
+The full implementation remains in progress on `codex/ion-agent-teams`; no `ion-prod` merge or live deployment is included.

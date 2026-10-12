@@ -188,7 +188,10 @@ def verify_resource_group(policy):
         if read('cgroup.type') != 'domain':
             raise BoundaryError()
         # Migration/create controls must also be root-owned and unavailable to the child UID.
-        read('cgroup.procs')
+        members = read('cgroup.procs').splitlines()
+        if (str(os.getpid()) not in members
+            or any(not re.fullmatch(r'[0-9]{1,20}', member) for member in members)):
+            raise BoundaryError()
         read('cgroup.subtree_control')
         group_values(policy, read('cpu.max'), read('memory.max'), read('memory.swap.max'), read('pids.max'))
     finally:

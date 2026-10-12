@@ -63,9 +63,12 @@ Deployment/native TLS and recognition acceptance remain unverified.
 - [x] **Desktop document rendering:** verified static HTML layout/source and native
       PDF pages with background page/zoom rendering, bounded pixels, DPI handling and
       keyboard controls. [17 native tests pass](42-native-document-rendering.md).
-- [ ] **Document acceptance/parity:** macOS compile/render and native browser/UI
-      acceptance, other binary formats/publication limits and direct-phone artifact
-      discovery/render parity.
+- [x] **Direct-phone artifact library:** proven AI publication metadata, bounded
+      project/task/format filters, verified Markdown/JSON/source reading and original
+      chunked export. See [phone artifacts](44-phone-artifact-library.md).
+- [ ] **Document acceptance/parity:** macOS compile/render, native browser/device/UI
+      acceptance, additional publication formats/limits and native phone HTML/PDF
+      rendering. Phone source/export does not complete rendered-document parity.
 - [x] **Speech acceptance tooling:** executable bounded readiness and explicit
       recognition/concurrency checks; private launch preflight verifies pinned model
       bytes and stable client-compatible API name. [40 merged tests pass](41-speech-service-acceptance.md).
