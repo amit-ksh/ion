@@ -44,24 +44,31 @@ Deployment/native TLS and recognition acceptance remain unverified.
 
 ## Remaining development, in priority scope
 
-- [x] **Billing report/history:** implement owner-selected account/contract/currency
-      scopes, bounded native GET-only FOCUS sync, exact signed charges, corrected
-      monthly snapshots, historical provenance and desktop/direct-phone/gateway reads.
+- [x] **Billing report/history:** owner-selected account/contract/currency scopes,
+      bounded native GET-only FOCUS sync, exact signed charges, corrected monthly
+      snapshots, historical provenance and desktop/direct-phone/gateway reads.
       See [native reports](38-nebius-billing-reports.md) and
       [gateway history](39-gateway-billing-history.md).
 - [ ] **Billing reconciliation:** credential refresh/discovery and original
       job/account/tariff/finality reconciliation. Do not infer a final invoice or
       release a hold from a job terminal state or a completed export.
-- [ ] **Broader remote controls:** complete aggregate host/project CPU/RAM/process/
-      storage and egress enforcement, original-operation inventory and lifecycle
-      control across owner/direct phone/gateway grants; finish GPU device/FUSE/CUDA
-      and image/runtime gates before enabling the remaining training submissions.
-- [ ] **Document previews:** finish automated/native acceptance for the new desktop
-      [HTML layout and PDF pages](42-native-document-rendering.md); add other binary
-      formats/publication limits and direct-phone artifact discovery/preview parity.
-- [ ] **Speech:** deploy the prepared shared service when a target is supplied;
-      accept native Android/iOS TLS/redirect behavior, microphone capture, concurrent
-      desktop/phone partial/final recognition and resource/latency limits.
+- [x] **Remote inventory:** bounded cross-project owner/direct-phone collection,
+      original-run navigation and stop/cleanup distinctions. See [inventory](40-remote-execution-controls.md).
+- [ ] **Broader remote controls:** aggregate host/project CPU/RAM/process/storage
+      and egress enforcement, gateway parity and wider lifecycle recovery controls;
+      finish GPU device/FUSE/CUDA and image/runtime gates for remaining training work.
+- [x] **Desktop document rendering:** verified static HTML layout/source and native
+      PDF pages with background page/zoom rendering, bounded pixels, DPI handling and
+      keyboard controls. [17 native tests pass](42-native-document-rendering.md).
+- [ ] **Document acceptance/parity:** macOS compile/render and native browser/UI
+      acceptance, other binary formats/publication limits and direct-phone artifact
+      discovery/render parity.
+- [x] **Speech acceptance tooling:** executable bounded readiness and explicit
+      recognition/concurrency checks; private launch preflight verifies pinned model
+      bytes and stable client-compatible API name. [40 merged tests pass](41-speech-service-acceptance.md).
+- [ ] **Speech deployment/devices:** deploy when a target is supplied; accept native
+      Android/iOS TLS/redirect behavior, microphone capture, concurrent desktop/phone
+      partial/final recognition and target resource/latency limits.
 
 ### Verified billing contract evidence
 

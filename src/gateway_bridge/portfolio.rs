@@ -104,6 +104,17 @@ fn read(
             };
             gateway_portfolio::usage_result(page, now)
         }
+        PortfolioQuery::RemoteExecutions { query } => {
+            let ResponsePayload::RemoteExecutions { page } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::ListRemoteExecutions { query },
+            )?
+            else {
+                bail!("Invalid remote execution response");
+            };
+            gateway_portfolio::remote::result(page, now)
+        }
         PortfolioQuery::CloudBudgets { query } => {
             let ResponsePayload::CloudBudgets { page } = client.request(
                 Uuid::nil(),

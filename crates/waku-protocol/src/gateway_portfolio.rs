@@ -19,6 +19,9 @@ pub enum PortfolioQuery {
     Usage {
         query: UsageLedgerQuery,
     },
+    RemoteExecutions {
+        query: crate::remote_control::RemoteExecutionQuery,
+    },
     Projects {
         query: PortfolioProjectsQuery,
     },
@@ -58,6 +61,19 @@ impl PortfolioQuery {
         let limit = match self {
             Self::Inbox { query } => query.limit,
             Self::Usage { query } => query.limit,
+            Self::RemoteExecutions { query } => {
+                if let Some(cursor) = &query.after {
+                    ensure!(
+                        !cursor.request_id.is_nil(),
+                        "Remote cursor must identify an original request"
+                    );
+                    ensure!(
+                        query.kind.is_none_or(|kind| kind == cursor.kind),
+                        "Remote cursor kind differs from filter"
+                    );
+                }
+                query.limit
+            }
             Self::Projects { query }
             | Self::CloudBudgets { query }
             | Self::CloudBilling { query } => query.limit,
@@ -199,6 +215,8 @@ pub fn projects_result(
 }
 pub mod billing;
 pub mod history;
+
+pub mod remote;
 
 #[cfg(test)]
 mod tests;

@@ -3009,3 +3009,15 @@ Desktop Artifacts, Inbox and team documents now support static HTML layout in a 
 [Implementation and owner review](42-native-document-rendering.md). Direct-phone artifact/preview parity, additional formats/limits, remaining billing settlement, wider remote/GPU enforcement and shared speech deployment/device acceptance remain open. Further provider adapters stay deferred.
 
 Native document final gates passed: locked desktop/daemon/worker compilation, Rust/Markdown formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.
+
+## 2026-10-12 — independent speech acceptance branch merged
+
+`codex/ion-speech-acceptance` was implemented independently from `4351b7e`, with commits `06baaa3` and `ab03819`, and merged into this implementation branch at `89e5579`. The shared service now has executable readiness and explicit private-fixture recognition/concurrency acceptance tooling, bounded HTTP/WebSocket transport, cancellation/finalization checks and sanitized output. Launch preflight verifies owner-pinned GGUF SHA-256 bytes before serving; the supported stable API name `nemotron-3.5` matches the actual desktop/phone inventory predicate. A label alone does not prove model provenance.
+
+**40 speech tests passed again in the merged checkout**, using real loopback HTTP/WebSocket/TLS transports and synthetic recognition. No real ASR/model, systemd/CUDA, deployment, microphone or phone was exercised. [Setup and later owner review](41-speech-service-acceptance.md). A VM/DNS/TLS target and real fixtures/device acceptance remain required.
+
+## 2026-10-12 — native gateway remote inventory contract
+
+The registered owner and temporary desktop bridge now dispatch bounded remote inventory reads through the existing coordinator/RPC and whitelist the phone projection. Cloud target/operation/job/cancellation and internal run/assignment/attempt/agent identities are omitted; opaque original-request/root-task/project identity, handle-availability flags and cleanup/stop state remain. Structural query and retained cursor checks enforce the same collection identity. Protocol is **43** and generated bindings are current.
+
+**108 protocol tests and 5 real owner/core inventory tests pass**. The full protocol run also exposed two baseline assertions expecting the old 13-entry catalogue and Waku branding; expectations now verify the existing 14 provider IDs (including Nebius) and ion translations. No provider catalogue or adapter was added. Locked desktop/daemon/worker compilation and full mobile/gateway/client TypeScript checks pass. Gateway/mobile branch integration follows separately.

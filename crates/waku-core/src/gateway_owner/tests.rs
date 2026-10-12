@@ -673,3 +673,24 @@ fn historical_owner_queries_page_by_creation_time_and_read_sealed_workflow_docum
     );
     assert!(other.is_err());
 }
+
+#[test]
+fn registered_owner_remote_inventory_read_has_no_effect_and_rejects_foreign_cursor() {
+    let f = Fixture::new();
+    let before_revision = f.engine.control.load().unwrap().revision;
+    let before_tasks = f.engine.tasks.lock().sessions.len();
+    let query = serde_json::json!({"kind":"remoteExecutions","query":{"projectId":f.project,"kind":null,"unresolvedOnly":false,"after":null,"limit":32}});
+    let page = super::portfolio::read(&f.engine, query.clone()).unwrap();
+    assert_eq!(page["kind"], "remoteExecutions");
+    assert_eq!(page["page"]["entries"], serde_json::json!([]));
+    assert!(page["page"]["nextCursor"].is_null());
+    assert_eq!(page["pageTruncated"], false);
+    let mut oversized = query.clone();
+    oversized["query"]["limit"] = 33.into();
+    assert!(super::portfolio::read(&f.engine, oversized).is_err());
+    let mut foreign = query;
+    foreign["query"]["after"] = serde_json::json!({"kind":"gpu","requestId":Uuid::new_v4()});
+    assert!(super::portfolio::read(&f.engine, foreign).is_err());
+    assert_eq!(f.engine.control.load().unwrap().revision, before_revision);
+    assert_eq!(f.engine.tasks.lock().sessions.len(), before_tasks);
+}

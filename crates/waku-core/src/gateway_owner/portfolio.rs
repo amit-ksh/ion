@@ -91,6 +91,9 @@ pub(super) fn read(engine: &OwnerEngine, value: serde_json::Value) -> Result<ser
         PortfolioQuery::Usage { query } => {
             gateway_portfolio::usage_result(engine.control.usage_ledger(query)?, now)
         }
+        PortfolioQuery::RemoteExecutions { query } => {
+            gateway_portfolio::remote::result(engine.teams.list_remote_executions(query)?, now)
+        }
         PortfolioQuery::CloudBudgets { query } => gateway_portfolio::cloud_budgets_result(
             engine.control.cloud_budgets(query.after, query.limit)?,
             now,

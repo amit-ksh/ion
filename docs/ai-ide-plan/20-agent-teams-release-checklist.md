@@ -724,3 +724,21 @@ Final merged gates passed: locked desktop/daemon/worker compile checks, current 
 The full implementation remains in progress in `codex/ion-agent-teams`; no `ion-prod` merge or live deployment is included.
 
 Native document final gates passed: locked desktop/daemon/worker compilation, Rust/Markdown formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.
+
+## 2026-10-12 — shared speech acceptance branch merged
+
+- [x] Independent speech implementation committed and merged into the current implementation branch.
+- [x] Bounded executable readiness and explicit fixture recognition/concurrent-client checks, cancellation/finalization deadlines and sanitized output.
+- [x] Private startup token/model checks, required owner-pinned GGUF checksum equality and stable client-compatible model API label.
+- [x] 40 merged speech tests pass, including real loopback transport/TLS refusal and launch checks with a synthetic binary/artifact.
+- [ ] Deploy and verify native Linux/systemd/CUDA limits when a target is available.
+- [ ] Complete real ASR recognition, microphone and Android/iOS/desktop acceptance in [the service checklist](41-speech-service-acceptance.md).
+
+## 2026-10-12 — native gateway remote inventory contract
+
+- [x] Bounded read-only query dispatch in the registered owner and desktop gateway bridge.
+- [x] Whitelisted/redacted phone projection, 60KB transfer limit preserving whole rows and retained kind/request cursor; private source identities excluded.
+- [x] Structural cursor/query limits and persistent core collection identity checks.
+- [x] Protocol43 generated bindings current; 108 protocol and 5 real owner/core inventory tests pass.
+- [x] Locked desktop/daemon/worker compile and full mobile/gateway/client TypeScript checks pass.
+- [ ] Merge and verify independent gateway/mobile inventory implementation with this native contract.
