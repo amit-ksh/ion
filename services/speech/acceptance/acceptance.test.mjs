@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { WebSocketServer } from "ws";
 import {
   AcceptanceError,
@@ -56,6 +57,12 @@ async function fixtures(fn) {
   }
 }
 async function service(mode, fn) {
+  const modelId =
+    mode === "canonical_model"
+      ? "nemotron-3.5"
+      : mode === "uppercase_model"
+        ? "Nemotron-3.5-asr-streaming-0.6b"
+        : MODEL;
   const state = {
     requests: [],
     audio: [],
@@ -98,7 +105,7 @@ async function service(mode, fn) {
       return json(response, {
         data: [
           {
-            id: MODEL,
+            id: modelId,
             capability:
               mode === "wrong_capability" ? "speech" : "transcription",
           },
@@ -155,7 +162,7 @@ async function service(mode, fn) {
         session: {
           input_audio_format: mode === "bad_format" ? "float32" : "pcm16",
           sample_rate: 16000,
-          model: mode === "bad_model" ? "other" : MODEL,
+          model: mode === "bad_model" ? "other" : modelId,
         },
       });
       let bytes = 0,
@@ -830,4 +837,90 @@ test("invalid expected UTF8 is refused before network traffic", async () => {
       assert.equal(state.requests.length, 0);
     }),
   );
+});
+
+test("canonical served-model name satisfies the actual desktop and phone inventory predicate", async () => {
+  await service("canonical_model", async (url) => {
+    assert.equal((await runChecks(config(url), TOKEN)).status, "passed");
+    const inventory = await getJson(
+      url,
+      "/v1/models",
+      TOKEN,
+      new AbortController().signal,
+      400,
+    );
+    const id = inventory.data.data[0].id;
+    assert.ok(id.includes("nemotron-3.5") || id.includes("nemotron-3_5"));
+    assert.match(id, /nemotron-3[._]5/);
+  });
+  await rejectsCheck("uppercase_model", "model");
+});
+test("launcher pins the supported canonical API name and verifies model SHA before serving", async (t) => {
+  const shell =
+    process.platform === "win32"
+      ? "C:/Program Files/Git/usr/bin/sh.exe"
+      : "/bin/sh";
+  try {
+    await childResult(shell, ["-c", "command -v sha256sum >/dev/null"]);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      t.skip("POSIX shell unavailable");
+      return;
+    }
+    throw error;
+  }
+  const launch = fileURLToPath(
+    new URL("../ion-speech-launch.sh", import.meta.url),
+  );
+  const posixPath = (value) =>
+    process.platform === "win32"
+      ? `/${value[0].toLowerCase()}/${value.slice(3).replaceAll("\\", "/")}`
+      : value;
+  await fixtures(async (files) => {
+    const model = join(dirname(files.wav), "selected-model.gguf"),
+      binary = join(dirname(files.wav), "native-stub.sh");
+    const bytes = Buffer.from(
+      "GGUF private synthetic artifact for preflight only",
+    );
+    await writeFile(model, bytes);
+    await writeFile(binary, '#!/bin/sh\nprintf "%s\\n" "$@"\n');
+    const permissions = await childResult(shell, [
+      "-c",
+      '/usr/bin/chmod +x "$1"',
+      "speech-test",
+      posixPath(binary),
+    ]);
+    assert.equal(permissions.code, 0);
+    const expected = createHash("sha256").update(bytes).digest("hex");
+    const env = {
+      NEMO_SPEECH_HTTP_API_KEY: TOKEN,
+      ...(process.platform === "win32" ? { PATH: "/usr/bin:/bin" } : {}),
+      ION_SPEECH_BINARY: posixPath(binary),
+      ION_SPEECH_MODEL_PATH: posixPath(model),
+      ION_SPEECH_MODEL_SHA256: expected.toUpperCase(),
+    };
+    const prepared = await childResult(shell, [launch, "--check"], env);
+    assert.equal(prepared.code, 0);
+    assert.match(prepared.stdout, /model_sha256,passed/);
+    assert.ok(!prepared.stdout.includes(expected));
+    assert.ok(!prepared.stdout.includes(TOKEN));
+    assert.ok(!prepared.stdout.includes(posixPath(model)));
+    const served = await childResult(shell, [launch], env);
+    assert.equal(served.code, 0);
+    const args = served.stdout.trim().split("\n");
+    assert.equal(args[args.indexOf("--asr-model") + 1], posixPath(model));
+    assert.equal(args[args.indexOf("--asr.model.name") + 1], "nemotron-3.5");
+    assert.equal(args[args.indexOf("--host") + 1], "127.0.0.1");
+    assert.ok(!args.includes(TOKEN));
+    for (const hash of ["", "a".repeat(64), "z".repeat(64)]) {
+      const refused = await childResult(shell, [launch], {
+        ...env,
+        ION_SPEECH_MODEL_SHA256: hash,
+      });
+      assert.equal(refused.code, 1);
+      assert.ok(!refused.stdout.includes("--asr-model"));
+    }
+    await writeFile(model, Buffer.from("changed artifact"));
+    assert.equal((await childResult(shell, [launch], env)).code, 1);
+  });
 });

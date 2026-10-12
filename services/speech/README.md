@@ -30,12 +30,13 @@ continue to use the HTTP upload path. Local desktop preview remains available.
 3. Save `speech.env.example` as `/etc/ion/speech.env`, replace its placeholder
    with a randomly generated speech token, and set root ownership and mode
    `0600`. Set `ION_SPEECH_MODEL_PATH` to the actual verified GGUF path from the
-   pull. Keep that token private. Do not use the placeholder or the model
+   pull. Set `ION_SPEECH_MODEL_SHA256` to the ASR artifact checksum in the
+   installed, verified model index (see below). Keep that token private. Do not use the placeholder or the model
    provider's API key. Install `ion-speech-launch.sh` at
    `/opt/ion-speech/ion-speech-launch.sh` with root ownership and mode `0755`,
    and copy `ion-speech.service` to `/etc/systemd/system/`. Its preflight refuses
-   an unset/placeholder token, missing binary or missing local model before the
-   listener starts. Check the installed binary's `serve --help` against the flags
+   an unset/placeholder token, missing binary, missing local model or checksum
+   mismatch before the listener starts. Check the installed binary's `serve --help` against the flags
    in the launch script. Existing local GGUF selection avoids restart downloads.
 4. Point your DNS hostname to the VM. Install Caddy and merge the provided
    Caddyfile into its configuration. Set `ION_SPEECH_DOMAIN` in Caddy's service
@@ -127,6 +128,28 @@ for its exact saved origin. A changed URL requires a new token.
 Automated checks cover native loopback inventory/socket acknowledgment, no PCM/
 commit, sanitized errors, rejected inventory, cancellation and bounded payloads.
 No Nebius speech service was deployed or tested live.
+
+## Stable client identity and model provenance
+
+The launch script supplies the supported `--asr.model.name nemotron-3.5` override.
+This keeps the inventory ID and realtime session model compatible with desktop
+and phone checks when serving an absolute GGUF path. It is an API label;
+recognized text and that label do not establish model provenance.
+
+Get the expected checksum from the **verified installed index**, normally
+`/opt/ion-speech/share/nemo-speech/model-index.json` for this prefix, or the
+verified source checkout's `models/index.json`. Select the repository
+`nvidia/nemotron-3.5-asr-streaming-0.6b` and its `role: asr` file; record its filename,
+revision, size and `sha256`. Save that expected `sha256` as
+`ION_SPEECH_MODEL_SHA256` in the private service environment. Do not set the
+expected checksum by hashing an unchecked file. Preflight uses standard
+`sha256sum` to compare the current local model bytes before every start; mismatch
+refuses serving. Keep the model protected from concurrent untrusted writes.
+
+The detailed acceptance document records the inspected upstream index revision
+and naming chain. A successful service check proves the client-facing protocol;
+a valid configured checksum proves equality to the owner-selected artifact.
+The trust and correctness of the selected index/conversion remain an owner gate.
 
 ## Executable readiness and recognition acceptance
 

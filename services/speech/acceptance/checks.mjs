@@ -331,7 +331,7 @@ export async function runChecks(
         typeof item.id === "string" &&
         item.id.length <= 256 &&
         item.capability === "transcription" &&
-        /nemotron-3[._]5/i.test(item.id) &&
+        /nemotron-3[._]5/.test(item.id) &&
         (!config.model || item.id === config.model),
     );
     if (models.length !== 1)
