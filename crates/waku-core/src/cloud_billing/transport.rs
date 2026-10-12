@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::{io::Read, time::Duration};
 use url::Url;
 pub(super) const ARCHIVE_LIMIT: usize = 8 * 1024 * 1024;
+const DISCOVERY_METADATA_LIMIT: usize = 512 * 1024;
 pub(super) struct Export {
     pub id: String,
     pub period: String,
@@ -148,7 +149,7 @@ fn archive_request(
 ) -> reqwest::blocking::RequestBuilder {
     client.get(url)
 }
-pub(super) fn native(scope: &CloudBillingScope, id: &str, now: u64) -> Result<(Export, Vec<u8>)> {
+fn owner_token() -> Result<String> {
     let token = std::env::var("ION_NEBIUS_BILLING_IAM_TOKEN")
         .or_else(|_| std::env::var("ION_NEBIUS_GPU_IAM_TOKEN"))
         .map_err(|_| anyhow::anyhow!("Configure the owner's Nebius billing IAM token privately"))?;
@@ -156,6 +157,164 @@ pub(super) fn native(scope: &CloudBillingScope, id: &str, now: u64) -> Result<(E
         !token.trim().is_empty() && token.len() <= 16_384 && !token.contains(['\r', '\n']),
         "Invalid owner billing IAM token"
     );
+    Ok(token)
+}
+
+pub(super) struct ExportDiscovery {
+    pub items: Vec<CloudBillingReadyExport>,
+    pub examined: u16,
+    pub export_ids: Vec<String>,
+    pub next_token: String,
+}
+pub(super) fn page_token(token: &str) -> Result<()> {
+    ensure!(
+        token.len() <= 4096 && !token.chars().any(char::is_control),
+        "Billing continuation exceeds its bound"
+    );
+    Ok(())
+}
+fn discovery_request(
+    client: &reqwest::blocking::Client,
+    scope: &CloudBillingScope,
+    token: &str,
+    page_size: u16,
+    after: &str,
+) -> reqwest::blocking::RequestBuilder {
+    client
+        .get("https://api.nebius.cloud/billing/v1alpha1/one-time-exports")
+        .query(&[
+            ("parentId", scope.contract_id.clone()),
+            ("pageSize", page_size.to_string()),
+            ("pageToken", after.into()),
+        ])
+        .bearer_auth(token.trim())
+}
+pub(super) fn discovery_page(
+    scope: &CloudBillingScope,
+    value: &Value,
+    limit: u16,
+    after: &str,
+    now: u64,
+) -> Result<ExportDiscovery> {
+    let object = value.as_object().context("Invalid billing export list")?;
+    ensure!(
+        object
+            .keys()
+            .all(|key| matches!(key.as_str(), "items" | "nextPageToken")),
+        "Unrecognized billing export list fields"
+    );
+    let empty = vec![];
+    let rows = match value.get("items") {
+        None => &empty,
+        Some(value) => value.as_array().context("Invalid billing export list")?,
+    };
+    ensure!(
+        rows.len() <= limit as usize,
+        "Billing export list exceeds its requested page limit"
+    );
+    let next_token = match value.get("nextPageToken") {
+        None => "",
+        Some(value) => value.as_str().context("Invalid billing continuation")?,
+    };
+    page_token(next_token)?;
+    ensure!(
+        next_token.is_empty() || next_token != after,
+        "Billing export pagination did not advance"
+    );
+    let mut items = vec![];
+    let mut ids = std::collections::HashSet::new();
+    let mut export_ids = vec![];
+    for row in rows {
+        let id = row["metadata"]["id"]
+            .as_str()
+            .context("Billing export identity is missing")?;
+        identifier(id)?;
+        ensure!(
+            row["metadata"]["parentId"].as_str() == Some(&scope.contract_id),
+            "Billing export list belongs to a different contract"
+        );
+        ensure!(ids.insert(id), "Billing export list repeated an identity");
+        export_ids.push(id.to_owned());
+        let state = match row["status"].get("state") {
+            None => 0,
+            Some(Value::String(s)) => match s.as_str() {
+                "ONE_TIME_EXPORT_STATE_UNSPECIFIED" => 0,
+                "ONE_TIME_EXPORT_STATE_SCHEDULED" => 1,
+                "ONE_TIME_EXPORT_STATE_RUNNING" => 2,
+                "ONE_TIME_EXPORT_STATE_SUCCESS" => 3,
+                "ONE_TIME_EXPORT_STATE_FAILED" => 4,
+                "ONE_TIME_EXPORT_STATE_ARCHIVED" => 5,
+                _ => anyhow::bail!("Unrecognized billing export state"),
+            },
+            Some(v) => v
+                .as_u64()
+                .filter(|n| *n <= 5)
+                .context("Unrecognized billing export state")?,
+        };
+        if state != 3 {
+            continue;
+        }
+        if row["spec"]["format"] != "EXPORT_FORMAT_FOCUS_1_2_CSV" && row["spec"]["format"] != 1 {
+            continue;
+        }
+        let period = row["spec"]["startPeriod"]
+            .as_str()
+            .context("Billing export period is missing")?;
+        focus::period_bounds(period)?;
+        let end = row["spec"]["endPeriod"]
+            .as_str()
+            .context("Billing export end period is missing")?;
+        focus::period_bounds(end)?;
+        if end != period {
+            continue;
+        }
+        let created = timestamp(&row["metadata"]["createdAt"])?;
+        ensure!(
+            created.timestamp() >= 0 && created.timestamp() as u64 <= now.saturating_add(300),
+            "Billing export creation time is invalid"
+        );
+        let expires = timestamp(&row["status"]["expiresAt"])?;
+        if expires.timestamp() <= i64::try_from(now)? {
+            continue;
+        }
+        // List does not need a download URL. The existing explicit Sync performs Get for a fresh
+        // signed URL, validates its approved origin, then verifies complete account CSV evidence.
+        items.push(CloudBillingReadyExport {
+            export_id: id.into(),
+            period: period.into(),
+            created_at: created.to_rfc3339(),
+            expires_at: expires.to_rfc3339(),
+        });
+    }
+    Ok(ExportDiscovery {
+        items,
+        examined: rows.len().try_into()?,
+        export_ids,
+        next_token: next_token.into(),
+    })
+}
+pub(super) fn discover(
+    scope: &CloudBillingScope,
+    after: &str,
+    limit: u16,
+    now: u64,
+) -> Result<ExportDiscovery> {
+    page_token(after)?;
+    let token = owner_token()?;
+    let value = read(
+        discovery_request(&client()?, scope, &token, limit, after)
+            .send()
+            .map_err(|_| anyhow::anyhow!("Could not discover the owner's billing exports"))?,
+        DISCOVERY_METADATA_LIMIT,
+    )?;
+    let value: Value = serde_json::from_slice(&value)
+        .map_err(|_| anyhow::anyhow!("Invalid billing export list metadata"))?;
+    ensure!(value.is_object(), "Invalid billing export list metadata");
+    discovery_page(scope, &value, limit, after, now)
+}
+
+pub(super) fn native(scope: &CloudBillingScope, id: &str, now: u64) -> Result<(Export, Vec<u8>)> {
+    let token = owner_token()?;
     let value = read(
         api_request(&client()?, id, &token)
             .send()
@@ -180,6 +339,49 @@ mod http_tests {
     use super::*;
     use std::io::{Read, Write};
     #[test]
+    fn billing_discovery_is_one_fixed_get_with_exact_encoded_contract_and_pagination() {
+        let scope = CloudBillingScope {
+            id: Uuid::new_v4(),
+            name: "Fixture".into(),
+            account_id: "account-fixture".into(),
+            contract_id: "contract-fixture".into(),
+            currency: "USD".into(),
+            archive_origin: "https://storage.eu-north1.nebius.cloud".into(),
+        };
+        let request = discovery_request(
+            &client().unwrap(),
+            &scope,
+            "fixture-private-iam",
+            32,
+            "opaque+/=&token",
+        )
+        .build()
+        .unwrap();
+        assert_eq!(request.method(), reqwest::Method::GET);
+        assert!(request.body().is_none());
+        assert_eq!(
+            request.url().origin().ascii_serialization(),
+            "https://api.nebius.cloud"
+        );
+        assert_eq!(request.url().path(), "/billing/v1alpha1/one-time-exports");
+        assert_eq!(
+            request.url().query_pairs().collect::<Vec<_>>(),
+            vec![
+                ("parentId".into(), "contract-fixture".into()),
+                ("pageSize".into(), "32".into()),
+                ("pageToken".into(), "opaque+/=&token".into())
+            ]
+        );
+        assert!(
+            request
+                .headers()
+                .get("Authorization")
+                .unwrap()
+                .is_sensitive()
+        );
+        assert!(!request.url().as_str().contains("fixture-private-iam"));
+    }
+    #[test]
     fn cloud_billing_native_requests_are_reads_and_archive_never_receives_iam() {
         let api = api_request(&client().unwrap(), "export-test", "fixture-private-iam")
             .build()
@@ -193,6 +395,42 @@ mod http_tests {
         assert_eq!(archive.method(), reqwest::Method::GET);
         assert!(archive.headers().get("Authorization").is_none());
         assert!(archive.body().is_none());
+    }
+    #[test]
+    fn billing_discovery_metadata_body_stops_at_its_read_bound_without_echoing_private_bytes() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let thread = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            write!(
+                socket,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                DISCOVERY_METADATA_LIMIT + 1
+            )
+            .unwrap();
+            socket
+                .write_all(&vec![b's'; DISCOVERY_METADATA_LIMIT + 1])
+                .unwrap();
+        });
+        let response = client()
+            .unwrap()
+            .get(format!("http://{address}/"))
+            .send()
+            .unwrap();
+        let error = read(response, DISCOVERY_METADATA_LIMIT)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "Billing report response exceeds its size limit");
+        thread.join().unwrap();
     }
     #[test]
     fn cloud_billing_redirect_and_error_bodies_cannot_escape_as_credentials_or_data() {

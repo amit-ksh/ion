@@ -688,6 +688,13 @@ impl Backend for WakuBackend {
                     .control
                     .save_cloud_billing_scope(scope, expected_revision)?,
             }),
+            Command::DiscoverCloudBillingExports { query } => {
+                Ok(ResponsePayload::CloudBillingExports {
+                    page: self
+                        .control
+                        .discover_cloud_billing_exports(query, crate::model::unix_time())?,
+                })
+            }
             Command::SyncCloudBillingReport {
                 scope_id,
                 expected_revision,
@@ -2635,6 +2642,7 @@ fn handle_driver_command(
         | Command::LoadInboxNotifications { .. }
         | Command::LoadCloudBilling { .. }
         | Command::SaveCloudBillingScope { .. }
+        | Command::DiscoverCloudBillingExports { .. }
         | Command::SyncCloudBillingReport { .. }
         | Command::LoadCloudBillingReports { .. }
         | Command::LoadCloudBillingCharges { .. }

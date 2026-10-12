@@ -6,6 +6,7 @@ enum BillingRow {
     Scope(Rc<CloudBillingScopeStatus>),
     Report(Rc<CloudBillingReport>),
     Charge(Rc<CloudBillingCharge>),
+    ReadyExport(Uuid, u64, Rc<CloudBillingReadyExport>),
 }
 pub(super) struct BillingUi {
     pub open: bool,
@@ -21,6 +22,7 @@ pub(super) struct BillingUi {
     scope: Option<Uuid>,
     charges: Option<CloudBillingChargePage>,
     history: Option<CloudBillingReportPage>,
+    exports: Option<CloudBillingExportPage>,
     history_after: Option<String>,
     history_previous: Vec<Option<String>>,
     after: Option<u64>,
@@ -53,6 +55,7 @@ impl BillingUi {
             scope: None,
             charges: None,
             history: None,
+            exports: None,
             history_after: None,
             history_previous: vec![],
             after: None,
@@ -75,6 +78,7 @@ impl BillingUi {
         self.editing = false;
         self.charges = None;
         self.history = None;
+        self.exports = None;
         self.history_after = None;
         self.history_previous.clear();
         self.rows = Rc::new(vec![]);
@@ -85,7 +89,14 @@ impl BillingUi {
     }
     fn rebuild(&mut self) {
         let mut rows = vec![];
-        if let Some(charges) = &self.charges {
+        if let Some(page) = &self.exports {
+            rows.extend(
+                page.items
+                    .iter()
+                    .cloned()
+                    .map(|row| BillingRow::ReadyExport(page.scope_id, page.revision, Rc::new(row))),
+            );
+        } else if let Some(charges) = &self.charges {
             rows.extend(
                 charges
                     .charges
@@ -135,16 +146,29 @@ impl Waku {
         if !ui.open || ui.busy {
             return;
         }
+        let discovery = if let Rpc::DiscoverCloudBillingExports { query } = &command {
+            Some(query.clone())
+        } else {
+            None
+        };
+        if discovery.is_none() {
+            ui.exports = None;
+        }
         ui.busy = true;
         ui.error = None;
         ui.message = None;
         ui.generation += 1;
         let generation = ui.generation;
+        let expected_discovery = discovery.clone();
         let client = self.daemon.client();
         cx.spawn(async move |this,cx| {
             let result=cx.background_executor().spawn(async move {
                 smol::unblock(move ||->anyhow::Result<_> {
                     let reply=client.request(Uuid::nil(),Uuid::nil(),command)?;
+                    if let Some(query) = &discovery {
+                        let ResponsePayload::CloudBillingExports { page } = &reply else { anyhow::bail!("Unexpected billing discovery response"); };
+                        validate_discovery_reply(query, page)?;
+                    }
                     let page=if matches!(reply,ResponsePayload::CloudBillingScope{..}|ResponsePayload::CloudBillingReport{..}) {
                         let ResponsePayload::CloudBilling{page}=client.request(Uuid::nil(),Uuid::nil(),Rpc::LoadCloudBilling{after:None,limit:64})? else {anyhow::bail!("Unexpected billing refresh response");};Some(page)
                     }else{None};Ok((reply,page))
@@ -153,6 +177,11 @@ impl Waku {
             let _=this.update(cx,|this,cx| {
                 let ui=&mut this.control_ui.billing;if ui.generation!=generation || !ui.open {return;}
                 ui.busy=false;
+                if let Some(query) = &expected_discovery {
+                    if ui.scope != Some(query.scope_id) || ui.page.as_ref().and_then(|page| page.scopes.iter().find(|s| s.scope.id == query.scope_id)).is_none_or(|s| s.revision != query.expected_revision) {
+                        ui.exports = None; ui.error = Some("Billing connection changed; refresh before discovery".into()); ui.rebuild(); cx.notify(); return;
+                    }
+                }
                 match result {
                     Ok((reply,page))=>{
                         if let Some(page)=page {ui.page=Some(page);}
@@ -174,6 +203,9 @@ impl Waku {
                             }
                             ResponsePayload::CloudBillingReports {page} => {ui.history=Some(page);ui.charges=None;}
                             ResponsePayload::CloudBillingCharges {page} => ui.charges=Some(page),
+                            ResponsePayload::CloudBillingExports {page} => {
+                                ui.charges=None;ui.history=None;ui.exports=Some(page);
+                            }
                             _ => ui.error=Some("Unexpected billing response".into()),
                         }
                         ui.rebuild();
@@ -194,6 +226,8 @@ impl Waku {
         if ui.busy {
             return;
         }
+        ui.exports = None;
+        ui.rebuild();
         ui.editing = true;
         ui.id = scope.as_ref().map_or_else(Uuid::new_v4, |s| s.scope.id);
         ui.revision = scope.as_ref().map(|s| s.revision);
@@ -246,6 +280,29 @@ impl Waku {
             Rpc::SaveCloudBillingScope {
                 scope,
                 expected_revision: ui.revision,
+            },
+            cx,
+        );
+    }
+    fn discover_billing_exports(&mut self, after: Option<Uuid>, cx: &mut Context<Self>) {
+        let ui = &self.control_ui.billing;
+        if ui.busy {
+            return;
+        }
+        let Some(scope) = ui
+            .scope
+            .and_then(|id| ui.page.as_ref()?.scopes.iter().find(|s| s.scope.id == id))
+        else {
+            return;
+        };
+        self.cloud_billing_request(
+            Rpc::DiscoverCloudBillingExports {
+                query: CloudBillingExportQuery {
+                    scope_id: scope.scope.id,
+                    expected_revision: scope.revision,
+                    after,
+                    limit: 32,
+                },
             },
             cx,
         );
@@ -305,6 +362,9 @@ impl Waku {
             BillingRow::Scope(scope) => {
                 let ui = &mut self.control_ui.billing;
                 ui.scope = Some(scope.scope.id);
+                ui.exports = None;
+                ui.export
+                    .update(cx, |input, cx| input.set_content(String::new(), cx));
                 ui.charges = None;
                 ui.history = None;
                 ui.history_after = None;
@@ -332,6 +392,26 @@ impl Waku {
                     },
                     cx,
                 );
+            }
+            BillingRow::ReadyExport(scope_id, revision, export) => {
+                let ui = &mut self.control_ui.billing;
+                if ui.scope != Some(scope_id)
+                    || ui.exports.as_ref().is_none_or(|page| {
+                        page.scope_id != scope_id
+                            || page.revision != revision
+                            || !page.items.iter().any(|item| item == export.as_ref())
+                    })
+                {
+                    return;
+                }
+                ui.export.update(cx, |input, cx| {
+                    input.set_content(export.export_id.clone(), cx)
+                });
+                ui.message = Some(format!(
+                    "Selected {} report. Use Sync report to import its verified charges.",
+                    export.period
+                ));
+                cx.notify();
             }
             BillingRow::Charge(_) => {}
         }
@@ -377,6 +457,11 @@ impl Waku {
                     report.effective_cost,
                     report.contracted_cost
                 ),
+            ),
+            BillingRow::ReadyExport(_, _, export) => (
+                format!("{} · Ready FOCUS report", export.period),
+                format!("{} · Created {}", export.export_id, export.created_at),
+                format!("Expires {}", export.expires_at),
             ),
             BillingRow::Charge(charge) => (
                 format!(
@@ -436,6 +521,8 @@ impl Waku {
                 format!("billing-row-{index}"),
                 if matches!(row, BillingRow::Scope(_)) {
                     "Select account"
+                } else if matches!(row, BillingRow::ReadyExport(..)) {
+                    "Select report"
                 } else {
                     "View charges"
                 },
@@ -540,9 +627,15 @@ impl Waku {
                         )),
                 )
                 .child(control_field(
-                    "Existing single-month export ID",
+                    "Selected export ID (or enter one)",
                     ui.export.clone(),
                     "billing-export-input",
+                ))
+                .child(self.control_button(
+                    "billing-discover",
+                    "Discover existing exports",
+                    cx,
+                    |this, _, cx| this.discover_billing_exports(None, cx),
                 ))
                 .child(
                     self.control_button("billing-sync", "Sync report", cx, |this, _, cx| {
@@ -571,6 +664,29 @@ impl Waku {
                     );
                 },
             ));
+        }
+        if let Some(page) = &ui.exports {
+            let next = page.next_cursor;
+            body = body.child(div().text_color(theme.text_secondary).child(format!(
+                "{} existing exports checked · {} ready monthly reports on this page",
+                page.examined,
+                page.items.len()
+            )));
+            if page.items.is_empty() {
+                body = body.child(
+                    div()
+                        .text_color(theme.text)
+                        .child("No ready single-month FOCUS reports on this page."),
+                );
+            }
+            if let Some(next) = next {
+                body = body.child(self.control_button(
+                    "billing-discovery-next",
+                    "Next export page",
+                    cx,
+                    move |this, _, cx| this.discover_billing_exports(Some(next), cx),
+                ));
+            }
         }
         if let Some(page) = ui.history.as_ref().filter(|_| ui.charges.is_none()) {
             let scope_id = page.scope_id;
@@ -764,7 +880,7 @@ impl Waku {
                     .size_full(),
                 ),
         );
-        if ui.rows.is_empty() && !ui.busy {
+        if ui.rows.is_empty() && !ui.busy && ui.exports.is_none() {
             body = body.child(div().text_color(theme.text_secondary).child(
                 "Create a billing connection, then sync an existing successful Nebius export.",
             ));
@@ -816,5 +932,114 @@ impl Waku {
             );
         }
         body.child(content).into_any_element()
+    }
+}
+
+fn validate_discovery_reply(
+    query: &CloudBillingExportQuery,
+    page: &CloudBillingExportPage,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        page.scope_id == query.scope_id
+            && page.revision == query.expected_revision
+            && page.examined <= query.limit
+            && page.items.len() <= page.examined as usize
+            && !page
+                .next_cursor
+                .is_some_and(|id| id.is_nil() || Some(id) == query.after),
+        "Billing discovery response changed scope or page"
+    );
+    let mut seen = std::collections::HashSet::new();
+    for row in &page.items {
+        let month =
+            chrono::NaiveDate::parse_from_str(&format!("{}-01", row.period), "%Y-%m-%d").ok();
+        let created = chrono::DateTime::parse_from_rfc3339(&row.created_at).ok();
+        let expires = chrono::DateTime::parse_from_rfc3339(&row.expires_at).ok();
+        anyhow::ensure!(
+            month.is_some()
+                && created.is_some_and(|at| at.timestamp() >= 0
+                    && at.timestamp() as u64 <= page.served_at.saturating_add(300))
+                && expires.is_some_and(
+                    |at| at.timestamp() > i64::try_from(page.served_at).unwrap_or(i64::MAX)
+                ),
+            "Billing discovery response contains invalid report times"
+        );
+        anyhow::ensure!(
+            seen.insert(&row.export_id)
+                && !row.export_id.is_empty()
+                && row.export_id.len() <= 160
+                && row
+                    .export_id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b))
+                && row.period.len() == 7
+                && row.created_at.len() <= 40
+                && row.expires_at.len() <= 40,
+            "Billing discovery response contains invalid report metadata"
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::*;
+    fn fixture() -> (CloudBillingExportQuery, CloudBillingExportPage) {
+        let query = CloudBillingExportQuery {
+            scope_id: Uuid::new_v4(),
+            expected_revision: 1,
+            after: None,
+            limit: 32,
+        };
+        let page = CloudBillingExportPage {
+            scope_id: query.scope_id,
+            revision: 1,
+            items: vec![CloudBillingReadyExport {
+                export_id: "export-fixture".into(),
+                period: "2026-09".into(),
+                created_at: "2026-10-10T00:00:00Z".into(),
+                expires_at: "2026-10-17T00:00:00Z".into(),
+            }],
+            examined: 1,
+            next_cursor: Some(Uuid::new_v4()),
+            served_at: 1791763200,
+        };
+        (query, page)
+    }
+    #[test]
+    fn native_discovery_fences_foreign_scope_revision_counts_and_continuations() {
+        let (query, page) = fixture();
+        assert!(validate_discovery_reply(&query, &page).is_ok());
+        for mutation in 0..6 {
+            let mut changed = page.clone();
+            match mutation {
+                0 => changed.scope_id = Uuid::new_v4(),
+                1 => changed.revision += 1,
+                2 => changed.examined = 33,
+                3 => changed.examined = 0,
+                4 => changed.next_cursor = Some(Uuid::nil()),
+                _ => changed.items.push(changed.items[0].clone()),
+            };
+            assert!(validate_discovery_reply(&query, &changed).is_err());
+        }
+        let mut query = query;
+        query.after = page.next_cursor;
+        assert!(validate_discovery_reply(&query, &page).is_err());
+    }
+    #[test]
+    fn native_discovery_fences_unsafe_identifiers_and_invalid_or_expired_months() {
+        let (query, page) = fixture();
+        for mutation in 0..5 {
+            let mut changed = page.clone();
+            let row = &mut changed.items[0];
+            match mutation {
+                0 => row.export_id = "https://secret?token=fixture".into(),
+                1 => row.period = "2026-99".into(),
+                2 => row.created_at = "2026-12-01T00:00:00Z".into(),
+                3 => row.expires_at = "2026-01-01T00:00:00Z".into(),
+                _ => row.created_at = "not-a-time".into(),
+            };
+            assert!(validate_discovery_reply(&query, &changed).is_err());
+        }
     }
 }
