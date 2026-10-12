@@ -35,7 +35,7 @@ function identity(pairing: GatewayPairing | null) {
 }
 export function useGatewayPortfolio(
   query: PortfolioQuery,
-  options: { ownerId?: string; loadProjects?: boolean } = {},
+  options: { ownerId?: string; loadProjects?: boolean; enabled?: boolean } = {},
 ) {
   const [pairing, setPairing] = useState<GatewayPairing | null>(null);
   const [owners, setOwners] = useState<PortfolioOwner[]>([]);
@@ -56,6 +56,8 @@ export function useGatewayPortfolio(
   const queryRef = useRef(query);
   queryRef.current = query;
   const resultScope = useRef("");
+  const enabled = useRef(options.enabled !== false);
+  enabled.current = options.enabled !== false;
   const key = JSON.stringify(query);
   const scope = () => `${ownerRef.current}:${JSON.stringify(queryRef.current)}`;
   const foreground = () =>
@@ -66,7 +68,7 @@ export function useGatewayPortfolio(
   };
 
   async function refresh() {
-    if (!foreground()) return;
+    if (!foreground() || !enabled.current) return;
     if (querying.current) {
       rerun.current = true;
       return;
@@ -76,7 +78,8 @@ export function useGatewayPortfolio(
     setLoading(true);
     setMessage(null);
     const ticket = generation.current;
-    const current = () => foreground() && ticket === generation.current;
+    const current = () =>
+      foreground() && enabled.current && ticket === generation.current;
     try {
       const saved = await readGatewayPairing();
       if (!current()) return;
@@ -215,7 +218,8 @@ export function useGatewayPortfolio(
     generation.current += 1;
     clear();
     void refreshRef.current();
-  }, [key, options.ownerId]);
+    if (!enabled.current) setLoading(false);
+  }, [key, options.ownerId, options.enabled]);
   useFocusEffect(
     useCallback(() => {
       visible.current = true;
@@ -250,13 +254,21 @@ export function useGatewayPortfolio(
     const credential = pairingRef.current,
       after = projectsRef.current.nextCursor,
       selected = ownerRef.current;
-    if (!foreground() || querying.current || !credential || !after) return;
+    if (
+      !foreground() ||
+      !enabled.current ||
+      querying.current ||
+      !credential ||
+      !after
+    )
+      return;
     querying.current = true;
     setLoading(true);
     setMessage(null);
     const ticket = generation.current;
     const current = () =>
       foreground() &&
+      enabled.current &&
       ticket === generation.current &&
       pairingRef.current === credential &&
       ownerRef.current === selected;
@@ -299,6 +311,7 @@ export function useGatewayPortfolio(
     projects,
     moreProjects,
     result:
+      enabled.current &&
       (options.ownerId === undefined || options.ownerId === ownerId) &&
       resultScope.current === `${ownerId}:${key}`
         ? result

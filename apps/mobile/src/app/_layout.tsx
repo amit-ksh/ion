@@ -214,6 +214,14 @@ function AppNavigator() {
       />
       <Stack.Screen name="gateway" options={{ title: "Personal gateway" }} />
       <Stack.Screen
+        name="remote-executions"
+        options={{ title: "Remote executions" }}
+      />
+      <Stack.Screen
+        name="gateway-cloud-billing"
+        options={{ title: "Cloud billing" }}
+      />
+      <Stack.Screen
         name="gateway-cloud-budgets"
         options={{ title: "GPU budgets" }}
       />

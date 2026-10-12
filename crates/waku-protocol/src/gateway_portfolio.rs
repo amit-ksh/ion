@@ -25,6 +25,15 @@ pub enum PortfolioQuery {
     CloudBudgets {
         query: PortfolioProjectsQuery,
     },
+    CloudBilling {
+        query: PortfolioProjectsQuery,
+    },
+    CloudBillingReports {
+        query: billing::BillingReportsQuery,
+    },
+    CloudBillingCharges {
+        query: billing::BillingChargesQuery,
+    },
     WorkflowHistory {
         query: history::WorkflowHistoryQuery,
     },
@@ -49,7 +58,17 @@ impl PortfolioQuery {
         let limit = match self {
             Self::Inbox { query } => query.limit,
             Self::Usage { query } => query.limit,
-            Self::Projects { query } | Self::CloudBudgets { query } => query.limit,
+            Self::Projects { query }
+            | Self::CloudBudgets { query }
+            | Self::CloudBilling { query } => query.limit,
+            Self::CloudBillingReports { query } => {
+                query.validate()?;
+                query.limit
+            }
+            Self::CloudBillingCharges { query } => {
+                query.validate()?;
+                query.limit
+            }
             Self::WorkflowHistory { query } => query.limit,
             Self::WorkflowEvidence { query } => query.limit,
             Self::WorkflowRun { .. } => 1,
@@ -178,6 +197,7 @@ pub fn projects_result(
         "projects",
     )
 }
+pub mod billing;
 pub mod history;
 
 #[cfg(test)]

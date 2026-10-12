@@ -814,3 +814,182 @@ test("GPU budget totals require Usage read and cannot carry budget writes or pri
     await f.gateway.close();
   }
 });
+
+test("billing gateway reads enforce usageRead account/export identity redaction and revocation at completion", async () => {
+  const f = setup();
+  try {
+    const publisher = await f.pair(["publish"]),
+      reader = await f.pair(["usageRead"]),
+      denied = await f.pair(["inboxRead"]),
+      wrongOwner = await f.pair(["publish"]);
+    await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+    const scope = randomUUID();
+    const report = {
+      scopeId: scope,
+      exportId: "export-1",
+      period: "2026-09",
+      currency: "USD",
+      billedCost: "-0.000000000000000001",
+      effectiveCost: "1.2",
+      contractedCost: "0",
+      rows: 1,
+      unattributedResourceRows: 1,
+      createdAt: "2026-10-01T00:00:00Z",
+      fetchedAt: 1,
+      archiveSha256: "a".repeat(64),
+      csvSha256: "b".repeat(64),
+      current: true,
+    };
+    const charge = {
+      ordinal: 1,
+      resourceType: "gpu",
+      category: "Usage",
+      class: null,
+      chargePeriodStart: "2026-09-01T00:00:00Z",
+      chargePeriodEnd: "2026-10-01T00:00:00Z",
+      billedCost: report.billedCost,
+      effectiveCost: "1.2",
+      contractedCost: "0",
+    };
+    const queries = [
+      { kind: "cloudBilling", query: { after: null, limit: 32 } },
+      {
+        kind: "cloudBillingReports",
+        query: { scopeId: scope, after: null, limit: 16 },
+      },
+      {
+        kind: "cloudBillingCharges",
+        query: {
+          scopeId: scope,
+          exportId: report.exportId,
+          after: null,
+          limit: 32,
+        },
+      },
+    ];
+    const pages = [
+      {
+        scopes: [
+          {
+            id: scope,
+            name: "Cloud costs",
+            currency: "USD",
+            revision: 1,
+            reports: [report],
+          },
+        ],
+        nextCursor: null,
+        total: 1,
+      },
+      { scopeId: scope, reports: [report], nextCursor: null, total: 1 },
+      { report, charges: [charge], nextCursor: null },
+    ];
+    for (const [index, query] of queries.entries()) {
+      const input = {
+        publisherId: publisher.id,
+        idempotencyKey: randomUUID(),
+        query,
+      };
+      expect(
+        (await f.call("/v1/device/portfolio/queries", "POST", denied, input))
+          .status,
+      ).toBe(401);
+      const response = await f.call(
+        "/v1/device/portfolio/queries",
+        "POST",
+        reader,
+        input,
+      );
+      expect(response.status).toBe(201);
+      const job = (await response.json()) as { id: string };
+      const result = {
+        kind: query.kind,
+        page: pages[index],
+        pageTruncated: false,
+        servedAt: Date.now(),
+      };
+      expect(
+        (
+          await f.call(
+            `/v1/device/portfolio/queries/${job.id}/complete`,
+            "POST",
+            wrongOwner,
+            { result },
+          )
+        ).status,
+      ).toBe(404);
+      const privateResult = structuredClone(result) as any;
+      if (index === 0)
+        privateResult.page.scopes[0].contractId = "private-contract";
+      else if (index === 1) privateResult.page.scopeId = randomUUID();
+      else privateResult.page.charges[0].resourceId = "private-resource";
+      expect(
+        (
+          await f.call(
+            `/v1/device/portfolio/queries/${job.id}/complete`,
+            "POST",
+            publisher,
+            { result: privateResult },
+          )
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await f.call(
+            `/v1/device/portfolio/queries/${job.id}/complete`,
+            "POST",
+            publisher,
+            { result },
+          )
+        ).status,
+      ).toBe(200);
+      const receipt = (await (
+        await f.call(
+          `/v1/device/portfolio/queries?key=${input.idempotencyKey}`,
+          "GET",
+          reader,
+        )
+      ).json()) as any;
+      expect(receipt.job.result).toEqual(result);
+      expect(JSON.stringify(receipt)).not.toContain("private-contract");
+      expect(JSON.stringify(receipt)).not.toContain("private-resource");
+    }
+    const input = {
+      publisherId: publisher.id,
+      idempotencyKey: randomUUID(),
+      query: queries[0],
+    };
+    const job = (await (
+      await f.call("/v1/device/portfolio/queries", "POST", reader, input)
+    ).json()) as { id: string };
+    await f.call(`/v1/owner/devices/${reader.id}/revoke`, "POST", f.owner, {});
+    const rejected = (await (
+      await f.call(
+        `/v1/device/portfolio/queries/${job.id}/complete`,
+        "POST",
+        publisher,
+        {
+          result: {
+            kind: "cloudBilling",
+            page: pages[0],
+            pageTruncated: false,
+            servedAt: Date.now(),
+          },
+        },
+      )
+    ).json()) as any;
+    expect(rejected.status).toBe("rejected");
+    expect(rejected.result).toBeNull();
+    expect(
+      (
+        await f.call(
+          `/v1/device/portfolio/queries?key=${input.idempotencyKey}`,
+          "GET",
+          reader,
+        )
+      ).status,
+    ).toBe(401);
+  } finally {
+    await f.gateway.close();
+  }
+});
