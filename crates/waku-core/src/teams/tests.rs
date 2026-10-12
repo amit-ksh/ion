@@ -4599,3 +4599,6 @@ fn remote_inventory_cursor_survives_terminal_state_change() {
     assert_eq!(page.entries.len(), 1);
     assert_eq!(page.entries[0].request_id, next);
 }
+
+#[path = "gateway_pdf_tests.rs"]
+mod gateway_pdf_tests;

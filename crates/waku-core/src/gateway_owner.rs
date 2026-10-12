@@ -83,11 +83,16 @@ impl GatewayOwner {
         let file_managed = self.file_managed;
         std::thread::Builder::new().name("ion-gateway-automations".into()).spawn(move || {
             let mut warned = false; let mut connected = false;
+            let mut last_regular = Instant::now() - POLL_INTERVAL;
             while !fence.stopped() {
                 let result = match CredentialService::global().gateway_api() {
                     Ok(api) => {
                         connected = true;
                         api.with_timeout(Duration::from_secs(5)).and_then(|api| {
+                            if last_regular.elapsed() < POLL_INTERVAL {
+                                return portfolio::sync_pdf(&api, &engine, &fence);
+                            }
+                            last_regular = Instant::now();
                             let controls = engine.sync(&api, &fence);
                             let reads = portfolio::sync(&api, &engine, &fence);
                             let notifications = inbox::sync(&api, &engine, &fence);
@@ -104,7 +109,8 @@ impl GatewayOwner {
                     warned = true;
                 } else if result.is_ok() { warned = false; }
                 if fence.stopped() { break; }
-                match receiver.recv_timeout(POLL_INTERVAL) {
+                let interval = if engine.teams.pdf_transfer_active() { Duration::from_millis(500) } else { POLL_INTERVAL };
+                match receiver.recv_timeout(interval) {
                     Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
                     _ => {}
                 }

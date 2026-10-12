@@ -268,3 +268,123 @@ test("response cursors, view scope, totals, unknown money and source privacy are
   totals.page.summary.unknownCostRecords = 41;
   expect(() => validatePortfolioResult(totals, usage)).toThrow("totals");
 });
+
+test("two maximum PDF pages retain bounded image receipts and compact nonce identity before expiry", () => {
+  const f = fixture();
+  let relay = f.relay;
+  try {
+    const expected = {
+      id: randomUUID(),
+      name: "Report.pdf",
+      format: "pdf",
+      projectId: randomUUID(),
+      taskId: null,
+      stage: 0,
+      teamRunId: randomUUID(),
+      assignmentId: randomUUID(),
+      bytes: 100,
+      sha256: "a".repeat(64),
+      createdAt: 100,
+    };
+    const runId = randomUUID(),
+      transferId = randomUUID();
+    let original: ReturnType<typeof f.input> | null = null;
+    for (let page = 0; page < 2; page++)
+      for (let offset = 0; offset < 12 * 1024 * 1024; offset += 32768) {
+        const query: PortfolioQuery = {
+          kind: "workflowPdfPage",
+          query: {
+            runId,
+            revision: 7,
+            expected,
+            page,
+            width: 800,
+            transferId: offset ? transferId : null,
+            offset,
+            limit: 32768,
+          },
+        };
+        const input = {
+          publisherId: publisher,
+          idempotencyKey: randomUUID(),
+          query,
+        };
+        if (!original) original = input;
+        f.time(100000 + page * 384 + offset / 32768);
+        relay.publish(publisher);
+        const job = relay.enqueue(phone, input);
+        const end = offset + 32768;
+        relay.complete(publisher, job.id, {
+          kind: "workflowPdfPage",
+          page: {
+            runId,
+            revision: 7,
+            document: expected,
+            transferId,
+            page,
+            pages: 2,
+            requestedWidth: 800,
+            width: 800,
+            height: 1000,
+            bytes: 12 * 1024 * 1024,
+            sha256: "b".repeat(64),
+            expiresAt: 700000,
+            offset,
+            nextOffset: end < 12 * 1024 * 1024 ? end : null,
+            data: Buffer.alloc(32768).toString("base64"),
+          },
+          pageTruncated: false,
+          servedAt: 100000 + page * 384 + offset / 32768,
+        });
+      }
+    const db = new (require("bun:sqlite").Database)(f.path);
+    expect(
+      db.query("SELECT count(*) AS n FROM relay_portfolio_queries").get().n,
+    ).toBeLessThanOrEqual(65);
+    expect(
+      db.query("SELECT count(*) AS n FROM relay_pdf_tombstones").get().n,
+    ).toBeLessThanOrEqual(704);
+    db.close();
+    relay.close();
+    relay = new DurablePortfolioRelay(f.path, () => 100800);
+    relay.publish(publisher);
+    expect(() =>
+      relay.enqueue(phone, {
+        ...original!,
+        query: {
+          ...original!.query,
+          query: { ...(original!.query as any).query, width: 1200 },
+        },
+      }),
+    ).toThrow(/identity/);
+    expect(() => relay.enqueue(phone, original!)).not.toThrow();
+  } finally {
+    relay.close();
+  }
+});
+
+test("PDF transport WAL retains FULL durability and immutable receipts across close/reopen and rejected completion", () => {
+  const f = fixture();
+  let relay = f.relay;
+  try {
+    const db = (relay as any).db;
+    expect(db.query("PRAGMA journal_mode").get().journal_mode).toBe("wal");
+    expect(db.query("PRAGMA synchronous").get().synchronous).toBe(2);
+    expect(db.query("PRAGMA busy_timeout").get().timeout).toBe(5000);
+    const input = f.input(),
+      job = relay.enqueue(phone, input);
+    expect(() =>
+      relay.complete(publisher, job.id, { ...result(), path: "/private" }),
+    ).toThrow();
+    expect(relay.job(job.id)?.status).toBe("queued");
+    relay.complete(publisher, job.id, result());
+    relay.close();
+    relay = new DurablePortfolioRelay(f.path, () => 100001);
+    expect(relay.byKey(phone, input.idempotencyKey)?.result).toEqual(result());
+    expect(() => relay.enqueue(phone, { ...input, query: inbox })).toThrow(
+      /identity/,
+    );
+  } finally {
+    relay.close();
+  }
+});

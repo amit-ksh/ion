@@ -291,7 +291,6 @@ impl ControlStore {
     /// One process-wide raster worker admission, never a blocking lock or UI operation.
     pub fn render_artifact_pdf(&self, query: &ArtifactPdfQuery) -> Result<ArtifactPdfPage> {
         use sha2::{Digest, Sha256};
-        static RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
         ensure!(
             query.expected.format == "pdf"
                 && query.expected.bytes > 0
@@ -300,14 +299,11 @@ impl ControlStore {
                 && [800, 1200, 1600].contains(&query.width),
             "Select a supported PDF page/zoom; larger originals remain exportable"
         );
-        let _permit = RENDER.try_lock().map_err(|_| {
-            anyhow::anyhow!("Another PDF page is rendering. Retry when it finishes.")
-        })?;
         let (original, source_hash) = self.verified_artifact_document(&ArtifactDocumentQuery {
             expected: query.expected.clone(),
         })?;
-        let raster = waku_document::render_pdf(&original.bytes, query.page, query.width)?;
-        let png = raster.png()?;
+        let raster = waku_document::try_render_pdf_png(&original.bytes, query.page, query.width)?;
+        let png = raster.png;
         // Keep replacement/removal during rendering from returning stale publication bytes.
         let db = self.connect()?;
         let artifact = stored(&db, query.expected.id)?;

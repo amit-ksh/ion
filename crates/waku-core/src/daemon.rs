@@ -886,6 +886,9 @@ impl Backend for WakuBackend {
             Command::RenderArtifactPdfPage { query } => Ok(ResponsePayload::ArtifactPdfPage {
                 page: self.control.render_artifact_pdf(&query)?,
             }),
+            Command::ReadWorkflowPdfPage { query } => Ok(ResponsePayload::WorkflowPdfPage {
+                result: self.teams.read_workflow_pdf_page(&query)?,
+            }),
             Command::ReadWorkspaceArtifact { id } => Ok(ResponsePayload::BlobData {
                 bytes: self.control.read_document(id)?,
             }),
@@ -2683,6 +2686,7 @@ fn handle_driver_command(
         | Command::GenerateWorkflow { .. }
         | Command::ImportWorkspaceArtifact { .. }
         | Command::ListArtifactLibrary { .. }
+        | Command::ReadWorkflowPdfPage { .. }
         | Command::RenderArtifactPdfPage { .. }
         | Command::ReadArtifactDocument { .. }
         | Command::ReadWorkspaceArtifact { .. }

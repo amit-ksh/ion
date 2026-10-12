@@ -89,6 +89,33 @@ impl PdfRaster {
         Ok(png)
     }
 }
+pub struct PdfPng {
+    pub page: u32,
+    pub pages: u32,
+    pub width: u32,
+    pub height: u32,
+    pub png: Vec<u8>,
+}
+/// One process-wide nonblocking raster/encode admission for all phone paths.
+/// Call only on an owner worker. Admission is released on error or unwind.
+pub fn try_render_pdf_png(bytes: &[u8], page: u32, width: u32) -> Result<PdfPng> {
+    static RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _permit = match RENDER.try_lock() {
+        Ok(permit) => permit,
+        Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => {
+            anyhow::bail!("Another PDF page is rendering. Retry when it finishes.")
+        }
+    };
+    let raster = render_pdf(bytes, page, width)?;
+    Ok(PdfPng {
+        page: raster.page,
+        pages: raster.pages,
+        width: raster.width,
+        height: raster.height,
+        png: raster.png()?,
+    })
+}
 pub fn render_pdf(bytes: &[u8], page: u32, width: u32) -> Result<PdfRaster> {
     ensure!(
         !bytes.is_empty() && bytes.len() <= MAX_DOCUMENT_BYTES && bytes.starts_with(b"%PDF-"),

@@ -228,6 +228,11 @@ function document(value: unknown): value is WorkflowDocument {
     n(value.createdAt)
   );
 }
+export function validateWorkflowDocument(
+  value: unknown,
+): asserts value is WorkflowDocument {
+  if (!document(value)) throw new Error("Invalid accepted workflow document.");
+}
 function target(value: unknown): boolean {
   return (
     (shape(value, "type") && value.type === "finish") ||
@@ -238,9 +243,15 @@ function target(value: unknown): boolean {
   );
 }
 /** Decode canonical base64 without Node, atob or native Buffer dependencies. */
-export function workflowChunkBytes(value: string): Uint8Array {
+export function workflowChunkBytes(
+  value: string,
+  maxBytes = 16_384,
+): Uint8Array {
   if (
-    value.length > 21_848 ||
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > 32_768 ||
+    value.length > Math.ceil(maxBytes / 3) * 4 ||
     value.length % 4 !== 0 ||
     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
       value,
@@ -250,7 +261,10 @@ export function workflowChunkBytes(value: string): Uint8Array {
   const alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-  const bytes = new Uint8Array((value.length / 4) * 3 - padding);
+  const count = (value.length / 4) * 3 - padding;
+  if (count > maxBytes)
+    throw new Error("Document chunk exceeds its byte bound.");
+  const bytes = new Uint8Array(count);
   let out = 0;
   for (let i = 0; i < value.length; i += 4) {
     const a = alphabet.indexOf(value[i]!),

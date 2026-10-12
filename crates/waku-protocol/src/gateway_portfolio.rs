@@ -49,6 +49,9 @@ pub enum PortfolioQuery {
     WorkflowDocument {
         query: history::WorkflowDocumentQuery,
     },
+    WorkflowPdfPage {
+        query: pdf::WorkflowPdfQuery,
+    },
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -88,6 +91,10 @@ impl PortfolioQuery {
             Self::WorkflowHistory { query } => query.limit,
             Self::WorkflowEvidence { query } => query.limit,
             Self::WorkflowRun { .. } => 1,
+            Self::WorkflowPdfPage { query } => {
+                query.validate()?;
+                return Ok(());
+            }
             Self::WorkflowDocument { query } => {
                 ensure!(
                     (1..=16_384).contains(&query.limit),
@@ -215,6 +222,7 @@ pub fn projects_result(
 }
 pub mod billing;
 pub mod history;
+pub mod pdf;
 
 pub mod remote;
 

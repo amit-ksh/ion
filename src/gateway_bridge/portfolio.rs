@@ -6,15 +6,32 @@ use uuid::Uuid;
 use waku_client::{Command, DaemonClient, ResponsePayload};
 use waku_protocol::gateway_portfolio::{self, PortfolioQuery};
 
-pub(super) fn sync(client: &DaemonClient, api: &GatewayApi, projects: &[Project]) -> Result<()> {
+pub(super) fn sync(client: &DaemonClient, api: &GatewayApi, projects: &[Project]) -> Result<bool> {
+    sync_queries(client, api, projects, false)
+}
+pub(super) fn sync_pdf(client: &DaemonClient, api: &GatewayApi) -> Result<bool> {
+    sync_queries(client, api, &[], true)
+}
+fn sync_queries(
+    client: &DaemonClient,
+    api: &GatewayApi,
+    projects: &[Project],
+    pdf_only: bool,
+) -> Result<bool> {
     if !api.has_portfolio_relay()? {
-        return Ok(());
+        return Ok(false);
     }
     let started = Instant::now();
-    api.publish_portfolio_owner()?;
+    let mut read_pdf = false;
+    if !pdf_only {
+        api.publish_portfolio_owner()?;
+    }
     for job in api.pending_portfolio()?.into_iter().take(16) {
         if started.elapsed() >= Duration::from_secs(20) {
             break;
+        }
+        if pdf_only && job.query["kind"] != "workflowPdfPage" {
+            continue;
         }
         if job.publisher_id != api.identity().1
             || job.status != "queued"
@@ -22,10 +39,12 @@ pub(super) fn sync(client: &DaemonClient, api: &GatewayApi, projects: &[Project]
         {
             continue;
         }
+        let is_pdf = job.query["kind"] == "workflowPdfPage";
         let result = read(client, projects, job.query).ok();
+        read_pdf |= is_pdf && result.is_some();
         api.complete_portfolio(&job.id, result)?;
     }
-    Ok(())
+    Ok(read_pdf)
 }
 fn read(
     client: &DaemonClient,
@@ -63,6 +82,17 @@ fn read(
             let run = automation_run(client, query.run_id)?;
             let (teams, records) = evidence_sources(client, &run)?;
             gateway_portfolio::history::evidence_result(&run, &teams, &records, &query, now)
+        }
+        PortfolioQuery::WorkflowPdfPage { query } => {
+            let ResponsePayload::WorkflowPdfPage { result } = client.request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::ReadWorkflowPdfPage { query },
+            )?
+            else {
+                bail!("Invalid workflow PDF page response");
+            };
+            Ok(result)
         }
         PortfolioQuery::WorkflowDocument { query } => {
             let run = automation_run(client, query.run_id)?;

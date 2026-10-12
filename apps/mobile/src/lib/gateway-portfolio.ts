@@ -16,6 +16,7 @@ import {
 } from "./gateway-client";
 
 interface Transport {
+  maxPolls?: number;
   submit(
     pairing: GatewayPairing,
     input: PortfolioSubmission,
@@ -65,6 +66,9 @@ export async function loadGatewayPortfolio(
       throw new Error("History read grant expired; pair this phone again");
     if (!current()) throw new Error("History request scope changed");
   };
+  const maxPolls = api.maxPolls ?? 60;
+  if (!Number.isSafeInteger(maxPolls) || maxPolls < 1 || maxPolls > 240)
+    throw new Error("Invalid history poll bound");
   const deadline = Date.now() + 60_000;
   allowed();
   let job: PortfolioJob | null;
@@ -75,7 +79,7 @@ export async function loadGatewayPortfolio(
     job = await api.read(pairing, input);
     if (job === null) throw error;
   }
-  for (let poll = 0; poll < 60 && Date.now() < deadline; poll++) {
+  for (let poll = 0; poll < maxPolls && Date.now() < deadline; poll++) {
     allowed();
     if (job !== null) validatePortfolioJob(job, pairing.id, input);
     if (job?.status === "complete" && job.result) return job.result;

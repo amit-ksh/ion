@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import {
   portfolioId,
   portfolioReadGrant,
@@ -52,6 +52,7 @@ export class DurablePortfolioRelay {
   ) {
     this.db = new Database(path, { create: true, strict: true });
     this.db.run("PRAGMA busy_timeout=5000");
+    this.db.run("PRAGMA journal_mode=WAL");
     this.db.run("PRAGMA synchronous=FULL");
     this.db.run(
       "CREATE TABLE IF NOT EXISTS relay_portfolio_owners(publisher_id TEXT PRIMARY KEY,published_at INTEGER NOT NULL)",
@@ -60,7 +61,13 @@ export class DurablePortfolioRelay {
       "CREATE TABLE IF NOT EXISTS relay_portfolio_queries(id TEXT PRIMARY KEY,device_id TEXT NOT NULL,publisher_id TEXT NOT NULL,nonce TEXT NOT NULL,query TEXT NOT NULL,status TEXT NOT NULL,result TEXT,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,UNIQUE(device_id,nonce))",
     );
     this.db.run(
+      "CREATE TABLE IF NOT EXISTS relay_pdf_tombstones(device_id TEXT NOT NULL,nonce TEXT NOT NULL,publisher_id TEXT NOT NULL,query_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(device_id,nonce))",
+    );
+    this.db.run(
       "CREATE INDEX IF NOT EXISTS relay_portfolio_queue ON relay_portfolio_queries(publisher_id,status,created_at,id)",
+    );
+    this.db.run(
+      "CREATE INDEX IF NOT EXISTS relay_pdf_completed ON relay_portfolio_queries(publisher_id,updated_at DESC,id DESC) WHERE status='complete' AND json_extract(query,'$.kind')='workflowPdfPage'",
     );
     this.db.run(
       "CREATE INDEX IF NOT EXISTS relay_portfolio_device_queue ON relay_portfolio_queries(device_id,status)",
@@ -90,6 +97,9 @@ export class DurablePortfolioRelay {
       "UPDATE relay_portfolio_queries SET status='expired',result=NULL,updated_at=?1 WHERE expires_at<=?1 AND status!='expired'",
       [time],
     );
+    this.db.run("DELETE FROM relay_pdf_tombstones WHERE expires_at<=?1", [
+      time,
+    ]);
     this.db.run("DELETE FROM relay_portfolio_queries WHERE expires_at<=?1", [
       time - 600_000,
     ]);
@@ -158,6 +168,53 @@ export class DurablePortfolioRelay {
       }
       if (!this.fresh(input.publisherId))
         throw new Error("Registered owner is offline or stale");
+      const tombstone = this.db
+        .query<{ publisher_id: string; query_hash: string }, [string, string]>(
+          "SELECT publisher_id,query_hash FROM relay_pdf_tombstones WHERE device_id=?1 AND nonce=?2",
+        )
+        .get(deviceId, input.idempotencyKey);
+      if (
+        tombstone &&
+        (tombstone.publisher_id !== input.publisherId ||
+          tombstone.query_hash !==
+            createHash("sha256").update(canonical(input.query)).digest("hex"))
+      )
+        throw new Error("Portfolio request identity changed");
+      // Derived PDF pages use up to 384 bounded chunks; keeping every completed
+      // image receipt for ten minutes would fill the general 512-row catalogue
+      // after one page. Retain the most recent 64 PDF completions (eight whole
+      // phone windows) per owner. Pending reads and other history remain durable.
+      // Expired image receipts are read-only: a repeated exact chunk can be
+      // submitted again against the same immutable owner transfer, never effects.
+      // Hash before removing the large response; rows retain no document content.
+      for (const row of this.db
+        .query<{ device_id: string; nonce: string; query: string }, [string]>(
+          `SELECT device_id,nonce,query FROM relay_portfolio_queries
+        WHERE publisher_id=?1 AND status='complete' AND json_extract(query,'$.kind')='workflowPdfPage'
+        ORDER BY updated_at DESC,id DESC LIMIT -1 OFFSET 64`,
+        )
+        .all(input.publisherId)) {
+        this.db.run(
+          "INSERT INTO relay_pdf_tombstones VALUES(?1,?2,?3,?4,?5) ON CONFLICT(device_id,nonce) DO UPDATE SET expires_at=MAX(expires_at,excluded.expires_at)",
+          [
+            row.device_id,
+            row.nonce,
+            input.publisherId,
+            createHash("sha256")
+              .update(canonical(JSON.parse(row.query)))
+              .digest("hex"),
+            this.now() + 600000,
+          ],
+        );
+      }
+      this.db.run(
+        `DELETE FROM relay_portfolio_queries WHERE id IN (
+        SELECT id FROM relay_portfolio_queries WHERE publisher_id=?1 AND status='complete'
+          AND json_extract(query,'$.kind')='workflowPdfPage'
+        ORDER BY updated_at DESC,id DESC LIMIT -1 OFFSET 64
+      )`,
+        [input.publisherId],
+      );
       const count = this.db
         .query<{ count: number }, [string, string]>(
           "SELECT count(*) AS count FROM relay_portfolio_queries WHERE status='queued' AND (device_id=?1 OR publisher_id=?2)",
@@ -168,7 +225,12 @@ export class DurablePortfolioRelay {
           "SELECT count(*) AS count FROM relay_portfolio_queries WHERE publisher_id=?1",
         )
         .get(input.publisherId)!.count;
-      if (count >= 64 || stored >= 512)
+      const tombstones = this.db
+        .query<{ count: number }, [string]>(
+          "SELECT count(*) AS count FROM relay_pdf_tombstones WHERE publisher_id=?1",
+        )
+        .get(input.publisherId)!.count;
+      if (count >= 64 || stored >= 512 || tombstones >= 2048)
         throw new Error("Owner read queue is full");
       const time = this.now(),
         id = randomUUID();

@@ -21,6 +21,7 @@ mod decisions;
 mod dispatch;
 mod documents;
 mod followups;
+mod gateway_pdf;
 pub(crate) mod gpu_jobs;
 mod inputs;
 pub(crate) mod jobs;
@@ -49,6 +50,7 @@ use storage::*;
 
 pub struct TeamCoordinator {
     control: crate::control::ControlStore,
+    pdf_pages: parking_lot::Mutex<gateway_pdf::PageCache>,
 }
 
 #[derive(Clone, Serialize)]
@@ -249,6 +251,7 @@ impl TeamCoordinator {
     pub fn new(path: PathBuf) -> Self {
         Self {
             control: crate::control::ControlStore::new(path),
+            pdf_pages: parking_lot::Mutex::new(gateway_pdf::PageCache::default()),
         }
     }
     fn connect(&self) -> Result<Connection> {

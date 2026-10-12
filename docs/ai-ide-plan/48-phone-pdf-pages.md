@@ -41,4 +41,4 @@ The PDF checkpoint passed **49 tests**: 5 shared renderer, 10 owner artifact, 1 
 
 ## Remaining document work
 
-Gateway workflow phones currently read structured HTML/text and export verified original PDF; the large derived-page transport is direct-owner only. Gateway page rendering, larger publication/preview contracts, other binary formats and full browser CSS fidelity remain separate development. Actual device/macOS acceptance also remains open. These changes do not complete the full Ion implementation.
+Gateway workflow phones now also have [verified PDF page previews](49-gateway-pdf-pages.md) through bounded derived-image chunks, sharing this native renderer and phone viewer. Larger publication/preview contracts, other binary formats and full browser CSS fidelity remain separate development. Actual device/macOS acceptance also remains open. These changes do not complete the full Ion implementation.

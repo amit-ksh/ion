@@ -16,7 +16,7 @@ import {
   readArtifactPdfPage,
   type PdfPagePreview,
 } from "@/lib/artifact-pdf";
-/** Mounted only after full original verification and while the parent owner scope is current. */
+/** Full original verification and owner scope are established by the parent. */
 export function ArtifactPdfPreview({
   client,
   document,
@@ -25,6 +25,45 @@ export function ArtifactPdfPreview({
   client: WakuClient;
   document: ArtifactLibraryItem;
   current: () => boolean;
+}) {
+  return (
+    <PdfPageViewer
+      source={client}
+      identity={JSON.stringify(document)}
+      name={document.name}
+      current={current}
+      read={(page, width, active) =>
+        readArtifactPdfPage(client, document, page, width, active, pdfDigest)
+      }
+    />
+  );
+}
+export async function pdfDigest(bytes: Uint8Array): Promise<string> {
+  const hash = new Uint8Array(
+    await Crypto.digest(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      bytes.buffer as ArrayBuffer,
+    ),
+  );
+  return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+/** Mounted only after full original verification and while the parent owner scope is current. */
+export function PdfPageViewer({
+  source,
+  identity,
+  name,
+  current,
+  read,
+}: {
+  source: unknown;
+  identity: string;
+  name: string;
+  current: () => boolean;
+  read: (
+    page: number,
+    width: number,
+    active: () => boolean,
+  ) => Promise<PdfPagePreview>;
 }) {
   const theme = useTheme(),
     screen = useWindowDimensions();
@@ -43,9 +82,11 @@ export function ArtifactPdfPreview({
     [busy, setBusy] = useState(false);
   const generation = useRef(0),
     mounted = useRef(true),
-    currentRef = useRef(current);
+    currentRef = useRef(current),
+    readRef = useRef(read);
   currentRef.current = current;
-  const key = JSON.stringify([document, selection]),
+  readRef.current = read;
+  const key = JSON.stringify([identity, selection]),
     keyRef = useRef(key);
   keyRef.current = key;
   useEffect(() => {
@@ -66,22 +107,8 @@ export function ArtifactPdfPreview({
     setLoaded(null);
     setMessage(null);
     setBusy(true);
-    void readArtifactPdfPage(
-      client,
-      document,
-      selection.page,
-      selection.width,
-      active,
-      async (bytes) => {
-        const hash = new Uint8Array(
-          await Crypto.digest(
-            Crypto.CryptoDigestAlgorithm.SHA256,
-            bytes.buffer as ArrayBuffer,
-          ),
-        );
-        return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
-      },
-    )
+    void readRef
+      .current(selection.page, selection.width, active)
       .then((value) => {
         if (active()) setLoaded({ key: started, value });
       })
@@ -101,7 +128,7 @@ export function ArtifactPdfPreview({
     return () => {
       generation.current++;
     };
-  }, [client, key, document, selection.page, selection.width]);
+  }, [source, key, selection.page, selection.width]);
   const page = loaded?.key === key && current() ? loaded.value : null;
   const fit = Math.max(1, Math.min(1200, screen.width - 40)),
     displayWidth = page
@@ -177,7 +204,7 @@ export function ArtifactPdfPreview({
             source={{ uri: page.uri, cache: "reload" }}
             resizeMode="contain"
             accessibilityRole="image"
-            accessibilityLabel={`${document.name}, page ${page.page + 1} of ${page.pages}`}
+            accessibilityLabel={`${name}, page ${page.page + 1} of ${page.pages}`}
             style={{
               width: displayWidth,
               height: (displayWidth * page.height) / page.width,
