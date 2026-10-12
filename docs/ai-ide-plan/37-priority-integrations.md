@@ -30,7 +30,7 @@ Gateway workflow-document reading on the native phone adds the same Markdown/
 JSON reading/source choice after its existing complete hash verification and
 current pairing/run/foreground fences. Parsing is cached per document/mode and
 rows remain virtualized. Links/images stay inert. Existing export remains.
-This does not yet add a direct-phone cross-project artifact library or PDF pages.
+Subsequent [direct-phone artifact](44-phone-artifact-library.md), [HTML Reading](47-phone-html-reading.md), [direct PDF](48-phone-pdf-pages.md) and [gateway PDF](49-gateway-pdf-pages.md) checkpoints complete the documented document modes.
 
 ### Shared speech readiness
 
@@ -61,9 +61,8 @@ Deployment/native TLS and recognition acceptance remain unverified.
       and [merged gateway phone parity](43-gateway-remote-controls.md).
 - [x] **Command sandbox aggregate caps:** owner-pinned cgroup2 CPU/memory/no-swap/task
       verification and real local kernel enforcement tests. See [resource groups](45-sandbox-resource-groups.md).
-- [ ] **Broader remote controls:** aggregate host/project CPU/RAM/process/storage
-      and egress enforcement and wider lifecycle recovery controls;
-      finish GPU device/FUSE/CUDA and image/runtime gates for remaining training work.
+- [x] **Command owner/project admission:** atomic cross-run/target CPU/RAM/process/storage reservations, strictest outstanding approvals, unknown-history refusal and proof-gated compute release. [Admission](51-command-resource-admission.md) and [native Usage diagnostics](53-command-resource-usage.md).
+- [ ] **Broader remote controls:** physical host/storage/egress and wider lifecycle/verified storage cleanup; remaining GPU device/FUSE/CUDA and image/runtime gates. Logical command admission does not attest host capacity or release retained provider storage.
 - [x] **Desktop document rendering:** verified static HTML layout/source and native
       PDF pages with background page/zoom rendering, bounded pixels, DPI handling and
       keyboard controls. [17 native tests pass](42-native-document-rendering.md).
@@ -74,13 +73,15 @@ Deployment/native TLS and recognition acceptance remain unverified.
       Artifacts and gateway workflow evidence; verified direct-owner native PDF pages,
       page/zoom controls and exact original export. See [HTML Reading](47-phone-html-reading.md)
       and [PDF pages](48-phone-pdf-pages.md).
+- [x] **Gateway PDF pages:** verified accepted workflow pages/zoom, bounded immutable chunks, expiring cache and durable relay identity. [Transport/review](49-gateway-pdf-pages.md).
 - [ ] **Document acceptance/parity:** macOS compile/render, native browser/device/UI
-      acceptance, additional publication formats/limits, gateway PDF page transport
+      acceptance, additional publication formats/limits
       and full browser/CSS fidelity on phone. Structured Reading has an explicit
       supported subset; it does not reproduce authored page styling.
 - [x] **Speech acceptance tooling:** executable bounded readiness and explicit
       recognition/concurrency checks; private launch preflight verifies pinned model
       bytes and stable client-compatible API name. [40 merged tests pass](41-speech-service-acceptance.md).
+- [x] **Speech deployment preparation:** actual installed runtime/index/model inspection, strict source-only bundle/verification and private pending 46-case observations. [Preparation](50-speech-deployment-device-review.md) and [phone build preflight](52-physical-device-review.md).
 - [ ] **Speech deployment/devices:** deploy when a target is supplied; accept native
       Android/iOS TLS/redirect behavior, microphone capture, concurrent desktop/phone
       partial/final recognition and target resource/latency limits.
@@ -110,7 +111,7 @@ Existing detailed research: [GPU billing and identity](RESEARCH-nebius-gpu-price
       copy; both themes and long document names.
 - [ ] Changed/missing evidence refuses preview; navigating away during a read
       cannot reopen it. HTML scripts/image/link references cause no requests/actions.
-- [ ] Direct phone: current protocol45 owner, Artifacts filters, HTML Reading/Source,
+- [ ] Direct phone: current protocol46 owner, Artifacts filters, HTML Reading/Source,
       PDF page/zoom/scroll, changed source and interrupted decode/digest/export.
 - [ ] Gateway phone: current publisher/run, reading/source toggles, background/
       pairing change while reading, revocation and exported content integrity.
@@ -147,3 +148,11 @@ remains in progress.
 ## Latest combined checkpoint: protocol45
 
 Billing discovery and phone HTML/PDF integrations are merged and verified: **197 distinct tests pass**, with freshly rebuilt merged core/protocol, locked desktop/daemon/worker, complete TypeScript and binding freshness gates. See the [current release checklist](20-agent-teams-release-checklist.md#2026-10-12--combined-protocol45-integration-checkpoint). Physical-device/macOS/live acceptance and the remaining development listed above stay open.
+
+## Latest combined checkpoint: protocol46
+
+All three independent branches are merged into `codex/ion-agent-teams`: speech preparation `5bfa432`, command admission `ebdfeb4` and gateway PDF `1596955`. Protocol **46** bindings were generated from the merged root and passed freshness. Locked desktop/daemon/harness worker compilation, full client/gateway/mobile TypeScript, Rust formatting and source checks passed.
+
+**398 distinct merged tests pass:** 112 protocol, 5 shared renderer, 56 command admission/driver, 6 gateway native/cache, 10 direct artifact/PDF, 65 phone document/history, 73 complete gateway and 71 speech/preflight. Two existing command tests requiring exported native Linux fixtures are ignored. The unchanged maximum real-HTTP phone fixture was deliberately excluded from the concurrent merged rerun; it passed on the feature branch in 70.844 seconds, transferring two 12 MiB pages in 768 chunks with both digests verified and at most 8 pending. This adds one distinct branch test, rather than another claimed merged benchmark. Source-only speech package 26 files/189,961bytes separately verified from its copied CLI.
+
+The implementation goal remains active. Owner IAM credential vault/refresh, original job/account/tariff/finality billing reconciliation, verified retained storage cleanup and broader physical host/egress/GPU controls remain development/acceptance items. Live Linux speech deployment needs an actual Nebius/SSH target and HTTPS hostname. iPhone 15/Moto G32 native builds, 46 real speech observations, macOS and actual-runtime/device acceptance remain open. No visual test, watcher restart, cloud deployment, microphone capture or paid resource was used. No `ion-prod` merge is included; additional harness adapters remain deferred.

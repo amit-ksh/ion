@@ -55,6 +55,8 @@ export type { CloudBudget } from "./CloudBudget";
 export type { CloudBudgetPage } from "./CloudBudgetPage";
 export type { CloudBudgetStatus } from "./CloudBudgetStatus";
 export type { Command } from "./Command";
+export type { CommandResourceUsage } from "./CommandResourceUsage";
+export type { CommandResourceVector } from "./CommandResourceVector";
 export type { CommandScope } from "./CommandScope";
 export type { CommitSnapshot } from "./CommitSnapshot";
 export type { ComposerDraft } from "./ComposerDraft";

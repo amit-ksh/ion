@@ -786,3 +786,21 @@ The full implementation remains in progress on `codex/ion-agent-teams`; no `ion-
 - [ ] Supply a real speech deployment target and complete macOS/physical-device/live provider acceptance. No such deployment/resource was used for this checkpoint.
 
 This completes the described integration increment, not the full Ion implementation. Additional harness adapters remain deferred, and these changes have not been merged into `ion-prod`.
+
+## 2026-10-12 - combined protocol46 integration checkpoint
+
+- [x] Merge verified speech preparation `5bfa432`, command admission `ebdfeb4` and gateway PDF `1596955` into the implementation branch.
+- [x] Add owner/project command reservation diagnostics in native Usage, with background RPC, cached rows, focus/scroll and generation fences.
+- [x] Add bounded mobile prerequisite/device inventory tooling; default uses local file inspection and optional ADB may start its local server.
+- [x] Generate/check complete protocol **46** bindings from the merged checkout.
+- [x] 398 distinct merged tests pass; two existing exported Linux CLI fixtures remain ignored. The unchanged large HTTP phone benchmark passed separately in its feature branch, and was excluded from the concurrent merged rerun.
+- [x] Locked desktop/daemon/core harness-worker binaries, full mobile/gateway/client TypeScript, Rust formatting and source whitespace/UTF-8 checks pass.
+- [x] Actual installed speech binary/index/model metadata and complete checksum inspected; source-only 26-file package verified by its copied CLI. No recognition/deployment/device claim follows from this.
+- [ ] Upgrade clients/daemon/gateway together; execute [gateway PDF](49-gateway-pdf-pages.md) and [resource admission](51-command-resource-admission.md) review on the actual runtime.
+- [ ] Review [Command resources UI](53-command-resource-usage.md) keyboard, narrow-window and both-theme behavior in the watcher-managed app.
+- [ ] Install native builds on iPhone 15/Moto G32 using [device setup](52-physical-device-review.md); execute the 46 speech cases and retain actual observations privately.
+- [ ] Supply a Linux/Nebius target and trusted HTTPS hostname; deploy/accept [shared speech](50-speech-deployment-device-review.md), real spoken fixtures and concurrent native clients.
+- [ ] Finish owner credential vault/refresh, original cloud billing/finality reconciliation and verified retained storage cleanup.
+- [ ] Finish wider physical host/egress/GPU/CUDA/image controls and macOS/native/device acceptance.
+
+The full Ion objective remains active; this checkpoint completes the described integration work. Additional harness adapters remain deferred. No `ion-prod` merge, watcher restart, visual test, microphone, real cloud service or paid resource is included.

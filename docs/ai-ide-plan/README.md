@@ -124,6 +124,7 @@ are background source notes. They are not product decisions.
 
 The [submission draft](SUBMISSION-DRAFT.md) holds the reviewer setup, demo
 outline, and evidence fields for Milestone 5.
+
 # Native workspace review
 
 The native workspace changes and their remaining implementation tasks are
@@ -144,8 +145,8 @@ target; see [the deployment checklist](../../services/speech/README.md).
   sequential stages, assigned teams, human gates and restart-safe interval schedules.
 
 - [Teams harness adapters and registered remote execution](22-harness-adapters-remote-execution.md)
-    records exact coverage, native Nebius/Codex/Claude solo-to-team tools, host setup,
-    lifecycle behavior and pending live review.
+  records exact coverage, native Nebius/Codex/Claude solo-to-team tools, host setup,
+  lifecycle behavior and pending live review.
 
 - [Remote commands and GPU jobs](23-remote-command-gpu-jobs.md): bounded command/file
   execution, recovery and worker setup; separate GPU lifecycle transport and
@@ -175,10 +176,19 @@ target; see [the deployment checklist](../../services/speech/README.md).
   daemon workflow publication, private Linux service pairing, durable claims,
   exact-start recovery and outstanding deployment/device review.
 
-
 For registered-owner paged Inbox/usage reads, phone read-grant setup and review,
 see [gateway history](32-gateway-inbox-usage-history.md).
 
 33. [Gateway workflow history and accepted documents](33-gateway-workflow-history-documents.md)
 
 34. [Gateway Inbox notification controls and protocol-38 upgrade](34-gateway-inbox-controls.md)
+
+## Current resource, document and speech review guides
+
+- [Gateway PDF pages](49-gateway-pdf-pages.md): accepted workflow evidence, bounded derived image transfers, page/zoom and integrity review.
+- [Speech deployment/device review](50-speech-deployment-device-review.md): installed runtime/model inspection, source-only package and private 46-case owner observations.
+- [Command resource admission](51-command-resource-admission.md): owner/project holds across targets/runs and conservative proof requirements.
+- [Physical device setup/review](52-physical-device-review.md): Moto G32/iPhone 15 native builds, bounded prerequisite inspection and actual-device checklist.
+- [Command resource Usage](53-command-resource-usage.md): cached native diagnostics, project scope and keyboard review.
+
+Live Nebius speech deployment and native phone acceptance remain open. Additional harness adapters remain deferred.

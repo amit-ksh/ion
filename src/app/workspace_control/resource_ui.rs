@@ -286,6 +286,8 @@ impl Waku {
         }
         body = body.child(table);
         div()
+            .track_focus(&self.control_ui.focus)
+            .tab_group()
             .flex()
             .flex_col()
             .size_full()
