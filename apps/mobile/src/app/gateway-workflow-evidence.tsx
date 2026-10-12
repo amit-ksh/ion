@@ -1,4 +1,9 @@
-import { documentPreviewRows } from "@/lib/document-preview";
+import {
+  documentPreviewRows,
+  prepareDocumentReading,
+  type DocumentPreviewRow,
+  type DocumentReadingPreview,
+} from "@/lib/document-preview";
 import { useMarkdownStyles } from "@/components/md-block-row";
 import { renderBlock } from "@/md/render";
 import {
@@ -52,6 +57,9 @@ export default function GatewayWorkflowEvidenceScreen() {
       name: string;
       text: string;
       format: string;
+      sourceRows: DocumentPreviewRow[];
+      readingPreview: DocumentReadingPreview;
+      scope: string;
     } | null>(null);
   const valid =
     typeof params.run === "string" &&
@@ -135,6 +143,13 @@ export default function GatewayWorkflowEvidenceScreen() {
       AppState.currentState !== "active"
     )
       return;
+    if (!exporting && record.bytes > 65_536) {
+      setMessage({
+        text: "This document exceeds the Reading preview limit. Export the verified original.",
+        error: true,
+      });
+      return;
+    }
     const ticket = epoch.current,
       started = scope;
     locked.current = true;
@@ -173,11 +188,26 @@ export default function GatewayWorkflowEvidenceScreen() {
         if (current())
           setMessage({ text: "Verified document exported.", error: false });
       } else {
+        if (bytes.length > 65_536)
+          throw new Error(
+            "This document exceeds the Reading preview limit. Export the verified original.",
+          );
+        const text = workflowDocumentText(bytes);
+        const sourceRows = documentPreviewRows(record.format, text, false);
+        const readingPreview = await prepareDocumentReading(
+          record.format,
+          text,
+          current,
+        );
+        if (!current()) return;
         setReadingView(true);
         setPreview({
           name: record.name,
           format: record.format,
-          text: workflowDocumentText(bytes),
+          text,
+          sourceRows,
+          readingPreview,
+          scope: started,
         });
       }
     } catch (error) {
@@ -194,18 +224,22 @@ export default function GatewayWorkflowEvidenceScreen() {
       if (mounted.current) setReading(false);
     }
   }
-  // Derived once per document/mode. Only visible bounded rows render.
-  const previewRows = useMemo(
-    () =>
-      preview
-        ? documentPreviewRows(preview.format, preview.text, readingView)
-        : [],
-    [preview, readingView],
-  );
-  if (preview)
+  // Cached rows belong only to the selected owner/run/credential generation.
+  const activePreview =
+    preview?.scope === scope &&
+    visible.current &&
+    AppState.currentState === "active"
+      ? preview
+      : null;
+  const previewRows = activePreview
+    ? readingView
+      ? activePreview.readingPreview.rows
+      : activePreview.sourceRows
+    : [];
+  if (activePreview)
     return (
       <View style={[styles.screen, { backgroundColor: theme.background }]}>
-        <Stack.Screen options={{ title: preview.name }} />
+        <Stack.Screen options={{ title: activePreview.name }} />
         <FlatList
           data={previewRows}
           keyExtractor={(row) => row.id}
@@ -213,14 +247,17 @@ export default function GatewayWorkflowEvidenceScreen() {
           ListHeaderComponent={
             <View style={styles.header}>
               <Text style={[styles.title, { color: theme.text }]}>
-                {preview.name}
+                {activePreview.name}
               </Text>
               <Text style={[styles.body, { color: theme.textSecondary }]}>
-                {readingView && ["md", "json"].includes(preview.format)
-                  ? "Verified document · Reading view"
+                {readingView &&
+                ["md", "json", "html", "htm"].includes(activePreview.format)
+                  ? activePreview.readingPreview.sourceFallback
+                    ? "Verified document · Source"
+                    : "Verified document · Reading view"
                   : "Verified document · Source"}
               </Text>
-              {["md", "json"].includes(preview.format) && (
+              {["md", "json", "html", "htm"].includes(activePreview.format) && (
                 <View style={styles.actions}>
                   <AutomationButton
                     label="Reading view"
@@ -233,6 +270,13 @@ export default function GatewayWorkflowEvidenceScreen() {
                     onPress={() => setReadingView(false)}
                   />
                 </View>
+              )}
+              {["html", "htm"].includes(activePreview.format) && (
+                <Text style={[styles.body, { color: theme.textSecondary }]}>
+                  {readingView
+                    ? activePreview.readingPreview.note
+                    : "HTML Source · Scripts, links and media remain inactive."}
+                </Text>
               )}
               <AutomationButton
                 label="Back to documents"

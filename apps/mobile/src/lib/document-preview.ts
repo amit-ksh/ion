@@ -1,5 +1,12 @@
 import type { RootContent } from "mdast";
 import { parseBlocks } from "../md/parse";
+import {
+  htmlNodeText,
+  htmlReadingSteps,
+  previewUtf8Size,
+  readHtml,
+  type HtmlReading,
+} from "./html-reading";
 export type DocumentPreviewRow = {
   id: string;
   text: string;
@@ -38,14 +45,6 @@ function canFormatJson(text: string, bytes: number): boolean {
     if (depth > 64 || bound > 65_536) return false;
   }
   return true;
-}
-function utf8Size(text: string): number {
-  let size = 0;
-  for (const character of text) {
-    const point = character.codePointAt(0)!;
-    size += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
-  }
-  return size;
 }
 /** Reading never creates external image requests, navigation or app commands. */
 function inert(
@@ -88,7 +87,7 @@ export function documentPreviewRows(
   text: string,
   reading: boolean,
 ): DocumentPreviewRow[] {
-  const byteLength = utf8Size(text);
+  const byteLength = previewUtf8Size(text);
   if (byteLength > 65_536)
     throw new Error("Document preview exceeds its text limit");
   if (!reading) return chunks(text);
@@ -96,11 +95,13 @@ export function documentPreviewRows(
     try {
       if (!canFormatJson(text, byteLength)) return chunks(text);
       const formatted = JSON.stringify(JSON.parse(text), null, 2);
-      return chunks(utf8Size(formatted) <= 65_536 ? formatted : text);
+      return chunks(previewUtf8Size(formatted) <= 65_536 ? formatted : text);
     } catch {
       return chunks(text);
     } // Preserve inspectable original source even if the agent wrote invalid JSON.
   }
+  if (["html", "htm"].includes(format))
+    return documentReadingPreview(format, text).rows;
   if (format !== "md") return chunks(text);
   return parseBlocks(text).flatMap((block, index) => {
     // A single giant block must not defeat list virtualization.
@@ -120,4 +121,85 @@ export function documentPreviewRows(
       },
     ];
   });
+}
+
+export type DocumentReadingPreview = {
+  rows: DocumentPreviewRow[];
+  note: string | null;
+  sourceFallback: boolean;
+};
+function htmlRows(value: HtmlReading): DocumentReadingPreview {
+  return {
+    rows: value.nodes.map((node, index) => ({
+      id: String(index),
+      text: htmlNodeText(node),
+      node,
+    })),
+    note: "Structured HTML Reading · Page styling is not reproduced. Scripts, links and media remain inactive.",
+    sourceFallback: false,
+  };
+}
+function htmlFallback(text: string): DocumentReadingPreview {
+  return {
+    rows: chunks(text),
+    note: "HTML Reading is unavailable for this document’s structure or preview limits. Showing complete Source. Export keeps the original document.",
+    sourceFallback: true,
+  };
+}
+export function documentReadingPreview(
+  format: string,
+  text: string,
+): DocumentReadingPreview {
+  if (previewUtf8Size(text) > 65_536)
+    throw new Error("Document preview exceeds its text limit");
+  if (["html", "htm"].includes(format)) {
+    try {
+      return htmlRows(readHtml(text));
+    } catch {
+      return htmlFallback(text);
+    }
+  }
+  return {
+    rows: documentPreviewRows(format, text, true),
+    note: null,
+    sourceFallback: false,
+  };
+}
+/** Prepare cached layout after complete digest verification, outside rendering.
+ * Batches yield to the native event loop and the owner/foreground generation
+ * fence runs before each batch and before any prepared result can be stored. */
+export async function prepareDocumentReading(
+  format: string,
+  text: string,
+  current: () => boolean,
+): Promise<DocumentReadingPreview> {
+  const allowed = () => {
+    if (!current()) throw new Error("Document reading scope changed");
+  };
+  allowed();
+  if (previewUtf8Size(text) > 65_536)
+    throw new Error("Document preview exceeds its text limit");
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  allowed();
+  if (!["html", "htm"].includes(format)) {
+    const result = documentReadingPreview(format, text);
+    allowed();
+    return result;
+  }
+  const steps = htmlReadingSteps(text);
+  while (true) {
+    allowed();
+    let result: IteratorResult<void, HtmlReading>;
+    try {
+      result = steps.next();
+    } catch {
+      allowed();
+      return htmlFallback(text);
+    }
+    if (result.done) {
+      allowed();
+      return htmlRows(result.value);
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
 }
