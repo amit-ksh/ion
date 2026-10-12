@@ -1248,9 +1248,9 @@ impl Waku {
                     format!("assignment-document-{}-{}", row.id, document.id),
                     format!("{} · {}", document.name, document.format.to_uppercase()),
                     cx,
-                    move |this, _, cx| {
+                    move |this, window, cx| {
                         if let ControlRecord::Artifact(artifact) = &record {
-                            this.open_document_preview(artifact.clone(), cx);
+                            this.open_document_preview(artifact.clone(), window, cx);
                         }
                     },
                 )

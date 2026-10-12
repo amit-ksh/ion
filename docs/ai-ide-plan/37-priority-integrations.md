@@ -21,8 +21,9 @@ Enter/Space and visible focus. Source remains selectable and can be copied.
 Markdown supports a reading/source toggle; JSON supports formatted/source views.
 Invalid JSON keeps its original source. Document links become readable text and
 image references become labels; reading causes no external image load, navigation
-or app command. HTML, CSV and plain text currently show inert source. PDF retains
-verified export and an explicit unavailable page-preview message. Legacy artifacts
+or app command. CSV and plain text show inert source. The subsequent
+[HTML/PDF checkpoint](42-native-document-rendering.md) adds static HTML layout
+and native PDF page rendering while retaining verified export. Legacy artifacts
 without integrity evidence cannot enter the new verified viewer.
 
 Gateway workflow-document reading on the native phone adds the same Markdown/
@@ -43,22 +44,24 @@ Deployment/native TLS and recognition acceptance remain unverified.
 
 ## Remaining development, in priority scope
 
-- [ ] **Billing:** bind the owner-selected Nebius billing account/contract, retrieve
-  bounded native reports, ingest exact FOCUS charges with period/revision/currency
-  identity and expose reported costs separately from held allowances. Handle
-  overlapping snapshots/corrections, retained storage/transfer/tax and original
-  Compute resource attribution. Do not infer a final invoice or release a hold
-  from a job terminal state or a completed export.
+- [x] **Billing report/history:** implement owner-selected account/contract/currency
+      scopes, bounded native GET-only FOCUS sync, exact signed charges, corrected
+      monthly snapshots, historical provenance and desktop/direct-phone/gateway reads.
+      See [native reports](38-nebius-billing-reports.md) and
+      [gateway history](39-gateway-billing-history.md).
+- [ ] **Billing reconciliation:** credential refresh/discovery and original
+      job/account/tariff/finality reconciliation. Do not infer a final invoice or
+      release a hold from a job terminal state or a completed export.
 - [ ] **Broader remote controls:** complete aggregate host/project CPU/RAM/process/
-  storage and egress enforcement, original-operation inventory and lifecycle
-  control across owner/direct phone/gateway grants; finish GPU device/FUSE/CUDA
-  and image/runtime gates before enabling the remaining training submissions.
-- [ ] **Document previews:** rendered HTML layout and PDF pages, additional binary
-  formats/publication limits, consistent direct-phone artifact discovery and
-  preview. Current source/reading views are not full HTML/PDF rendering.
+      storage and egress enforcement, original-operation inventory and lifecycle
+      control across owner/direct phone/gateway grants; finish GPU device/FUSE/CUDA
+      and image/runtime gates before enabling the remaining training submissions.
+- [ ] **Document previews:** finish automated/native acceptance for the new desktop
+      [HTML layout and PDF pages](42-native-document-rendering.md); add other binary
+      formats/publication limits and direct-phone artifact discovery/preview parity.
 - [ ] **Speech:** deploy the prepared shared service when a target is supplied;
-  accept native Android/iOS TLS/redirect behavior, microphone capture, concurrent
-  desktop/phone partial/final recognition and resource/latency limits.
+      accept native Android/iOS TLS/redirect behavior, microphone capture, concurrent
+      desktop/phone partial/final recognition and resource/latency limits.
 
 ### Verified billing contract evidence
 
@@ -80,18 +83,18 @@ Existing detailed research: [GPU billing and identity](RESEARCH-nebius-gpu-price
 
 - [ ] Desktop Artifacts/Inbox/team results: Preview, Save, Refresh and Back.
 - [ ] Markdown headings, lists, code and tables; formatted JSON and exact Source;
-  Unicode and a long single block; malformed JSON preserves original content.
+      Unicode and a long single block; malformed JSON preserves original content.
 - [ ] Tab, visible focus, arrows/Home/End/Page Up/Page Down, Escape and selection/
-  copy; both themes and long document names.
+      copy; both themes and long document names.
 - [ ] Changed/missing evidence refuses preview; navigating away during a read
-  cannot reopen it. HTML scripts/image/link references cause no requests/actions.
+      cannot reopen it. HTML scripts/image/link references cause no requests/actions.
 - [ ] Gateway phone: current publisher/run, reading/source toggles, background/
-  pairing change while reading, revocation and exported content integrity.
+      pairing change while reading, revocation and exported content integrity.
 - [ ] Speech: Test without a microphone prompt; inventory-only service fails;
-  rejected/missing format fails; backgrounding cancels; same-origin saved-token
-  reuse works and changed-origin reuse fails.
+      rejected/missing format fails; backgrounding cancels; same-origin saved-token
+      reuse works and changed-origin reuse fails.
 - [ ] After VM/DNS/token and billing resources are provided, run the existing live
-  GPU/remote and speech acceptance guides. These resources are not configured yet.
+      GPU/remote and speech acceptance guides. These resources are not configured yet.
 
 ## Automated evidence
 
@@ -108,7 +111,8 @@ microphone/phone acceptance was run. The full implementation goal remains active
 [Native billing report implementation and review](38-nebius-billing-reports.md)
 adds desktop connections/sync and direct-phone account/export/charge history.
 Reported exact charges, scoped immutable identity, snapshot replacement and
-original resource attribution are implemented. Provider/live acceptance, gateway
-redaction, credential refresh/discovery and job/tariff/finality reconciliation
-remain open. This does not complete broader remote controls, HTML/PDF rendering,
-shared speech acceptance or the whole implementation goal.
+original resource attribution are implemented. [Gateway billing redaction and
+history](39-gateway-billing-history.md) and [cross-project remote inventory](40-remote-execution-controls.md)
+are also implemented. Provider/live acceptance, credential refresh/discovery,
+job/tariff/finality reconciliation, wider GPU/resource/egress controls and shared
+speech acceptance remain open. The whole implementation goal remains active.

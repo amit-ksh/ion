@@ -2290,6 +2290,8 @@ impl Waku {
     /// settings page and overlay menus all funnel through here, so a webview
     /// can never linger over unrelated UI.
     pub(super) fn sync_browser_webviews(&mut self, cx: &mut Context<Self>) {
+        let document_overlay = !self.scene_overlay_enabled && self.any_overlay_open(cx);
+        self.sync_document_webview(document_overlay, cx);
         if self.right_panel_browsers.is_empty() {
             return;
         }

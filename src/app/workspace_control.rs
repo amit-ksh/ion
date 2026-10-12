@@ -921,7 +921,7 @@ impl Waku {
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.control_ui.remote.close();
         self.settings_page = None;
-        self.control_ui.preview.clear();
+        self.control_ui.preview.clear(cx);
         if self.control_ui.page != Some(page) {
             self.control_ui.billing.close();
         }
@@ -2378,7 +2378,9 @@ impl Waku {
                             format!("notice-preview-{index}"),
                             "Preview",
                             cx,
-                            move |this, _, cx| this.open_document_preview(artifact.clone(), cx),
+                            move |this, window, cx| {
+                                this.open_document_preview(artifact.clone(), window, cx)
+                            },
                         ));
                     }
                     actions = actions.child(self.control_button(
@@ -2657,7 +2659,9 @@ impl Waku {
                         format!("document-preview-{id}"),
                         "Preview",
                         cx,
-                        move |this, _, cx| this.open_document_preview(artifact.clone(), cx),
+                        move |this, window, cx| {
+                            this.open_document_preview(artifact.clone(), window, cx)
+                        },
                     ));
                     actions = actions.child(self.control_button(
                         format!("document-export-{id}"),

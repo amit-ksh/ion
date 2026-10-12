@@ -233,7 +233,6 @@ Native adapter checkpoint: `d2a770f`.
   Rebuild desktop, daemon and clients together. The UI now shows actual task status, and native invocation
   tools report daemon dispatch rather than the former queue-only placeholder.
 
-
 ## Result review and rework increment (2026-10-05)
 
 Daemon dispatch checkpoint: `1400e86`.
@@ -362,7 +361,7 @@ No visual test or app launch was performed, following AGENTS.md. User review:
 
 - [ ] Open Teams → Runs, then follow lead and child task links.
 - [ ] Confirm siblings remain under the correct manager; compare the pinned
-  roster after editing a reusable agent or team definition.
+      roster after editing a reusable agent or team definition.
 - [ ] Inspect queued setup blockers, review feedback, correction tasks and documents.
 - [ ] Stop a running team and confirm it reaches Stopped after workers join.
 - [ ] Use project filters and Previous/Next with more than 32 saved runs.
@@ -395,11 +394,11 @@ User review:
 
 - [ ] Set a small token or model-call limit in a team, save, and start @team.
 - [ ] Confirm the run header reflects those limits and stops before another
-  billable native completion when no allowance remains.
+      billable native completion when no allowance remains.
 - [ ] Edit the team's limits and confirm the existing run remains unchanged;
-  a new run should use the edited limits.
+      a new run should use the edited limits.
 - [ ] Enter invalid or zero limits and confirm saving fails without changing
-  the stored definition.
+      the stored definition.
 - [ ] Review required/optional parent-review behavior and correction limits.
 
 ## Human team decisions checkpoint
@@ -488,23 +487,23 @@ User review:
 - [ ] Inspect each child task's own harness/model, evidence and parent review.
 - [ ] Confirm unsupported/custom models show a setup blocker without an attempt.
 - [ ] Cancel during a Claude request; confirm the process stops and unknown usage
-  remains reserved rather than being shown as zero.
+      remains reserved rather than being shown as zero.
 - [ ] Compare metered tokens with the CLI receipt once a live run is available.
 
 ## Remaining development
 
 - [x] Wire native delegation to the materializer and dispatcher wakeup; drain
-  additional batches during normal operation.
+      additional batches during normal operation.
 - [x] Replace legacy single-prompt Team preparation with explicit @ addressing
-  and daemon-owned durable queue creation.
+      and daemon-owned durable queue creation.
 - [x] Add the native normal-agent team invocation queue bridge.
 - [x] Implement native Nebius team start/dispatch on Local.
 - [x] First authenticated external harness bridge: Claude Code.
 - [ ] Additional external harness bridges: Codex, OpenCode and the remaining catalog.
 - [x] Native Nebius worker with lease-bound delegation/report/document tools,
-  enforced read grant and bounded resumed child context.
+      enforced read grant and bounded resumed child context.
 - [x] Connect native workers to the daemon dispatcher, durable transcripts,
-  setup readiness, model-call quotas and attached runtime events.
+      setup readiness, model-call quotas and attached runtime events.
 - [x] Enforce native per-run token reservations before billable execution.
 - [x] Add the user-facing token and execution limits editor.
 - [ ] Add dollar-price reservations and cost limits.
@@ -512,23 +511,23 @@ User review:
 - [x] Native adapter delivery of bounded child handoffs and document evidence.
 - [x] Native parent review/rework and structural document/check output contracts.
 - [ ] Executed check receipts, independent semantic acceptance and review gates
-  for additional harness adapters.
+      for additional harness adapters.
 - [x] Per-call pinned-model token allowances and durable provider usage receipts.
 - [ ] Per-call cost reservations and currency enforcement; token limits do not
-  enforce dollar budgets or remote host charges.
+      enforce dollar budgets or remote host charges.
 - [x] Composio exact connected-account/action/version grant editor and approved execution.
 - [ ] Additional filesystem/resource/egress policy and general command containment.
-  A prompt, worktree or saved grant is not permission enforcement.
+      A prompt, worktree or saved grant is not permission enforcement.
 - [ ] Team readiness matrix and supported model validation for each harness.
 - [x] Native hierarchy/roster with live child links, blockers and results; cached
-  run projections across Dashboard, Inbox and Artifacts. Solo-style false decisions
-  are removed; human planning decisions now have persisted pause/resume receipts.
+      run projections across Dashboard, Inbox and Artifacts. Solo-style false decisions
+      are removed; human planning decisions now have persisted pause/resume receipts.
 - [x] First bounded external harness bridge and mixed-harness coordinator regression.
 - [ ] Additional mixed-harness adapters and live authenticated acceptance.
 - [x] Serialized writers, isolated coding worktrees and generated patch documents.
 - [ ] User-approved integration into the original checkout and uncertain-effect recovery.
 - [ ] Registered Nebius execution host: actual harness launch, explicit transfer,
-  host readiness, remote status/cancel/checkpoint and tested local fallback.
+      host readiness, remote status/cancel/checkpoint and tested local fallback.
 - [x] Persisted human planning decisions bound to exact proposal/revision/host.
 - [x] Exact app-action approval with durable no-replay execution receipts.
 - [ ] Effect-specific filesystem integration/cloud approvals.
@@ -597,7 +596,7 @@ Verified 2026-10-05 against this worktree:
   inconsistent/partial receipts without losing the legacy solo occupancy event.
   User and native-agent invocation replay retains legacy pinned limits without
   accepting changed work. A daemon regression verifies the visible budget blocker.
-The following unaffected suites also passed at the daemon-dispatch checkpoint:
+  The following unaffected suites also passed at the daemon-dispatch checkpoint:
 
 - Runtime publisher cursor/replay regression: **1 passed**.
 - Server lifecycle and reconnect suite: **17 passed**, including the team-owned
@@ -605,7 +604,7 @@ The following unaffected suites also passed at the daemon-dispatch checkpoint:
 - Team addressing parser: **3 passed**.
 - Native composer completion suite: **11 passed**.
 - Existing control store suite: **5 passed**.
-Current token-budget increment verification:
+  Current token-budget increment verification:
 
 - Protocol wire contract suite: **7 passed** (including review and token limits).
 - Native app and daemon: `cargo check --locked -p waku -p waku-daemon` passed.
@@ -689,42 +688,42 @@ User review:
 - [ ] Confirm the queued task preserves the lead harness/model and typed prompt.
 - [ ] Refresh/restart and confirm the same task/run survives without duplicates.
 - [ ] Without setup, confirm a queued task shows the actual setup reason and
-  consumes no attempt. With ready native agents, observe child execution and resume.
+      consumes no attempt. With ready native agents, observe child execution and resume.
 - [ ] Refresh a completed team task and confirm its transcript and documents remain.
 - [ ] Observe a child enter In review; confirm the parent accepts it or creates
-  a separate correction task, preserving the rejected document and feedback.
+      a separate correction task, preserving the rejected document and feedback.
 - [ ] Check that a consumer waits for accepted corrected output and that a
-  parent cannot finish with an unaccepted child.
+      parent cannot finish with an unaccepted child.
 - [ ] Request missing documents/formats/check labels; confirm reporting returns
-  feedback and does not commit a completed result. Declared checks are not executed tests.
+      feedback and does not commit a completed result. Declared checks are not executed tests.
 - [ ] Inspect the run token totals; confirm missing usage remains reserved and
-  budget exhaustion shows a blocker before another provider request. Current
-  default is 2,000,000 tokens; customize new-run limits in the Team editor.
+      budget exhaustion shows a blocker before another provider request. Current
+      default is 2,000,000 tokens; customize new-run limits in the Team editor.
 - [ ] Close the team task attachment while children run; reopen it and confirm
-  the same run continues. Use Stop separately to cancel the owning team run.
+      the same run continues. Use Stop separately to cancel the owning team run.
 - [ ] In a native Nebius solo task, ask it to use a saved team; inspect the
-  `invoke_team` call and its queue/status result. Requires a privately saved key.
+      `invoke_team` call and its queue/status result. Requires a privately saved key.
 - [ ] Confirm actor/project overrides, changed repeated calls and a fifth
-  invocation are rejected; external harness bridges remain pending.
+      invocation are rejected; external harness bridges remain pending.
 
 ## User review when the execution adapters are ready
 
 - [ ] Create multiple teams and assign one agent to more than one team.
 - [ ] Configure different harnesses and supported models for lead, manager,
-  specialist and reviewer. Confirm each real child transcript uses its choice.
+      specialist and reviewer. Confirm each real child transcript uses its choice.
 - [ ] Select Local or Nebius sandbox per agent; verify no Auto entry appears.
 - [ ] Edit a profile and confirm an existing run retains its pinned settings.
 - [ ] Follow lead → manager → specialist delegation, review/rework and one
-  document through actual child task links.
+      document through actual child task links.
 - [ ] Reject hierarchy violations and access expansion without doing the work.
 - [ ] Verify shared concurrency and budget limits across projects/teams.
 - [ ] Stop a team with active children; confirm the hosts stop and status follows.
 - [ ] Restart the daemon during a child creation and an active assignment;
-  confirm no duplicate child task or unconfirmed effect replay.
+      confirm no duplicate child task or unconfirmed effect replay.
 - [ ] Make a sandbox unavailable before start; confirm Local (fallback) with
-  unchanged harness/model/access. Missing local requirements show a blocker.
+      unchanged harness/model/access. Missing local requirements show a blocker.
 - [ ] Disconnect a running sandbox job; confirm it stays uncertain until remote
-  outcome reconciliation, rather than starting a second local job.
+      outcome reconciliation, rather than starting a second local job.
 - [ ] Exercise important decisions and resulting Inbox/Dashboard notifications.
 - [ ] Review light/dark legibility, keyboard focus and long virtualized lists.
 
@@ -738,7 +737,6 @@ User review:
 - Configure Composio privately and grant exact account/actions in the Agent editor. Merely connecting an app does not grant execution access.
 
 These resources are not required for the coordinator's local regression tests.
-
 
 ## Approved connected-app execution increment (2026-10-05)
 
@@ -787,18 +785,18 @@ User review after private Composio setup:
 - [ ] Open the Agent editor and load connected apps; choose an active account.
 - [ ] Search actions and grant only the exact actions the agent needs; save.
 - [ ] Grant the same exact account/action/version to its lead so delegation can
-  intersect those permissions. Merely connecting an app never grants execution.
+      intersect those permissions. Merely connecting an app never grants execution.
 - [ ] Ask the team to use an action. Confirm it appears in Decisions and Inbox
-  with the complete account, version and arguments before execution.
+      with the complete account, version and arguments before execution.
 - [ ] Decline one request and confirm no app action is sent.
 - [ ] Approve one request and verify the actual provider outcome and generated
-  result document, then the lead's review and final result.
+      result document, then the lead's review and final result.
 - [ ] Disable a connected account before approving; confirm setup blocks the
-  action without switching accounts or sending a mutation.
+      action without switching accounts or sending a mutation.
 - [ ] Confirm a missing acknowledgement shows uncertainty and never retries
-  automatically. Inspect the provider log before reconciling the outcome.
+      automatically. Inspect the provider log before reconciling the outcome.
 - [ ] Edit the saved grant/version after a run starts; confirm its pinned grant
-  remains unchanged and a new run uses the updated grant.
+      remains unchanged and a new run uses the updated grant.
 
 No live app account was modified. Private keys, cloud targets and authenticated
 provider acceptance remain user setup. Additional harness adapters, remote Teams
@@ -812,7 +810,6 @@ unknown acknowledgements and native approval → execution → document → comp
 checking passed. Desktop/daemon checking passed. Protocol bindings were regenerated;
 **8 protocol tests**, Rust formatting and whitespace gates passed.
 No provider billing, live app action, visual test or app launch was performed.
-
 
 ## Normal-task team execution increment (2026-10-05)
 
@@ -850,7 +847,6 @@ Verification: **118 team tests**, **23 TypeScript client tests**, TypeScript
 checking, desktop/daemon checking, Rust formatting and diff whitespace gates
 passed. No live provider, visual acceptance or app launch is claimed.
 
-
 ## Safe local checkpoint continuation increment (2026-10-05)
 
 Normal-task invocation checkpoint: `02f604a`.
@@ -880,7 +876,7 @@ User review:
 - [ ] Interrupt a model request temporarily and observe a blocked Local assignment.
 - [ ] Restore provider access and use Continue from checkpoint on the run.
 - [ ] Verify the existing task, harness/model, host, permissions and token history
-  remain intact as the hierarchy finishes and publishes its final document.
+      remain intact as the hierarchy finishes and publishes its final document.
 - [ ] Confirm Stop or expiry prevents continuation.
 - [ ] Confirm unknown host/file/app outcomes expose no safe-continuation action.
 
@@ -888,13 +884,11 @@ This increment covers safe checkpoints after a known Local worker exit. Confirma
 of a host left behind by owner restart and file/app outcome reconciliation remain
 separate implementation work; no unknown action is retried by this control.
 
-
 Verification: the **124-test Teams suite** passed, followed by **7 focused
 checkpoint-continuation tests**, including the added runtime join → continue →
 hierarchical completion test. **9 protocol tests**, current generated bindings, **23 TypeScript client tests**,
 TypeScript checking, native desktop/daemon checking, formatting and whitespace
 gates also passed. No live provider or visual acceptance ran.
-
 
 ## Structural coding changes increment (2026-10-05)
 
@@ -929,15 +923,14 @@ User review:
 - [ ] Remove an obsolete small text file; inspect its exact generated change document.
 - [ ] Confirm a deleted file has null final content and the source checkout is intact.
 - [ ] Confirm exact removed bytes appear in the generated change document and
-  recovery bookkeeping does not appear as an added file in the Git diff.
+      recovery bookkeeping does not appear as an added file in the Git diff.
 - [ ] Verify stale content, missing parents, directory deletion and denied grants
-  produce feedback without changing an unrelated file.
+      produce feedback without changing an unrelated file.
 
 No shell execution, automatic test claim, source integration or live provider
 acceptance is implied by these structural tools. Remaining adapters, actual
 sandbox execution, executed checks, cost caps and reconciliation/integration
 continue to be recorded as development work.
-
 
 Verification: **130 Teams tests passed**, including structural edits, exact
 replay, scope/private-path denial, preserved deletion bytes, clean Git review,
@@ -945,7 +938,6 @@ unknown structural effects and the native create → write → delete → docume
 result chain. Desktop/daemon checking, Rust formatting and whitespace gates
 passed. Protocol/client checks from `d9dfba6` remain current; this checkpoint
 makes no wire-contract change. No live provider or visual acceptance was run.
-
 
 ## Reviewed source integration increment (2026-10-06)
 
@@ -989,14 +981,14 @@ Structural coding checkpoint: `bd74d14`.
 User review:
 
 - [ ] Complete a coding team task that creates a directory/file, updates an existing
-  text file and removes an obsolete file. Inspect every combined change.
+      text file and removes an obsolete file. Inspect every combined change.
 - [ ] Apply the saved review and confirm the original project contains the expected
-  changes without an automatic commit or index update.
+      changes without an automatic commit or index update.
 - [ ] Introduce a source conflict before approval and confirm Apply is unavailable
-  or rejects without overwriting the newer file; resolve and refresh the review.
+      or rejects without overwriting the newer file; resolve and refresh the review.
 - [ ] Repeat a successful Apply after a new user edit and confirm it is preserved.
 - [ ] In a disposable project, inspect/reconcile a partial application and verify
-  automatic replay remains refused.
+      automatic replay remains refused.
 - [ ] Check keyboard operation and large expanded diffs when live UI review is run.
 
 Verification: **137 Teams tests**, **10 protocol tests**, **2 desktop diff/cache
@@ -1005,7 +997,6 @@ are current; TypeScript checking, desktop/daemon checking, Rust formatting and
 whitespace gates passed. The source application tests used disposable repositories;
 no live provider, account mutation, cloud deployment, visual test or second watcher
 was run.
-
 
 ## Stopped Local host and effect recovery increment (2026-10-06)
 
@@ -1057,7 +1048,6 @@ User acceptance steps are included in
 fixtures exercise interrupted receipt boundaries and actual native continuation;
 live provider accounts, remote infrastructure and UI acceptance remain separate.
 
-
 Verification: **146 Teams tests**, **11 protocol tests**, **24 TypeScript client
 tests** and **2 native diff/cache tests** passed. Generated bindings are current;
 TypeScript checking, desktop/daemon checking, Rust formatting and whitespace
@@ -1070,7 +1060,6 @@ journals and 100 iterations measured 1.007 ms/query before filtering and
 0.003 ms/query after filtering; this is query evidence, not live application FPS.
 No live provider, account mutation, cloud deployment, visual test or second
 development watcher was run.
-
 
 ## Immutable text input handoffs increment (2026-10-06)
 
@@ -1102,7 +1091,6 @@ Recovery checkpoint: `7bd5bc4`.
   Rebuild desktop, daemon and clients together. Image/PDF interpretation and
   follow-up prompts remain release development items.
 
-
 Verification: **152 Teams tests**, **11 protocol tests** and **25 TypeScript client
 tests** passed. Generated bindings are current; TypeScript checking,
 desktop/daemon checking, Rust formatting and whitespace gates passed. Fixtures
@@ -1110,7 +1098,6 @@ cover native delegation/resumption using the pinned input copy, exact queue
 replay after upload modification, task presentation, denied/revoked read grants,
 combined size/count bounds and unsupported input rejection. No live provider,
 account mutation, cloud deployment, visual test or second watcher was run.
-
 
 ## Active lead follow-ups increment (2026-10-06)
 
@@ -1151,7 +1138,6 @@ Text input handoff checkpoint: `249a967`.
 The release checklist still tracks the additional harnesses, external solo bridges,
 remote execution host, executed checks, monetary caps and PDF/image interpretation.
 
-
 Verification: **164 Teams tests**, **14 distinct protocol/wire/projection tests**
 and **38 TypeScript client/mobile runtime tests** passed. Generated bindings are
 current. Shared-client and full mobile TypeScript checking, desktop/daemon checking,
@@ -1164,7 +1150,6 @@ bounds, actual native completion and preserved mobile history.
 No live provider billing, app account mutation, cloud deployment, device/visual
 acceptance or second development watcher was run. These checks establish this
 increment; full Teams release development remains listed separately.
-
 
 ## Durable workflow/routine execution increment (2026-10-06)
 
@@ -1233,7 +1218,6 @@ No live provider billing, app mutation, cloud deployment, phone/device acceptanc
 visual test, second watcher or integration into `ion-prod` was performed. The review
 checklist retains those acceptance items and the full release development gaps.
 
-
 ## Selected harness and registered remote worker increment (2026-10-06)
 
 Previous checkpoint: `19ceaad`. Protocol remains **27**; no wire migration is
@@ -1275,7 +1259,6 @@ current remote worker performs selected-harness completions; file/app actions
 still execute on the owner through existing grants. This checkpoint is not the
 complete planned Ion release.
 
-
 Verification: the broad Teams regression passed **138 tests** (three optional
 installed-CLI fixtures excluded). The final adapter/remote suite passed **24 tests**,
 including installed **Codex 0.160.0**, **OpenCode 1.18.15** and **Pi 0.84.1** against
@@ -1295,7 +1278,6 @@ No live provider billing, cloud instance submission, Linux image build/deploymen
 app-account mutation, phone/device or visual acceptance, second development watcher
 or integration into `ion-prod` was performed. Live target/account setup and the
 remaining implementation contracts are recorded in the linked checklist.
-
 
 ## Oh My Pi and remote assignment loop increment (2026-10-06)
 
@@ -1338,7 +1320,6 @@ execution. No live model billing, cloud submission/deployment, account mutation,
 Linux image acceptance, visual test, second watcher or integration into `ion-prod`
 was performed. See the adapter setup and release checklist for the remaining work.
 
-
 ## 2026-10-06 — bounded native DeepSeek Harness adapter
 
 - Added a distinct native DeepSeek headless Teams adapter for published runtime
@@ -1366,7 +1347,6 @@ Seven selected harnesses now have bounded Teams completion adapters. Remaining:
 Antigravity, Amp, Cursor, Fx, OpenCode 2, Grok and Kimi, plus unverified OAuth/custom
 transports. Full remote files/commands/GPU jobs and deployment acceptance remain
 implementation work. The current sandbox worker executes completion only.
-
 
 ## 2026-10-06 — verified sandbox operation recovery and continuation
 
@@ -1402,7 +1382,6 @@ Remaining implementation: the seven other native Teams adapters, full remote
 filesystem/commands and executed checks, resource/egress and monetary controls,
 and GPU/ML jobs. Registered Linux image acceptance and real credentials/deployment
 remain later user setup and review items in the release checklist.
-
 
 ## 2026-10-06 — bounded native Kimi Code adapter
 
@@ -1440,7 +1419,6 @@ Eight selected harnesses now have bounded Teams completion adapters. Remaining:
 Antigravity, Amp, Cursor, Fx, OpenCode 2 and Grok, unverified OAuth/custom transports,
 external solo-harness team bridges and full remote files/commands/GPU execution.
 Later native/cloud acceptance steps are in the adapter guide and release checklist.
-
 
 ## 2026-10-06 — bounded native Grok Build adapter
 
@@ -1527,7 +1505,6 @@ Fx native acceptance, Amp/Cursor adapters, additional account transports and ful
 remote files/commands/GPU execution remain outstanding. See the release checklist
 and adapter guide for development and later live-review gates.
 
-
 Final verification after those fixes: **19 focused checks passed**, including
 both actual native OpenCode 2 and Antigravity 1.3.1 executable fixtures. The checks
 cover canonical Chat/Responses/Gemini requests, complete usage and thinking,
@@ -1586,7 +1563,6 @@ receipt collector from command-side signalling or native privilege elevation.
 Command/GPU fixtures and desktop/daemon checking were repeated after the contract
 change; Linux native acceptance remains outstanding.
 
-
 ## 2026-10-07 — command recovery binding and durable GPU reservations
 
 - Review recovery now distinguishes command operations and model completions.
@@ -1632,7 +1608,6 @@ No live account, provider billing, cloud submission/deployment, app visual test 
 second watcher was used. Amp/Cursor contracts, Fx native acceptance, executed-check
 gates and full remote project/large transfers also remain development. The full
 goal is active; this checkpoint does not mark it complete.
-
 
 ## 2026-10-07 — GPU resource inventory and cleanup proofs
 
@@ -1801,7 +1776,6 @@ account/cloud request, app bundle, second watcher or visual test was run.
 See [the recovery contract research](RESEARCH-nebius-gpu-recovery.md) and
 [the review guide](23-remote-command-gpu-jobs.md#original-gpu-operation-recovery).
 
-
 ## Executed remote command check gates (2026-10-07)
 
 - Protocol **31** adds `requiredCommands` to the immutable output contract and
@@ -1845,7 +1819,6 @@ collection remain development. Amp/Cursor contracts, Fx native Linux/macOS
 acceptance and live provider/cloud review remain open. The full goal stays active.
 See [executed command requirements and review](23-remote-command-gpu-jobs.md#executed-command-checks).
 
-
 ## Persistent GPU maintenance and provider timeout correction (2026-10-07)
 
 - The owner now polls original bound GPU jobs after terminal/blocked assignments
@@ -1888,7 +1861,6 @@ Amp/Cursor Teams adapters and the other adapter transport/bridge contracts.
 Native Linux/macOS and live provider/cloud acceptance remain review gates.
 The full goal stays active. See [maintenance and later review](23-remote-command-gpu-jobs.md#persistent-gpu-maintenance-after-task-cancellation)
 and [GPU launch policy research](RESEARCH-nebius-gpu-launch-policy.md).
-
 
 ## Exact GPU resource policy and readiness (2026-10-07)
 
@@ -2009,7 +1981,6 @@ No user credential, live provider/GPU/cloud deployment, app bundle, visual test 
 second watcher was used. The full goal remains active. See the
 [adapter guide](22-harness-adapters-remote-execution.md#fx-native-linux-acceptance-2026-10-07)
 and [release checklist](20-agent-teams-release-checklist.md).
-
 
 ## Exact GPU estimates and atomic price receipts (2026-10-07)
 
@@ -2305,7 +2276,6 @@ broader local/remote checks, aggregate host/cloud accounting and GPU runtime
 contracts remain development. The broader Ion release checklist additionally
 tracks Inbox, artifact/usage, gateway and cloud speech work.
 
-
 ## 2026-10-08 — native OpenCode normal-task Teams checkpoint
 
 Normal OpenCode tasks now discover and invoke saved teams, inspect their durable
@@ -2353,7 +2323,6 @@ aggregate cloud accounting and GPU runtime/device/network/volume contracts remai
 in the plan. Live native account and Nebius resource acceptance is tracked
 separately. The historical estimate is not a percentage for the reduced scope,
 measured coverage or full Ion release readiness.
-
 
 ## 2026-10-08: executable remote project snapshot checkpoint
 
@@ -2490,7 +2459,6 @@ was performed. Parallel fan-out, loops and bounded stage retry remain separate
 work; this does not complete historical/mobile Inbox, global usage or the broader
 remote/GPU, gateway and speech goal. New harness adapters remain deferred.
 
-
 ## Historical and phone Inbox checkpoint — 2026-10-08
 
 Implemented in the isolated Teams worktree, protocol **34**:
@@ -2521,7 +2489,6 @@ Historical transition reconstruction before this upgrade and Push notifications
 are not delivered. The full goal remains active: global usage accounting, bounded
 workflow retries/code integration and broader remote/GPU, gateway and speech
 integrations still require development. New harness adapters remain deferred.
-
 
 ## Usage ledger checkpoint — 2026-10-08
 
@@ -2596,7 +2563,6 @@ code integration, other existing solo-harness usage receipts, billing, broader
 remote/GPU, registered-owner/gateway and cloud speech still need implementation.
 Deferred new harness adapters remain outside scope.
 
-
 ## 2026-10-09: shared desktop and phone speech streaming
 
 Configured cloud microphone sessions now use NeMo's explicit transcription WSS
@@ -2620,7 +2586,6 @@ resources, native device acceptance or visual review are claimed. The full goal
 stays active: code integration, other existing harness usage and billing, broader
 remote/GPU and registered-owner/gateway work remain. New adapters stay deferred.
 
-
 Verification for this checkpoint: **nine Rust speech boundary tests** and
 **thirteen phone stream/WAV tests** passed. Desktop, daemon and native worker
 compilation, full phone TypeScript, Rust formatting and whitespace checks passed.
@@ -2628,7 +2593,6 @@ The stream tests cover PCM/auth ordering, endpointed final text, canceled/late
 sockets, malformed/oversized responses and buffers, TLS failure and redirects.
 They use controlled local/fake transports and do not establish live service,
 OS microphone, Android/iOS TLS/redirect or visual acceptance.
-
 
 ## Workflow code inheritance (2026-10-11)
 
@@ -2685,7 +2649,6 @@ acceptance remaining. Deferred new harness adapters stay outside scope. No
 visual test, live provider request, billable provisioning or extra dev watcher
 has been performed.
 
-
 ## Generated PDF artifacts (2026-10-11)
 
 Existing native Teams tools now publish bounded opaque PDFs with exact project,
@@ -2713,7 +2676,6 @@ and live/native device acceptance still need the user's target and credentials.
 Deferred new harness adapters remain out of scope. No visual test, live provider,
 remote account mutation, billable provisioning or additional watcher was used.
 
-
 ## Ordinary OpenCode usage (2026-10-11)
 
 The already implemented resident OpenCode reader now records witnessed live
@@ -2736,7 +2698,6 @@ Remaining implementation includes other existing solo receipts/projectless
 accounting, authoritative billing, phone definition editing, general checks,
 resource/GPU and registered-owner/gateway work. Live deployment and native/device
 acceptance remain separate. Deferred new harness adapters stay out of scope.
-
 
 ## Phone workflow/routine authoring (2026-10-11)
 
@@ -2788,7 +2749,6 @@ This increment uses the existing desktop background worker. Headless cloud owner
 publication and broader historical gateway portfolio data remain development;
 existing deferred harness adapters remain out of scope.
 
-
 ## Headless registered-owner workflow increment (2026-10-11)
 
 Moved persisted-pairing workflow publication and phone controls into a dedicated
@@ -2811,7 +2771,6 @@ See [implementation, setup and remaining owner review](31-headless-gateway-owner
 Broader historical gateway portfolio data, resource/accounting work and live
 provider/device acceptance remain open. No deferred new harness adapter was added.
 
-
 ## Gateway Inbox and usage history increment (2026-10-11)
 
 Added a durable typed read relay and independent phone Inbox/usage grants. The
@@ -2831,7 +2790,6 @@ was performed. See [setup and review](32-gateway-inbox-usage-history.md).
 Historical gateway workflow/evidence pages, notification writes, remaining
 resource/accounting integration and cloud speech/device acceptance remain open.
 Deferred new harness adapters were not added.
-
 
 ## Gateway workflow history and accepted documents (2026-10-11)
 
@@ -2855,7 +2813,6 @@ Review and setup: [workflow history and accepted documents](33-gateway-workflow-
 Gateway notification writes and broader accounting/resource/speech work remain;
 deferred harness adapters stay outside scope. No watcher, live provider or billable
 resource was started. The overall goal remains active.
-
 
 ## Gateway Inbox notification controls (2026-10-11)
 
@@ -2887,7 +2844,6 @@ Remaining work includes broader resource/monetary accounting, other existing
 solo-harness receipts, larger artifact formats/interpretation/previews, background
 notification delivery and shared speech/live device acceptance. Deferred harness
 adapters remain outside scope. The overall goal remains active.
-
 
 ## Shared GPU budgets (2026-10-11)
 
@@ -2921,7 +2877,6 @@ egress controls, other existing solo usage receipts, larger document interpretat
 previews, background notification delivery and shared speech/live device acceptance.
 The GPU submission gate remains closed where its original prerequisites are unmet;
 unimplemented harness adapters remain deferred. The overall goal remains active.
-
 
 ## Historical Inbox background notifications (2026-10-12)
 
@@ -3044,3 +2999,13 @@ Review: [gateway billing](39-gateway-billing-history.md) and [remote executions]
 Merged verification: **105 distinct tests passed** (68 gateway regression, 29 mobile/shared-client readers and transport, 4 native billing projections and 4 native remote collection tests). Complete mobile, gateway and shared-client TypeScript passed. Additional compile/binding and formatting checks are recorded below after their final result. No live provider, account credential, paid resource, deployment, physical-phone or visual test was used. Additional provider adapters remain deferred.
 
 Final merged gates passed: locked desktop/daemon/worker compile checks, current protocol-42 generated bindings, complete TypeScript checks, Rust/Prettier formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.
+
+## 2026-10-12 — native document layout and PDF pages
+
+Desktop Artifacts, Inbox and team documents now support static HTML layout in a separate document browser surface and native PDF page rendering with page/zoom/scroll controls. Complete original evidence is verified before worker preparation. Windows InPrivate/disabled-script and resource-request controls, macOS nonpersistent/disabled-script navigation controls, Source/Save, background PDF rendering, bounded pixels and generation fences are included. UI scroll state stays on the foreground entity.
+
+**17 native tests passed** (11 document boundaries/rendering and 6 existing browser regressions). The real Windows PDF API runs all three zooms and verifies the fix for 125% DPI scaling. macOS compilation/rendering and browser/window visual acceptance are unverified on this Windows host. No watcher, UI screenshot, provider, paid resource or microphone was used.
+
+[Implementation and owner review](42-native-document-rendering.md). Direct-phone artifact/preview parity, additional formats/limits, remaining billing settlement, wider remote/GPU enforcement and shared speech deployment/device acceptance remain open. Further provider adapters stay deferred.
+
+Native document final gates passed: locked desktop/daemon/worker compilation, Rust/Markdown formatting, whitespace/UTF-8 audit and frontend source checks. Existing Rust warnings remain.
