@@ -21,6 +21,30 @@ pub(crate) struct GpuResourcePolicy {
     pub quotas: Vec<GpuQuotaPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child_network: Option<GpuChildNetworkPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_runtime: Option<GpuRuntimePolicy>,
+}
+/// Exact immutable image profile for snapshot, IPC and Landlock device/file checks.
+/// This owner approval does not attest provider/CUDA acceptance or enable agent launch.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct GpuRuntimePolicy {
+    pub version: u16,
+    pub profile_sha256: String,
+}
+impl GpuRuntimePolicy {
+    pub(crate) fn validate(&self) -> Result<()> {
+        ensure!(
+            self.version == 1
+                && self.profile_sha256.len() == 64
+                && self
+                    .profile_sha256
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "GPU runtime approval requires version1 and the exact canonical profile SHA256"
+        );
+        Ok(())
+    }
 }
 /// Image approval names the tested mechanism; it is not a provider egress attestation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +123,9 @@ pub(crate) struct GpuQuotaPolicy {
 impl GpuResourcePolicy {
     pub(crate) fn validate(&self) -> Result<()> {
         ensure!(self.version == 1, "Unsupported GPU resource policy");
+        if let Some(runtime) = &self.child_runtime {
+            runtime.validate()?;
+        }
         for id in [
             &self.project,
             &self.tenant,
@@ -178,8 +205,25 @@ impl GpuResourcePolicy {
         );
         Ok(())
     }
+    pub(crate) fn require_child_runtime(&self) -> Result<()> {
+        self.child_runtime.as_ref().context("Approve a pinned GPU runtime profile with device/file and IPC controls before a new launch")?.validate()
+    }
     pub(crate) fn matches_body(&self, body: &Value) -> Result<()> {
         self.validate()?;
+        let mut environment = vec![
+            json!({"name":"ION_JOB_ISOLATED","value":"1"}),
+            json!({"name":"ION_JOB_CHILD_UID","value":"1000"}),
+            json!({"name":"ION_JOB_CHILD_GID","value":"1000"}),
+        ];
+        if let Some(runtime) = &self.child_runtime {
+            environment.push(
+                json!({"name":"ION_JOB_RUNTIME_PROFILE_SHA256","value":runtime.profile_sha256}),
+            );
+        }
+        ensure!(
+            body["spec"]["environmentVariables"] == json!(environment),
+            "GPU runtime environment differs from its original approved profile"
+        );
         ensure!(
             body["metadata"]["parentId"] == self.project
                 && body["spec"]["image"] == self.image

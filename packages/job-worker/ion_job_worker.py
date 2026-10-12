@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import stat
@@ -285,6 +286,11 @@ def run(request, workspace, project_data=None):
         inputs=project_inputs(project_data,request['project_snapshot'])
     elif project_data is not None:
         raise ValueError('Unexpected project archive')
+    strict_digest=os.environ.get('ION_JOB_RUNTIME_PROFILE_SHA256')
+    if strict_digest is not None and not re.fullmatch('[a-f0-9]{64}',strict_digest):
+        raise ValueError('Invalid strict runtime approval')
+    if strict_digest is not None and (sys.platform!='linux' or os.environ.get('ION_JOB_ISOLATED')!='1'):
+        raise ValueError('Strict runtime requires isolated Linux execution')
     root = workspace.resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     identity = None
@@ -297,6 +303,8 @@ def run(request, workspace, project_data=None):
 
     home = root.parent / 'home'
     home.mkdir(mode=0o700)
+    scratch = root.parent / 'tmp' if strict_digest is not None else None
+    if scratch is not None:scratch.mkdir(mode=0o700)
     for name, data, executable in inputs:
         path = safe_file(root, name)
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -309,10 +317,38 @@ def run(request, workspace, project_data=None):
         root.parent.chmod(0o711)
         for owned in [root, home, *root.rglob('*')]:
             os.chown(owned, *identity)
+        if scratch is not None:os.chown(scratch,*identity)
         child_options = {'user': identity[0], 'group': identity[1], 'extra_groups': []}
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(home),
-           'TMPDIR': str(root.parent), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8'}
+           'TMPDIR': str(scratch or root.parent), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8'}
     argv = request['argv']
+    if strict_digest is not None:
+        # A profile cannot be chosen by child code: image-fixed file plus exact
+        # owner launch digest, verified before any user process is started.
+        guard=Path('/usr/local/libexec/ion-job-guard.py')
+        # Verify before importing the fixed module, matching group preflight.
+        info=guard.lstat()
+        if guard.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_uid!=0 or info.st_nlink!=1 or info.st_mode & 0o022:
+            raise ValueError('Trusted runtime guard unavailable')
+        for parent in guard.parents:
+            info=parent.lstat()
+            if parent.is_symlink() or not stat.S_ISDIR(info.st_mode) or info.st_uid!=0 or info.st_mode & 0o022:
+                raise ValueError('Trusted runtime guard path unavailable')
+        spec=importlib.util.spec_from_file_location('ion_supervisor_runtime_guard',guard)
+        helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+        try:
+            helper.trusted_file(guard)
+            runtime=helper.trusted_module('ion_supervisor_runtime','ion_job_runtime.py')
+            profile=runtime.load_profile()
+            collector='/ion/results' if os.environ.get('ION_JOB_RUNTIME_COLLECTOR')=='/ion/results' else None
+            witness=runtime.verify_runtime(profile,[str(root),str(home),str(scratch)],collector=collector,identity=identity)
+        except Exception:
+            raise ValueError('Approved strict runtime unavailable') from None
+        if witness['profile_sha256']!=strict_digest:
+            raise ValueError('Strict runtime profile changed')
+        env['ION_JOB_RUNTIME_PROFILE_SHA256']=strict_digest
+        env['ION_JOB_RUNTIME_SNAPSHOT_SHA256']=witness['snapshot_sha256']
+        if collector:env['ION_JOB_RUNTIME_COLLECTOR']=collector
     if identity:
         if 'ION_JOB_RESOURCE_LIMITS' in os.environ:
             limits = os.environ['ION_JOB_RESOURCE_LIMITS']
@@ -462,6 +498,7 @@ def main():
             project_data=read_project_file()
         result_folder = None
         if len(sys.argv) == 5:
+            if 'ION_JOB_RUNTIME_PROFILE_SHA256' in os.environ:os.environ['ION_JOB_RUNTIME_COLLECTOR']='/ion/results'
             secure_result_parent()
             result_folder = prepare_result_directory(Path('/ion/results'), request['request_id'])
         with tempfile.TemporaryDirectory(prefix='ion-job-') as temporary:

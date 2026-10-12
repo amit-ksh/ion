@@ -32,6 +32,7 @@ pub(crate) struct Launch {
     pub shm_bytes: u64,
     pub timeout_seconds: u32,
     pub result_volume: Option<crate::teams::gpu_jobs::GpuResultVolume>,
+    pub runtime_profile_sha256: Option<String>,
 }
 fn identifier(value: &str) -> Result<()> {
     ensure!(
@@ -135,6 +136,17 @@ impl Launch {
             "disk":{"type":"NETWORK_SSD","sizeBytes":self.disk_bytes.to_string()},
             "shmSizeBytes":self.shm_bytes.to_string(),"timeout":format!("{}s",self.timeout_seconds),
             "publicIp":false,"preemptible":false,"restartAttempts":"0","pricingModel":{"onDemand":{}}}});
+        if let Some(profile) = &self.runtime_profile_sha256 {
+            crate::teams::gpu_jobs::GpuRuntimePolicy {
+                version: 1,
+                profile_sha256: profile.clone(),
+            }
+            .validate()?;
+            body["spec"]["environmentVariables"]
+                .as_array_mut()
+                .context("GPU environment missing")?
+                .push(json!({"name":"ION_JOB_RUNTIME_PROFILE_SHA256","value":profile}));
+        }
         if let Some(volume) = &self.result_volume {
             volume.validate()?;
             body["spec"]["args"] =
@@ -733,6 +745,7 @@ pub(crate) mod tests {
             shm_bytes: 0,
             timeout_seconds: 3600,
             result_volume: None,
+            runtime_profile_sha256: Some("b".repeat(64)),
         }
     }
     pub(crate) struct Fixture {

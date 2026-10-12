@@ -35,6 +35,12 @@ pub(in crate::driver::team_gpu) fn policy(l: &Launch) -> GpuResourcePolicy {
         project_limit: cap.clone(),
         tenant_limit: cap,
         child_network: Some(GpuChildNetworkPolicy::SeccompSocketDenyV1),
+        child_runtime: l.runtime_profile_sha256.as_ref().map(|digest| {
+            crate::teams::gpu_jobs::GpuRuntimePolicy {
+                version: 1,
+                profile_sha256: digest.clone(),
+            }
+        }),
         quotas: [GpuQuotaScope::Project, GpuQuotaScope::Tenant]
             .into_iter()
             .flat_map(|scope| {
@@ -827,4 +833,59 @@ fn team_gpu_preflight_legacy_socket_policy_replays_original_without_reads_but_ca
     assert!(server.finish().is_empty());
     assert_eq!(restarted.gpu_jobs(f.lease.attempt_id()).unwrap().len(), 1);
     assert!(restarted.has_pending_effect(f.lease.run_id()).unwrap());
+}
+
+#[test]
+fn gpu_runtime_approval_preserves_historical_omission_but_refuses_new_preflight() {
+    let mut launch = launch();
+    launch.runtime_profile_sha256 = None;
+    let p = policy(&launch);
+    let body = launch.body().unwrap();
+    assert!(p.matches_body(&body).is_ok());
+    assert!(
+        serde_json::to_value(&p)
+            .unwrap()
+            .get("child_runtime")
+            .is_none()
+    );
+    assert_eq!(
+        body["spec"]["environmentVariables"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert!(p.require_child_runtime().is_err());
+    let server = Server::new(vec![]);
+    let client = client(&server);
+    let mut fixture = Fixture::new(true, true);
+    fixture.policy.resources = Some(p);
+    assert!(client.verify_preflight(&launch, &fixture.policy).is_err());
+    assert!(server.finish().is_empty());
+}
+#[test]
+fn gpu_runtime_profile_change_rejects_before_provider_reads() {
+    for version in [0, 1, 2] {
+        let launch = launch();
+        let mut p = policy(&launch);
+        p.child_runtime = Some(crate::teams::gpu_jobs::GpuRuntimePolicy {
+            version,
+            profile_sha256: "c".repeat(64),
+        });
+        assert!(p.matches_body(&launch.body().unwrap()).is_err());
+        let server = Server::new(vec![]);
+        let client = client(&server);
+        let mut fixture = Fixture::new(true, true);
+        fixture.policy.resources = Some(p);
+        assert!(client.verify_preflight(&launch, &fixture.policy).is_err());
+        assert!(server.finish().is_empty());
+    }
+    let launch = launch();
+    let p = policy(&launch);
+    let mut body = launch.body().unwrap();
+    body["spec"]["environmentVariables"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name":"ION_JOB_RUNTIME_PROFILE_SHA256","value":"b".repeat(64)}));
+    assert!(p.matches_body(&body).is_err());
 }

@@ -196,3 +196,7 @@ Live Nebius speech deployment and native phone acceptance remain open. Additiona
 - [Actual local speech recognition](54-native-speech-recognition.md): installed CPU model, single/concurrent synthetic audio, bounded memory and remaining phone/cloud gates.
 - [GPU runtime boundary research](RESEARCH-gpu-runtime-boundary.md): current kernel/device/mount/IPC contracts and the distinction between startup snapshots and confinement.
 - [Command storage cleanup contract](RESEARCH-command-storage-cleanup.md): documented native lifecycle/storage limitations; no guessed deletion/release proof.
+
+- [GPU runtime snapshot](55-gpu-runtime-snapshot.md): bounded real mount/device/image checks and root/child witness equality.
+- [GPU file/device confinement](56-gpu-file-device-confinement.md): mandatory kernel Landlock, explicit driver metadata and inherited-handle limits.
+- [Installed strict GPU worker](57-strict-gpu-worker-integration.md): integrated original approval/guard/receipt checks, 164 passing increment tests and actual CUDA/provider review checklist.

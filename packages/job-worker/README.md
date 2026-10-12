@@ -340,3 +340,19 @@ original request/recovery behavior.
 [Configuration, native evidence, boundaries and later review](../../docs/ai-ide-plan/45-sandbox-resource-groups.md).
 Cross-run admission, storage totals, GPU/VRAM and real managed-runtime acceptance
 remain separate work.
+
+### Strict GPU file/device runtime
+
+The optional owner launch field `ION_JOB_RUNTIME_PROFILE_SHA256` enables the separately reviewed GPU profile. Its absence preserves historical ordinary-command and recovery behavior. It does not make the default CPU command image a CUDA image or enable GPU agent submission.
+
+Strict images must embed `/usr/local/libexec/ion-job-runtime.json` as an immutable root-owned regular file with mode 0444. The digest is SHA256 of the helper's canonical validated profile, not a guess or the image name. A complete profile pins mount topology, reviewed image read trees and exact character-device identities/rights. The owner GPU resource policy pins the same digest beside the immutable image digest. A missing/changed profile fails before user code. Native preflight rejects missing/changed approval before provider reads or create.
+
+The supervisor stages fresh private work/home/tmp directories, checks the profile and snapshot, then passes the digest/witness only to the fixed demoted guard. The guard repeats the snapshot, closes inherited nonstandard descriptors, installs the strict IPC/mount/device-creation syscall restrictions and requires successful kernel Landlock ABI>=5 file/device confinement. There is no weaker runtime fallback. Normal pipes, threads and anonymous memory remain; MPS, distributed rendezvous, external queues/shared-memory and network-capable device access are outside this strict profile.
+
+Only reviewed image paths and exact permitted devices are readable/executable; only fresh per-job roots permit file writes/regular-file or directory creation/removal. The collector is excluded. A result-volume profile requires an actual unique mount behind root-only `/ion`; alias mounts reject. Startup snapshots are not continuous confinement; Landlock/syscall restrictions supply the subsequent kernel boundary, while a privileged host/image supervisor remains trusted.
+
+The default Dockerfile copies the two helpers but contains no fabricated accepted runtime profile. To produce a strict GPU image, the owner must choose a reviewed CUDA-capable pinned base/dependencies, embed the actual accepted profile and reaccept exact driver/device/mount/kernel/library behavior. No NVIDIA device number or supported provider kernel is assumed. A CUDA kernel/training loop on the actual managed runtime is still required; Python CPU/kernel tests cannot establish that gate.
+
+See [runtime research](../../docs/ai-ide-plan/RESEARCH-gpu-runtime-boundary.md). Remote uploaded storage stays reserved because the documented API does not prove deletion; see [storage contract](../../docs/ai-ide-plan/RESEARCH-command-storage-cleanup.md).
+
+[Installed strict worker evidence and owner checklist](../../docs/ai-ide-plan/57-strict-gpu-worker-integration.md): 7 complete installed cases plus snapshot/file-device/ordinary/Rust regression suites. The integration also accepts literal bracket-named project files. Actual CUDA/aarch64/provider execution remains unaccepted.

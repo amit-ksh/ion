@@ -70,6 +70,7 @@ pub(super) fn approved_policy<'a>(
         .context("Approve an exact GPU project/network/resource policy before a new launch")?;
     resources.matches_body(&launch.body()?)?;
     resources.require_child_network()?;
+    resources.require_child_runtime()?;
     let policy = budget.pricing.as_ref().context(
         "Approve the native job estimator and complete SKU pricing before a new GPU launch",
     )?;

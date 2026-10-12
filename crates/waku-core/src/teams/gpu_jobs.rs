@@ -12,7 +12,7 @@ mod resource_policy;
 pub(crate) use resource_policy::{
     GpuChildNetworkPolicy, GpuQuotaPolicy, GpuQuotaScope, GpuResourceVector,
 };
-pub(crate) use resource_policy::{GpuQuotaKind, GpuResourcePolicy};
+pub(crate) use resource_policy::{GpuQuotaKind, GpuResourcePolicy, GpuRuntimePolicy};
 pub(in crate::teams) mod recovery;
 mod resources;
 mod results;

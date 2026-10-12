@@ -3,6 +3,7 @@
 import ctypes
 import errno
 import json
+import importlib.util
 import os
 from pathlib import Path
 import platform
@@ -24,6 +25,11 @@ ESCAPE_CALLS = (
     'bpf', 'setns', 'unshare',
 )
 RING_CALLS = ('io_uring_setup', 'io_uring_enter', 'io_uring_register')
+STRICT_IPC_CALLS = ('shmget','shmat','shmdt','shmctl','semget','semop','semtimedop','semctl',
+    'msgget','msgsnd','msgrcv','msgctl','mq_open','mq_unlink','mq_timedsend','mq_timedreceive',
+    'mq_notify','mq_getsetattr')
+STRICT_FS_CALLS = ('mount','umount2','pivot_root','fsopen','fsconfig','fsmount','fspick',
+    'open_tree','move_mount','mount_setattr','mknod','mknodat')
 NEW_NAMESPACES = (0x80, 0x00020000, 0x02000000, 0x04000000,
                   0x08000000, 0x10000000, 0x20000000, 0x40000000)
 ARCH = {'x86_64': 0xc000003e, 'aarch64': 0xc00000b7}
@@ -91,7 +97,7 @@ def library():
     return lib
 
 
-def install_filter(lib):
+def install_filter(lib, strict_runtime=False):
     context = lib.seccomp_init(ALLOW)
     if not context:
         raise BoundaryError()
@@ -117,6 +123,9 @@ def install_filter(lib):
             rule(name, errno.EPERM)
         for name in RING_CALLS:
             rule(name, errno.ENOSYS)
+        if strict_runtime:
+            for name in STRICT_IPC_CALLS + STRICT_FS_CALLS:
+                rule(name, errno.EPERM)
         # glibc can fall back to ordinary clone for threads when clone3 is absent.
         rule('clone3', errno.ENOSYS)
         for flag in NEW_NAMESPACES:
@@ -231,6 +240,41 @@ def install_resources():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
+def trusted_module(name, filename):
+    path=trusted_file(Path('/usr/local/libexec') / filename)
+    spec=importlib.util.spec_from_file_location(name,path)
+    module=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def strict_runtime(uid,gid):
+    digest=os.environ.pop('ION_JOB_RUNTIME_PROFILE_SHA256',None)
+    if digest is None:
+        return None
+    if not re.fullmatch('[a-f0-9]{64}',digest):
+        raise BoundaryError()
+    try:
+        module=trusted_module('ion_fixed_runtime','ion_job_runtime.py')
+        profile=module.load_profile()
+    except Exception:
+        raise BoundaryError() from None
+    roots=[str(Path.cwd()),os.environ['HOME'],os.environ['TMPDIR']]
+    collector=os.environ.pop('ION_JOB_RUNTIME_COLLECTOR',None)
+    if collector not in (None,'/ion/results'):
+        raise BoundaryError()
+    try:
+        witness=module.verify_runtime(profile,roots,collector=collector,identity=(uid,gid))
+    except Exception:
+        raise BoundaryError() from None
+    if witness['profile_sha256']!=digest:
+        raise BoundaryError()
+    expected=os.environ.pop('ION_JOB_RUNTIME_SNAPSHOT_SHA256',None)
+    if not re.fullmatch('[a-f0-9]{64}',expected or '') or witness['snapshot_sha256']!=expected:
+        raise BoundaryError()
+    return profile,roots
+
+
 def prepare(uid, gid):
     if sys.platform != 'linux' or platform.machine() not in ARCH:
         raise BoundaryError()
@@ -274,7 +318,7 @@ def prepare(uid, gid):
         raise BoundaryError()
     trusted_file(Path(__file__))
     install_resources()
-    install_filter(library())
+    runtime=strict_runtime(uid,gid)
     descriptors = os.listdir('/proc/self/fd')
     if len(descriptors) > 256:
         raise BoundaryError()
@@ -285,6 +329,21 @@ def prepare(uid, gid):
             except OSError as error:
                 if error.errno != errno.EBADF:
                     raise
+    # All optional helpers load from root-owned immutable image paths. Install
+    # syscall restrictions and close inherited handles before file confinement;
+    # Landlock then prevents reopening global descriptors and unsupported devices.
+    lib=library()
+    try:
+        confinement=trusted_module('ion_fixed_landlock','ion_job_landlock.py') if runtime else None
+    except Exception:
+        raise BoundaryError() from None
+    install_filter(lib,strict_runtime=runtime is not None)
+    if runtime:
+        profile,roots=runtime
+        try:
+            confinement.install(profile['read_trees'],roots,profile['devices'])
+        except Exception:
+            raise BoundaryError() from None
 
 
 def main(arguments=None):

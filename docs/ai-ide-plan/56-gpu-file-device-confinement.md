@@ -45,7 +45,6 @@ path-rule structure and an 8-byte filesystem ruleset prefix. Sources:
 [x86_64 table](https://raw.githubusercontent.com/torvalds/linux/v6.12/arch/x86/entry/syscalls/syscall_64.tbl),
 [common table used by native arm64](https://raw.githubusercontent.com/torvalds/linux/v6.12/scripts/syscall.tbl).
 
-
 ## Explicit kernel metadata reads
 
 The pure `read_path()` contract allows owner-reviewed static metadata without a
@@ -141,9 +140,8 @@ runtime fails the suite; it is not silently skipped.
 
 ## Remaining acceptance
 
-- The fixed installed worker must call this helper in the required order and
-  emit its trusted original-request receipt; helper tests alone do not prove
-  that integration.
+- The fixed installed worker now calls this helper in the required order and
+  preserves its trusted original receipt. [Seven installed integration cases](57-strict-gpu-worker-integration.md) pass; actual CUDA/provider acceptance still remains.
 - Actual aarch64 execution remains untested.
 - A reviewed CUDA image, exact driver/device/mount topology and local CUDA
   kernel/training test remain unaccepted. This Python image supplies no GPU.

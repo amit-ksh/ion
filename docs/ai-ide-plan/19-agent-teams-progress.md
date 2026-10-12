@@ -3069,3 +3069,13 @@ The real installed Windows CPU speech binary/index/741,548,352-byte model passed
 Review guides: [gateway PDF](49-gateway-pdf-pages.md), [speech/device tooling](50-speech-deployment-device-review.md), [command admission](51-command-resource-admission.md), [physical device setup](52-physical-device-review.md) and [native resource Usage](53-command-resource-usage.md).
 
 The full goal remains active. No live cloud/provider, target deployment, real spoken ASR, microphone, physical-device/macOS or visual acceptance was performed. The owner has no Nebius/SSH/HTTPS target yet; native builds and actual observations for iPhone 15/Moto G32 are outstanding. Broader physical host/egress/GPU/storage cleanup and owner credential/billing settlement work remain open. Further harness adapters stay deferred and the historical stashes are untouched.
+
+## 2026-10-13 - installed strict GPU runtime integration
+
+Merged `codex/ion-gpu-runtime-boundary` (`fcff7b9`, `e214432`) and `codex/ion-gpu-file-confinement` (`f65446c`, `1318e4b`) into this implementation branch. New GPU approvals bind the canonical image profile; the supervisor and demoted guard verify the same runtime snapshot before strict IPC/mount/device syscall controls and Landlock. Original ordinary jobs and omitted historical recovery witnesses retain their contracts. Agent GPU launch remains gated pending actual CUDA/provider acceptance.
+
+**164 distinct increment tests pass**, including 7 complete installed strict-worker cases, 33 snapshot and 25 file/device cases on actual Linux ABI7, 22 ordinary installed guard/CLI cases, 11 portable worker/policy cases and 66 fresh Rust GPU tests. One optional owner-generated Git archive case stays skipped. Locked desktop/daemon/core worker binary checks pass. The scanner now accepts literal bracket filenames while still refusing owner profile patterns.
+
+Actual installed Windows CPU Nemotron recognition also passed single/two-concurrent clients with WER0 on fixed synthesized English audio, committed at `90ce62c`. This does not establish human microphone, phone, TLS or Nebius acceptance. [Recognition evidence](54-native-speech-recognition.md).
+
+[Strict GPU setup, evidence and later review](57-strict-gpu-worker-integration.md). Actual CUDA image/driver/runtime and aarch64 acceptance, physical host/VRAM/storage/egress controls, provider-supported storage cleanup, owner IAM/billing finality and shared speech deployment/device review remain open. No actual cloud/GPU resource, paid allocation, visual test or watcher restart occurred. No `ion-prod` merge is included; additional harness adapters remain deferred. The full goal remains active.

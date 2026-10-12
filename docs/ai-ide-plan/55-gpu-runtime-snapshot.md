@@ -9,11 +9,11 @@ settle billing or enable GPU agent submission.
 [ion_job_runtime.py](../../packages/job-worker/ion_job_runtime.py) uses Python's
 standard library only.
 
-| API | Contract |
-| --- | --- |
-| `parse_profile(bytes)` | Strict bounded JSON; returns canonical validated data. Duplicate/unknown keys, booleans used as numbers, unsupported versions and ambiguous paths fail. |
-| `profile_sha256(profile)` | SHA256 of canonical approved profile; independent of JSON key order and accepted list ordering. |
-| `load_profile()` | Reads only /usr/local/libexec/ion-job-runtime.json. Requires root ownership, no group/world writes, one regular-file link, trusted ancestors and stable FD/path metadata. |
+| API                                                                      | Contract                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `parse_profile(bytes)`                                                   | Strict bounded JSON; returns canonical validated data. Duplicate/unknown keys, booleans used as numbers, unsupported versions and ambiguous paths fail.                                                                                                |
+| `profile_sha256(profile)`                                                | SHA256 of canonical approved profile; independent of JSON key order and accepted list ordering.                                                                                                                                                        |
+| `load_profile()`                                                         | Reads only /usr/local/libexec/ion-job-runtime.json. Requires root ownership, no group/world writes, one regular-file link, trusted ancestors and stable FD/path metadata.                                                                              |
 | `verify_runtime(profile, writable_roots, collector=None, identity=None)` | Reads actual procfs mountinfo, inventories read trees and /dev through directory FDs, validates private writable roots and optional collector, repeats mounts/roots, then returns a bounded witness/hash. Missing support or uncertain evidence fails. |
 
 The root supervisor supplies the exact nonzero child UID/GID. The demoted guard
@@ -60,13 +60,13 @@ validation never removes or silently hides an unsupported object.
 
 ## Bounds and race handling
 
-| Area | Bound |
-| --- | --- |
-| Profile | 64 KiB; 512 mounts; 64 devices; 32 read roots |
-| Mountinfo | 256 KiB; 512 records; 4 KiB per line |
-| Paths | 4 KiB UTF-8; clean absolute components, no controls; owner roots reject patterns, enumerated filenames remain literal |
-| Tree inspection | 100,000 entries; depth 64; 16 MiB encoded records and a separate 16 MiB enumeration-name budget |
-| Witness | 64 KiB before adding its 64-character snapshot hash |
+| Area            | Bound                                                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Profile         | 64 KiB; 512 mounts; 64 devices; 32 read roots                                                                         |
+| Mountinfo       | 256 KiB; 512 records; 4 KiB per line                                                                                  |
+| Paths           | 4 KiB UTF-8; clean absolute components, no controls; owner roots reject patterns, enumerated filenames remain literal |
+| Tree inspection | 100,000 entries; depth 64; 16 MiB encoded records and a separate 16 MiB enumeration-name budget                       |
+| Witness         | 64 KiB before adding its 64-character snapshot hash                                                                   |
 
 The module rejects duplicate mount IDs/points, stacked mountpoints, propagation
 or unknown optional fields, unsupported filesystems, incomplete input and backing
@@ -114,9 +114,10 @@ command or a production auto-configuration step.
 
 ## Remaining integration and acceptance
 
-The parent implementation owns worker/guard/profile-image wiring, original policy
-digest binding, stricter IPC syscalls and Landlock. A successful witness alone
-does not install those controls. The existing socket filter cannot cover arbitrary
+Worker/guard wiring, original policy digest binding, stricter IPC syscalls and
+Landlock are now implemented and verified together in the
+[installed worker checkpoint](57-strict-gpu-worker-integration.md). A successful
+snapshot witness alone does not install those controls. The existing socket filter cannot cover arbitrary
 device write/mmap or external filesystem proxies.
 [Linux RDMA interface](https://docs.kernel.org/infiniband/user_verbs.html),
 [FUSE model](https://docs.kernel.org/filesystems/fuse/fuse.html).

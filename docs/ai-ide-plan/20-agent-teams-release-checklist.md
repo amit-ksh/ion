@@ -804,3 +804,20 @@ This completes the described integration increment, not the full Ion implementat
 - [ ] Finish wider physical host/egress/GPU/CUDA/image controls and macOS/native/device acceptance.
 
 The full Ion objective remains active; this checkpoint completes the described integration work. Additional harness adapters remain deferred. No `ion-prod` merge, watcher restart, visual test, microphone, real cloud service or paid resource is included.
+
+## 2026-10-13 - installed strict GPU boundary and actual CPU speech
+
+- [x] Merge independently verified runtime snapshot and Landlock branches into `codex/ion-agent-teams`.
+- [x] Require exact canonical runtime-profile approval before new GPU preflight/pricing; preserve original omitted historical bodies for recovery.
+- [x] Wire trusted supervisor/guard snapshot equality, inherited FD closure, strict IPC/mount/device-creation syscall restrictions and kernel file/device confinement before user code.
+- [x] Preserve actual failed-job output, exclusive private mounted collector receipts and duplicate identity refusal through installed worker tests.
+- [x] 164 distinct increment tests pass, including actual Linux ABI7 execution and fresh Rust GPU verification; one optional owner-generated Git archive remains skipped.
+- [x] Locked desktop/daemon/core worker binary checks and Rust formatting/source checks pass.
+- [x] Actual installed CPU Nemotron single/two-concurrent recognition passes on fixed synthesized English audio with WER0. [Evidence and limits](54-native-speech-recognition.md).
+- [ ] Complete [real CUDA/provider image and runtime review](57-strict-gpu-worker-integration.md#owner-setup-and-review-later); GPU agent launch remains gated.
+- [ ] Finish wider physical host/VRAM/storage/egress controls and provider-supported retained-storage cleanup.
+- [ ] Complete owner IAM vault/refresh and original billing/finality reconciliation.
+- [ ] Supply a Nebius/SSH/HTTPS speech target and accept shared cloud TLS deployment.
+- [ ] Build/install native iPhone 15/Moto G32 clients and record human microphone/concurrent device observations in the existing 46-case checklist.
+
+The full implementation remains active. This increment uses owned disposable CPU/Linux fixtures; it includes no actual GPU/cloud allocation, `ion-prod` merge, visual test or watcher restart. Additional harness adapters remain deferred.

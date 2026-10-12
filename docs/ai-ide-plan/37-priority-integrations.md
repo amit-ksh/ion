@@ -62,6 +62,7 @@ Deployment/native TLS and recognition acceptance remain unverified.
 - [x] **Command sandbox aggregate caps:** owner-pinned cgroup2 CPU/memory/no-swap/task
       verification and real local kernel enforcement tests. See [resource groups](45-sandbox-resource-groups.md).
 - [x] **Command owner/project admission:** atomic cross-run/target CPU/RAM/process/storage reservations, strictest outstanding approvals, unknown-history refusal and proof-gated compute release. [Admission](51-command-resource-admission.md) and [native Usage diagnostics](53-command-resource-usage.md).
+- [x] **Strict GPU worker boundary:** exact owner profile approval, root/child snapshot equality, IPC/mount/device restrictions and installed Landlock file/device enforcement. [Implementation and review](57-strict-gpu-worker-integration.md). Actual CUDA/provider acceptance remains open.
 - [ ] **Broader remote controls:** physical host/storage/egress and wider lifecycle/verified storage cleanup; remaining GPU device/FUSE/CUDA and image/runtime gates. Logical command admission does not attest host capacity or release retained provider storage.
 - [x] **Desktop document rendering:** verified static HTML layout/source and native
       PDF pages with background page/zoom rendering, bounded pixels, DPI handling and
@@ -82,6 +83,7 @@ Deployment/native TLS and recognition acceptance remain unverified.
       recognition/concurrency checks; private launch preflight verifies pinned model
       bytes and stable client-compatible API name. [40 merged tests pass](41-speech-service-acceptance.md).
 - [x] **Speech deployment preparation:** actual installed runtime/index/model inspection, strict source-only bundle/verification and private pending 46-case observations. [Preparation](50-speech-deployment-device-review.md) and [phone build preflight](52-physical-device-review.md).
+- [x] **Actual local speech recognition:** installed CPU model, fixed synthesized English audio, single/two-concurrent streams and WER0. [Evidence](54-native-speech-recognition.md).
 - [ ] **Speech deployment/devices:** deploy when a target is supplied; accept native
       Android/iOS TLS/redirect behavior, microphone capture, concurrent desktop/phone
       partial/final recognition and target resource/latency limits.
@@ -156,3 +158,7 @@ All three independent branches are merged into `codex/ion-agent-teams`: speech p
 **398 distinct merged tests pass:** 112 protocol, 5 shared renderer, 56 command admission/driver, 6 gateway native/cache, 10 direct artifact/PDF, 65 phone document/history, 73 complete gateway and 71 speech/preflight. Two existing command tests requiring exported native Linux fixtures are ignored. The unchanged maximum real-HTTP phone fixture was deliberately excluded from the concurrent merged rerun; it passed on the feature branch in 70.844 seconds, transferring two 12 MiB pages in 768 chunks with both digests verified and at most 8 pending. This adds one distinct branch test, rather than another claimed merged benchmark. Source-only speech package 26 files/189,961bytes separately verified from its copied CLI.
 
 The implementation goal remains active. Owner IAM credential vault/refresh, original job/account/tariff/finality billing reconciliation, verified retained storage cleanup and broader physical host/egress/GPU controls remain development/acceptance items. Live Linux speech deployment needs an actual Nebius/SSH target and HTTPS hostname. iPhone 15/Moto G32 native builds, 46 real speech observations, macOS and actual-runtime/device acceptance remain open. No visual test, watcher restart, cloud deployment, microphone capture or paid resource was used. No `ion-prod` merge is included; additional harness adapters remain deferred.
+
+## Latest strict GPU integration checkpoint
+
+The independent runtime/file-device branches are merged, and the complete installed worker boundary is wired and verified: **164 distinct increment tests pass**; locked desktop/daemon/core worker binary checks pass. [Evidence and exact remaining review](57-strict-gpu-worker-integration.md). Real CUDA/provider acceptance and wider physical host/VRAM/storage/egress controls remain open. Provider API research does not supply deletion proof, so retained uploads remain reserved. Actual CPU speech recognition is proven on fixed synthesized audio; cloud TLS and iPhone 15/Moto G32 human microphone acceptance still need infrastructure/native builds. The full objective remains active.
