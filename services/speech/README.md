@@ -210,3 +210,17 @@ node --test services/speech/acceptance/acceptance.test.mjs
 For deployment evidence and client review, see
 [the shared speech acceptance checklist](../../docs/ai-ide-plan/41-speech-service-acceptance.md).
 No live endpoint, model, token or recognition was tested during implementation.
+
+## Deployment package and the owner's devices
+
+`node services/speech/deploy.mjs` offers bounded native install/model inspection,
+source-only `bundle` and complete `verify` checks. No new dependency is needed;
+no resource is provisioned or listener started.
+`node services/speech/device-review.mjs plan` lists the iPhone 15/Moto G32 cases;
+`init`/`audit` keep private owner observations separate from automatic proof. See
+[deployment and physical acceptance](../../docs/ai-ide-plan/50-speech-deployment-device-review.md).
+
+On 2026-10-12 the real installed Windows CPU binary and local 741,548,352-byte
+GGUF were inspected. The full model SHA matches the installed pinned index. No
+model was loaded, microphone used or Nebius service deployed. The owner has
+iPhone 15 and Moto G32; actual device/build/TLS/microphone review remains pending.

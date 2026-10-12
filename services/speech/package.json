@@ -7,8 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test acceptance/acceptance.test.mjs",
-    "check": "node --check accept.mjs"
+    "test": "node --test acceptance/acceptance.test.mjs deployment/deployment.test.mjs",
+    "check": "node --check accept.mjs && node --check deploy.mjs && node --check device-review.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"
