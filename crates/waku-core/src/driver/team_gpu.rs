@@ -33,6 +33,7 @@ pub(crate) struct Launch {
     pub timeout_seconds: u32,
     pub result_volume: Option<crate::teams::gpu_jobs::GpuResultVolume>,
     pub runtime_profile_sha256: Option<String>,
+    pub resource_group: Option<crate::teams::gpu_jobs::GpuGroupPolicy>,
 }
 fn identifier(value: &str) -> Result<()> {
     ensure!(
@@ -146,6 +147,11 @@ impl Launch {
                 .as_array_mut()
                 .context("GPU environment missing")?
                 .push(json!({"name":"ION_JOB_RUNTIME_PROFILE_SHA256","value":profile}));
+        }
+        if let Some(group) = &self.resource_group {
+            group.validate()?;
+            body["spec"]["environmentVariables"].as_array_mut().context("GPU environment missing")?
+                .push(json!({"name":"ION_JOB_GPU_GROUP_LIMITS","value":serde_json::to_string(group)?}));
         }
         if let Some(volume) = &self.result_volume {
             volume.validate()?;
@@ -746,6 +752,12 @@ pub(crate) mod tests {
             timeout_seconds: 3600,
             result_volume: None,
             runtime_profile_sha256: Some("b".repeat(64)),
+            resource_group: Some(crate::teams::gpu_jobs::GpuGroupPolicy {
+                version: 1,
+                cpu_millis: 8000,
+                memory_bytes: 32 * 1024 * 1024 * 1024,
+                processes: 256,
+            }),
         }
     }
     pub(crate) struct Fixture {

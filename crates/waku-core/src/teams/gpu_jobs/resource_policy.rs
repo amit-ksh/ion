@@ -23,6 +23,30 @@ pub(crate) struct GpuResourcePolicy {
     pub child_network: Option<GpuChildNetworkPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child_runtime: Option<GpuRuntimePolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_group: Option<GpuGroupPolicy>,
+}
+/// Aggregate sandbox caps, verified from the actual private cgroup before exec.
+/// Charged host RAM excludes accelerator VRAM and does not attest physical capacity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct GpuGroupPolicy {
+    pub version: u16,
+    pub cpu_millis: u64,
+    pub memory_bytes: u64,
+    pub processes: u64,
+}
+impl GpuGroupPolicy {
+    pub(crate) fn validate(&self) -> Result<()> {
+        ensure!(
+            self.version == 1
+                && (100..=65_536_000).contains(&self.cpu_millis)
+                && (64 * 1024 * 1024..=262_144 * GIB).contains(&self.memory_bytes)
+                && (2..=4096).contains(&self.processes),
+            "GPU group approval requires bounded CPU, charged memory and tasks"
+        );
+        Ok(())
+    }
 }
 /// Exact immutable image profile for snapshot, IPC and Landlock device/file checks.
 /// This owner approval does not attest provider/CUDA acceptance or enable agent launch.
@@ -126,6 +150,24 @@ impl GpuResourcePolicy {
         if let Some(runtime) = &self.child_runtime {
             runtime.validate()?;
         }
+        if let Some(group) = &self.child_group {
+            group.validate()?;
+            ensure!(
+                group.cpu_millis
+                    <= self
+                        .shape
+                        .vcpus
+                        .checked_mul(1000)
+                        .context("GPU CPU shape overflow")?
+                    && group.memory_bytes
+                        <= self
+                            .shape
+                            .memory_gib
+                            .checked_mul(GIB)
+                            .context("GPU memory shape overflow")?,
+                "GPU group approval exceeds the original allocated shape"
+            );
+        }
         for id in [
             &self.project,
             &self.tenant,
@@ -208,6 +250,14 @@ impl GpuResourcePolicy {
     pub(crate) fn require_child_runtime(&self) -> Result<()> {
         self.child_runtime.as_ref().context("Approve a pinned GPU runtime profile with device/file and IPC controls before a new launch")?.validate()
     }
+    pub(crate) fn require_child_group(&self) -> Result<()> {
+        self.child_group
+            .as_ref()
+            .context(
+                "Approve verified aggregate GPU CPU, memory and task caps before a new launch",
+            )?
+            .validate()
+    }
     pub(crate) fn matches_body(&self, body: &Value) -> Result<()> {
         self.validate()?;
         let mut environment = vec![
@@ -218,6 +268,11 @@ impl GpuResourcePolicy {
         if let Some(runtime) = &self.child_runtime {
             environment.push(
                 json!({"name":"ION_JOB_RUNTIME_PROFILE_SHA256","value":runtime.profile_sha256}),
+            );
+        }
+        if let Some(group) = &self.child_group {
+            environment.push(
+                json!({"name":"ION_JOB_GPU_GROUP_LIMITS","value":serde_json::to_string(group)?}),
             );
         }
         ensure!(

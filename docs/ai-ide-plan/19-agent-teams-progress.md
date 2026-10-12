@@ -1138,7 +1138,7 @@ Text input handoff checkpoint: `249a967`.
 The release checklist still tracks the additional harnesses, external solo bridges,
 remote execution host, executed checks, monetary caps and PDF/image interpretation.
 
-Verification: **164 Teams tests**, **14 distinct protocol/wire/projection tests**
+Verification: **162 Teams tests**, **14 distinct protocol/wire/projection tests**
 and **38 TypeScript client/mobile runtime tests** passed. Generated bindings are
 current. Shared-client and full mobile TypeScript checking, desktop/daemon checking,
 Rust formatting and whitespace gates passed. Mobile verification reused installed
@@ -3074,8 +3074,16 @@ The full goal remains active. No live cloud/provider, target deployment, real sp
 
 Merged `codex/ion-gpu-runtime-boundary` (`fcff7b9`, `e214432`) and `codex/ion-gpu-file-confinement` (`f65446c`, `1318e4b`) into this implementation branch. New GPU approvals bind the canonical image profile; the supervisor and demoted guard verify the same runtime snapshot before strict IPC/mount/device syscall controls and Landlock. Original ordinary jobs and omitted historical recovery witnesses retain their contracts. Agent GPU launch remains gated pending actual CUDA/provider acceptance.
 
-**164 distinct increment tests pass**, including 7 complete installed strict-worker cases, 33 snapshot and 25 file/device cases on actual Linux ABI7, 22 ordinary installed guard/CLI cases, 11 portable worker/policy cases and 66 fresh Rust GPU tests. One optional owner-generated Git archive case stays skipped. Locked desktop/daemon/core worker binary checks pass. The scanner now accepts literal bracket filenames while still refusing owner profile patterns.
+**162 distinct increment tests pass**, including 7 complete installed strict-worker cases, 33 snapshot and 25 file/device cases on actual Linux ABI7, 22 ordinary installed guard/CLI cases, 11 portable worker/policy cases and 64 fresh Rust GPU tests. One optional owner-generated Git archive case stays skipped. Locked desktop/daemon/core worker binary checks pass. The scanner now accepts literal bracket filenames while still refusing owner profile patterns.
 
 Actual installed Windows CPU Nemotron recognition also passed single/two-concurrent clients with WER0 on fixed synthesized English audio, committed at `90ce62c`. This does not establish human microphone, phone, TLS or Nebius acceptance. [Recognition evidence](54-native-speech-recognition.md).
 
 [Strict GPU setup, evidence and later review](57-strict-gpu-worker-integration.md). Actual CUDA image/driver/runtime and aarch64 acceptance, physical host/VRAM/storage/egress controls, provider-supported storage cleanup, owner IAM/billing finality and shared speech deployment/device review remain open. No actual cloud/GPU resource, paid allocation, visual test or watcher restart occurred. No `ion-prod` merge is included; additional harness adapters remain deferred. The full goal remains active.
+
+## 2026-10-13 - GPU sandbox aggregate CPU/RAM/task caps
+
+New GPU approvals bind `child_group` to the exact original launch environment and allocated shape. The root supervisor and demoted fixed guard independently verify actual private cgroup2 finite CPU/charged-memory/task controls with zero swap before user code. Limits are supplied by the runtime before startup; Ion reads them and does not modify host controls. Larger GPU policy bounds do not relax ordinary command bounds. Historical omissions retain their original serialized bodies for recovery; new preflight/pricing require approval.
+
+**109 distinct current-source tests pass:** 66 fresh Rust GPU launch/recovery/result/approval cases,14 installed strict-worker cases,6 ordinary group,9 ordinary guard and14 portable worker/policy cases. Actual kernel counters prove CPU throttling and OOM enforcement; forks hit the task ceiling; mismatched limits refuse in both supervisor and demoted guard. Locked desktop/daemon/core worker binaries and Rust formatting pass. Prior162 case total corrects two duplicated runtime-test passes; current counts are deduplicated by full name.
+
+[Setup, evidence and review](58-gpu-sandbox-resource-limits.md). Actual CUDA/aarch64/provider acceptance, VRAM/HugeTLB/physical capacity/persistent-storage/egress enforcement and owner billing/credential work remain open. No paid allocation, cloud deployment, visual test, watcher restart or `ion-prod` merge is included. Speech needs a deployment target/HTTPS endpoint and native iPhone 15/Moto G32 builds/device review. Additional harness adapters remain deferred.

@@ -12,6 +12,7 @@ import unittest
 import uuid
 BINARY='/usr/local/bin/ion-job-worker'
 PROFILE='/usr/local/libexec/ion-job-runtime.json'
+GPU_GROUP={'version':1,'cpu_millis':500,'memory_bytes':128*1024*1024,'processes':32}
 
 class InstalledRuntimeTests(unittest.TestCase):
     @classmethod
@@ -36,11 +37,12 @@ class InstalledRuntimeTests(unittest.TestCase):
         Path(PROFILE).write_text(json.dumps(cls.profile),encoding='utf-8');os.chmod(PROFILE,0o444)
         cls.digest=cls.runtime.profile_sha256(cls.profile)
         cls.outside=Path('/tmp/strict-outside-readable');cls.outside.write_text('private-to-fixture');cls.outside.chmod(0o644)
-    def invoke(self,script,digest=None,outputs=None,inputs=None):
+    def invoke(self,script,digest=None,outputs=None,inputs=None,group=None):
         request={'version':1,'request_id':str(uuid.uuid4()),'argv':['/usr/local/bin/python3','-I','-S','-c',script],
             'timeout_seconds':12,'inputs':[] if inputs is None else inputs,'output_paths':[] if outputs is None else outputs}
         env={'PATH':'/usr/local/bin:/usr/bin:/bin','ION_JOB_ISOLATED':'1','ION_JOB_CHILD_UID':'1000','ION_JOB_CHILD_GID':'1000',
             'ION_JOB_RUNTIME_PROFILE_SHA256':self.digest if digest is None else digest}
+        if group is not None:env['ION_JOB_GPU_GROUP_LIMITS']=group if isinstance(group,str) else json.dumps(group)
         result=subprocess.run([BINARY],input=json.dumps(request).encode(),capture_output=True,env=env,timeout=25)
         return result,json.loads(result.stdout)
     def test_installed_guard_allows_private_files_and_denies_global_paths_devices_ipc_and_fds(self):
@@ -72,6 +74,85 @@ print('strict private execution passed')
         self.assertEqual(result.returncode,0,(receipt,result.stderr))
         self.assertEqual(receipt['exit_code'],0,receipt)
         self.assertIn('strict private execution passed',base64.b64decode(receipt['stdout']['content_base64']).decode())
+    def test_gpu_group_actual_limits_and_removed_internal_environment(self):
+        result,receipt=self.invoke("import os;assert 'ION_JOB_GPU_GROUP_LIMITS' not in os.environ;print('approved-group')",group=GPU_GROUP)
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertEqual(base64.b64decode(receipt['stdout']['content_base64']).strip(),b'approved-group')
+
+    def test_gpu_group_changed_caps_and_malformed_approval_refuse_before_user_code(self):
+        bad=[{**GPU_GROUP,'cpu_millis':100},{**GPU_GROUP,'memory_bytes':64*1024*1024},{**GPU_GROUP,'processes':16},'{','x'*1025,json.dumps(GPU_GROUP)[:-1]+',"version":1}']
+        for group in bad:
+            result,receipt=self.invoke("print('MUST-NOT-EXECUTE')",group=group)
+            self.assertNotEqual(result.returncode,0);self.assertIn('error',receipt)
+            self.assertNotIn(b'MUST-NOT-EXECUTE',result.stdout+result.stderr)
+
+    def test_gpu_group_demoted_guard_rechecks_actual_limits_before_user_code(self):
+        for group in [{**GPU_GROUP,'cpu_millis':100},{**GPU_GROUP,'memory_bytes':64*1024*1024},{**GPU_GROUP,'processes':16}]:
+            env={'PATH':'/usr/local/bin:/usr/bin:/bin','ION_JOB_GPU_GROUP_LIMITS':json.dumps(group),
+                'ION_JOB_RUNTIME_PROFILE_SHA256':self.digest}
+            command=['/usr/local/bin/python3','-I','-S','/usr/local/libexec/ion-job-guard.py','1000','1000','--',
+                '/usr/local/bin/python3','-I','-S','-c',"print('MUST-NOT-EXECUTE')"]
+            result=subprocess.run(command,stdin=subprocess.DEVNULL,capture_output=True,env=env,user=1000,group=1000,extra_groups=[],timeout=15)
+            self.assertEqual(result.returncode,125,result.stderr)
+            self.assertNotIn(b'MUST-NOT-EXECUTE',result.stdout+result.stderr)
+
+    def test_gpu_group_without_strict_runtime_refused(self):
+        request={'version':1,'request_id':str(uuid.uuid4()),'argv':['/usr/local/bin/python3','-c',"print('MUST-NOT-EXECUTE')"],
+            'timeout_seconds':2,'inputs':[],'output_paths':[]}
+        env={'PATH':'/usr/local/bin:/usr/bin:/bin','ION_JOB_ISOLATED':'1','ION_JOB_CHILD_UID':'1000','ION_JOB_CHILD_GID':'1000',
+            'ION_JOB_GPU_GROUP_LIMITS':json.dumps(GPU_GROUP)}
+        result=subprocess.run([BINARY],input=json.dumps(request).encode(),capture_output=True,env=env,timeout=15)
+        self.assertNotEqual(result.returncode,0);self.assertIn('error',json.loads(result.stdout))
+        self.assertNotIn(b'MUST-NOT-EXECUTE',result.stdout+result.stderr)
+
+    def test_gpu_group_forks_hit_aggregate_task_limit_with_strict_files(self):
+        script="""import errno,os,time
+children=[]
+try:
+ for i in range(50):
+  try:pid=os.fork()
+  except OSError as e:
+   assert e.errno==errno.EAGAIN;print('task-cap',flush=True);break
+  if pid==0:time.sleep(3);os._exit(0)
+  children.append(pid)
+ else:raise AssertionError('aggregate task ceiling escaped')
+finally:
+ for pid in children:
+  try:os.kill(pid,9)
+  except ProcessLookupError:pass
+ for pid in children:
+  try:os.waitpid(pid,0)
+  except ChildProcessError:pass
+"""
+        result,receipt=self.invoke(script,group=GPU_GROUP)
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertIn(b'task-cap',base64.b64decode(receipt['stdout']['content_base64']))
+
+    def test_gpu_group_busy_child_is_actually_cpu_throttled(self):
+        def counter():return int(dict(line.split() for line in Path('/sys/fs/cgroup/cpu.stat').read_text().splitlines())['nr_throttled'])
+        before=counter()
+        result,receipt=self.invoke('import time;end=time.monotonic()+1.2\nwhile time.monotonic()<end:pass\nprint("cpu-cap")',group=GPU_GROUP)
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertGreater(counter(),before)
+
+    def test_gpu_group_host_memory_is_enforced_across_child_allocations(self):
+        def counter():return int(dict(line.split() for line in Path('/sys/fs/cgroup/memory.events').read_text().splitlines())['oom_kill'])
+        before=counter()
+        script="""import os,signal,time
+children=[]
+for i in range(4):
+ pid=os.fork()
+ if pid==0:
+  data=bytearray(40*1024*1024);time.sleep(1);os._exit(0)
+ children.append(pid)
+statuses=[os.waitpid(pid,0)[1] for pid in children]
+assert any(os.WIFSIGNALED(s) and os.WTERMSIG(s)==signal.SIGKILL for s in statuses)
+print('memory-cap')
+"""
+        result,receipt=self.invoke(script,group=GPU_GROUP)
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertGreater(counter(),before)
+
     def test_literal_bracket_project_input_and_output_survive_snapshot_checks(self):
         script="import pathlib;assert pathlib.Path('[input].txt').read_bytes()==b'actual input';pathlib.Path('result[1].txt').write_bytes(b'literal result')"
         inputs=[{'path':'[input].txt','content_base64':base64.b64encode(b'actual input').decode()}]

@@ -356,3 +356,9 @@ The default Dockerfile copies the two helpers but contains no fabricated accepte
 See [runtime research](../../docs/ai-ide-plan/RESEARCH-gpu-runtime-boundary.md). Remote uploaded storage stays reserved because the documented API does not prove deletion; see [storage contract](../../docs/ai-ide-plan/RESEARCH-command-storage-cleanup.md).
 
 [Installed strict worker evidence and owner checklist](../../docs/ai-ide-plan/57-strict-gpu-worker-integration.md): 7 complete installed cases plus snapshot/file-device/ordinary/Rust regression suites. The integration also accepts literal bracket-named project files. Actual CUDA/aarch64/provider execution remains unaccepted.
+
+### GPU sandbox aggregate resource approval
+
+New GPU launches also bind `resources.child_group` to `ION_JOB_GPU_GROUP_LIMITS` in the original body. The exact version1 CPU-millis/charged-memory/task object is verified against the existing private cgroup2 domain by the supervisor and the demoted guard before user execution. Caps must fit the owner-approved GPU shape; swap is zero. The larger GPU bounds do not relax the ordinary command policy. A group variable without the strict runtime profile rejects; all internal group variables are removed before command exec. The operator supplies actual limits before startup, and Ion only verifies them.
+
+[Configuration, actual kernel enforcement tests and later CUDA/provider review](../../docs/ai-ide-plan/58-gpu-sandbox-resource-limits.md). These checks do not establish VRAM, HugeTLB, physical host capacity or persistent storage quotas. Historical omitted approval/body witnesses remain recoverable; new preflight/pricing require the exact approval.

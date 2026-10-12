@@ -25,11 +25,11 @@ The default CPU Dockerfile includes the helpers but no accepted GPU runtime prof
 
 ## Verification
 
-**164 distinct tests pass for this increment**, counted independently of earlier protocol46 totals:
+**162 distinct tests pass for this increment**, counted independently of earlier protocol46 totals:
 
 | Suite                                   | Passed | Evidence                                                                                                                                   |
 | --------------------------------------- | -----: | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Rust GPU driver/coordinator regressions |     64 | Fresh root core executable; original identity, recovery, pricing and result paths                                                          |
+| Rust GPU driver/coordinator regressions |     62 | Fresh root core executable; original identity, recovery, pricing and result paths                                                          |
 | Rust runtime approvals                  |      2 | Missing/changed policy rejects before provider reads; historical omission preserved                                                        |
 | Runtime snapshot                        |     33 | Actual Linux filesystem/device/race/bounds and root/child snapshot equality                                                                |
 | Landlock                                |     25 | Actual ABI7 tests, exact ioctl rights, denied outside paths/FD aliases, inheritance                                                        |
@@ -37,6 +37,8 @@ The default CPU Dockerfile includes the helpers but no accepted GPU runtime prof
 | Installed ordinary guard                |      9 | Existing socket, identity, privilege, descendant and receipt contracts                                                                     |
 | Installed ordinary CLI                  |     13 | Existing resources, project archives, logs, receipts and invalid-input refusal                                                             |
 | Portable worker/resource policy         |     11 | 7 source worker and 4 policy cases on Windows                                                                                              |
+
+Count correction on 2026-10-13: the earlier broad GPU selector already included the two runtime approval cases. They are now counted once, giving 162 distinct cases for this historical checkpoint.
 
 The optional actual owner-generated Git archive case in the ordinary CLI suite remains skipped. Mocked kernel failure tests are included in the helper suites; the opted-in Linux cases genuinely install and exercise the kernel boundary.
 

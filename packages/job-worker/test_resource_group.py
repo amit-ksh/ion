@@ -39,4 +39,24 @@ class GroupPolicyTests(unittest.TestCase):
         with self.assertRaises(guard.BoundaryError):
             guard.group_values(POLICY, '50002 100002', '134217728', '0', '32')
 
+class GpuGroupPolicyTests(unittest.TestCase):
+    def test_gpu_caps_accept_shape_scale_without_changing_command_bounds(self):
+        value={**POLICY,'cpu_millis':64000,'memory_bytes':128*1024**3,'processes':1024}
+        self.assertEqual(guard.gpu_group_policy(value),value)
+        with self.assertRaises(guard.BoundaryError):guard.group_policy(value)
+        guard.group_values(value,'6400000 100000',str(128*1024**3),'0','1024',gpu=True)
+        for key,item in [('version',2),('version',True),('cpu_millis',65536001),('memory_bytes',262144*1024**3+1),('processes',4097),('memory_bytes',64*1024**2-1),('cpu_millis',99),('processes',1)]:
+            with self.assertRaises(guard.BoundaryError):guard.gpu_group_policy({**value,key:item})
+    def test_gpu_encoded_duplicate_unknown_non_integer_or_oversize_refused(self):
+        import json
+        self.assertEqual(guard.gpu_group_encoded(json.dumps(POLICY)),POLICY)
+        for body in ['', ' '*1025, '{', '[]','null', json.dumps({**POLICY,'path':'/elsewhere'}),json.dumps({**POLICY,'cpu_millis':500.0}),json.dumps({**POLICY,'processes':True}),json.dumps(POLICY)[:-1]+',"cpu_millis":500}',json.dumps({**POLICY,'memory_bytes':float('inf')})]:
+            with self.assertRaises(guard.BoundaryError):guard.gpu_group_encoded(body)
+    def test_gpu_actual_controls_still_require_finite_approved_integer_limits(self):
+        valid=['50000 100000',str(POLICY['memory_bytes']),'0','32']
+        guard.group_values(POLICY,*valid,gpu=True)
+        for index,item in [(0,'max 100000'),(0,'50001 100000'),(1,'max'),(1,str(POLICY['memory_bytes']+1)),(2,'1'),(3,'33')]:
+            changed=valid.copy();changed[index]=item
+            with self.assertRaises(guard.BoundaryError):guard.group_values(POLICY,*changed,gpu=True)
+
 if __name__ == '__main__': unittest.main()

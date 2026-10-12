@@ -199,4 +199,6 @@ Live Nebius speech deployment and native phone acceptance remain open. Additiona
 
 - [GPU runtime snapshot](55-gpu-runtime-snapshot.md): bounded real mount/device/image checks and root/child witness equality.
 - [GPU file/device confinement](56-gpu-file-device-confinement.md): mandatory kernel Landlock, explicit driver metadata and inherited-handle limits.
-- [Installed strict GPU worker](57-strict-gpu-worker-integration.md): integrated original approval/guard/receipt checks, 164 passing increment tests and actual CUDA/provider review checklist.
+- [Installed strict GPU worker](57-strict-gpu-worker-integration.md): integrated original approval/guard/receipt checks, 162 passing increment tests and actual CUDA/provider review checklist.
+
+- [GPU sandbox resource limits](58-gpu-sandbox-resource-limits.md): owner shape-bound CPU/charged-memory/task ceilings, actual kernel verification and CUDA/runtime review.

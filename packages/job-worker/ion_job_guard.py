@@ -145,9 +145,36 @@ def group_policy(value):
     return value
 
 
-def group_values(policy, cpu, memory, swap, processes):
+def gpu_group_policy(value):
+    # Native owner additionally binds these ceilings to the approved GPU shape.
+    # No per-process address-space cap: CUDA mappings are not charged host RAM.
+    if (not isinstance(value, dict) or set(value) != {'version', 'cpu_millis', 'memory_bytes', 'processes'}
+        or any(type(v) is not int for v in value.values()) or value['version'] != 1
+        or not 100 <= value['cpu_millis'] <= 65536000
+        or not 64*1024*1024 <= value['memory_bytes'] <= 262144*1024*1024*1024
+        or not 2 <= value['processes'] <= 4096):
+        raise BoundaryError()
+    return value
+
+
+def gpu_group_encoded(encoded):
+    if type(encoded) is not str or not 1 <= len(encoded) <= 1024:
+        raise BoundaryError()
+    def unique(pairs):
+        value={}
+        for key,item in pairs:
+            if key in value:raise BoundaryError()
+            value[key]=item
+        return value
+    try:
+        return gpu_group_policy(json.loads(encoded,object_pairs_hook=unique))
+    except (ValueError,TypeError,RecursionError):
+        raise BoundaryError() from None
+
+
+def group_values(policy, cpu, memory, swap, processes, gpu=False):
     # Integer comparisons preserve fractional CPU quotas without floating rounding.
-    policy = group_policy(policy)
+    policy = gpu_group_policy(policy) if gpu else group_policy(policy)
     values = cpu.split()
     if len(values) != 2 or not all(re.fullmatch(r'[0-9]{1,12}', v) for v in values):
         raise BoundaryError()
@@ -162,10 +189,10 @@ def group_values(policy, cpu, memory, swap, processes):
         raise BoundaryError()
 
 
-def verify_resource_group(policy):
+def verify_resource_group(policy, gpu=False):
     # Read the private sandbox's kernel cgroup root, never an owner/model file path.
     # Both supervisor and fixed demoted launcher verify before any user code runs.
-    group_policy(policy)
+    (gpu_group_policy if gpu else group_policy)(policy)
     if sys.platform != 'linux':
         raise BoundaryError()
     with open('/proc/self/cgroup', 'rb') as source:
@@ -202,7 +229,7 @@ def verify_resource_group(policy):
             or any(not re.fullmatch(r'[0-9]{1,20}', member) for member in members)):
             raise BoundaryError()
         read('cgroup.subtree_control')
-        group_values(policy, read('cpu.max'), read('memory.max'), read('memory.swap.max'), read('pids.max'))
+        group_values(policy, read('cpu.max'), read('memory.max'), read('memory.swap.max'), read('pids.max'), gpu=gpu)
     finally:
         os.close(descriptor)
 
@@ -318,6 +345,11 @@ def prepare(uid, gid):
         raise BoundaryError()
     trusted_file(Path(__file__))
     install_resources()
+    encoded_gpu=os.environ.pop('ION_JOB_GPU_GROUP_LIMITS',None)
+    if encoded_gpu is not None:
+        if 'ION_JOB_RUNTIME_PROFILE_SHA256' not in os.environ:
+            raise BoundaryError()
+        verify_resource_group(gpu_group_encoded(encoded_gpu),gpu=True)
     runtime=strict_runtime(uid,gid)
     descriptors = os.listdir('/proc/self/fd')
     if len(descriptors) > 256:

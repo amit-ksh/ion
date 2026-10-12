@@ -35,6 +35,7 @@ pub(in crate::driver::team_gpu) fn policy(l: &Launch) -> GpuResourcePolicy {
         project_limit: cap.clone(),
         tenant_limit: cap,
         child_network: Some(GpuChildNetworkPolicy::SeccompSocketDenyV1),
+        child_group: l.resource_group.clone(),
         child_runtime: l.runtime_profile_sha256.as_ref().map(|digest| {
             crate::teams::gpu_jobs::GpuRuntimePolicy {
                 version: 1,
@@ -839,6 +840,7 @@ fn team_gpu_preflight_legacy_socket_policy_replays_original_without_reads_but_ca
 fn gpu_runtime_approval_preserves_historical_omission_but_refuses_new_preflight() {
     let mut launch = launch();
     launch.runtime_profile_sha256 = None;
+    launch.resource_group = None;
     let p = policy(&launch);
     let body = launch.body().unwrap();
     assert!(p.matches_body(&body).is_ok());
@@ -888,4 +890,53 @@ fn gpu_runtime_profile_change_rejects_before_provider_reads() {
         .unwrap()
         .push(json!({"name":"ION_JOB_RUNTIME_PROFILE_SHA256","value":"b".repeat(64)}));
     assert!(p.matches_body(&body).is_err());
+}
+
+#[test]
+fn gpu_group_missing_shape_overflow_or_changed_limits_refuse_before_provider_reads() {
+    for case in 0..7 {
+        let mut l = launch();
+        let mut p = policy(&l);
+        match case {
+            0 => {
+                l.resource_group = None;
+                p.child_group = None;
+            }
+            1 => p.child_group.as_mut().unwrap().cpu_millis = 8001,
+            2 => p.child_group.as_mut().unwrap().memory_bytes += 1,
+            3 => p.child_group.as_mut().unwrap().processes = 4097,
+            4 => p.child_group.as_mut().unwrap().version = 2,
+            5 => p.child_group.as_mut().unwrap().processes = 2,
+            _ => p.child_group.as_mut().unwrap().cpu_millis = 100,
+        }
+        let server = Server::new(vec![]);
+        let c = client(&server);
+        let mut f = Fixture::new(true, true);
+        f.policy.resources = Some(p.clone());
+        assert!(c.verify_preflight(&l, &f.policy).is_err());
+        assert!(super::super::pricing::approved_policy(&l, &f.policy).is_err());
+        assert!(server.finish().is_empty());
+        if case == 0 {
+            assert!(p.matches_body(&l.body().unwrap()).is_ok());
+            assert!(
+                serde_json::to_value(&p)
+                    .unwrap()
+                    .get("child_group")
+                    .is_none()
+            );
+        }
+    }
+}
+#[test]
+fn gpu_group_exact_environment_rejects_duplicate_or_unbound_approval() {
+    let l = launch();
+    let p = policy(&l);
+    assert!(p.matches_body(&l.body().unwrap()).is_ok());
+    let mut body = l.body().unwrap();
+    let env = body["spec"]["environmentVariables"].as_array_mut().unwrap();
+    env.push(env.last().unwrap().clone());
+    assert!(p.matches_body(&body).is_err());
+    let mut changed = l;
+    changed.resource_group.as_mut().unwrap().memory_bytes -= 1;
+    assert!(p.matches_body(&changed.body().unwrap()).is_err());
 }

@@ -1,6 +1,6 @@
 # Priority integrations: billing, remote controls, previews and speech
 
-Updated 2026-10-12. Work is on `codex/ion-agent-teams`; not merged into `ion-prod`.
+Updated 2026-10-13. Work is on `codex/ion-agent-teams`; not merged into `ion-prod`.
 The user has deferred further AI provider connections until these areas are done.
 Unfinished native Pi/OMP/OpenCode2 receipt work is saved separately in Git stash;
 new and previously deferred harness adapters remain outside the active scope.
@@ -63,6 +63,7 @@ Deployment/native TLS and recognition acceptance remain unverified.
       verification and real local kernel enforcement tests. See [resource groups](45-sandbox-resource-groups.md).
 - [x] **Command owner/project admission:** atomic cross-run/target CPU/RAM/process/storage reservations, strictest outstanding approvals, unknown-history refusal and proof-gated compute release. [Admission](51-command-resource-admission.md) and [native Usage diagnostics](53-command-resource-usage.md).
 - [x] **Strict GPU worker boundary:** exact owner profile approval, root/child snapshot equality, IPC/mount/device restrictions and installed Landlock file/device enforcement. [Implementation and review](57-strict-gpu-worker-integration.md). Actual CUDA/provider acceptance remains open.
+- [x] **GPU sandbox aggregate caps:** original shape-bound CPU/charged-memory/task approval, actual private cgroup verification in supervisor/child and Linux enforcement tests. [Setup/review](58-gpu-sandbox-resource-limits.md).
 - [ ] **Broader remote controls:** physical host/storage/egress and wider lifecycle/verified storage cleanup; remaining GPU device/FUSE/CUDA and image/runtime gates. Logical command admission does not attest host capacity or release retained provider storage.
 - [x] **Desktop document rendering:** verified static HTML layout/source and native
       PDF pages with background page/zoom rendering, bounded pixels, DPI handling and
@@ -161,4 +162,8 @@ The implementation goal remains active. Owner IAM credential vault/refresh, orig
 
 ## Latest strict GPU integration checkpoint
 
-The independent runtime/file-device branches are merged, and the complete installed worker boundary is wired and verified: **164 distinct increment tests pass**; locked desktop/daemon/core worker binary checks pass. [Evidence and exact remaining review](57-strict-gpu-worker-integration.md). Real CUDA/provider acceptance and wider physical host/VRAM/storage/egress controls remain open. Provider API research does not supply deletion proof, so retained uploads remain reserved. Actual CPU speech recognition is proven on fixed synthesized audio; cloud TLS and iPhone 15/Moto G32 human microphone acceptance still need infrastructure/native builds. The full objective remains active.
+The independent runtime/file-device branches are merged, and the complete installed worker boundary is wired and verified: **162 distinct increment tests pass**; locked desktop/daemon/core worker binary checks pass. [Evidence and exact remaining review](57-strict-gpu-worker-integration.md). Real CUDA/provider acceptance and wider physical host/VRAM/storage/egress controls remain open. Provider API research does not supply deletion proof, so retained uploads remain reserved. Actual CPU speech recognition is proven on fixed synthesized audio; cloud TLS and iPhone 15/Moto G32 human microphone acceptance still need infrastructure/native builds. The full objective remains active.
+
+## Latest GPU sandbox resource checkpoint
+
+Shape-bound aggregate GPU CPU/charged-memory/task approvals and actual cgroup checks are implemented. **109 distinct current-source tests pass**, including actual throttling/fork/memory enforcement under strict file/device confinement; locked native binaries and formatting pass. [Configuration and remaining review](58-gpu-sandbox-resource-limits.md). Runtime configuration is required before startup and no host controls are changed by the verifier. Actual CUDA/provider acceptance, wider driver/VRAM/HugeTLB/physical capacity/storage/egress and billing/credential work remain open; speech deployment and phone acceptance still need infrastructure/native builds. Historical strict-worker total is 162 after removing two duplicated runtime-test passes.

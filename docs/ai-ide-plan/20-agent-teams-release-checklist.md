@@ -811,7 +811,7 @@ The full Ion objective remains active; this checkpoint completes the described i
 - [x] Require exact canonical runtime-profile approval before new GPU preflight/pricing; preserve original omitted historical bodies for recovery.
 - [x] Wire trusted supervisor/guard snapshot equality, inherited FD closure, strict IPC/mount/device-creation syscall restrictions and kernel file/device confinement before user code.
 - [x] Preserve actual failed-job output, exclusive private mounted collector receipts and duplicate identity refusal through installed worker tests.
-- [x] 164 distinct increment tests pass, including actual Linux ABI7 execution and fresh Rust GPU verification; one optional owner-generated Git archive remains skipped.
+- [x] 162 distinct increment tests pass, including actual Linux ABI7 execution and fresh Rust GPU verification; one optional owner-generated Git archive remains skipped.
 - [x] Locked desktop/daemon/core worker binary checks and Rust formatting/source checks pass.
 - [x] Actual installed CPU Nemotron single/two-concurrent recognition passes on fixed synthesized English audio with WER0. [Evidence and limits](54-native-speech-recognition.md).
 - [ ] Complete [real CUDA/provider image and runtime review](57-strict-gpu-worker-integration.md#owner-setup-and-review-later); GPU agent launch remains gated.
@@ -821,3 +821,16 @@ The full Ion objective remains active; this checkpoint completes the described i
 - [ ] Build/install native iPhone 15/Moto G32 clients and record human microphone/concurrent device observations in the existing 46-case checklist.
 
 The full implementation remains active. This increment uses owned disposable CPU/Linux fixtures; it includes no actual GPU/cloud allocation, `ion-prod` merge, visual test or watcher restart. Additional harness adapters remain deferred.
+
+## 2026-10-13 - GPU sandbox CPU/RAM/task limits
+
+- [x] Bind original `child_group` approval/environment to allocated GPU shape; refuse missing/changed/malformed caps before new preflight/pricing provider reads.
+- [x] Verify actual private cgroup2 finite CPU/charged-memory/task limits and zero swap in supervisor and demoted guard before user code.
+- [x] Remove private group environment before exec; preserve strict file/device/socket controls and ordinary policy bounds.
+- [x] 109 distinct current-source tests pass, including actual CPU throttling, task ceiling and OOM-kill counters under installed strict execution; earlier historical count corrected from 164to 162after deduplication.
+- [x] Locked desktop/daemon/core worker binary checks and Rust formatting pass; protocol46 shapes are unchanged.
+- [ ] Configure/review the exact managed GPU runtime and run CUDA/training acceptance using [the GPU group checklist](58-gpu-sandbox-resource-limits.md#later-owner-review).
+- [ ] Complete accelerator/driver/VRAM/HugeTLB, wider physical capacity/storage/egress, supported remote storage cleanup and owner IAM/billing finality.
+- [ ] Supply a Nebius/SSH/HTTPS speech target and complete native iPhone 15/Moto G32 build/microphone/concurrency review.
+
+This completes the described resource increment. The requested full objective is not complete; additional harness adapters remain deferred. No `ion-prod` merge or actual cloud/GPU deployment is included.

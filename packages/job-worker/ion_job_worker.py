@@ -250,15 +250,18 @@ def stop_tree(process):
 
 def verify_group_approval():
     encoded = os.environ.get('ION_JOB_RESOURCE_LIMITS')
-    if encoded is None:
+    gpu_encoded = os.environ.get('ION_JOB_GPU_GROUP_LIMITS')
+    limits = {}
+    if encoded is not None:
+        if len(encoded) > 1024:
+            raise ValueError('Child resource policy exceeds its bound')
+        limits = json.loads(encoded)
+        if not isinstance(limits, dict):
+            raise ValueError('Invalid child resource policy')
+    if 'group' not in limits and gpu_encoded is None:
         return
-    if len(encoded) > 1024:
-        raise ValueError('Child resource policy exceeds its bound')
-    limits = json.loads(encoded)
-    if not isinstance(limits, dict):
-        raise ValueError('Invalid child resource policy')
-    if 'group' not in limits:
-        return
+    if gpu_encoded is not None and 'ION_JOB_RUNTIME_PROFILE_SHA256' not in os.environ:
+        raise ValueError('GPU resource caps require the approved strict runtime')
     guard = Path('/usr/local/libexec/ion-job-guard.py')
     info = guard.lstat()
     if (guard.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_uid != 0
@@ -272,7 +275,8 @@ def verify_group_approval():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     try:
-        module.verify_resource_group(limits['group'])
+        if 'group' in limits:module.verify_resource_group(limits['group'])
+        if gpu_encoded is not None:module.verify_resource_group(module.gpu_group_encoded(gpu_encoded),gpu=True)
     except (module.BoundaryError, OSError, ValueError):
         raise ValueError('Approved sandbox resource group unavailable') from None
 
@@ -287,6 +291,8 @@ def run(request, workspace, project_data=None):
     elif project_data is not None:
         raise ValueError('Unexpected project archive')
     strict_digest=os.environ.get('ION_JOB_RUNTIME_PROFILE_SHA256')
+    if 'ION_JOB_GPU_GROUP_LIMITS' in os.environ and strict_digest is None:
+        raise ValueError('GPU resource caps require the approved strict runtime')
     if strict_digest is not None and not re.fullmatch('[a-f0-9]{64}',strict_digest):
         raise ValueError('Invalid strict runtime approval')
     if strict_digest is not None and (sys.platform!='linux' or os.environ.get('ION_JOB_ISOLATED')!='1'):
@@ -350,6 +356,8 @@ def run(request, workspace, project_data=None):
         env['ION_JOB_RUNTIME_SNAPSHOT_SHA256']=witness['snapshot_sha256']
         if collector:env['ION_JOB_RUNTIME_COLLECTOR']=collector
     if identity:
+        if 'ION_JOB_GPU_GROUP_LIMITS' in os.environ:
+            env['ION_JOB_GPU_GROUP_LIMITS']=os.environ['ION_JOB_GPU_GROUP_LIMITS']
         if 'ION_JOB_RESOURCE_LIMITS' in os.environ:
             limits = os.environ['ION_JOB_RESOURCE_LIMITS']
             if len(limits) > 1024:
