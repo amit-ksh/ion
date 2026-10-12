@@ -210,6 +210,7 @@ impl Fixture {
             executables: vec!["/usr/bin/python3".into()],
             resources: None,
             project_snapshot: None,
+            admission: None,
         };
         Self {
             dir,
@@ -1179,4 +1180,68 @@ fn command_check_project_mode_only_change_invalidates_report_and_parent_review()
             f.report(result).unwrap();
         }
     }
+}
+
+#[test]
+fn command_check_project_admission_refuses_before_upload_and_retains_no_partial_reservation() {
+    let mut f = Fixture::with_command(|c| c.input_paths.clear());
+    approve_project(&mut f);
+    f.policy.resources.as_mut().unwrap().group = Some(ResourceGroupLimits {
+        version: 1,
+        cpu_millis: 500,
+        memory_bytes: 128 * 1024 * 1024,
+        processes: 32,
+    });
+    let cap = crate::teams::jobs::admission::CommandResourceVector {
+        jobs: 1,
+        cpu_millis: 500,
+        memory_bytes: 128 * 1024 * 1024,
+        processes: 32,
+        storage_bytes: f.policy.max_layer_bytes,
+    };
+    f.policy.admission = Some(crate::teams::jobs::admission::AdmissionPolicy {
+        version: 1,
+        owner_limit: cap.clone(),
+        project_limit: cap,
+    });
+    let server = Server::new(vec![(
+        200,
+        serde_json::to_vec(&project_manifest()).unwrap(),
+    )]);
+    let result = super::project::run_with_host(
+        &f.store,
+        &f.child,
+        &f.workspace,
+        Uuid::new_v4(),
+        super::project::ProjectArgs {
+            argv: f.command.argv.clone(),
+            output_paths: vec![],
+            timeout_seconds: 10,
+        },
+        &AtomicBool::new(false),
+        |_| {
+            Ok((
+                f.policy.clone(),
+                Client::fixture(&server.url, "fixture-project"),
+            ))
+        },
+    );
+    assert!(result.is_err());
+    let requests = server.finish();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].line.starts_with("GET /inspect/"));
+    assert_eq!(f.store.command_resource_usage(None).unwrap().used.jobs, 0);
+    let db = rusqlite::Connection::open(f.dir.join("control.db")).unwrap();
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM ion_team_jobs", [], |r| r
+            .get::<_, u64>(0))
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM ion_team_job_projects", [], |r| r
+            .get::<_, u64>(0))
+            .unwrap(),
+        0
+    );
 }
