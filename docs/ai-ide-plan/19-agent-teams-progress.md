@@ -3095,3 +3095,20 @@ New GPU policies bind a versioned `child_storage` object to the exact allocated 
 **98 distinct cases pass:** 68 fresh current-source Rust GPU tests, 19 installed strict worker, 3 portable storage schema/platform, 7 existing worker cases and 1 actual unsuitable-mount test exercised in 4 separate geometries. Native proof includes real block/inode exhaustion, capacity-witness tamper refusal in the demoted guard, unchanged file/device/CPU/memory/task controls and valid checkpoint output after capacity denial. Final unsupported XFS rejection and complete GPU regressions are rerun; locked native binaries and Rust formatting pass. [Configuration/evidence/review](59-gpu-workspace-storage-limits.md).
 
 Current native storage proof uses CPU tmpfs fixtures. Actual dedicated ext4/CUDA/aarch64/provider acceptance, XFS quota support, driver/VRAM/HugeTLB/host quotas, persistent collector/upload retention, supported cleanup and billing/credential work remain open. Speech still needs a deployment target/HTTPS hostname and native iPhone 15/Moto G32 review. No paid/cloud allocation, visual test, watcher restart or `ion-prod` merge is included; further harness adapters remain deferred.
+
+
+## 2026-10-13 — manual artifact and collector retention
+
+Implemented on `codex/ion-agent-teams` with **keep until explicitly cleaned** as the owner default.
+
+- Native Artifacts → Manage storage: bounded owner pages, project/task filters, protected states, review/confirm cleanup and exact pending retry.
+- Preserve original publication/evidence/source dedup/tool receipt identity; clean only Ion private content. No automatic expiry. Active/connected tasks, team reviews, workflow handoffs and original job recovery summaries are protected.
+- Atomic BLOB cleanup and durable file claims; source reads/exports/PDF/model boundaries and old team publish requests refuse cleaned content. Native JSON automation statuses and historical status representations are covered.
+- GPU collectors require explicit encoded-byte/count ceilings before new launch. All original receipts remain reserved across uncertainty, job cleanup and billing settlement; intersecting prefix caps cannot be loosened by a later allowance.
+- Usage → Remote executions → GPU job → Collector storage exposes original sanitized reservations/observations and a virtualized scope list. Remote collector deletion and storage hold release remain unavailable.
+- **123 distinct cases pass**: 51 retention-selector cases (25 artifact + 25 collector + one existing command-admission regression), 61 native GPU regressions, 10 artifact-library regressions, and one daemon provider-protection case. The final corruption-fixture correction only changes isolated test setup; related production behavior was unchanged during that correction.
+- Protocol47 TypeScript generation/freshness and desktop/gateway/mobile typechecks pass. Locked desktop/daemon/core worker binary checks, Rust formatting and diff checks pass.
+
+Owner review: [artifact retention](60-artifact-retention.md#owner-review-checklist) and [collector retention](61-gpu-collector-retention.md#setup-and-review-checklist).
+
+Provider-supported remote collector/version/upload deletion, physical storage accounting and hold release remain open. Actual CUDA/ext4/macOS/phone acceptance, owner IAM/billing finality, and a speech deployment target/HTTPS hostname remain separate dependencies. Additional harness adapters remain deferred.

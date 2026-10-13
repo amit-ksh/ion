@@ -65,6 +65,8 @@ Deployment/native TLS and recognition acceptance remain unverified.
 - [x] **Strict GPU worker boundary:** exact owner profile approval, root/child snapshot equality, IPC/mount/device restrictions and installed Landlock file/device enforcement. [Implementation and review](57-strict-gpu-worker-integration.md). Actual CUDA/provider acceptance remains open.
 - [x] **GPU sandbox aggregate caps:** original shape-bound CPU/charged-memory/task approval, actual private cgroup verification in supervisor/child and Linux enforcement tests. [Setup/review](58-gpu-sandbox-resource-limits.md).
 - [x] **GPU private workspace capacity:** exact allocated-byte/inode ceilings, dedicated fixed filesystem and supervisor/child witness equality. [Configuration and review](59-gpu-workspace-storage-limits.md); local tmpfs enforcement is proven, actual disk/provider acceptance remains open.
+- [x] **Local artifact retention:** owner manual cleanup/retries, active-work protection and preserved evidence. [Review](60-artifact-retention.md).
+- [x] **GPU collector admission/diagnostics:** original encoded-byte/count reservations and intersecting prefix caps. [Setup/review](61-gpu-collector-retention.md). Provider deletion/version proof and physical storage accounting remain separate open work.
 - [ ] **Broader remote controls:** physical host/storage/egress and wider lifecycle/verified storage cleanup; remaining GPU device/FUSE/CUDA and image/runtime gates. Logical command admission does not attest host capacity or release retained provider storage.
 - [x] **Desktop document rendering:** verified static HTML layout/source and native
       PDF pages with background page/zoom rendering, bounded pixels, DPI handling and
@@ -115,7 +117,7 @@ Existing detailed research: [GPU billing and identity](RESEARCH-nebius-gpu-price
       copy; both themes and long document names.
 - [ ] Changed/missing evidence refuses preview; navigating away during a read
       cannot reopen it. HTML scripts/image/link references cause no requests/actions.
-- [ ] Direct phone: current protocol46 owner, Artifacts filters, HTML Reading/Source,
+- [ ] Direct phone: current protocol47 owner, Artifacts filters, HTML Reading/Source,
       PDF page/zoom/scroll, changed source and interrupted decode/digest/export.
 - [ ] Gateway phone: current publisher/run, reading/source toggles, background/
       pairing change while reading, revocation and exported content integrity.
@@ -172,3 +174,8 @@ Shape-bound aggregate GPU CPU/charged-memory/task approvals and actual cgroup ch
 ## Latest dedicated workspace storage checkpoint
 
 Original shape-bound GPU workspace capacity and actual dedicated-filesystem verification are implemented, with block/inode limits covering all private work/home/temp allocations. **98 distinct cases pass**, including real tmpfs exhaustion, witness tamper refusal and four actual unsuitable mount configurations; final native binaries/formatting pass. [Setup and review](59-gpu-workspace-storage-limits.md). Dedicated ext4/CUDA/provider acceptance, XFS quota support and wider driver/VRAM/HugeTLB/host/collector/retained-upload controls remain open. Remote storage/financial holds are not released by workspace exhaustion or cleanup. Shared speech still needs a real target/HTTPS endpoint and native phone review.
+
+
+## Latest manual retention checkpoint: protocol47
+
+Local owner artifact cleanup and GPU collector admission/diagnostics are implemented with manual keep-until-cleaned retention. **123 distinct cases pass**, alongside generated TypeScript freshness, all three client typechecks, locked desktop/daemon/core worker binary checks and Rust formatting. [Owner artifact review](60-artifact-retention.md) and [collector setup/review](61-gpu-collector-retention.md) describe the protected/recovery boundaries. Cloud collectors/uploads remain retained until supported deletion/version/retention verification can release their original holds. Billing/credential finality, wider physical GPU capacity and live speech/phone/macOS acceptance remain open dependencies.

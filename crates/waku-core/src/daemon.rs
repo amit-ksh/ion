@@ -62,6 +62,7 @@ pub struct WakuBackend {
     teams: Arc<crate::teams::TeamCoordinator>,
     team_runtime: Arc<crate::team_runtime::TeamRuntime>,
     task_start_gates: Mutex<HashMap<Uuid, std::sync::Weak<Mutex<()>>>>,
+    artifact_cleanup_gate: Mutex<()>,
 }
 
 impl WakuBackend {
@@ -107,6 +108,7 @@ impl WakuBackend {
         Ok(Self {
             team_runtime,
             task_start_gates: Mutex::new(HashMap::new()),
+            artifact_cleanup_gate: Mutex::new(()),
             teams,
             control: Arc::new(crate::control::ControlStore::new(
                 task_store.path().with_file_name("ion-control.db"),
@@ -882,6 +884,68 @@ impl Backend for WakuBackend {
             Command::ImportWorkspaceArtifact { .. } => bail!(
                 "Artifacts are published by agents. Ask a task or team to create the document."
             ),
+            Command::LoadGpuCollectorUsage { request_id } => {
+                use waku_protocol::artifact_retention::{GpuCollectorScope, GpuCollectorSnapshot};
+                let usage = self.teams.gpu_collector_for_request(request_id)?;
+                Ok(ResponsePayload::GpuCollectorUsage {
+                    usage: GpuCollectorSnapshot {
+                        request_id,
+                        bucket_name: usage.bucket_name,
+                        region: usage.region,
+                        prefix: usage.prefix,
+                        reserved_bytes: usage.reserved_bytes,
+                        reserved_receipts: usage.reserved_receipts,
+                        observed_bytes: usage.observed_bytes,
+                        observed_receipts: usage.observed_receipts,
+                        historical_unbounded_receipts: usage.historical_unbounded_receipts,
+                        bucket_reserved_bytes: usage.bucket_reserved_bytes,
+                        bucket_reserved_receipts: usage.bucket_reserved_receipts,
+                        admissible_receipts: usage.admissible_receipts,
+                        scopes: usage
+                            .scopes
+                            .into_iter()
+                            .map(|s| GpuCollectorScope {
+                                prefix: s.prefix,
+                                reserved_bytes: s.reserved_bytes,
+                                reserved_receipts: s.reserved_receipts,
+                                observed_bytes: s.observed_bytes,
+                                observed_receipts: s.observed_receipts,
+                                max_bytes: s.max_bytes,
+                                max_receipts: s.max_receipts,
+                                remaining_bytes: s.remaining_bytes,
+                                remaining_receipts: s.remaining_receipts,
+                            })
+                            .collect(),
+                    },
+                })
+            }
+            Command::ListArtifactRetention { query } => {
+                let state = self.task_state.lock();
+                let sessions = self.sessions.lock();
+                let (tasks, projects) = artifact_protection(&state, &sessions);
+                Ok(ResponsePayload::ArtifactRetention {
+                    page: self
+                        .control
+                        .list_artifact_retention(&query, &tasks, &projects)?,
+                })
+            }
+            Command::CleanupArtifact { request } => {
+                // Exclude provider startup until the durable cleanup claim lands.
+                let _cleanup = self.artifact_cleanup_gate.lock();
+                let gate = self.task_start_gate(request.expected.task_id.unwrap_or(Uuid::nil()));
+                let _task = gate.lock();
+                let state = self.task_state.lock();
+                let sessions = self.sessions.lock();
+                let (tasks, projects) = artifact_protection(&state, &sessions);
+                Ok(ResponsePayload::ArtifactCleaned {
+                    receipt: self.control.cleanup_artifact(
+                        &request,
+                        &tasks,
+                        &projects,
+                        crate::model::unix_time(),
+                    )?,
+                })
+            }
             Command::ListArtifactLibrary { query } => Ok(ResponsePayload::ArtifactLibrary {
                 page: self.control.list_artifacts(&query)?,
             }),
@@ -1517,6 +1581,7 @@ impl Backend for WakuBackend {
                 Ok(ResponsePayload::Ack)
             }
             Command::Start { options } => {
+                let _cleanup = self.artifact_cleanup_gate.lock();
                 let gate = self.task_start_gate(session_id);
                 let _guard = gate.lock();
                 anyhow::ensure!(
@@ -2691,6 +2756,9 @@ fn handle_driver_command(
         | Command::PreviewRoutineSchedule { .. }
         | Command::GenerateWorkflow { .. }
         | Command::ImportWorkspaceArtifact { .. }
+        | Command::LoadGpuCollectorUsage { .. }
+        | Command::ListArtifactRetention { .. }
+        | Command::CleanupArtifact { .. }
         | Command::ListArtifactLibrary { .. }
         | Command::ReadWorkflowPdfPage { .. }
         | Command::RenderArtifactPdfPage { .. }
@@ -3177,5 +3245,61 @@ mod tests {
             DriverEvent::PromptSubmitted { message, turn_id: decoded_turn, message_id: decoded_message }
                 if message == "ship it" && decoded_turn == turn_id && decoded_message == message_id
         ));
+    }
+}
+
+/// Provider connections conservatively keep their source documents protected,
+/// including the gap before the client saves its next task projection.
+fn artifact_protection(
+    state: &PersistedState,
+    sessions: &HashMap<Uuid, (Uuid, driver::DriverHandle)>,
+) -> (
+    std::collections::HashSet<Uuid>,
+    std::collections::HashSet<Uuid>,
+) {
+    let mut tasks: std::collections::HashSet<_> = sessions.keys().copied().collect();
+    let mut projects = std::collections::HashSet::new();
+    for task in &state.sessions {
+        if tasks.contains(&task.id) || task.is_busy() || !task.queued_messages.is_empty() {
+            tasks.insert(task.id);
+            projects.insert(task.project_id);
+        }
+    }
+    (tasks, projects)
+}
+
+#[cfg(test)]
+mod artifact_cleanup_tests {
+    use super::*;
+    struct LiveProvider;
+    impl driver::DriverControl for LiveProvider {
+        fn prompt(&self, _: String) {}
+        fn cancel(&self) {}
+        fn respond(&self, _: String, _: String) {}
+        fn rollback(&self, _: usize) -> anyhow::Result<Option<ProviderResumeCursor>> {
+            Ok(None)
+        }
+    }
+    #[test]
+    fn artifact_cleanup_protects_connected_provider_despite_idle_saved_projection() {
+        let mut state = PersistedState::empty();
+        let task = AgentSession::new(Uuid::new_v4(), ProviderKind::Codex);
+        let mut sessions = HashMap::new();
+        sessions.insert(
+            task.id,
+            (
+                Uuid::new_v4(),
+                DriverHandle::from_control(Arc::new(LiveProvider)),
+            ),
+        );
+        state.sessions.push(task.clone());
+        let (tasks, projects) = artifact_protection(&state, &sessions);
+        assert!(tasks.contains(&task.id) && projects.contains(&task.project_id));
+        sessions.clear();
+        let (tasks, projects) = artifact_protection(&state, &sessions);
+        assert!(!tasks.contains(&task.id) && !projects.contains(&task.project_id));
+        state.sessions[0].status = SessionStatus::Background;
+        let (tasks, projects) = artifact_protection(&state, &sessions);
+        assert!(tasks.contains(&task.id) && projects.contains(&task.project_id));
     }
 }

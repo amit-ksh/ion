@@ -141,6 +141,18 @@ fn publish_bytes(
         !content.is_empty() && content.len() <= 64 * 1024,
         "Document exceeds its bound"
     );
+    // A cleaned receipt still pins this publication request. Never create a new
+    // document when an exact replay arrives after owner cleanup.
+    let published: Option<String> = tx
+        .query_row(
+            "SELECT artifact_id FROM ion_team_document_receipts WHERE work_id=? AND request_id=?",
+            params![work.id.to_string(), request_id.to_string()],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if let Some(id) = published {
+        crate::control::artifact_retention::ensure_available(tx, Uuid::parse_str(&id)?)?;
+    }
     let previous: Option<(String,String,String,Vec<u8>)> = tx.query_row(
             "SELECT artifact_id,name,format,content FROM ion_team_document_receipts WHERE work_id=? AND request_id=? AND length(content) BETWEEN 1 AND 65536",
             params![work.id.to_string(),request_id.to_string()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),

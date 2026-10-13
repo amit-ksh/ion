@@ -1,5 +1,10 @@
 //! Owner-approved result storage and atomic receipts; neither settles GPU costs.
 use super::*;
+#[path = "collector_retention.rs"]
+mod collector_retention;
+#[cfg(test)]
+pub(crate) use collector_retention::GpuCollectorRetentionMode;
+pub(crate) use collector_retention::{GpuCollectorRetentionPolicy, GpuCollectorUsage};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -9,6 +14,8 @@ pub(crate) struct GpuResultVolume {
     pub bucket_name: String,
     pub region: String,
     pub prefix: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention: Option<GpuCollectorRetentionPolicy>,
 }
 impl GpuResultVolume {
     pub(crate) fn validate(&self) -> Result<()> {
@@ -39,6 +46,9 @@ impl GpuResultVolume {
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
             "Invalid GPU result region"
         );
+        if let Some(retention) = &self.retention {
+            retention.validate()?;
+        }
         jobs::path(&self.prefix)?;
         ensure!(
             self.prefix.len() <= 256
@@ -49,6 +59,17 @@ impl GpuResultVolume {
             "Invalid GPU result prefix"
         );
         Ok(())
+    }
+    /// New owner launches require explicit retention ceilings; old bodies remain readable.
+    pub(crate) fn require_retention(&self) -> Result<()> {
+        self.retention
+            .as_ref()
+            .context("Approve bounded GPU collector bytes and receipt count before a new launch")?
+            .validate()
+    }
+    /// Must run after exact replay detection, inside the original launch INSERT transaction.
+    pub(crate) fn reserve_retention(&self, tx: &Transaction<'_>, request: Uuid) -> Result<()> {
+        collector_retention::reserve(tx, self, request)
     }
     pub(crate) fn host(&self) -> String {
         format!("storage.{}.nebius.cloud", self.region)
@@ -61,6 +82,34 @@ impl GpuResultVolume {
     }
 }
 impl TeamCoordinator {
+    /// Resolve the original owner request, not a model-supplied bucket or URL.
+    pub(crate) fn gpu_collector_for_request(&self, request: Uuid) -> Result<GpuCollectorUsage> {
+        ensure!(!request.is_nil(), "GPU collector request identity missing");
+        let policy: Option<String> = self.connect()?.query_row(
+            "SELECT CASE WHEN length(CAST(policy AS BLOB)) BETWEEN 1 AND 65536 THEN policy END FROM ion_team_gpu_jobs WHERE request_id=?",
+            [request.to_string()], |row| row.get(0),
+        ).context("Original GPU collector request is unavailable")?;
+        let policy: GpuBudgetPolicy = serde_json::from_str(
+            policy
+                .as_deref()
+                .context("Original GPU collector policy exceeds its bound")?,
+        )?;
+        let volume = policy
+            .result_volume
+            .context("Original GPU request has no approved collector")?;
+        self.gpu_collector_usage(&volume)
+    }
+    /// Owner/background review only; never called by an agent or a renderer.
+    pub(crate) fn gpu_collector_usage(
+        &self,
+        volume: &GpuResultVolume,
+    ) -> Result<GpuCollectorUsage> {
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Deferred)?;
+        let usage = collector_retention::usage(&tx, volume)?;
+        tx.commit()?;
+        Ok(usage)
+    }
     /// Called only by the trusted result transport. Late/Stop results still persist.
     /// An exact replay returns the original artifact without revision/audit churn.
     pub(crate) fn record_gpu_result(

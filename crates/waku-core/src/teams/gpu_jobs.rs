@@ -22,6 +22,8 @@ pub(super) mod waits;
 pub(crate) use recovery::GpuRecoveryWitness;
 pub(crate) use resources::{GpuCleanupRecord, GpuComputeInventory, GpuDiskInventory};
 pub(crate) use results::GpuResultVolume;
+#[cfg(test)]
+pub(crate) use results::{GpuCollectorRetentionMode, GpuCollectorRetentionPolicy};
 
 /// Owner-approved, immutable spending allowance. These are reservations, not invoice totals.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -369,6 +371,9 @@ impl TeamCoordinator {
                     .saturating_add(u64::from(run.limits.timeout_seconds)),
             "GPU deadline exceeds the original team deadline"
         );
+        if let Some(volume) = &policy.result_volume {
+            volume.reserve_retention(&tx, request.request_id)?;
+        }
         tx.execute("INSERT INTO ion_team_gpu_jobs(request_id,run_id,work_id,attempt_id,project,signature,body,policy,reserved_micros,currency,deadline_at,state,compute_ids) VALUES(?,?,?,?,?,?,?,?,?,?,?,'submitting','[]')",
             params![request.request_id.to_string(),run.id.to_string(),work.id.to_string(),lease.attempt_id.to_string(),project,signature,body.to_string(),serde_json::to_string(policy)?,policy.reservation_micros,policy.currency,deadline])?;
         if let Some(checked) = receipt {

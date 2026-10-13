@@ -1233,6 +1233,12 @@ fn team_gpu_owner_poll_frees_dispatcher_limits_concurrency_and_does_not_duplicat
             bucket_name: "ion-results".into(),
             region: "eu-north1".into(),
             prefix: "ion/results".into(),
+            retention: Some(crate::teams::gpu_jobs::GpuCollectorRetentionPolicy {
+                version: 1,
+                mode: crate::teams::gpu_jobs::GpuCollectorRetentionMode::KeepUntilExplicitlyCleaned,
+                max_bytes: 512 * 1024 * 128,
+                max_receipts: 128,
+            }),
         });
         fixture.policy.result_volume = launch.result_volume.clone();
         let now = unix_time();

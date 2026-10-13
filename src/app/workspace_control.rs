@@ -9,10 +9,12 @@ use waku_client::teams::{
 mod automation_ui;
 mod billing_ui;
 mod budget_ui;
+mod collector_ui;
 mod document_preview;
 mod inbox;
 mod remote_ui;
 mod resource_ui;
+mod retention_ui;
 mod routine_ui;
 mod team_activity;
 mod team_apps;
@@ -110,6 +112,8 @@ pub(super) struct ControlUi {
     billing: billing_ui::BillingUi,
     remote: remote_ui::RemoteUi,
     resources: resource_ui::ResourceUi,
+    retention: retention_ui::RetentionUi,
+    collector: collector_ui::CollectorUi,
     preview: document_preview::DocumentPreview,
     pub page: Option<Page>,
     pub snapshot: ControlSnapshot,
@@ -304,6 +308,8 @@ impl ControlUi {
             billing: billing_ui::BillingUi::new(window, cx),
             remote: remote_ui::RemoteUi::new(cx),
             resources: resource_ui::ResourceUi::new(cx),
+            retention: retention_ui::RetentionUi::new(cx),
+            collector: collector_ui::CollectorUi::new(cx),
             preview: document_preview::DocumentPreview::new(cx),
             page: Some(Page::Dashboard),
             snapshot: ControlSnapshot::default(),
@@ -924,6 +930,8 @@ impl Waku {
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.control_ui.remote.close();
         self.control_ui.resources.close();
+        self.control_ui.retention.close();
+        self.control_ui.collector.close();
         self.settings_page = None;
         self.control_ui.preview.clear(cx);
         if self.control_ui.page != Some(page) {
@@ -1878,6 +1886,12 @@ impl Waku {
         if self.control_ui.preview.artifact.is_some() {
             return self.render_document_preview(cx);
         }
+        if page == Page::Artifacts && self.control_ui.retention.open {
+            return self.render_artifact_retention(cx);
+        }
+        if page == Page::Usage && self.control_ui.collector.request.is_some() {
+            return self.render_gpu_collector(cx);
+        }
         if page == Page::Usage && self.control_ui.resources.open {
             return self.render_command_resources(cx);
         }
@@ -1988,6 +2002,14 @@ impl Waku {
             .flex_col()
             .gap(px(14.0))
             .p(px(24.0));
+        if page == Page::Artifacts {
+            content = content.child(self.control_button(
+                "artifact-storage",
+                "Manage storage",
+                cx,
+                |this, _, cx| this.open_artifact_retention(cx),
+            ));
+        }
         if page == Page::Usage {
             content = content.child(self.usage_toolbar(cx));
         }

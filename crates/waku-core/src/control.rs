@@ -11,6 +11,7 @@ use uuid::Uuid;
 use waku_protocol::control::*;
 
 mod artifact_library;
+pub(crate) mod artifact_retention;
 mod gateway_inbox;
 mod inbox;
 pub(crate) mod inbox_history;
@@ -192,6 +193,7 @@ impl ControlStore {
         db.execute_batch("CREATE TABLE IF NOT EXISTS ion_control_records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ion_control_kind ON ion_control_records(kind); CREATE TABLE IF NOT EXISTS ion_control_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL); INSERT OR IGNORE INTO ion_control_revision VALUES(1,0);")?;
         inbox_history::install_control(&db)?;
         artifact_library::schema(&db)?;
+        artifact_retention::schema(&db)?;
         crate::usage_ledger::schema(&db)?;
         crate::cloud_spending::schema(&db)?;
         crate::cloud_billing::schema(&db)?;
@@ -361,6 +363,9 @@ impl ControlStore {
             snapshot.revision == revision,
             "Workspace changed on another client. Refresh before saving."
         );
+        if let ControlRecord::Artifact(artifact) = &record {
+            artifact_retention::ensure_available(&tx, artifact.id)?;
+        }
         let previous: Option<String> = tx
             .query_row(
                 "SELECT kind FROM ion_control_records WHERE id=?",
@@ -395,6 +400,13 @@ impl ControlStore {
             snapshot.revision == revision,
             "Workspace changed. Refresh before deleting."
         );
+        ensure!(
+            !snapshot
+                .records
+                .iter()
+                .any(|record| matches!(record, ControlRecord::Artifact(a) if a.id == id)),
+            "Use artifact storage cleanup; original publication evidence must be preserved"
+        );
         snapshot.records.retain(|record| record.id() != id);
         validate(&snapshot)?;
         crate::cloud_spending::ensure_removable(&tx, id)?;
@@ -414,6 +426,7 @@ impl ControlStore {
 }
 /// Verify stored bytes at every result, handoff, model read and export boundary.
 pub(crate) fn verified_document(db: &Connection, artifact: &Artifact) -> Result<Vec<u8>> {
+    artifact_retention::ensure_available(db, artifact.id)?;
     ensure!(
         artifact.reference == format!("ion-document:{}", artifact.id),
         "Document identity changed"

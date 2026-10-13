@@ -848,3 +848,21 @@ This completes the described resource increment. The requested full objective is
 - [ ] Complete owner IAM/billing finality and supply a speech deployment target/HTTPS endpoint; build and review native iPhone 15/Moto G32 clients.
 
 This completes the described storage-capacity increment. Full implementation/deployment/device acceptance remains open; additional harness adapters stay deferred. No actual cloud/GPU resource or `ion-prod` merge is included.
+
+
+## 2026-10-13 — artifact/collector retention (protocol47)
+
+- [x] Owner default keep until explicitly cleaned; no background expiry or scheduled deletion.
+- [x] Native artifact storage pages, filters, protected status, cleanup review/confirmation and original pending-request retry.
+- [x] Preserve publication/evidence/history/source dedup and request identities; refuse missing/changed content and replay resurrection.
+- [x] Protect active/connected tasks, team reviews/workflows, live attempts and original GPU/command recovery summaries.
+- [x] Atomic team BLOB cleanup; durably claimed private file cleanup with restart recovery and bounded managed-file verification.
+- [x] Original encoded collector-byte/count approval, global bucket admission and intersecting prefix caps retain all uncertain/cleaned/settled holds.
+- [x] Owner collector diagnostics from an original request; virtualized native scope list, no payload/credential disclosure or remote deletion.
+- [x] 123 distinct cases pass; generated protocol47 bindings/freshness and desktop/gateway/mobile TypeScript checks pass.
+- [x] Locked desktop/daemon/core worker binary checks, Rust formatting and diff checks pass.
+- [ ] Review native keyboard/focus, both themes, long names, filters/empty/errors, cleanup confirmation and leaving a pending request using [the owner checklist](60-artifact-retention.md#owner-review-checklist).
+- [ ] Review live private collector limits/observations once a Nebius target is available; remote collector/version/upload cleanup needs a verified supported deletion contract and hold-release evidence.
+- [ ] Complete remaining accelerator/host/project quotas, owner IAM/billing finality, cloud speech target/HTTPS setup and native iPhone15/MotoG32/macOS acceptance.
+
+This completes local manual artifact cleanup and collector admission/diagnostics. The wider objective and provider storage deletion remain open; further harness adapters remain deferred.

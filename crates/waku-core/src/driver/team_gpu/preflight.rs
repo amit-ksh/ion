@@ -133,6 +133,9 @@ impl Client {
         approved.require_child_runtime()?;
         approved.require_child_group()?;
         approved.require_child_storage()?;
+        if let Some(volume) = &policy.result_volume {
+            volume.require_retention()?;
+        }
         let body = launch.body()?;
         approved.matches_body(&body)?;
         ensure!(

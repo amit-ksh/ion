@@ -204,3 +204,6 @@ Live Nebius speech deployment and native phone acceptance remain open. Additiona
 - [GPU sandbox resource limits](58-gpu-sandbox-resource-limits.md): owner shape-bound CPU/charged-memory/task ceilings, actual kernel verification and CUDA/runtime review.
 
 - [GPU workspace storage limits](59-gpu-workspace-storage-limits.md): dedicated filesystem block/inode capacity, installed exhaustion/refusal evidence and actual disk/CUDA review.
+
+- [Manual artifact retention](60-artifact-retention.md): explicit owner review/cleanup, original evidence, protected active work and durable retries.
+- [GPU collector retention](61-gpu-collector-retention.md): original encoded receipt admission, intersecting scope limits and owner storage diagnostics.

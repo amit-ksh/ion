@@ -259,6 +259,15 @@ impl Waku {
                 cx,
                 move |this, _, cx| this.open_workspace_run(run, cx),
             ))
+            .when(row.entry.kind == RemoteExecutionKind::Gpu, |body| {
+                let request = row.entry.request_id;
+                body.child(self.control_button(
+                    format!("collector-{request}"),
+                    "Collector storage",
+                    cx,
+                    move |this, _, cx| this.open_gpu_collector(request, cx),
+                ))
+            })
             .into_any_element()
     }
     pub(super) fn render_remote_executions(&self, cx: &mut Context<Self>) -> AnyElement {

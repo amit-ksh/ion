@@ -19,7 +19,7 @@ use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
 use crate::workspace::{WorkspaceOperation, WorkspaceResult};
 
-pub const PROTOCOL_VERSION: u32 = 46;
+pub const PROTOCOL_VERSION: u32 = 47;
 pub const MAX_WIRE_MESSAGE_BYTES: usize = 48 * 1024 * 1024;
 pub const DAEMON_TOKEN_ENV: &str = "WAKU_DAEMON_TOKEN";
 pub const DAEMON_ADDRESS_ENV: &str = "WAKU_DAEMON_ADDRESS";
@@ -374,6 +374,15 @@ pub enum Command {
         #[ts(type = "string")]
         bytes: Vec<u8>,
     },
+    LoadGpuCollectorUsage {
+        request_id: Uuid,
+    },
+    ListArtifactRetention {
+        query: crate::artifact_retention::ArtifactRetentionQuery,
+    },
+    CleanupArtifact {
+        request: crate::artifact_retention::ArtifactCleanupRequest,
+    },
     ListArtifactLibrary {
         query: crate::artifact_library::ArtifactLibraryQuery,
     },
@@ -621,6 +630,15 @@ pub enum ResponsePayload {
     },
     TeamAudit {
         events: Vec<crate::teams::TeamAuditEvent>,
+    },
+    GpuCollectorUsage {
+        usage: crate::artifact_retention::GpuCollectorSnapshot,
+    },
+    ArtifactRetention {
+        page: crate::artifact_retention::ArtifactRetentionPage,
+    },
+    ArtifactCleaned {
+        receipt: crate::artifact_retention::ArtifactCleanupReceipt,
     },
     ArtifactLibrary {
         page: crate::artifact_library::ArtifactLibraryPage,

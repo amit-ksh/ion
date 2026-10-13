@@ -9,6 +9,12 @@ pub(super) fn volume() -> GpuResultVolume {
         bucket_name: "ion-results".into(),
         region: "eu-north1".into(),
         prefix: "ion/results".into(),
+        retention: Some(crate::teams::gpu_jobs::GpuCollectorRetentionPolicy {
+            version: 1,
+            mode: crate::teams::gpu_jobs::GpuCollectorRetentionMode::KeepUntilExplicitlyCleaned,
+            max_bytes: 512 * 1024 * 128,
+            max_receipts: 128,
+        }),
     }
 }
 fn bucket() -> Value {
