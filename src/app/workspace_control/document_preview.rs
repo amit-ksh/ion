@@ -600,7 +600,8 @@ impl Waku {
             let visible = self.control_ui.preview.reading
                 && self.control_ui.preview.artifact.is_some()
                 && self.control_ui.page.is_some()
-                && self.settings_page.is_none();
+                && self.settings_page.is_none()
+                && !self.onboarding_ui.open;
             browser.update(cx, |view, cx| view.sync_native_state(visible, overlay, cx));
         }
     }

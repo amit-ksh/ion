@@ -866,3 +866,14 @@ This completes the described storage-capacity increment. Full implementation/dep
 - [ ] Complete remaining accelerator/host/project quotas, owner IAM/billing finality, cloud speech target/HTTPS setup and native iPhone15/MotoG32/macOS acceptance.
 
 This completes local manual artifact cleanup and collector admission/diagnostics. The wider objective and provider storage deletion remain open; further harness adapters remain deferred.
+
+
+## 2026-10-13 — desktop setup onboarding
+
+- [x] Optional Welcome, AI provider, app, speech and personal gateway screens with Back/Next/individual skip/global skip.
+- [x] Persistent Finish setup access in the sidebar, collapsed header and Settings; always-available General settings launcher.
+- [x] Reuse secure credential Save/Test and gateway Pair controls, visible pending/error/session-only states and existing harness/app configuration.
+- [x] Versioned nonsecret progress, restart resume, durable skip and existing-profile suppression; preserve other daemon settings and cloud approvals.
+- [x] 27 client tests pass, including 7 new persistence/flow cases; final native build, Rust formatting, binding freshness, mechanical UI scan and source checks pass.
+- [ ] Complete [native first-launch/skip/configuration review](62-first-launch-onboarding.md#owner-review-checklist) on both themes and relevant machines.
+- [ ] Perform live credential/gateway/speech and phone acceptance when owner resources are available.

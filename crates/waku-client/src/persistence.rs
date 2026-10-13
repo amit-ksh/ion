@@ -559,6 +559,25 @@ impl PersistedState {
             .unwrap_or_default()
     }
 
+    pub fn onboarding_progress(&self) -> Option<crate::onboarding::Progress> {
+        self.daemon_settings_extra
+            .get(crate::onboarding::SETTINGS_KEY)
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+    }
+
+    /// Update only the in-memory settings snapshot. The caller persists it
+    /// through the normal daemon settings save, outside the render path.
+    pub fn set_onboarding_progress(&mut self, progress: crate::onboarding::Progress) {
+        self.daemon_settings_extra.insert(
+            crate::onboarding::SETTINGS_KEY.into(),
+            serde_json::json!({
+                "version": progress.version(),
+                "step": progress.step,
+                "dismissed": progress.dismissed,
+            }),
+        );
+    }
+
     pub fn nebius_sandbox_enabled(&self) -> bool {
         self.daemon_settings_extra
             .get("nebius_sandbox_enabled")
@@ -1167,6 +1186,84 @@ fn restore_task_state_skeletons(sessions: &mut [AgentSession]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn onboarding_resume_and_skip_survive_the_daemon_settings_roundtrip() {
+        use crate::onboarding::{Progress, Step, should_show};
+
+        let mut state = PersistedState::empty();
+        state.set_nebius_sandbox_enabled(true);
+        let composio_user = state.composio_user_id();
+        state.daemon_settings_extra.insert(
+            "unrelated_future_setting".into(),
+            serde_json::json!({"nested": [1, 2, 3]}),
+        );
+        state.disabled_providers = vec![ProviderKind::OpenCode];
+        state
+            .provider_binary_overrides
+            .insert(ProviderKind::Codex, "custom-codex".into());
+
+        for step in Step::ALL {
+            for dismissed in [false, true] {
+                let expected = Progress::new(step).with_dismissed(dismissed);
+                state.set_onboarding_progress(expected);
+                // This is the same serialization boundary used by the settings
+                // RPC and the daemon-owned settings persistence schema.
+                let encoded = serde_json::to_vec(&state.daemon_settings()).unwrap();
+                let mut restored = PersistedState::empty();
+                restored.apply_daemon_settings(serde_json::from_slice(&encoded).unwrap());
+                assert_eq!(restored.onboarding_progress(), Some(expected));
+                assert_eq!(
+                    should_show(restored.onboarding_progress().as_ref(), true, true),
+                    !dismissed
+                );
+                assert!(restored.nebius_sandbox_enabled());
+                assert_eq!(restored.composio_user_id(), composio_user);
+                assert_eq!(restored.disabled_providers, vec![ProviderKind::OpenCode]);
+                assert_eq!(
+                    restored.provider_binary_overrides,
+                    state.provider_binary_overrides
+                );
+                assert_eq!(
+                    restored.daemon_settings().extra["unrelated_future_setting"],
+                    serde_json::json!({"nested": [1, 2, 3]})
+                );
+                assert_eq!(
+                    restored.daemon_settings().extra,
+                    state.daemon_settings().extra
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_onboarding_settings_do_not_invent_progress() {
+        use crate::onboarding::{Progress, Step};
+
+        let mut state = PersistedState::empty();
+        assert_eq!(state.onboarding_progress(), None);
+        for invalid in [
+            serde_json::json!({"version": 9, "step": "welcome", "dismissed": true}),
+            serde_json::json!({"version": 1, "step": "models", "dismissed": "true"}),
+            serde_json::json!({"version": 1, "step": "apps", "dismissed": false, "unknown": true}),
+            serde_json::json!({"version": 1, "dismissed": false}),
+            serde_json::Value::Null,
+        ] {
+            let mut settings = state.daemon_settings();
+            settings
+                .extra
+                .insert(crate::onboarding::SETTINGS_KEY.into(), invalid.clone());
+            state.apply_daemon_settings(settings);
+            assert_eq!(state.onboarding_progress(), None);
+            assert_eq!(
+                state.daemon_settings().extra[crate::onboarding::SETTINGS_KEY],
+                invalid
+            );
+        }
+        let resumed = Progress::new(Step::Gateway);
+        state.set_onboarding_progress(resumed);
+        assert_eq!(state.onboarding_progress(), Some(resumed));
+    }
 
     #[test]
     fn math_rendering_defaults_on_and_persists_as_an_app_preference() {

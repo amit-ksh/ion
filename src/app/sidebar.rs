@@ -1108,6 +1108,12 @@ impl Waku {
                     .child(self.render_sidebar_new_session(cx))
                     .child(self.render_sidebar_search(cx)),
             )
+            .child(
+                div()
+                    .px(px(10.0))
+                    .pb(px(6.0))
+                    .children(self.render_setup_indicator(cx)),
+            )
             .child(self.render_workspace_nav(cx))
             .child(
                 div()
@@ -2201,6 +2207,9 @@ impl Waku {
                     cx,
                 ),
             )
+            .when(self.sidebar_rendered_width <= 0.5, |header| {
+                header.children(self.render_setup_indicator(cx))
+            })
             .child(self.render_background_work_summary(cx))
             .when(!self.right_panel_visible, |element| {
                 element

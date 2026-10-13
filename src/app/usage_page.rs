@@ -52,10 +52,7 @@ impl Waku {
         if page == SettingsPage::Skills {
             self.ensure_skills_catalog(false, cx);
         }
-        if page == SettingsPage::Providers
-            && waku_protocol::distribution::DistributionProfile::current()
-                == waku_protocol::distribution::DistributionProfile::NebiusHackathon
-        {
+        if page == SettingsPage::Providers {
             self.refresh_credential_statuses(cx);
             self.refresh_speech_runtime_status(cx);
         }

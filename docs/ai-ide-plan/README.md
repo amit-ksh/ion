@@ -207,3 +207,5 @@ Live Nebius speech deployment and native phone acceptance remain open. Additiona
 
 - [Manual artifact retention](60-artifact-retention.md): explicit owner review/cleanup, original evidence, protected active work and durable retries.
 - [GPU collector retention](61-gpu-collector-retention.md): original encoded receipt admission, intersecting scope limits and owner storage diagnostics.
+
+- [First-launch setup](62-first-launch-onboarding.md): skippable desktop connection screens, resumable progress and a persistent setup indicator.

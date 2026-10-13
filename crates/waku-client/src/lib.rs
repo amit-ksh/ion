@@ -9,6 +9,7 @@ pub mod command_env;
 pub mod composer_complete;
 pub mod computer_use;
 pub mod driver;
+pub mod onboarding;
 pub mod persistence;
 mod process;
 mod workspace_client;

@@ -18,14 +18,14 @@ const SETTINGS_SIDEBAR_CONTEXT: &str = "SettingsSidebar";
 const SETTINGS_SEARCH_CONTEXT: &str = "SettingsSidebar > TextInput";
 
 #[derive(Clone, Copy)]
-enum CredentialAction {
+pub(super) enum CredentialAction {
     Set,
     Test,
     Delete,
 }
 
 #[derive(Clone, Copy)]
-enum GatewayAction {
+pub(super) enum GatewayAction {
     Pair,
     Accounts,
     ToggleProposal,
@@ -365,6 +365,10 @@ impl Waku {
             Kind::GatewayPairingToken,
             Kind::SpeechService,
         ];
+        let kinds = kinds
+            .into_iter()
+            .filter(|kind| !self.credential_busy.contains(kind))
+            .collect::<Vec<_>>();
         let generations = self.credential_generation.clone();
         cx.spawn(async move |waku, cx| {
             let statuses = cx
@@ -431,6 +435,7 @@ impl Waku {
                 waku.credential_busy.remove(&kind);
                 waku.credential_statuses.insert(kind, result.1);
                 if result.0.is_ok() {
+                    waku.onboarding_ui.failed_tests.remove(&kind);
                     waku.gateway_accounts.clear();
                     waku.gateway_last_proposal = None;
                     waku.republish_pending_gateway_interactions();
@@ -663,7 +668,7 @@ impl Waku {
         .detach();
     }
 
-    fn run_credential_action(
+    pub(super) fn run_credential_action(
         &mut self,
         kind: crate::credentials::CredentialKind,
         action: CredentialAction,
@@ -758,6 +763,7 @@ impl Waku {
                 waku.credential_statuses.insert(kind, result.1);
                 match result.0 {
                     Ok((message, catalog)) => {
+                        waku.onboarding_ui.failed_tests.remove(&kind);
                         waku.credential_feedback.insert(kind, message);
                         if kind == Kind::ComposioScopedProjectKey
                             && matches!(action, CredentialAction::Set | CredentialAction::Delete)
@@ -785,6 +791,9 @@ impl Waku {
                         }
                     }
                     Err(error) => {
+                        if matches!(action, CredentialAction::Test) {
+                            waku.onboarding_ui.failed_tests.insert(kind);
+                        }
                         waku.credential_feedback.insert(kind, error.to_string());
                     }
                 }
@@ -794,7 +803,7 @@ impl Waku {
         .detach();
     }
 
-    fn credential_button(
+    pub(super) fn credential_button(
         &self,
         kind: crate::credentials::CredentialKind,
         action: CredentialAction,
@@ -839,7 +848,7 @@ impl Waku {
             .into_any_element()
     }
 
-    fn gateway_button(
+    pub(super) fn gateway_button(
         &self,
         action: GatewayAction,
         label: &'static str,
@@ -1361,6 +1370,12 @@ impl Waku {
             .bg(theme.sidebar)
             .child(self.render_settings_sidebar_titlebar(window, cx))
             .child(
+                div()
+                    .px(px(12.0))
+                    .pb(px(8.0))
+                    .children(self.render_setup_indicator(cx)),
+            )
+            .child(
                 div().px(px(12.0)).child(
                     div()
                         .id("settings-back")
@@ -1631,6 +1646,7 @@ impl Waku {
             move |this, _, cx| this.set_analytics_enabled(!analytics_enabled, cx),
         );
         div()
+            .child(self.render_setup_launcher(cx))
             .child(
                 div()
                     .mt(px(15.0))

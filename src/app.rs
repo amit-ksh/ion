@@ -1121,6 +1121,7 @@ pub struct Waku {
     expanded_provider_settings: Option<ProviderKind>,
     provider_path_input: Entity<TextInput>,
     credential_inputs: HashMap<crate::credentials::CredentialKind, Entity<TextInput>>,
+    onboarding_ui: onboarding::OnboardingUi,
     gateway_url_input: Entity<TextInput>,
     gateway_invite_input: Entity<TextInput>,
     gateway_accounts: Vec<crate::credentials::GatewayAccount>,
@@ -1651,6 +1652,7 @@ mod drafts;
 mod file_search;
 mod goal_dialog;
 mod image_preview;
+mod onboarding;
 mod render;
 mod right_panel;
 mod runtime;
@@ -1999,6 +2001,14 @@ impl Waku {
         }
         let home_directory = crate::projectless::home_directory();
         state.apply_daemon_settings(daemon.settings());
+        let onboarding_progress = state.onboarding_progress();
+        let onboarding_open = waku_client::onboarding::should_show(
+            onboarding_progress.as_ref(),
+            state.window_state.is_some(),
+            state.sessions.iter().any(AgentSession::has_started),
+        );
+        let onboarding_step = onboarding_progress.map(|p| p.step).unwrap_or_default();
+
         if let Err(error) = daemon.update_settings(state.daemon_settings()) {
             eprintln!("could not normalize daemon settings after migration: {error:#}");
         }
@@ -2709,6 +2719,20 @@ impl Waku {
             )
             .detach();
 
+            for (kind, input) in &credential_inputs {
+                let kind = *kind;
+                cx.subscribe(
+                    input,
+                    move |this: &mut Self, _, event: &InputEvent, cx| match event {
+                        InputEvent::Submit(_) => {
+                            this.run_credential_action(kind, settings::CredentialAction::Set, cx)
+                        }
+                        InputEvent::Edited => cx.notify(),
+                        _ => {}
+                    },
+                )
+                .detach();
+            }
             // Like T3 Code's adapter subscriptions feeding its ingestion
             // worker, provider threads push an edge into this bounded wake
             // channel. The UI does no standing scan: the short follow-up tick
@@ -2880,6 +2904,7 @@ impl Waku {
                 expanded_provider_settings: None,
                 provider_path_input,
                 credential_inputs,
+                onboarding_ui: onboarding::OnboardingUi::new(onboarding_open, onboarding_step, cx),
                 gateway_url_input,
                 gateway_invite_input,
                 gateway_accounts: Vec::new(),
@@ -3161,6 +3186,7 @@ impl Waku {
         // first frame.
         entity.update(cx, |this, cx| {
             this.restart_task_state_sync();
+            this.initialize_onboarding(window, cx);
             for session_id in startup_live_session_ids {
                 this.start_runtime_attachment(session_id, cx);
             }

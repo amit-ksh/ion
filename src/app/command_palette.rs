@@ -499,7 +499,7 @@ impl Waku {
         cx.notify();
     }
 
-    fn close_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn close_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.command_palette.open {
             return;
         }

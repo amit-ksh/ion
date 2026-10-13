@@ -3112,3 +3112,15 @@ Implemented on `codex/ion-agent-teams` with **keep until explicitly cleaned** as
 Owner review: [artifact retention](60-artifact-retention.md#owner-review-checklist) and [collector retention](61-gpu-collector-retention.md#setup-and-review-checklist).
 
 Provider-supported remote collector/version/upload deletion, physical storage accounting and hold release remain open. Actual CUDA/ext4/macOS/phone acceptance, owner IAM/billing finality, and a speech deployment target/HTTPS hostname remain separate dependencies. Additional harness adapters remain deferred.
+
+
+## 2026-10-13 — first-launch connection onboarding
+
+- Fresh desktop installs show Welcome → AI providers → Apps → Speech → Personal gateway. All screens can be skipped; configured harnesses and the normal New task flow remain available.
+- Missing, failed-test or session-only details keep Finish setup visible in the sidebar, collapsed-sidebar header and Settings. Settings → General can reopen setup even when all details are saved.
+- Reuse masked vault-backed fields, existing Save/Test and gateway Pair actions. Native provider/app settings remain the place for harness authentication, individual app sign-in and agent target/budget configuration.
+- Preserve only nonsecret version/screen/dismissed progress through existing settings; unfinished setup resumes, skipping stays dismissed, and existing active profiles keep their workspace.
+- Credential/status work stays in background workers; rendering reads four cached states. Exclude pending credential actions from status refresh and keep native webviews hidden beneath the setup page.
+- **27 client tests pass**, including 7 new onboarding/persistence cases. Final desktop/daemon binary checks, Rust formatting, protocol binding freshness and source diff checks pass. Protocol47 wire shapes are unchanged.
+
+Owner [setup review checklist](62-first-launch-onboarding.md#owner-review-checklist) covers first-launch/restart, skip/later configuration, failed tests, session-only vault limitations, keyboard/themes and native webviews. No live key, endpoint, visual or device acceptance is claimed.

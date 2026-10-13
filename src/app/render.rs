@@ -241,6 +241,10 @@ impl Render for Waku {
         if self.fps_counter_visible {
             self.tick_fps(window);
         }
+        if self.onboarding_ui.open {
+            let content = self.render_onboarding(window, cx);
+            return self.render_window_frame(content, window, cx);
+        }
         let image_preview = self.render_image_preview(cx);
         let task_switcher = self.render_task_switcher(window, cx);
         if self.settings_page.is_some() {
