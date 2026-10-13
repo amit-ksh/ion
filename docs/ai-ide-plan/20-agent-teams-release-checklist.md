@@ -834,3 +834,17 @@ The full implementation remains active. This increment uses owned disposable CPU
 - [ ] Supply a Nebius/SSH/HTTPS speech target and complete native iPhone 15/Moto G32 build/microphone/concurrency review.
 
 This completes the described resource increment. The requested full objective is not complete; additional harness adapters remain deferred. No `ion-prod` merge or actual cloud/GPU deployment is included.
+
+## 2026-10-13 - dedicated GPU workspace storage
+
+- [x] Require original shape-bound `child_storage` approval and exact environment before new pricing/preflight provider reads.
+- [x] Verify dedicated fixed tmpfs/ext4 backing, actual capacity/security/type/device identity, no shared/nested bypass and matching supervisor/child capacity witness before user code.
+- [x] Keep work/home/tmp on the approved filesystem; remove private storage variables before exec and retain existing kernel file/device/CPU/RAM/task controls.
+- [x] Actual tmpfs files exhaust blocks and empty-file creation exhausts inodes; checkpoint output remains authentic after freeing space.
+- [x] Oversized-block, oversized-inode, missing-private-mount and nested-mount configurations refuse before user code; changed capacity SHA refuses in the demoted guard.
+- [x] 98 distinct cases pass, including one committed refusal test under 4 native configurations; final Rust source/binary/formatting gates pass.
+- [ ] Accept real dedicated ext4/CUDA/provider execution with [the workspace checklist](59-gpu-workspace-storage-limits.md#later-owner-review). XFS requires a separately reviewed quota contract.
+- [ ] Finish driver/VRAM/HugeTLB/physical host/project quotas, collector/upload retention and provider-supported cleanup.
+- [ ] Complete owner IAM/billing finality and supply a speech deployment target/HTTPS endpoint; build and review native iPhone 15/Moto G32 clients.
+
+This completes the described storage-capacity increment. Full implementation/deployment/device acceptance remains open; additional harness adapters stay deferred. No actual cloud/GPU resource or `ion-prod` merge is included.

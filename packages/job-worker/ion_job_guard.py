@@ -278,6 +278,8 @@ def trusted_module(name, filename):
 def strict_runtime(uid,gid):
     digest=os.environ.pop('ION_JOB_RUNTIME_PROFILE_SHA256',None)
     if digest is None:
+        if 'ION_JOB_GPU_STORAGE_LIMITS' in os.environ:
+            raise BoundaryError()
         return None
     if not re.fullmatch('[a-f0-9]{64}',digest):
         raise BoundaryError()
@@ -299,6 +301,14 @@ def strict_runtime(uid,gid):
     expected=os.environ.pop('ION_JOB_RUNTIME_SNAPSHOT_SHA256',None)
     if not re.fullmatch('[a-f0-9]{64}',expected or '') or witness['snapshot_sha256']!=expected:
         raise BoundaryError()
+    encoded=os.environ.pop('ION_JOB_GPU_STORAGE_LIMITS',None)
+    if encoded is not None:
+        try:
+            storage=module.verify_storage(module.storage_encoded(encoded),profile,roots)
+            if storage['sha256']!=os.environ.pop('ION_JOB_GPU_STORAGE_SNAPSHOT_SHA256',None):
+                raise BoundaryError()
+        except Exception:
+            raise BoundaryError() from None
     return profile,roots
 
 

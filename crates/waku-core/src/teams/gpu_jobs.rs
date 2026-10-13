@@ -10,10 +10,10 @@ pub(crate) use price_policy::{GpuEstimateMethod, GpuPriceComponent, GpuPriceSku}
 mod resource_policy;
 #[cfg(test)]
 pub(crate) use resource_policy::{
-    GpuChildNetworkPolicy, GpuQuotaPolicy, GpuQuotaScope, GpuResourceVector,
+    GpuChildNetworkPolicy, GpuQuotaPolicy, GpuQuotaScope, GpuResourceVector, GpuWorkspaceFilesystem,
 };
 pub(crate) use resource_policy::{
-    GpuGroupPolicy, GpuQuotaKind, GpuResourcePolicy, GpuRuntimePolicy,
+    GpuGroupPolicy, GpuQuotaKind, GpuResourcePolicy, GpuRuntimePolicy, GpuStoragePolicy,
 };
 pub(in crate::teams) mod recovery;
 mod resources;

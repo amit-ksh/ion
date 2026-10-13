@@ -553,3 +553,87 @@ def verify_runtime(profile, writable_roots, collector=None, identity=None):
         return witness
     except (OSError, TypeError, KeyError, UnicodeError, RecursionError, OverflowError):
         _fail()
+
+
+STORAGE_CONTRACT='linux-private-workspace-capacity/v1'
+STORAGE_FILESYSTEMS={'tmpfs':0x01021994,'ext4':0xEF53}
+
+
+def storage_policy(value):
+    _object(value,('version','filesystem','bytes','inodes'))
+    if (type(value['version']) is not int or value['version']!=1
+        or type(value['filesystem']) is not str or value['filesystem'] not in STORAGE_FILESYSTEMS
+        or type(value['bytes']) is not int or not 16*1024*1024<=value['bytes']<=1024**4
+        or type(value['inodes']) is not int or not 128<=value['inodes']<=16777216):
+        _fail()
+    return dict(value)
+
+
+def storage_encoded(encoded):
+    if type(encoded) is not str or not 1<=len(encoded)<=1024:
+        _fail()
+    try:
+        return storage_policy(json.loads(encoded,object_pairs_hook=_duplicates,parse_constant=lambda _: _fail()))
+    except (ValueError,TypeError,RecursionError):
+        _fail()
+
+
+def verify_storage(policy,profile,writable_roots):
+    # The fixed /tmp mount covers work, HOME and TMPDIR. No child-selected path,
+    # fstatvfs free-space guess, provider marker or background disk polling.
+    _flags();policy=storage_policy(policy)
+    if profile['writable_parent']!='/tmp' or len(writable_roots)!=3:
+        _fail()
+    mounts=_mounts(profile)
+    selected=[m for m in mounts if m['point']=='/tmp']
+    if len(selected)!=1:
+        _fail()
+    selected=selected[0]
+    if (selected['root']!='/' or selected['fstype']!=policy['filesystem']
+        or not {'rw','nosuid','nodev'}<=set(selected['options'])
+        or 'rw' not in selected['super_options']
+        or any(m['point']!='/tmp' and _below(m['point'],'/tmp') for m in mounts)
+        or sum((m['major'],m['minor'])==(selected['major'],selected['minor']) for m in mounts)!=1):
+        _fail()
+    before=os.lstat('/tmp')
+    if not stat.S_ISDIR(before.st_mode) or before.st_uid!=0:
+        _fail()
+    fd=os.open('/tmp',_flags()|os.O_DIRECTORY)
+    try:
+        info=os.fstat(fd);_same(before,info)
+        if (os.major(info.st_dev),os.minor(info.st_dev))!=(selected['major'],selected['minor']):
+            _fail()
+        libc=ctypes.CDLL(None,use_errno=True)
+        libc.fstatfs.argtypes=[ctypes.c_int,ctypes.c_void_p];libc.fstatfs.restype=ctypes.c_int
+        data=ctypes.create_string_buffer(512)
+        if libc.fstatfs(fd,data)!=0 or ctypes.c_long.from_buffer(data).value!=STORAGE_FILESYSTEMS[policy['filesystem']]:
+            _fail()
+        capacity=os.fstatvfs(fd)
+        if (not 1<=capacity.f_frsize<=1024*1024 or not 1<=capacity.f_blocks<=2**63-1
+            or not 1<=capacity.f_files<=policy['inodes']
+            or capacity.f_blocks*capacity.f_frsize>policy['bytes']
+            or capacity.f_flag & os.ST_RDONLY
+            or not capacity.f_flag & os.ST_NOSUID or not capacity.f_flag & os.ST_NODEV):
+            _fail()
+        for root in writable_roots:
+            _path(root)
+            if root=='/tmp' or not _below(root,'/tmp'):
+                _fail()
+            root_fd=_open_directory(root)
+            try:
+                if os.fstat(root_fd).st_dev!=info.st_dev:
+                    _fail()
+            finally:os.close(root_fd)
+        _same(info,os.fstat(fd));_same(info,os.lstat('/tmp'))
+        again=os.fstatvfs(fd)
+        stable=lambda value:(value.f_frsize,value.f_blocks,value.f_files,value.f_fsid,value.f_flag)
+        if stable(capacity)!=stable(again) or _mounts(profile)!=mounts:
+            _fail()
+        witness={'version':1,'contract':STORAGE_CONTRACT,'policy':policy,
+            'mount':selected,'dev':info.st_dev,'ino':info.st_ino,
+            'bytes':capacity.f_blocks*capacity.f_frsize,'inodes':capacity.f_files,
+            'fsid':capacity.f_fsid,'flags':capacity.f_flag,
+            'writable_roots':sorted(writable_roots)}
+        witness['sha256']=hashlib.sha256(_canonical(witness)).hexdigest()
+        return witness
+    finally:os.close(fd)

@@ -202,3 +202,5 @@ Live Nebius speech deployment and native phone acceptance remain open. Additiona
 - [Installed strict GPU worker](57-strict-gpu-worker-integration.md): integrated original approval/guard/receipt checks, 162 passing increment tests and actual CUDA/provider review checklist.
 
 - [GPU sandbox resource limits](58-gpu-sandbox-resource-limits.md): owner shape-bound CPU/charged-memory/task ceilings, actual kernel verification and CUDA/runtime review.
+
+- [GPU workspace storage limits](59-gpu-workspace-storage-limits.md): dedicated filesystem block/inode capacity, installed exhaustion/refusal evidence and actual disk/CUDA review.

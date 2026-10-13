@@ -291,7 +291,7 @@ def run(request, workspace, project_data=None):
     elif project_data is not None:
         raise ValueError('Unexpected project archive')
     strict_digest=os.environ.get('ION_JOB_RUNTIME_PROFILE_SHA256')
-    if 'ION_JOB_GPU_GROUP_LIMITS' in os.environ and strict_digest is None:
+    if any(k in os.environ for k in ('ION_JOB_GPU_GROUP_LIMITS','ION_JOB_GPU_STORAGE_LIMITS')) and strict_digest is None:
         raise ValueError('GPU resource caps require the approved strict runtime')
     if strict_digest is not None and not re.fullmatch('[a-f0-9]{64}',strict_digest):
         raise ValueError('Invalid strict runtime approval')
@@ -347,11 +347,17 @@ def run(request, workspace, project_data=None):
             runtime=helper.trusted_module('ion_supervisor_runtime','ion_job_runtime.py')
             profile=runtime.load_profile()
             collector='/ion/results' if os.environ.get('ION_JOB_RUNTIME_COLLECTOR')=='/ion/results' else None
-            witness=runtime.verify_runtime(profile,[str(root),str(home),str(scratch)],collector=collector,identity=identity)
+            roots=[str(root),str(home),str(scratch)]
+            witness=runtime.verify_runtime(profile,roots,collector=collector,identity=identity)
+            encoded_storage=os.environ.get('ION_JOB_GPU_STORAGE_LIMITS')
+            storage=runtime.verify_storage(runtime.storage_encoded(encoded_storage),profile,roots) if encoded_storage is not None else None
         except Exception:
             raise ValueError('Approved strict runtime unavailable') from None
         if witness['profile_sha256']!=strict_digest:
             raise ValueError('Strict runtime profile changed')
+        if storage is not None:
+            env['ION_JOB_GPU_STORAGE_LIMITS']=encoded_storage
+            env['ION_JOB_GPU_STORAGE_SNAPSHOT_SHA256']=storage['sha256']
         env['ION_JOB_RUNTIME_PROFILE_SHA256']=strict_digest
         env['ION_JOB_RUNTIME_SNAPSHOT_SHA256']=witness['snapshot_sha256']
         if collector:env['ION_JOB_RUNTIME_COLLECTOR']=collector

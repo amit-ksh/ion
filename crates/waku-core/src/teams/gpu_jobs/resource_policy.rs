@@ -25,6 +25,34 @@ pub(crate) struct GpuResourcePolicy {
     pub child_runtime: Option<GpuRuntimePolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child_group: Option<GpuGroupPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_storage: Option<GpuStoragePolicy>,
+}
+/// Dedicated workspace filesystem capacity; excludes collector and retained cloud data.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct GpuStoragePolicy {
+    pub version: u16,
+    pub filesystem: GpuWorkspaceFilesystem,
+    pub bytes: u64,
+    pub inodes: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum GpuWorkspaceFilesystem {
+    Tmpfs,
+    Ext4,
+}
+impl GpuStoragePolicy {
+    pub(crate) fn validate(&self) -> Result<()> {
+        ensure!(
+            self.version == 1
+                && (16 * 1024 * 1024..=1024 * GIB).contains(&self.bytes)
+                && (128..=16_777_216).contains(&self.inodes),
+            "GPU storage approval requires bounded dedicated filesystem bytes and inodes"
+        );
+        Ok(())
+    }
 }
 /// Aggregate sandbox caps, verified from the actual private cgroup before exec.
 /// Charged host RAM excludes accelerator VRAM and does not attest physical capacity.
@@ -150,6 +178,13 @@ impl GpuResourcePolicy {
         if let Some(runtime) = &self.child_runtime {
             runtime.validate()?;
         }
+        if let Some(storage) = &self.child_storage {
+            storage.validate()?;
+            ensure!(
+                storage.bytes <= self.shape.disk_bytes,
+                "GPU workspace storage exceeds the original allocated disk shape"
+            );
+        }
         if let Some(group) = &self.child_group {
             group.validate()?;
             ensure!(
@@ -258,6 +293,12 @@ impl GpuResourcePolicy {
             )?
             .validate()
     }
+    pub(crate) fn require_child_storage(&self) -> Result<()> {
+        self.child_storage
+            .as_ref()
+            .context("Approve dedicated GPU workspace bytes and inodes before a new launch")?
+            .validate()
+    }
     pub(crate) fn matches_body(&self, body: &Value) -> Result<()> {
         self.validate()?;
         let mut environment = vec![
@@ -274,6 +315,9 @@ impl GpuResourcePolicy {
             environment.push(
                 json!({"name":"ION_JOB_GPU_GROUP_LIMITS","value":serde_json::to_string(group)?}),
             );
+        }
+        if let Some(storage) = &self.child_storage {
+            environment.push(json!({"name":"ION_JOB_GPU_STORAGE_LIMITS","value":serde_json::to_string(storage)?}));
         }
         ensure!(
             body["spec"]["environmentVariables"] == json!(environment),

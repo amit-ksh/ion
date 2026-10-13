@@ -8,11 +8,13 @@ from pathlib import Path
 import stat
 import subprocess
 import sys
+import tempfile
 import unittest
 import uuid
 BINARY='/usr/local/bin/ion-job-worker'
 PROFILE='/usr/local/libexec/ion-job-runtime.json'
 GPU_GROUP={'version':1,'cpu_millis':500,'memory_bytes':128*1024*1024,'processes':32}
+GPU_STORAGE={'version':1,'filesystem':'tmpfs','bytes':16*1024*1024,'inodes':128}
 
 class InstalledRuntimeTests(unittest.TestCase):
     @classmethod
@@ -37,12 +39,13 @@ class InstalledRuntimeTests(unittest.TestCase):
         Path(PROFILE).write_text(json.dumps(cls.profile),encoding='utf-8');os.chmod(PROFILE,0o444)
         cls.digest=cls.runtime.profile_sha256(cls.profile)
         cls.outside=Path('/tmp/strict-outside-readable');cls.outside.write_text('private-to-fixture');cls.outside.chmod(0o644)
-    def invoke(self,script,digest=None,outputs=None,inputs=None,group=None):
+    def invoke(self,script,digest=None,outputs=None,inputs=None,group=None,storage=None):
         request={'version':1,'request_id':str(uuid.uuid4()),'argv':['/usr/local/bin/python3','-I','-S','-c',script],
             'timeout_seconds':12,'inputs':[] if inputs is None else inputs,'output_paths':[] if outputs is None else outputs}
         env={'PATH':'/usr/local/bin:/usr/bin:/bin','ION_JOB_ISOLATED':'1','ION_JOB_CHILD_UID':'1000','ION_JOB_CHILD_GID':'1000',
             'ION_JOB_RUNTIME_PROFILE_SHA256':self.digest if digest is None else digest}
         if group is not None:env['ION_JOB_GPU_GROUP_LIMITS']=group if isinstance(group,str) else json.dumps(group)
+        if storage is not None:env['ION_JOB_GPU_STORAGE_LIMITS']=storage if isinstance(storage,str) else json.dumps(storage)
         result=subprocess.run([BINARY],input=json.dumps(request).encode(),capture_output=True,env=env,timeout=25)
         return result,json.loads(result.stdout)
     def test_installed_guard_allows_private_files_and_denies_global_paths_devices_ipc_and_fds(self):
@@ -74,6 +77,71 @@ print('strict private execution passed')
         self.assertEqual(result.returncode,0,(receipt,result.stderr))
         self.assertEqual(receipt['exit_code'],0,receipt)
         self.assertIn('strict private execution passed',base64.b64decode(receipt['stdout']['content_base64']).decode())
+    def test_gpu_storage_approved_mount_and_private_environment(self):
+        result,receipt=self.invoke("import os,pathlib;assert not any(k.startswith('ION_JOB_GPU_STORAGE') for k in os.environ);pathlib.Path('result.txt').write_bytes(b'bounded workspace')",storage=GPU_STORAGE,group=GPU_GROUP,outputs=['result.txt'])
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertEqual(base64.b64decode(receipt['outputs'][0]['content_base64']),b'bounded workspace')
+
+    def test_gpu_storage_bad_ceiling_type_or_json_refuses_before_user_code(self):
+        for value in [{**GPU_STORAGE,'bytes':16*1024*1024-1},{**GPU_STORAGE,'inodes':127},{**GPU_STORAGE,'filesystem':'ext4'},{**GPU_STORAGE,'version':True},{**GPU_STORAGE,'inodes':True},'{','x'*1025,json.dumps(GPU_STORAGE)[:-1]+',"bytes":16777216}']:
+            result,receipt=self.invoke("print('MUST-NOT-EXECUTE')",storage=value)
+            self.assertNotEqual(result.returncode,0);self.assertIn('error',receipt)
+            self.assertNotIn(b'MUST-NOT-EXECUTE',result.stdout+result.stderr)
+
+    def test_gpu_storage_demoted_guard_refuses_changed_original_capacity_witness(self):
+        with tempfile.TemporaryDirectory(prefix='strict-storage-guard-') as folder:
+            parent=Path(folder);parent.chmod(0o711);roots=[]
+            for name in ('work','home','tmp'):
+                p=parent/name;p.mkdir(mode=0o700);os.chown(p,1000,1000);roots.append(str(p))
+            witness=self.runtime.verify_runtime(self.profile,roots,identity=(1000,1000))
+            storage=self.runtime.verify_storage(GPU_STORAGE,self.profile,roots)
+            env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':roots[1],'TMPDIR':roots[2],
+                'ION_JOB_RUNTIME_PROFILE_SHA256':self.digest,'ION_JOB_RUNTIME_SNAPSHOT_SHA256':witness['snapshot_sha256'],
+                'ION_JOB_GPU_STORAGE_LIMITS':json.dumps(GPU_STORAGE),'ION_JOB_GPU_STORAGE_SNAPSHOT_SHA256':'a'*64}
+            self.assertNotEqual(storage['sha256'],env['ION_JOB_GPU_STORAGE_SNAPSHOT_SHA256'])
+            command=['/usr/local/bin/python3','-I','-S','/usr/local/libexec/ion-job-guard.py','1000','1000','--',
+                '/usr/local/bin/python3','-I','-S','-c',"print('MUST-NOT-EXECUTE')"]
+            result=subprocess.run(command,stdin=subprocess.DEVNULL,capture_output=True,cwd=roots[0],env=env,user=1000,group=1000,extra_groups=[],timeout=15)
+            self.assertEqual(result.returncode,125,result.stderr)
+            self.assertNotIn(b'MUST-NOT-EXECUTE',result.stdout+result.stderr)
+
+    def test_gpu_storage_real_files_exhaust_blocks_without_harming_collector(self):
+        script="""import errno,pathlib
+files=[]
+try:
+ for i in range(64):
+  p=pathlib.Path('fill-%d.bin'%i);files.append(p)
+  try:p.write_bytes(b'x'*(1024*1024))
+  except OSError as e:
+   assert e.errno==errno.ENOSPC;break
+ else:raise AssertionError('workspace block limit escaped')
+ assert sum(p.stat().st_blocks*512 for p in files)<=16777216
+finally:
+ for p in files:p.unlink()
+pathlib.Path('checkpoint.txt').write_bytes(b'after capacity denial')
+"""
+        result,receipt=self.invoke(script,storage=GPU_STORAGE,group=GPU_GROUP,outputs=['checkpoint.txt'])
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertEqual(base64.b64decode(receipt['outputs'][0]['content_base64']),b'after capacity denial')
+
+    def test_gpu_storage_real_empty_files_exhaust_inodes(self):
+        script="""import errno,pathlib
+files=[]
+try:
+ for i in range(256):
+  p=pathlib.Path('inode-%d'%i)
+  try:p.touch()
+  except OSError as e:
+   assert e.errno==errno.ENOSPC;print('inode-cap');break
+  files.append(p)
+ else:raise AssertionError('workspace inode limit escaped')
+finally:
+ for p in files:p.unlink()
+"""
+        result,receipt=self.invoke(script,storage=GPU_STORAGE,group=GPU_GROUP)
+        self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)
+        self.assertIn(b'inode-cap',base64.b64decode(receipt['stdout']['content_base64']))
+
     def test_gpu_group_actual_limits_and_removed_internal_environment(self):
         result,receipt=self.invoke("import os;assert 'ION_JOB_GPU_GROUP_LIMITS' not in os.environ;print('approved-group')",group=GPU_GROUP)
         self.assertEqual(result.returncode,0,(receipt,result.stderr));self.assertEqual(receipt['exit_code'],0,receipt)

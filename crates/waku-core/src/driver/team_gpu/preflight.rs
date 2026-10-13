@@ -132,6 +132,7 @@ impl Client {
         approved.require_child_network()?;
         approved.require_child_runtime()?;
         approved.require_child_group()?;
+        approved.require_child_storage()?;
         let body = launch.body()?;
         approved.matches_body(&body)?;
         ensure!(

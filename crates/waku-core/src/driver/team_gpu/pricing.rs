@@ -72,6 +72,7 @@ pub(super) fn approved_policy<'a>(
     resources.require_child_network()?;
     resources.require_child_runtime()?;
     resources.require_child_group()?;
+    resources.require_child_storage()?;
     let policy = budget.pricing.as_ref().context(
         "Approve the native job estimator and complete SKU pricing before a new GPU launch",
     )?;

@@ -36,6 +36,7 @@ pub(in crate::driver::team_gpu) fn policy(l: &Launch) -> GpuResourcePolicy {
         tenant_limit: cap,
         child_network: Some(GpuChildNetworkPolicy::SeccompSocketDenyV1),
         child_group: l.resource_group.clone(),
+        child_storage: l.workspace_storage.clone(),
         child_runtime: l.runtime_profile_sha256.as_ref().map(|digest| {
             crate::teams::gpu_jobs::GpuRuntimePolicy {
                 version: 1,
@@ -841,6 +842,7 @@ fn gpu_runtime_approval_preserves_historical_omission_but_refuses_new_preflight(
     let mut launch = launch();
     launch.runtime_profile_sha256 = None;
     launch.resource_group = None;
+    launch.workspace_storage = None;
     let p = policy(&launch);
     let body = launch.body().unwrap();
     assert!(p.matches_body(&body).is_ok());
@@ -939,4 +941,56 @@ fn gpu_group_exact_environment_rejects_duplicate_or_unbound_approval() {
     let mut changed = l;
     changed.resource_group.as_mut().unwrap().memory_bytes -= 1;
     assert!(p.matches_body(&changed.body().unwrap()).is_err());
+}
+
+#[test]
+fn gpu_storage_missing_changed_or_over_shape_refuses_before_provider_reads() {
+    for case in 0..6 {
+        let mut l = launch();
+        let mut p = policy(&l);
+        match case {
+            0 => {
+                l.workspace_storage = None;
+                p.child_storage = None;
+            }
+            1 => p.child_storage.as_mut().unwrap().bytes += 1,
+            2 => p.child_storage.as_mut().unwrap().inodes = 0,
+            3 => p.child_storage.as_mut().unwrap().version = 2,
+            4 => {
+                p.child_storage.as_mut().unwrap().filesystem =
+                    crate::teams::gpu_jobs::GpuWorkspaceFilesystem::Tmpfs
+            }
+            _ => p.child_storage.as_mut().unwrap().inodes -= 1,
+        }
+        let server = Server::new(vec![]);
+        let c = client(&server);
+        let mut f = Fixture::new(true, true);
+        f.policy.resources = Some(p.clone());
+        assert!(c.verify_preflight(&l, &f.policy).is_err());
+        assert!(super::super::pricing::approved_policy(&l, &f.policy).is_err());
+        assert!(server.finish().is_empty());
+        if case == 0 {
+            assert!(p.matches_body(&l.body().unwrap()).is_ok());
+            assert!(
+                serde_json::to_value(&p)
+                    .unwrap()
+                    .get("child_storage")
+                    .is_none()
+            );
+        }
+    }
+}
+#[test]
+fn gpu_storage_exact_body_refuses_duplicate_environment_and_unknown_filesystem() {
+    let l = launch();
+    let p = policy(&l);
+    assert!(p.matches_body(&l.body().unwrap()).is_ok());
+    let mut body = l.body().unwrap();
+    let env = body["spec"]["environmentVariables"].as_array_mut().unwrap();
+    env.push(env.last().unwrap().clone());
+    assert!(p.matches_body(&body).is_err());
+    for filesystem in ["overlay", "xfs", "fuse.s3"] {
+        let value = json!({"version":1,"filesystem":filesystem,"bytes":16777216,"inodes":128});
+        assert!(serde_json::from_value::<crate::teams::gpu_jobs::GpuStoragePolicy>(value).is_err());
+    }
 }
