@@ -869,3 +869,161 @@ fn file_publication_small_summary_and_recovery_cannot_be_removed_or_changed() {
             .is_err()
     );
 }
+
+#[test]
+fn html_bundle_publication_keeps_originals_and_replays_without_source_files() {
+    use sha2::{Digest, Sha256};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let source = "<link rel=stylesheet href='theme.css'><img src='plot.png'><p>Report</p>";
+    let css = ".report{display:grid;background:url(plot.png)}";
+    let raster = b"raster bytes";
+    for (path, bytes) in [
+        ("index.html", source.as_bytes()),
+        ("theme.css", css.as_bytes()),
+        ("plot.png", raster.as_slice()),
+    ] {
+        std::fs::write(f.dir.join(path), bytes).unwrap();
+    }
+    let sha = |b: &[u8]| format!("{:x}", Sha256::digest(b));
+    let args = serde_json::json!({"path":"index.html","sha256":sha(source.as_bytes()),"name":"Report.html","summary":"Report with its local styles and plot","resources":[{"path":"theme.css","sha256":sha(css.as_bytes())},{"path":"plot.png","sha256":sha(raster)}]});
+    let parsed: HtmlBundleArgs = serde_json::from_value(args.clone()).unwrap();
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_html_bundle(&root.lease, request, &f.dir, &parsed, 102)
+        .unwrap();
+    let bytes = f.definitions.read_document(artifact.id).unwrap();
+    let portable = std::str::from_utf8(&bytes).unwrap();
+    assert!(portable.contains("display:grid"));
+    assert!(portable.contains("data:image/png;base64,"));
+    assert!(artifact.evidence.as_ref().unwrap().matches(&bytes));
+    assert_eq!(
+        std::fs::read_to_string(f.dir.join("index.html")).unwrap(),
+        source
+    );
+    assert_eq!(
+        std::fs::read_to_string(f.dir.join("theme.css")).unwrap(),
+        css
+    );
+    let reply = f.store.document_model_reply(artifact.id, &bytes).unwrap();
+    assert_eq!(reply["summary"], parsed.summary);
+    assert!(reply.get("content").is_none());
+    let db = f.store.connect().unwrap();
+    documents::recover_html_bundle(&db, &artifact, &args, &bytes).unwrap();
+    let mut changed = args.clone();
+    changed["resources"][0]["sha256"] = "0".repeat(64).into();
+    assert!(documents::recover_html_bundle(&db, &artifact, &changed, &bytes).is_err());
+    for name in ["index.html", "theme.css", "plot.png"] {
+        std::fs::remove_file(f.dir.join(name)).unwrap();
+    }
+    assert_eq!(
+        f.store
+            .publish_html_bundle(&root.lease, request, &f.dir, &parsed, 103)
+            .unwrap()
+            .id,
+        artifact.id
+    );
+    let mut changed = parsed.clone();
+    changed.summary = "Different".into();
+    assert!(
+        f.store
+            .publish_html_bundle(&root.lease, request, &f.dir, &changed, 103)
+            .is_err()
+    );
+    db.execute(
+        "DELETE FROM ion_team_html_bundles WHERE artifact_id=?",
+        [artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(f.definitions.read_document(artifact.id).is_err());
+    assert!(
+        f.store
+            .publish_html_bundle(&root.lease, request, &f.dir, &parsed, 103)
+            .is_err()
+    );
+}
+#[test]
+fn html_bundle_refuses_changed_unlisted_private_duplicate_and_unused_resources() {
+    use sha2::{Digest, Sha256};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let source = "<img src=plot.png>";
+    std::fs::write(f.dir.join("index.html"), source).unwrap();
+    std::fs::write(f.dir.join("plot.png"), b"raster").unwrap();
+    let sha = |b: &[u8]| format!("{:x}", Sha256::digest(b));
+    let mut args = serde_json::json!({"path":"index.html","sha256":sha(source.as_bytes()),"name":"Report.html","summary":"Report","resources":[]});
+    assert!(
+        f.store
+            .publish_html_bundle(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                &serde_json::from_value(args.clone()).unwrap(),
+                102
+            )
+            .is_err()
+    );
+    args["resources"] = serde_json::json!([{"path":"plot.png","sha256":"0".repeat(64)}]);
+    assert!(
+        f.store
+            .publish_html_bundle(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                &serde_json::from_value(args.clone()).unwrap(),
+                102
+            )
+            .is_err()
+    );
+    args["resources"][0]["sha256"] = sha(b"raster").into();
+    let entry = args["resources"][0].clone();
+    args["resources"].as_array_mut().unwrap().push(entry);
+    assert!(
+        f.store
+            .publish_html_bundle(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                &serde_json::from_value(args.clone()).unwrap(),
+                102
+            )
+            .is_err()
+    );
+    args["resources"] = serde_json::json!([{"path":".env","sha256":sha(b"private")}]);
+    std::fs::write(f.dir.join(".env"), b"private").unwrap();
+    assert!(
+        f.store
+            .publish_html_bundle(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                &serde_json::from_value(args).unwrap(),
+                102
+            )
+            .is_err()
+    );
+    std::fs::write(f.dir.join("unused.css"), "p{color:green}").unwrap();
+    let unused = serde_json::json!({"path":"index.html","sha256":sha(source.as_bytes()),"name":"Report.html","summary":"Report","resources":[{"path":"plot.png","sha256":sha(b"raster")},{"path":"unused.css","sha256":sha(b"p{color:green}")}]});
+    assert!(
+        f.store
+            .publish_html_bundle(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                &serde_json::from_value(unused).unwrap(),
+                102
+            )
+            .is_err()
+    );
+    assert!(
+        f.definitions
+            .load()
+            .unwrap()
+            .records
+            .iter()
+            .all(|r| !matches!(r, ControlRecord::Artifact(_)))
+    );
+}

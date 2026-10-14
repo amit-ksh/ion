@@ -85,7 +85,8 @@ pub(super) fn tool(
                 return Ok(json!({"assignment_id":child.id,"task_id":child.task_id,"status":child.status,"replayed":false}).to_string());
             }
         }
-        "save_document" | "save_pdf" | "save_file_document" | "publish_change" => {
+        "save_document" | "save_pdf" | "save_file_document" | "save_html_bundle"
+        | "publish_change" => {
             let row:Option<(String,String,String,Vec<u8>)>=db.query_row("SELECT artifact_id,name,format,content FROM ion_team_document_receipts WHERE work_id=? AND request_id=?",
                 params![work.id.to_string(),request.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
             if let Some((id, file, format, bytes)) = row {
@@ -128,6 +129,9 @@ pub(super) fn tool(
                         && crate::control::verified_document(db, &artifact)? == bytes,
                     "Recovered document evidence changed"
                 );
+                if name == "save_html_bundle" {
+                    documents::recover_html_bundle(db, &artifact, args, &bytes)?;
+                }
                 if name == "save_file_document" {
                     documents::recover_file(db, &artifact, args, &bytes)?;
                 }

@@ -8,7 +8,7 @@ import {
 export const MAX_RENDERED_HTML_BYTES = 1024 * 1024;
 const CHUNK = 8192;
 const CSP =
-  "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' data:; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'";
 const HTML_NS = constants.NS.HTML;
 const SVG_NS = constants.NS.SVG;
 const OMIT = new Set([
@@ -34,7 +34,6 @@ const OMIT = new Set([
   "set",
   "audio",
   "video",
-  "source",
   "track",
 ]);
 const URL_ATTRS = new Set([
@@ -55,6 +54,38 @@ const URL_ATTRS = new Set([
   "usemap",
   "profile",
 ]);
+const DATA_SRCSET =
+  /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/]+={0,2}(?:\s+([\s\S]+))?$/i;
+function embeddedSrcset(value: string): boolean {
+  const candidates = value.trim().split(/\s*,\s*(?=data:image\/)/i);
+  if (!candidates.length || candidates.length > 32) return false;
+  return candidates.every((candidate) => {
+    const match = DATA_SRCSET.exec(candidate);
+    if (!match) return false;
+    const seen = new Set<string>();
+    for (const descriptor of (match[1] ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)) {
+      const kind = descriptor.slice(-1),
+        count = Number(descriptor.slice(0, -1));
+      if (
+        !/^(?:[0-9]+[wh]|(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)x)$/.test(
+          descriptor,
+        ) ||
+        !Number.isFinite(count) ||
+        count <= 0 ||
+        seen.has(kind)
+      )
+        return false;
+      seen.add(kind);
+    }
+    return (
+      !(seen.has("x") && (seen.has("w") || seen.has("h"))) &&
+      !(seen.has("h") && !seen.has("w"))
+    );
+  });
+}
 export type RenderedHtml = { html: string; removed: boolean };
 export function allowDocumentNavigation(url: string): boolean {
   return url === "about:blank" || /^about:blank#[^\s]*$/.test(url);
@@ -136,7 +167,17 @@ export async function prepareRenderedHtml(
       );
     if (tree.isElementNode(node)) {
       const tag = node.tagName.toLowerCase();
-      if (![HTML_NS, SVG_NS].includes(node.namespaceURI) || OMIT.has(tag)) {
+      const pictureSource =
+        tag === "source" &&
+        node.parentNode &&
+        tree.isElementNode(node.parentNode) &&
+        node.parentNode.namespaceURI === HTML_NS &&
+        node.parentNode.tagName === "picture";
+      if (
+        ![HTML_NS, SVG_NS].includes(node.namespaceURI) ||
+        OMIT.has(tag) ||
+        (tag === "source" && !pictureSource)
+      ) {
         tree.detachNode(node);
         removed = true;
         continue;
@@ -172,7 +213,11 @@ export async function prepareRenderedHtml(
             node.namespaceURI === SVG_NS &&
             name === "href" &&
             /^#[a-z0-9_-]+$/i.test(attr.value);
-          if (!embedded && !fragment) {
+          const responsive =
+            name === "srcset" &&
+            (tag === "img" || pictureSource) &&
+            embeddedSrcset(attr.value);
+          if (!embedded && !fragment && !responsive) {
             removed = true;
             return false;
           }
@@ -236,7 +281,6 @@ export async function prepareRenderedHtml(
     "link",
     "meta",
     "param",
-    "source",
     "track",
     "wbr",
   ]);

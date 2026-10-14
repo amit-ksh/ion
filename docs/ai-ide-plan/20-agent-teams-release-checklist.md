@@ -892,7 +892,8 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Full mobile typecheck; phone document/export/render tests and native additional-format publication/discovery/exact-export/replay test pass. Core production/test code check passes.
 - [ ] Run the [native phone layout/device checklist](63-phone-rendered-documents.md#owner-review-checklist) after rebuilding with the new native dependency.
 - [x] Larger file-based publications now preserve exact originals up to 16 MiB with sealed summary/recovery receipts.
-- [ ] Finish verified resource bundles and remaining native harness contracts. The active goal is not complete.
+- [x] Portable CSS/import/image/font and responsive resource bundles are implemented in the increment below.
+- [ ] Finish additional resource references and remaining native harness contracts. The active goal is not complete.
 
 ## 2026-10-14 — large file publications and image previews
 
@@ -908,3 +909,14 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Twelve shared bridge regressions and the installed Pi 0.84.1/OMP 18.6.1 native callback fixture pass. Accepted Windows sockets use bounded blocking reads; catalog discovery does not consume the scripted tool response.
 - [ ] Review owner native accounts and cold startup under memory pressure; investigation observed an intermittent Pi initialization timeout.
 - [ ] Complete physical-device/native layout acceptance and remaining Amp/Cursor native contracts. The full goal remains active.
+
+
+## 2026-10-14 — portable HTML resource publication
+
+- [x] `save_html_bundle` publishes a generated HTML snapshot from inspected source/resource SHA-256 values, preserving workspace originals.
+- [x] Resolve local stylesheet links, nested CSS imports, URL functions, inline CSS, raster images, fonts, responsive srcset/picture candidates and quoted CSS image-set alternatives.
+- [x] Bound original/expanded bytes, resource/token counts and recursion; refuse unlisted/private/changed/duplicate/unused sources and cyclic imports.
+- [x] Atomic payload/provenance/argument seals; exact replay after source removal and argument-matched recovery without rebundling. Recheck elapsed lease time before commit.
+- [x] Nine native bundle cases pass, including trusted worker inspection/publication/read/report; twelve phone HTML cases, mobile TypeScript and Rust formatting pass. Desktop/daemon checks pass for the responsive bundle code.
+- [ ] Complete [device/font/export review](65-portable-html-bundles.md#owner-review) and remaining document interpretation/resource references.
+- [ ] Finish native harness requirements; Amp's native request-hook route is now identified for normal-task invocation, while Amp/Cursor completion contracts remain open.

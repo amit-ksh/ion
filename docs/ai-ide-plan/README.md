@@ -210,6 +210,8 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 
 - [First-launch setup](62-first-launch-onboarding.md): skippable desktop connection screens, resumable progress and a persistent setup indicator.
 
-- [Phone rendered documents](63-phone-rendered-documents.md): authored inline HTML/CSS/SVG rendering, larger previews, additional text formats and pending larger binary/file publications.
+- [Phone rendered documents](63-phone-rendered-documents.md): authored inline HTML/CSS/SVG rendering, larger previews, additional text formats and verified larger binary/file publications.
 
 - [Remaining harness integrations](64-remaining-harness-integrations.md): Pi/Oh My Pi native Teams bridge and current Amp/Cursor contract gaps.
+
+- [Portable HTML resource bundles](65-portable-html-bundles.md) — pinned local CSS, images and fonts, generated snapshot receipts and owner review.

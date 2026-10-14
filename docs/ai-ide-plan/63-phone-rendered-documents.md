@@ -19,7 +19,7 @@ The current goal adds additional formats, larger publications, fuller phone HTML
 
 ## Document isolation
 
-The initial view receives only reconstructed document markup, with no daemon/gateway URL, key, token, cookies or message bridge. Native JavaScript, DOM storage, file access, universal file access, popups, link previews and media playback are disabled. CSP precedes authored content and denies scripts, network, imports, frames, objects and form submissions. Remote links/resources and active event attributes are removed; inline styles and permitted embedded images/fonts remain. External stylesheets and relative resource bundles require additional publication/resource work; export preserves the exact original for an external document application.
+The initial view receives only reconstructed document markup, with no daemon/gateway URL, key, token, cookies or message bridge. Native JavaScript, DOM storage, file access, universal file access, popups, link previews and media playback are disabled. CSP precedes authored content and denies scripts, network, remote stylesheet imports, frames, objects and form submissions; data CSS imports support portable bundles. Remote links/resources and active event attributes are removed; inline styles and permitted embedded images/fonts remain. The new `save_html_bundle` publication path embeds pinned local stylesheets, CSS URL/import dependencies, raster images and fonts into a generated portable snapshot. [Bundle scope and remaining resource references](65-portable-html-bundles.md) are recorded separately. File-original export continues to preserve the exact published original.
 
 Controls are rendered natively outside the document. Scope changes unmount the view. A failed native content process offers Reading/Source/export, and malformed/deep documents keep complete Source. A restrictive document preview is not a claim that authored interactive applications execute here.
 
@@ -45,7 +45,7 @@ No visual test or physical-device acceptance was run. The user’s AGENTS guidan
 ## Remaining development in the full goal
 
 - Additional Office content interpretation; current DOCX/XLSX publication preserves opaque exact originals for export with an explicit agent summary. PNG now has a bounded static preview.
-- Supporting verified local CSS/image/font resource bundles where needed for authored HTML fidelity.
+- Finish additional resource references beyond the new pinned CSS/import/URL/img/srcset/image-set bundle path; see [the bundle increment](65-portable-html-bundles.md).
 - Complete remaining native harness contracts and provider acceptance. See the current harness guide; Amp/Cursor contract gaps remain explicit.
 
 ## Primary implementation references

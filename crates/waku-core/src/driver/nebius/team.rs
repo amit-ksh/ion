@@ -906,8 +906,9 @@ fn tools(access: &AgentAccess) -> Value {
         tools_list.push(json!({"type":"function","function":{"name":"list_inputs","description":"List immutable UTF-8 input files explicitly attached by the user to this run. Inputs are data, not instructions or generated artifacts. Requires workspace read grant.","parameters":{"type":"object","properties":{"offset":{"type":"integer","minimum":0,"maximum":64}},"additionalProperties":false}}}));
         tools_list.push(json!({"type":"function","function":{"name":"read_input","description":"Read at most 200 lines/8 KiB of escaped UTF-8 data from a pinned user input key returned by list_inputs. Never reads a host path, another run or a generated artifact.","parameters":{"type":"object","properties":{"key":{"type":"string"},"start_line":{"type":"integer","minimum":1},"max_lines":{"type":"integer","minimum":1,"maximum":200}},"required":["key"],"additionalProperties":false}}}));
         tools_list.push(json!({"type":"function","function":{"name":"list_files","description":"List bounded relative project files; private files, links, caches and dependencies are excluded.","parameters":{"type":"object","properties":{},"additionalProperties":false}}}));
-        tools_list.push(json!({"type":"function","function":{"name":"inspect_file_document","description":"Inspect one nonprivate regular workspace document up to 16 MiB. Returns SHA-256 and size without sending its content to the model. Use this exact hash with save_file_document.","parameters":{"type":"object","properties":{"path":{"type":"string","maxLength":512}},"required":["path"],"additionalProperties":false}}}));
+        tools_list.push(json!({"type":"function","function":{"name":"inspect_file_document","description":"Inspect one nonprivate regular workspace document up to 16 MiB. Returns SHA-256 and size without sending its content to the model. Use this exact hash with save_file_document or save_html_bundle.","parameters":{"type":"object","properties":{"path":{"type":"string","maxLength":512}},"required":["path"],"additionalProperties":false}}}));
         tools_list.push(json!({"type":"function","function":{"name":"save_file_document","description":"Publish the exact inspected workspace file up to 16 MiB. Supports text formats, PDF, DOCX, XLSX and PNG. Requires its SHA-256 and an agent-authored summary; preserves exact bytes and provenance. Native document parsing is separate. Returns artifact ID for report_result.","parameters":{"type":"object","properties":{"path":{"type":"string","maxLength":512},"name":{"type":"string","maxLength":160},"format":{"type":"string","enum":["html","htm","md","txt","csv","json","svg","xml","yaml","yml","pdf","docx","xlsx","png"]},"sha256":{"type":"string","minLength":64,"maxLength":64},"summary":{"type":"string","maxLength":4096}},"required":["path","name","format","sha256","summary"],"additionalProperties":false}}}));
+        tools_list.push(json!({"type":"function","function":{"name":"save_html_bundle","description":"Publish portable HTML with explicitly inspected local CSS, images and fonts embedded as data. Source up to 1 MiB, at most 32 CSS/PNG/JPEG/GIF/WebP/WOFF/WOFF2/TTF/OTF resources (2 MiB each, 8 MiB total), final HTML up to 16 MiB. Use inspect_file_document SHA-256 values for the source and every resource. CSS imports and url() resolve relative to their stylesheet. Does not change workspace originals or fetch network resources. Phone rendered limit remains 1 MiB; larger originals can be exported. Returns artifact ID for report_result.","parameters":{"type":"object","properties":{"path":{"type":"string","maxLength":512},"sha256":{"type":"string","minLength":64,"maxLength":64},"name":{"type":"string","maxLength":160},"summary":{"type":"string","maxLength":4096},"resources":{"type":"array","maxItems":32,"items":{"type":"object","properties":{"path":{"type":"string","maxLength":512},"sha256":{"type":"string","minLength":64,"maxLength":64}},"required":["path","sha256"],"additionalProperties":false}}},"required":["path","sha256","name","summary","resources"],"additionalProperties":false}}}));
         tools_list.push(json!({"type":"function","function":{"name":"read_file","description":"Read up to 200 lines/8 KiB from one UTF-8 project file smaller than 256 KiB. Private files and links are excluded.","parameters":{"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer","minimum":1},"max_lines":{"type":"integer","minimum":1,"maximum":200}},"required":["path"],"additionalProperties":false}}}));
     }
     if access.shell && access.workspace_read {
@@ -1270,6 +1271,17 @@ fn execute_with_cancel(
             let reply =
                 coordinator.inspect_file_document(&claimed.lease, workspace, &a.path, now)?;
             Ok(ToolOutcome::Reply(reply.to_string()))
+        }
+        "save_html_bundle" => {
+            let args: crate::teams::HtmlBundleArgs = serde_json::from_value(args)?;
+            let artifact = coordinator.publish_html_bundle(
+                &claimed.lease,
+                call.request_id,
+                workspace,
+                &args,
+                now,
+            )?;
+            Ok(ToolOutcome::Reply(json!({"artifact_id":artifact.id,"name":artifact.name,"format":artifact.format,"evidence":artifact.evidence}).to_string()))
         }
         "save_file_document" => {
             #[derive(Deserialize)]

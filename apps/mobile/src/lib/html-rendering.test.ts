@@ -126,3 +126,42 @@ test("SVG keeps a complete readable source alternative to the rendered drawing",
     source,
   );
 });
+
+test("portable bundle styles retain pinned data CSS imports and embedded fonts", async () => {
+  const imported = Buffer.from(
+    "@media(max-width:600px){.report{display:grid}}",
+  ).toString("base64");
+  const source = `<style>@import url("data:text/css;base64,${imported}") screen;@font-face{font-family:Report;src:url(data:font/woff2;base64,Zm9udA==)}.report{background:url(data:image/png;base64,cGxvdA==)}</style><img src="data:image/png;base64,cGxvdA=="><script>fetch('/private')</script>`;
+  const result = await prepareRenderedHtml(source, () => true);
+  expect(result.html).toContain(`data:text/css;base64,${imported}`);
+  expect(result.html).toContain("data:font/woff2;base64,Zm9udA==");
+  expect(result.html).toContain("data:image/png;base64,cGxvdA==");
+  expect(result.html).toContain("style-src 'unsafe-inline' data:");
+  expect(result.html).toContain("connect-src 'none'");
+  expect(result.html).not.toContain("<script>");
+});
+
+test("responsive image candidates stay embedded and picture sources remain visual", async () => {
+  const source = `<picture><source media="(max-width:600px)" srcset="data:image/png;base64,YQ== 1x, data:image/png;base64,Yg== 2x"><img alt="Plot" src="data:image/png;base64,YQ==" srcset="data:image/png;base64,YQ== 400w, data:image/png;base64,Yg== 800w"></picture><video><source src="https://outside.invalid/video"></video>`;
+  const result = await prepareRenderedHtml(source, () => true);
+  expect(result.html).toContain("<picture><source media=");
+  expect(result.html).toContain("srcset=");
+  expect(result.html).toContain("800w");
+  expect(result.html).not.toContain("outside.invalid");
+  expect(result.html).not.toContain("<video>");
+});
+test("responsive image candidates cannot smuggle remote or conflicting URLs", async () => {
+  for (const value of [
+    "data:image/png;base64,YQ== 1x, https://outside.invalid/a 2x",
+    "https://outside.invalid/a 1x",
+    "data:image/png;base64,YQ== 1x 2x",
+    "data:image/png;base64,YQ== 400w 2x",
+    "data:image/png;base64,YQ== 0w",
+  ]) {
+    const result = await prepareRenderedHtml(
+      `<img srcset="${value}">`,
+      () => true,
+    );
+    expect(result.html).not.toContain("srcset=");
+  }
+});

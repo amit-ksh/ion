@@ -39,6 +39,8 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             work_id TEXT NOT NULL REFERENCES ion_team_work(id), request_id TEXT NOT NULL,
             artifact_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, format TEXT NOT NULL,
             content BLOB NOT NULL, PRIMARY KEY(work_id,request_id));
+        CREATE TABLE IF NOT EXISTS ion_team_html_bundles (
+            artifact_id TEXT PRIMARY KEY REFERENCES ion_team_document_receipts(artifact_id), arguments TEXT NOT NULL, signature TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_file_documents (
             artifact_id TEXT PRIMARY KEY REFERENCES ion_team_document_receipts(artifact_id),
             path TEXT NOT NULL,summary TEXT NOT NULL,signature TEXT NOT NULL);

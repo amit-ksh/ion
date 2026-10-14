@@ -20,6 +20,7 @@ mod continuation;
 mod decisions;
 mod dispatch;
 mod documents;
+pub(crate) use documents::HtmlBundleArgs;
 mod followups;
 mod gateway_pdf;
 pub(crate) mod gpu_jobs;

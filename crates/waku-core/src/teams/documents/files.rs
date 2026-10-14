@@ -13,7 +13,7 @@ const FORMATS: &[&str] = &[
     "png",
 ];
 
-fn read(root: &Path, relative: &str) -> Result<Vec<u8>> {
+pub(super) fn read(root: &Path, relative: &str) -> Result<Vec<u8>> {
     ensure!(relative.len() <= 512, "Publication path exceeds its bound");
     let root = fs::canonicalize(root)?;
     let path = workspace::safe_edit_path(&root, relative)?;
@@ -162,6 +162,22 @@ pub(in crate::teams) fn verify(
     artifact: &Artifact,
     bytes: &[u8],
 ) -> Result<Option<(String, String)>> {
+    let has_bundles:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ion_team_html_bundles')",[],|r|r.get(0))?;
+    let is_bundle: bool = has_bundles
+        && db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM ion_team_html_bundles WHERE artifact_id=?)",
+            [artifact.id.to_string()],
+            |r| r.get(0),
+        )?;
+    if artifact
+        .evidence
+        .as_ref()
+        .and_then(|e| e.producer.activity_id.as_deref())
+        == Some("ion-html-bundle")
+        || is_bundle
+    {
+        return super::html_bundle::verify(db, artifact, bytes).map(Some);
+    }
     let has_receipts:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ion_team_file_documents')",[],|r|r.get(0))?;
     if !has_receipts {
         ensure!(

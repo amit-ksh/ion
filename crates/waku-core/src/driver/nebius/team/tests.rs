@@ -1327,3 +1327,35 @@ fn native_team_pdf_publication_reads_labeled_summary_and_reports_original_binary
     );
     assert_eq!(f.artifacts().len(), 1);
 }
+
+#[test]
+fn native_team_html_bundle_inspects_publishes_reads_summary_and_reports() {
+    let f = Fixture::new(true);
+    let claim = f.claim(f.run.work[0].id);
+    let source = "<link rel=stylesheet href=theme.css><p>Reviewed report</p>";
+    std::fs::write(f.workspace.join("index.html"), source).unwrap();
+    std::fs::write(f.workspace.join("theme.css"), "p{color:green}").unwrap();
+    let mut step = 0;
+    let mut source_hash = String::new();
+    let mut artifact = Uuid::nil();
+    assert_eq!(f.worker(NativeTeamStart::Fresh(claim),|_,_,messages,tools| {
+        assert!(tools.as_array().unwrap().iter().any(|t|t["function"]["name"]=="save_html_bundle"));step+=1;
+        Ok(match step {
+            1=>call("inspect_file_document",json!({"path":"index.html"})),
+            2=>{source_hash=last_reply(messages)["sha256"].as_str().unwrap().into();call("inspect_file_document",json!({"path":"theme.css"}))},
+            3=>call("save_html_bundle",json!({"path":"index.html","sha256":source_hash,"name":"Report.html","summary":"Reviewed report with its stylesheet","resources":[{"path":"theme.css","sha256":last_reply(messages)["sha256"]}]})),
+            4=>{artifact=Uuid::parse_str(last_reply(messages)["artifact_id"].as_str().unwrap()).unwrap();call("read_document",json!({"artifact_id":artifact}))},
+            _=>{let reply=last_reply(messages);assert_eq!(reply["summary"],"Reviewed report with its stylesheet");assert!(reply.get("content").is_none());call("report_result",json!({"summary":"Portable report published","artifact_ids":[artifact]}))}
+        })
+    }).unwrap(),NativeTeamExit::Settled);
+    let html = String::from_utf8(f.control.read_document(artifact).unwrap()).unwrap();
+    assert!(html.contains("<style>p{color:green}</style>"));
+    assert_eq!(
+        std::fs::read_to_string(f.workspace.join("index.html")).unwrap(),
+        source
+    );
+    assert_eq!(
+        f.store.snapshot(f.run.id).unwrap().status,
+        TeamRunStatus::Completed
+    );
+}
