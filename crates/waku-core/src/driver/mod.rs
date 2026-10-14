@@ -271,10 +271,18 @@ pub(crate) fn start_local_with_workspace(
         ProviderKind::Codex => Arc::new(codex::CodexDriver::start_with_workspace(
             options, events, workspace,
         )?),
-        ProviderKind::Pi => Arc::new(pi::PiDriver::start(pi::PiFlavor::Pi, options, events)?),
-        ProviderKind::OhMyPi => {
-            Arc::new(pi::PiDriver::start(pi::PiFlavor::OhMyPi, options, events)?)
-        }
+        ProviderKind::Pi => Arc::new(pi::PiDriver::start_with_workspace(
+            pi::PiFlavor::Pi,
+            options,
+            events,
+            workspace,
+        )?),
+        ProviderKind::OhMyPi => Arc::new(pi::PiDriver::start_with_workspace(
+            pi::PiFlavor::OhMyPi,
+            options,
+            events,
+            workspace,
+        )?),
         // Cursor, Fx, Grok, and Kimi Code all serve a long-lived ACP session,
         // which is the only way their Supervised mode can actually ask the user
         // rather than silently forcing or denying.

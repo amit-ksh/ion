@@ -178,6 +178,89 @@ pub struct PiDriver {
     flavor: PiFlavor,
     commands: Sender<CommandMessage>,
     computer_use: Option<computer_use_runtime::ComputerUseRuntime>,
+    team_bridge: Option<PiTeamBridge>,
+}
+
+/// Per-process extension listener, bound only after the native RPC reports the
+/// real session. Resume keeps the native session/call identity for durable replay.
+#[derive(Clone)]
+struct PiTeamBridge {
+    hub: super::source_teams::opencode::Hub,
+    binding: Arc<Mutex<Option<super::source_teams::opencode::Bridge>>>,
+    context: super::WorkspaceContext,
+    events: DriverEventSender,
+    flavor: PiFlavor,
+}
+impl PiTeamBridge {
+    fn new(
+        context: super::WorkspaceContext,
+        events: DriverEventSender,
+        flavor: PiFlavor,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            hub: super::source_teams::opencode::Hub::start()?,
+            binding: Arc::new(Mutex::new(None)),
+            context,
+            events,
+            flavor,
+        })
+    }
+    fn configure(&self, command: &mut std::process::Command) -> anyhow::Result<()> {
+        self.hub.configure_pi(
+            command,
+            match self.flavor {
+                PiFlavor::Pi => "pi",
+                PiFlavor::OhMyPi => "ohmypi",
+            },
+        )
+    }
+    fn bind(&self, cursor: &ProviderResumeCursor) -> anyhow::Result<()> {
+        let native = match (self.flavor, cursor) {
+            (PiFlavor::Pi, ProviderResumeCursor::Pi { session_id, .. })
+            | (PiFlavor::OhMyPi, ProviderResumeCursor::OhMyPi { session_id, .. }) => session_id,
+            _ => anyhow::bail!("Wrong native session for Pi Teams"),
+        };
+        let flavor = match self.flavor {
+            PiFlavor::Pi => "pi",
+            PiFlavor::OhMyPi => "ohmypi",
+        };
+        let mut binding = self.binding.lock();
+        if let Some(old) = binding.take() {
+            old.close();
+        }
+        *binding = Some(self.hub.attach(
+            self.context.clone(),
+            format!("{flavor}:{native}"),
+            self.events.clone(),
+        )?);
+        Ok(())
+    }
+    fn observe(&self, value: &Value) {
+        if let Some(bridge) = self.binding.lock().as_ref() {
+            bridge.observe_pi(value, self.flavor.settled_event());
+        }
+    }
+    fn allow_turn(&self) {
+        if let Some(bridge) = self.binding.lock().as_ref() {
+            bridge.allow_turn();
+        }
+    }
+    fn cancel(&self) {
+        if let Some(bridge) = self.binding.lock().as_ref() {
+            bridge.cancel();
+        }
+    }
+    fn close(&self) {
+        if let Some(bridge) = self.binding.lock().take() {
+            bridge.close();
+        }
+        self.hub.close();
+    }
+    fn respond(&self, id: &str, option: &str) {
+        if let Some(bridge) = self.binding.lock().as_ref() {
+            bridge.respond(id, option);
+        }
+    }
 }
 
 fn configure_pi_computer_use_command(
@@ -204,6 +287,23 @@ impl PiDriver {
         flavor: PiFlavor,
         options: DriverStartOptions,
         events: DriverEventSender,
+    ) -> anyhow::Result<Self> {
+        Self::start_with_workspace(flavor, options, events, None)
+    }
+    pub(super) fn start_with_workspace(
+        flavor: PiFlavor,
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
+        Self::start_configured(flavor, options, events, workspace, |_| {})
+    }
+    pub(super) fn start_configured(
+        flavor: PiFlavor,
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+        configure: impl FnOnce(&mut std::process::Command),
     ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
@@ -253,7 +353,13 @@ impl PiDriver {
             .as_ref()
             .map(|_| crate::computer_use::pi_extension_path())
             .transpose()?;
+        let team_bridge = workspace
+            .map(|context| PiTeamBridge::new(context, events.clone(), flavor))
+            .transpose()?;
         let mut command = crate::command_env::command(&binary);
+        if let Some(bridge) = &team_bridge {
+            bridge.configure(&mut command)?;
+        }
         command.args(["--mode", "rpc", flavor.full_access_arg()]);
         if flavor.skips_version_check_by_env() {
             command.env("PI_SKIP_VERSION_CHECK", "1");
@@ -265,6 +371,7 @@ impl PiDriver {
                 .zip(pi_extension.as_deref())
                 .map(|(runtime, extension)| (&runtime.config, extension)),
         );
+        configure(&mut command);
         let command = command
             .current_dir(&cwd)
             .stdin(Stdio::piped())
@@ -290,6 +397,7 @@ impl PiDriver {
         let reader_pending = pending.clone();
         let reader_commands = commands.clone();
         let reader_events = events.clone();
+        let reader_bridge = team_bridge.clone();
         let reader_thread =
             thread::Builder::new()
                 .name("waku-pi-reader".into())
@@ -306,14 +414,19 @@ impl PiDriver {
                                         // envelopes that reassemble into one
                                         // logical message.
                                         match chunks.accept(value) {
-                                            Ok(Some(value)) => handle_pi_message(
-                                                flavor,
-                                                value,
-                                                &reader_pending,
-                                                &reader_commands,
-                                                &reader_events,
-                                                &mut stream_state,
-                                            ),
+                                            Ok(Some(value)) => {
+                                                if let Some(bridge) = &reader_bridge {
+                                                    bridge.observe(&value);
+                                                }
+                                                handle_pi_message(
+                                                    flavor,
+                                                    value,
+                                                    &reader_pending,
+                                                    &reader_commands,
+                                                    &reader_events,
+                                                    &mut stream_state,
+                                                )
+                                            }
                                             Ok(None) => {}
                                             Err(error) => {
                                                 let _ =
@@ -348,6 +461,9 @@ impl PiDriver {
                     // Unblock anything waiting on an RPC reply immediately; the
                     // process thread owns the `ProcessExited` announcement so a
                     // non-zero exit can be reported before the runtime is torn down.
+                    if let Some(bridge) = &reader_bridge {
+                        bridge.close();
+                    }
                     fail_pending(
                         &reader_pending,
                         &format!("{} RPC process exited", flavor.display_name()),
@@ -356,6 +472,7 @@ impl PiDriver {
 
         let writer_pending = pending;
         let writer_events = events.clone();
+        let writer_bridge = team_bridge.clone();
         thread::Builder::new()
             .name("waku-pi-writer".into())
             .spawn(move || {
@@ -467,6 +584,15 @@ impl PiDriver {
                     });
                     return;
                 };
+                if let Some(bridge) = &writer_bridge {
+                    if let Err(error) = bridge.bind(&cursor) {
+                        let _ = writer_events.send(DriverEvent::Error(format!(
+                            "Ion Teams source bridge could not bind the native session: {error}"
+                        )));
+                        bridge.close();
+                        return;
+                    }
+                }
                 let initial_usage = send_request(
                     &mut stdin,
                     &writer_pending,
@@ -517,6 +643,9 @@ impl PiDriver {
                 while let Ok(message) = command_rx.recv() {
                     match message {
                         CommandMessage::Prompt(prompt) => {
+                            if let Some(bridge) = &writer_bridge {
+                                bridge.allow_turn();
+                            }
                             let result = send_prompt(
                                 &mut stdin,
                                 &writer_pending,
@@ -559,6 +688,9 @@ impl PiDriver {
                             }
                         }
                         CommandMessage::Cancel => {
+                            if let Some(bridge) = &writer_bridge {
+                                bridge.cancel();
+                            }
                             if let Err(error) = send_request(
                                 &mut stdin,
                                 &writer_pending,
@@ -651,7 +783,10 @@ impl PiDriver {
                             }
                         }
                         CommandMessage::Rollback { turns, response } => {
-                            let result = fork_pi_session(
+                            if let Some(bridge) = &writer_bridge {
+                                bridge.cancel();
+                            }
+                            let mut result = fork_pi_session(
                                 flavor,
                                 &mut stdin,
                                 &writer_pending,
@@ -664,6 +799,11 @@ impl PiDriver {
                             );
                             if let Ok(next_cursor) = &result {
                                 cursor = next_cursor.clone();
+                                if let Some(bridge) = &writer_bridge {
+                                    if let Err(error) = bridge.bind(&cursor) {
+                                        result = Err(error.to_string());
+                                    }
+                                }
                             }
                             let _ = response.send(result);
                         }
@@ -671,6 +811,9 @@ impl PiDriver {
                             turns_to_remove,
                             response,
                         } => {
+                            if let Some(bridge) = &writer_bridge {
+                                bridge.cancel();
+                            }
                             let result = fork_pi_session(
                                 flavor,
                                 &mut stdin,
@@ -738,6 +881,7 @@ impl PiDriver {
             flavor,
             commands,
             computer_use,
+            team_bridge,
         })
     }
 }
@@ -756,6 +900,9 @@ impl DriverControl for PiDriver {
     }
 
     fn cancel(&self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.cancel();
+        }
         let _ = self.commands.send(CommandMessage::Cancel);
     }
 
@@ -765,7 +912,11 @@ impl DriverControl for PiDriver {
         }
     }
 
-    fn respond(&self, _request_id: String, _option_id: String) {}
+    fn respond(&self, request_id: String, option_id: String) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.respond(&request_id, &option_id);
+        }
+    }
 
     fn apply_options(&self, options: SessionOptions) -> bool {
         // Both flavors have setters for the model and thinking level, so those
@@ -833,6 +984,9 @@ impl DriverControl for PiDriver {
 
 impl Drop for PiDriver {
     fn drop(&mut self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.close();
+        }
         self.cancel_computer_use();
         let _ = self.commands.send(CommandMessage::Shutdown);
     }
@@ -1814,6 +1968,7 @@ mod tests {
             flavor: PiFlavor::Pi,
             commands,
             computer_use: None,
+            team_bridge: None,
         };
         let options = |mode| SessionOptions {
             mode,

@@ -213,6 +213,53 @@ export default async () => ({{tool: Object.fromEntries(definitions.map(def => ['
             definitions = json!(tools)
         )
     }
+    /// Pi and Oh My Pi load only this session-scoped extension. The native
+    /// account, model, settings and ordinary tools remain owned by their RPC.
+    pub(crate) fn configure_pi(
+        &self,
+        command: &mut std::process::Command,
+        flavor: &str,
+    ) -> Result<()> {
+        ensure!(matches!(flavor, "pi" | "ohmypi"), "Invalid Pi dialect");
+        let source = self.pi_extension(flavor);
+        let path = self.0.directory.0.join("ion-teams.ts");
+        std::fs::write(&path, source)?;
+        command.arg("--extension").arg(path);
+        Ok(())
+    }
+    fn pi_extension(&self, flavor: &str) -> String {
+        let definitions = super::tools().as_array().unwrap().iter().map(|tool| {
+            let f = &tool["function"];
+            json!({"name":f["name"],"description":f["description"],"parameters":f["parameters"]})
+        }).collect::<Vec<_>>();
+        format!(
+            r#"const endpoint = {endpoint};
+const credential = {credential};
+const flavor = {flavor};
+const definitions = {definitions};
+export default function (pi) {{
+  for (const def of definitions) pi.registerTool({{
+    name: 'ion_teams_' + def.name, label: def.name.replaceAll('_', ' '),
+    description: def.description, parameters: def.parameters,
+    async execute(call, args, signal, _update, ctx) {{
+      const session = ctx?.sessionManager?.getSessionId();
+      if (!session || typeof call !== 'string' || !call || signal?.aborted)
+        throw new Error('Ion Teams requires a live native source call.');
+      const response = await fetch(endpoint, {{method:'POST', headers:{{'Content-Type':'application/json', Authorization:'Bearer ' + credential}},
+        body:JSON.stringify({{session_id:flavor + ':' + session, message_id:call, call_id:call, name:def.name, arguments:args}}), signal}});
+      const reply = await response.json();
+      if (!response.ok || !reply.ok) throw new Error(reply.text || 'Ion team request did not complete.');
+      return {{content:[{{type:'text',text:reply.text}}], details:{{}}}};
+    }}
+  }});
+}}
+"#,
+            endpoint = json!(format!("http://127.0.0.1:{}/call", self.0.port)),
+            credential = json!(self.0.token),
+            flavor = json!(flavor),
+            definitions = json!(definitions),
+        )
+    }
     pub(crate) fn attach(
         &self,
         context: WorkspaceContext,
@@ -332,6 +379,39 @@ impl Bridge {
             {
                 self.cancel()
             }
+            _ => {}
+        }
+    }
+    /// A native RPC tool execution start is the authority for Pi's extension
+    /// callback. The loopback token alone never registers a call. Pi has no
+    /// assistant message ID, so its stable native toolCallId fills both slots.
+    pub(crate) fn observe_pi(&self, event: &Value, settled_event: &str) {
+        match event["type"].as_str() {
+            Some("tool_execution_start") => {
+                let Some(call) = event["toolCallId"].as_str().filter(|id| valid_id(id)) else {
+                    return;
+                };
+                let Some(name) = event["toolName"]
+                    .as_str()
+                    .filter(|name| name.starts_with(PREFIX))
+                else {
+                    return;
+                };
+                self.observe(&json!({"type":"message.updated","properties":{"info":{"sessionID":self.0.session,"role":"assistant","id":call}}}));
+                self.observe(&json!({"type":"message.part.updated","properties":{"part":{"sessionID":self.0.session,"messageID":call,"callID":call,"type":"tool","tool":name,"state":{"status":"running","input":event["args"]}}}}));
+            }
+            Some("tool_execution_end") if event["isError"] == true => {
+                let Some(call) = event["toolCallId"].as_str() else {
+                    return;
+                };
+                let id = identity(&self.0.session, call, call);
+                let mut state = self.0.state.lock();
+                if let Some(witness) = state.witnesses.get_mut(&id) {
+                    witness.valid = false;
+                    witness.cancelled.store(true, Ordering::Release);
+                }
+            }
+            Some(kind) if kind == settled_event && event["isTerminal"] != false => self.cancel(),
             _ => {}
         }
     }
@@ -492,6 +572,9 @@ fn connections() -> Result<Sender<Connection>> {
     Ok(sender)
 }
 fn read_request(stream: &mut TcpStream, hub: &HubInner) -> Result<Request> {
+    // Accepted sockets can inherit nonblocking mode on Windows. Reads belong
+    // to bounded background handlers and must honor the timeout below.
+    stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
     let mut head = Vec::new();
@@ -706,6 +789,317 @@ mod tests {
                     .unwrap(),
                 received,
             )
+        }
+    }
+    #[test]
+    fn pi_source_team_native_calls_replay_and_fence_stop_for_both_dialects() {
+        for (flavor, settled) in [("pi", "agent_settled"), ("ohmypi", "agent_end")] {
+            let f = Fixture::new();
+            let hub = Hub::start().unwrap();
+            let session = format!("{flavor}:native");
+            let (bridge, events) = f.bridge(&hub, &session);
+            let witness = json!({"type":"tool_execution_start","toolCallId":"call_native","toolName":"ion_teams_invoke_team","args":f.args()});
+            bridge.observe_pi(&witness, settled);
+            let calling = bridge.clone();
+            let args = f.args();
+            let peer_session = session.clone();
+            let queued = thread::spawn(move || {
+                calling.0.handle(request(
+                    &peer_session,
+                    "call_native",
+                    "call_native",
+                    "invoke_team",
+                    args,
+                ))
+            });
+            let approval = permission(&events);
+            bridge.respond(&approval, "allow");
+            assert_eq!(queued.join().unwrap().unwrap()["ok"], true);
+            assert_eq!(f.runs().len(), 1);
+            bridge.close();
+            let (resumed, events) = f.bridge(&hub, &session);
+            resumed.observe_pi(&witness, settled);
+            let reply = resumed
+                .0
+                .handle(request(
+                    &session,
+                    "call_native",
+                    "call_native",
+                    "invoke_team",
+                    f.args(),
+                ))
+                .unwrap();
+            assert_eq!(reply["ok"], true);
+            assert_eq!(f.runs().len(), 1);
+            assert!(
+                !events
+                    .try_iter()
+                    .any(|e| matches!(e, DriverEvent::Permission { .. }))
+            );
+            resumed.observe_pi(&json!({"type":settled,"isTerminal":false}), settled);
+            assert!(!resumed.0.state.lock().blocked);
+            resumed.observe_pi(&json!({"type":settled}), settled);
+            resumed.allow_turn();
+            resumed.observe_pi(&witness, settled);
+            assert!(
+                resumed
+                    .0
+                    .handle(request(
+                        &session,
+                        "call_native",
+                        "call_native",
+                        "invoke_team",
+                        f.args()
+                    ))
+                    .is_err()
+            );
+            resumed.close();
+        }
+    }
+    #[test]
+    fn pi_source_team_changed_native_arguments_and_tool_failure_revoke_calls() {
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, _) = f.bridge(&hub, "pi:native");
+        let mut witness = json!({"type":"tool_execution_start","toolCallId":"call_native","toolName":"ion_teams_get_team_runs","args":{}});
+        bridge.observe_pi(&witness, "agent_settled");
+        witness["args"] = json!({"injected":true});
+        bridge.observe_pi(&witness, "agent_settled");
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "pi:native",
+                    "call_native",
+                    "call_native",
+                    "get_team_runs",
+                    json!({})
+                ))
+                .is_err()
+        );
+        bridge.observe_pi(&json!({"type":"tool_execution_start","toolCallId":"call_failure","toolName":"ion_teams_get_team_runs","args":{}}), "agent_settled");
+        bridge.observe_pi(
+            &json!({"type":"tool_execution_end","toolCallId":"call_failure","isError":true}),
+            "agent_settled",
+        );
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "pi:native",
+                    "call_failure",
+                    "call_failure",
+                    "get_team_runs",
+                    json!({})
+                ))
+                .is_err()
+        );
+        assert!(f.runs().is_empty());
+        bridge.close();
+    }
+    #[test]
+    #[ignore = "Requires native Pi and Oh My Pi binaries; private fake account and loopback only"]
+    fn pi_source_team_installed_rpc_calls_native_extension_in_both_flavors() {
+        use crate::driver::{
+            DriverControl, DriverStartOptions,
+            pi::{PiDriver, PiFlavor},
+        };
+        for flavor in [PiFlavor::Pi, PiFlavor::OhMyPi] {
+            let binary = if flavor == PiFlavor::Pi {
+                std::env::var_os("ION_TEST_PI_BINARY")
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| crate::model::provider_probe(ProviderKind::Pi, None).path)
+                    .unwrap()
+            } else {
+                std::env::var_os("ION_TEST_OMP_BINARY")
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| crate::model::provider_probe(ProviderKind::OhMyPi, None).path)
+                    .unwrap()
+            };
+            let f = Fixture::new();
+            let mut context = f.context.clone();
+            context.mode = RuntimeMode::FullAccess;
+            let item = json!({"type":"function_call","id":"fc_native_1","call_id":"call_native_1","name":"ion_teams_list_teams","arguments":"{}","status":"completed"});
+            let wire = [
+                json!({"type":"response.created","response":{"id":"resp_tool","status":"in_progress"}}),
+                json!({"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_native_1","call_id":"call_native_1","name":"ion_teams_list_teams","arguments":""}}),
+                json!({"type":"response.function_call_arguments.delta","item_id":"fc_native_1","output_index":0,"delta":"{}"}),
+                json!({"type":"response.output_item.done","output_index":0,"item":item.clone()}),
+                json!({"type":"response.completed","response":{"id":"resp_tool","status":"completed","model":"fixture-native","output":[item],"usage":{"input_tokens":100,"output_tokens":5,"total_tokens":105,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}),
+            ].iter().map(|v| format!("event: {}\ndata: {v}\n\n",v["type"].as_str().unwrap())).collect::<String>().into_bytes();
+            let server = crate::driver::team_test_http::Server::with_timeout_and_optional_preflight(
+                vec![
+                    (200, wire),
+                    (
+                        200,
+                        crate::driver::team_test_http::responses("fixture-native", "Done"),
+                    ),
+                ],
+                Duration::from_secs(120),
+                "GET /models HTTP/1.1",
+            );
+            let root = &f.directory.0;
+            for name in ["home", "agent", "work"] {
+                std::fs::create_dir(root.join(name)).unwrap();
+            }
+            let agent = root.join("agent");
+            let provider = json!({"api":"openai-responses","baseUrl":server.url,"apiKey":"sk-fixture-only","models":[{"id":"fixture-native","name":"Fixture native","api":"openai-responses","baseUrl":server.url,"contextWindow":100000,"maxTokens":8192,"input":["text"],"reasoning":false}]});
+            if flavor == PiFlavor::Pi {
+                std::fs::write(
+                    agent.join("models.json"),
+                    json!({"providers":{"openai":provider}}).to_string(),
+                )
+                .unwrap();
+                std::fs::write(
+                    agent.join("auth.json"),
+                    json!({"openai":{"type":"api_key","key":"sk-fixture-only"}}).to_string(),
+                )
+                .unwrap();
+                std::fs::write(agent.join("settings.json"),json!({"retry":{"enabled":false},"compaction":{"enabled":false},"enableVersionCheck":false}).to_string()).unwrap();
+            } else {
+                std::fs::write(
+                    agent.join("models.yml"),
+                    json!({"providers":{"openai":provider}}).to_string(),
+                )
+                .unwrap();
+                std::fs::write(agent.join("config.yml"),json!({"startup":{"checkUpdate":false,"setupWizard":false,"quiet":true},"retry":{"enabled":false,"modelFallback":false,"usageAwareFallback":false},"compaction":{"enabled":false,"midTurnEnabled":false,"asyncEnabled":false},"mcp":{"enableProjectConfig":false},"enabledProviders":["openai"],"enabledModels":["openai/fixture-native"],"modelRoles":{"default":"openai/fixture-native","smol":"openai/fixture-native","slow":"openai/fixture-native","plan":"openai/fixture-native"},"telemetry":{"otlp":{"export":{"enabled":false}}}}).to_string()).unwrap();
+            }
+            let (events, received) = crate::driver::test_event_channel();
+            let driver = PiDriver::start_configured(
+                flavor,
+                DriverStartOptions {
+                    binary,
+                    cwd: root.join("work"),
+                    mode: RuntimeMode::FullAccess,
+                    model: Some("openai/fixture-native".into()),
+                    reasoning_effort: None,
+                    service_tier: None,
+                    context_window: None,
+                    agent_preset: None,
+                    computer_use_enabled: false,
+                    provider_cursor: None,
+                },
+                events,
+                Some(context),
+                |command| {
+                    let runtime = command
+                        .get_envs()
+                        .filter_map(|(k, v)| v.map(|v| (k.to_os_string(), v.to_os_string())))
+                        .collect::<Vec<_>>();
+                    let allowed = |k: &std::ffi::OsStr| {
+                        matches!(
+                            k.to_string_lossy().to_ascii_uppercase().as_str(),
+                            "PATH"
+                                | "SYSTEMROOT"
+                                | "WINDIR"
+                                | "COMSPEC"
+                                | "PATHEXT"
+                                | "TEMP"
+                                | "TMP"
+                                | "TMPDIR"
+                                | "LANG"
+                                | "LC_ALL"
+                        )
+                    };
+                    command
+                        .env_clear()
+                        .envs(std::env::vars_os().filter(|(k, _)| allowed(k)))
+                        .envs(runtime.into_iter().filter(|(k, _)| allowed(k)));
+                    command
+                        .env("HOME", root.join("home"))
+                        .env("USERPROFILE", root.join("home"))
+                        .env("PI_CODING_AGENT_DIR", &agent)
+                        .env("PI_CONFIG_DIR", ".omp")
+                        .env("PI_SKIP_VERSION_CHECK", "1");
+                    if flavor == PiFlavor::Pi {
+                        command.args([
+                            "--offline",
+                            "--no-builtin-tools",
+                            "--tools",
+                            "ion_teams_list_teams,ion_teams_invoke_team,ion_teams_get_team_runs,ion_teams_await_team,ion_teams_read_team_document",
+                            "--no-skills",
+                            "--no-prompt-templates",
+                            "--no-context-files",
+                            "--no-themes",
+                        ]);
+                    } else {
+                        command
+                            .args([
+                                "--no-tools",
+                                "--no-lsp",
+                                "--no-pty",
+                                "--no-skills",
+                                "--no-rules",
+                                "--no-title",
+                                "--no-prewalk",
+                                "--config",
+                            ])
+                            .arg(agent.join("config.yml"));
+                    }
+                },
+            )
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(120);
+            loop {
+                assert!(
+                    Instant::now() < deadline,
+                    "Native fixture failed to connect"
+                );
+                match received.recv_timeout(Duration::from_secs(5)) {
+                    Ok(DriverEvent::Connected { .. }) => break,
+                    Ok(DriverEvent::Error(error)) => panic!("{flavor:?} startup: {error}"),
+                    _ => {}
+                }
+            }
+            driver.prompt("Use ion_teams_list_teams then report the returned team name".into());
+            let mut evidence = false;
+            loop {
+                assert!(Instant::now() < deadline, "Native fixture failed to settle");
+                match received.recv_timeout(Duration::from_secs(5)) {
+                    Ok(DriverEvent::Activity {
+                        detail: Some(text),
+                        complete: true,
+                        ..
+                    }) if text.contains("Engineering") => evidence = true,
+                    Ok(DriverEvent::TurnFinished { success, .. }) => {
+                        assert!(success);
+                        break;
+                    }
+                    Ok(DriverEvent::Error(error)) => panic!("{flavor:?} source tool: {error}"),
+                    _ => {}
+                }
+            }
+            assert!(
+                evidence,
+                "{flavor:?}: actual native tool callback did not return saved Teams"
+            );
+            drop(driver);
+            let requests = server.finish();
+            assert!(requests.iter().all(|request| matches!(
+                request.line.as_str(),
+                "GET /models HTTP/1.1" | "POST /responses HTTP/1.1"
+            )));
+            let requests = requests
+                .into_iter()
+                .filter(|request| request.line == "POST /responses HTTP/1.1")
+                .collect::<Vec<_>>();
+            assert_eq!(requests.len(), 2);
+            assert_eq!(requests[0].body["model"], "fixture-native");
+            assert_eq!(requests[0].body["tools"].as_array().unwrap().len(), 5);
+            assert!(
+                requests[0]
+                    .headers
+                    .to_ascii_lowercase()
+                    .contains("authorization: bearer sk-fixture-only")
+            );
+            let input = requests[1].body["input"].as_array().unwrap();
+            assert!(input.iter().any(|i| {
+                i["type"] == "function_call_output"
+                    && i["output"]
+                        .as_str()
+                        .is_some_and(|s| s.contains("Engineering"))
+            }));
+            assert!(f.runs().is_empty(), "The list call should not start a team");
         }
     }
     fn observe(bridge: &Bridge, message: &str, call: &str, name: &str, args: Value) {
@@ -1036,6 +1430,30 @@ mod tests {
             return json!({"ok":false,"text":"Connection rejected"});
         }
         serde_json::from_str(result.split_once("\r\n\r\n").unwrap().1).unwrap()
+    }
+    #[test]
+    fn opencode_source_team_loopback_accepts_delayed_headers_on_nonblocking_socket() {
+        let hub = Hub::start().unwrap();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut accepted, _) = listener.accept().unwrap();
+        // Windows may inherit the listener mode. Explicitly reproduce that
+        // mode on every host, with headers arriving after the first read begins.
+        accepted.set_nonblocking(true).unwrap();
+        let inner = hub.0.clone();
+        let (started, received) = bounded(1);
+        let reader = thread::spawn(move || {
+            started.send(()).unwrap();
+            read_request(&mut accepted, &inner)
+        });
+        received.recv().unwrap();
+        thread::sleep(Duration::from_millis(100));
+        let body = json!({"session_id":"pi:delayed","message_id":"call_1","call_id":"call_1","name":"list_teams","arguments":{}}).to_string();
+        write!(client,"POST /call HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",hub.0.port,hub.0.token,body.len()).unwrap();
+        let request = reader.join().unwrap().unwrap();
+        assert_eq!(request.session_id, "pi:delayed");
+        assert_eq!(request.name, "list_teams");
+        assert_eq!(request.arguments, json!({}));
     }
     #[test]
     fn opencode_source_team_loopback_rejects_browser_bad_auth_and_unknown_scope() {

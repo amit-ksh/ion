@@ -26,6 +26,13 @@ impl Server {
     pub fn with_timeout(responses: Vec<(u16, Vec<u8>)>, timeout: Duration) -> Self {
         Self::build(responses, |_, body| body, timeout, None)
     }
+    pub fn with_timeout_and_optional_preflight(
+        responses: Vec<(u16, Vec<u8>)>,
+        timeout: Duration,
+        preflight: &'static str,
+    ) -> Self {
+        Self::build(responses, |_, body| body, timeout, Some(preflight))
+    }
     pub fn with_hook(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request) + Send + 'static,
