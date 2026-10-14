@@ -307,7 +307,9 @@ pub(crate) fn start_local_with_workspace(
         )?),
         // Amp reads newline-delimited user messages on stdin and stays alive
         // until stdin closes, so it too serves the whole conversation.
-        ProviderKind::Amp => Arc::new(amp::AmpDriver::start(options, events)?),
+        ProviderKind::Amp => Arc::new(amp::AmpDriver::start_with_workspace(
+            options, events, workspace,
+        )?),
     };
     Ok(DriverHandle { inner })
 }

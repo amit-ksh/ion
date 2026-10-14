@@ -46,6 +46,9 @@ enum CommandMessage {
 pub struct AmpDriver {
     commands: Sender<CommandMessage>,
     active_pid: Arc<AtomicU32>,
+    team_bridge: Option<super::source_teams::amp::AmpBridge>,
+    #[cfg(windows)]
+    process_tree: Arc<Mutex<Option<crate::command_env::ProcessTree>>>,
 }
 
 /// Amp's thread arguments. The prompt never rides here — it goes in on stdin.
@@ -84,6 +87,13 @@ pub(super) fn amp_args(
 
 impl AmpDriver {
     pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
+        Self::start_with_workspace(options, events, None)
+    }
+    pub(crate) fn start_with_workspace(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
             cwd,
@@ -113,6 +123,11 @@ impl AmpDriver {
             None => (None, None),
         };
 
+        let team_bridge = workspace
+            .map(|context| {
+                super::source_teams::amp::AmpBridge::start(context, events.clone(), &cwd)
+            })
+            .transpose()?;
         let title_binary = binary.clone();
         let title_cwd = cwd.clone();
         let reader_initial_thread_id = thread_id.clone();
@@ -123,12 +138,25 @@ impl AmpDriver {
             service_tier.as_deref(),
             thread_id.as_deref(),
         ));
+        if let Some(bridge) = &team_bridge {
+            bridge.configure(&mut command);
+            command.args(["--plugin-ready-timeout", "30"]);
+        }
         let command = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = crate::command_env::spawn(command)
             .context("failed to start `amp` in streaming-input mode")?;
+        #[cfg(windows)]
+        let process_tree = match crate::command_env::ProcessTree::attach(&child) {
+            Ok(tree) => Arc::new(Mutex::new(Some(tree))),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error);
+            }
+        };
         let stdin = child
             .stdin
             .take()
@@ -157,6 +185,7 @@ impl AmpDriver {
 
         let reader_events = events.clone();
         let reader_turn = turn_active.clone();
+        let reader_bridge = team_bridge.clone();
         let reader_thread = thread::Builder::new()
             .name("waku-amp-reader".into())
             .spawn(move || {
@@ -172,6 +201,14 @@ impl AmpDriver {
                     let Ok(value) = serde_json::from_str::<Value>(&line) else {
                         continue;
                     };
+                    if let Some(bridge) = &reader_bridge {
+                        if let Err(error) = bridge.observe(&value) {
+                            bridge.close();
+                            let _ = reader_events.send(DriverEvent::Error(format!(
+                                "Ion Teams could not bind Amp's native source session: {error}"
+                            )));
+                        }
+                    }
                     if handle_message(&value, &reader_events, &reader_turn, &mut state)
                         && let Some(thread_id) = state.thread_id.clone()
                     {
@@ -185,10 +222,14 @@ impl AmpDriver {
                         );
                     }
                 }
+                if let Some(bridge) = &reader_bridge {
+                    bridge.close();
+                }
             })?;
 
         let writer_events = events.clone();
         let writer_turn = turn_active;
+        let writer_bridge = team_bridge.clone();
         thread::Builder::new()
             .name("waku-amp-writer".into())
             .spawn(move || {
@@ -199,6 +240,9 @@ impl AmpDriver {
                 while let Ok(message) = command_rx.recv() {
                     match message {
                         CommandMessage::Prompt(text) => {
+                            if let Some(bridge) = &writer_bridge {
+                                bridge.allow_turn();
+                            }
                             let text = fork_context
                                 .take()
                                 .map(|context| {
@@ -317,10 +361,14 @@ impl AmpDriver {
             })?;
 
         let process_pid = active_pid.clone();
+        #[cfg(windows)]
+        let owned_tree = process_tree.clone();
         thread::Builder::new()
             .name("waku-amp-process".into())
             .spawn(move || {
                 let status = child.wait();
+                #[cfg(windows)]
+                owned_tree.lock().take();
                 process_pid.store(0, Ordering::Relaxed);
                 let _ = reader_thread.join();
                 let _ = stderr_thread.join();
@@ -340,6 +388,9 @@ impl AmpDriver {
         Ok(Self {
             commands,
             active_pid,
+            team_bridge,
+            #[cfg(windows)]
+            process_tree,
         })
     }
 }
@@ -362,18 +413,27 @@ impl DriverControl for AmpDriver {
         // process. The thread survives on Amp's side, and the next prompt
         // resumes it with `threads continue` — which is why Amp's runtime is
         // not retained after a cancel.
+        if let Some(bridge) = &self.team_bridge {
+            bridge.close();
+        }
+        #[cfg(windows)]
+        self.process_tree.lock().take();
         let pid = self.active_pid.load(Ordering::Relaxed);
         if pid != 0 {
             #[cfg(unix)]
             {
-                let _ = Command::new("/bin/kill")
-                    .args(["-INT", &pid.to_string()])
-                    .status();
+                unsafe {
+                    libc::kill(pid as i32, libc::SIGINT);
+                }
             }
         }
     }
 
-    fn respond(&self, _request_id: String, _option_id: String) {}
+    fn respond(&self, request_id: String, option_id: String) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.respond(&request_id, &option_id);
+        }
+    }
 
     fn apply_options(&self, _options: SessionOptions) -> bool {
         // Mode, effort and tier are all launch arguments.
@@ -389,6 +449,11 @@ impl DriverControl for AmpDriver {
 
 impl Drop for AmpDriver {
     fn drop(&mut self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.close();
+        }
+        #[cfg(windows)]
+        self.process_tree.lock().take();
         let _ = self.commands.send(CommandMessage::Shutdown);
     }
 }

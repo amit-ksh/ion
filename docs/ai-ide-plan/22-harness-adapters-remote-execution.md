@@ -26,6 +26,8 @@ Remote filesystem/commands/GPU development remains in the plan. Historical
 checkpoint sections below describe the scope at their date; this correction
 supersedes references there to unfinished adapters as required development.
 
+For current normal-task Teams invocation, the native Pi/Oh My Pi bridge and the new [Amp source bridge](66-amp-source-team-bridge.md) extend the historical Nebius/Codex/Claude/OpenCode section below. Amp normal-task invocation does not imply Amp Teams completion support.
+
 ## Current execution coverage
 
 | Selected harness | Local Teams completion | Registered sandbox worker | Authentication |

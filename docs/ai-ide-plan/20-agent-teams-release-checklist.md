@@ -920,3 +920,15 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Nine native bundle cases pass, including trusted worker inspection/publication/read/report; twelve phone HTML cases, mobile TypeScript and Rust formatting pass. Desktop/daemon checks pass for the responsive bundle code.
 - [ ] Complete [device/font/export review](65-portable-html-bundles.md#owner-review) and remaining document interpretation/resource references.
 - [ ] Finish native harness requirements; Amp's native request-hook route is now identified for normal-task invocation, while Amp/Cursor completion contracts remain open.
+
+
+## 2026-10-14 — Amp normal-task Teams bridge
+
+- [x] Native Amp source conversations register the five Ion tools through a temporary additive project plugin. Native account/mode/settings stay selected.
+- [x] Bind callbacks to owner-observed main-thread tool-use IDs, exact arguments, project and task; ignore foreign/nested calls and other plugins.
+- [x] Reuse source-worker approval, scope intersection and durable run replay. End-turn, failed results, Stop and EOF fence pending calls.
+- [x] Route owner approvals and add Windows process-tree Stop; Unix uses its native process signal.
+- [x] Initial cleanup/preservation, approval/replay/Stop, foreign/nested/failed-call and actual installed runtime hook cases pass.
+- [x] Final task-stable tool names, environment-only bridge credentials and preexisting-file preservation pass; 17 shared bridge regressions and the installed native generated-hook fixture pass. Final locked desktop/daemon checks, Rust formatting and diff checks pass.
+- [ ] Complete authenticated CLI/plugin discovery/resume/Stop acceptance using [the owner checklist](66-amp-source-team-bridge.md#owner-acceptance).
+- [ ] Amp/Cursor Teams completion contracts and other outstanding goal items remain open.

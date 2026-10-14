@@ -260,6 +260,44 @@ export default function (pi) {{
             definitions = json!(definitions),
         )
     }
+    pub(crate) fn configure_amp(&self, command: &mut std::process::Command, prefix: &str) {
+        command
+            .env(
+                "ION_AMP_TEAM_ENDPOINT",
+                format!("http://127.0.0.1:{}/call", self.0.port),
+            )
+            .env("ION_AMP_TEAM_TOKEN", &self.0.token)
+            .env("ION_AMP_TEAM_PREFIX", prefix);
+    }
+    pub(crate) fn amp_plugin(&self, prefix: &str) -> String {
+        let definitions=super::tools().as_array().unwrap().iter().map(|tool|{let f=&tool["function"];json!({"name":f["name"],"description":f["description"],"parameters":f["parameters"]})}).collect::<Vec<_>>();
+        format!(
+            r#"const endpoint=process.env.ION_AMP_TEAM_ENDPOINT;
+const credential=process.env.ION_AMP_TEAM_TOKEN;
+const prefix={prefix};
+const definitions={definitions};
+export default function(amp) {{
+  if(!endpoint || !credential || process.env.ION_AMP_TEAM_PREFIX!==prefix) return;
+  for(const def of definitions) amp.registerTool({{name:def.name,description:def.description,inputSchema:def.parameters,
+    async execute() {{ throw new Error('Ion Teams requires its native call hook.'); }} }});
+  amp.on('tool.call',async(event)=>{{
+    const def=definitions.find(def=>event.tool===prefix+def.name);
+    if(!def) return {{action:'allow'}};
+    if(!event.thread?.id || !event.toolUseID) return {{action:'reject-and-continue',message:'Native team call identity is missing'}};
+    try {{
+      const response=await fetch(endpoint,{{method:'POST',headers:{{'Content-Type':'application/json',Authorization:'Bearer '+credential}},
+        body:JSON.stringify({{session_id:'amp:'+event.thread.id,message_id:event.toolUseID,call_id:event.toolUseID,name:def.name,arguments:event.input}}),signal:AbortSignal.timeout(340000)}});
+      const reply=await response.json();
+      if(!response.ok || !reply.ok) return {{action:'reject-and-continue',message:reply.text||'Ion team call did not complete'}};
+      return {{action:'synthesize',result:{{output:reply.text}}}};
+    }} catch {{return {{action:'reject-and-continue',message:'Ion team call stopped or unavailable. No invocation is automatically retried.'}};}}
+  }});
+}}
+"#,
+            prefix = json!(prefix),
+            definitions = json!(definitions)
+        )
+    }
     pub(crate) fn attach(
         &self,
         context: WorkspaceContext,
@@ -413,6 +451,39 @@ impl Bridge {
             }
             Some(kind) if kind == settled_event && event["isTerminal"] != false => self.cancel(),
             _ => {}
+        }
+    }
+    pub(crate) fn observe_amp(&self, event: &Value, prefix: &str) {
+        if event["session_id"].as_str().map(|id| format!("amp:{id}"))
+            != Some(self.0.session.clone())
+            || !event["parent_tool_use_id"].is_null()
+        {
+            return;
+        }
+        if event["type"] == "assistant" {
+            for block in event["message"]["content"].as_array().into_iter().flatten() {
+                let Some(name) = block["name"]
+                    .as_str()
+                    .and_then(|n| n.strip_prefix(prefix))
+                    .filter(|n| super::accepts(n))
+                else {
+                    continue;
+                };
+                if block["type"] == "tool_use" {
+                    self.observe_pi(&json!({"type":"tool_execution_start","toolCallId":block["id"],"toolName":format!("{PREFIX}{name}"),"args":block["input"]}),"amp-end");
+                }
+            }
+            if event["message"]["stop_reason"] == "end_turn" {
+                self.cancel();
+            }
+        } else if event["type"] == "user" {
+            for block in event["message"]["content"].as_array().into_iter().flatten() {
+                if block["type"] == "tool_result" && block["is_error"] == true {
+                    self.observe_pi(&json!({"type":"tool_execution_end","toolCallId":block["tool_use_id"],"isError":true}),"amp-end");
+                }
+            }
+        } else if event["type"] == "result" && event["is_error"] == true {
+            self.cancel();
         }
     }
     pub(crate) fn allow_turn(&self) {
@@ -1101,6 +1172,286 @@ mod tests {
             }));
             assert!(f.runs().is_empty(), "The list call should not start a team");
         }
+    }
+    fn amp_frame(session: &str, call: &str, name: &str, args: Value) -> Value {
+        json!({"type":"assistant","session_id":session,"parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":call,"name":format!("plugin__ion_fixture__{name}"),"input":args}],"stop_reason":"tool_use"}})
+    }
+    #[test]
+    fn amp_source_team_native_identity_approval_replay_and_stop() {
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let session = "amp:T-native";
+        let (bridge, events) = f.bridge(&hub, session);
+        bridge.observe_amp(
+            &amp_frame("T-native", "toolu_1", "invoke_team", f.args()),
+            "plugin__ion_fixture__",
+        );
+        let pending = bridge.clone();
+        let args = f.args();
+        let call = thread::spawn(move || {
+            pending
+                .0
+                .handle(request(
+                    "amp:T-native",
+                    "toolu_1",
+                    "toolu_1",
+                    "invoke_team",
+                    args,
+                ))
+                .unwrap()
+        });
+        let id = permission(&events);
+        assert!(f.runs().is_empty());
+        assert!(bridge.respond(&id, "allow"));
+        assert_eq!(call.join().unwrap()["ok"], true);
+        assert_eq!(f.runs().len(), 1);
+        assert_eq!(
+            bridge
+                .0
+                .handle(request(
+                    session,
+                    "toolu_1",
+                    "toolu_1",
+                    "invoke_team",
+                    f.args()
+                ))
+                .unwrap()["ok"],
+            true
+        );
+        let mut changed = f.args();
+        changed["objective"] = json!("Changed scope");
+        bridge.observe_amp(
+            &amp_frame("T-native", "toolu_1", "invoke_team", changed.clone()),
+            "plugin__ion_fixture__",
+        );
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    session,
+                    "toolu_1",
+                    "toolu_1",
+                    "invoke_team",
+                    changed
+                ))
+                .is_err()
+        );
+        bridge.observe_amp(&json!({"type":"assistant","session_id":"T-native","parent_tool_use_id":null,"message":{"content":[],"stop_reason":"end_turn"}}),"plugin__ion_fixture__");
+        bridge.allow_turn();
+        bridge.observe_amp(
+            &amp_frame("T-native", "toolu_1", "invoke_team", f.args()),
+            "plugin__ion_fixture__",
+        );
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    session,
+                    "toolu_1",
+                    "toolu_1",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+        bridge.close();
+        let (resumed, events) = f.bridge(&hub, session);
+        resumed.observe_amp(
+            &amp_frame("T-native", "toolu_1", "invoke_team", f.args()),
+            "plugin__ion_fixture__",
+        );
+        assert_eq!(
+            resumed
+                .0
+                .handle(request(
+                    session,
+                    "toolu_1",
+                    "toolu_1",
+                    "invoke_team",
+                    f.args()
+                ))
+                .unwrap()["ok"],
+            true
+        );
+        assert_eq!(f.runs().len(), 1);
+        assert!(
+            !events
+                .try_iter()
+                .any(|e| matches!(e, DriverEvent::Permission { .. }))
+        );
+    }
+    #[test]
+    fn amp_source_team_foreign_thread_nested_call_wrong_plugin_and_failed_tool_refuse() {
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, _) = f.bridge(&hub, "amp:T-native");
+        let mut frame = amp_frame("T-foreign", "toolu_1", "list_teams", json!({}));
+        bridge.observe_amp(&frame, "plugin__ion_fixture__");
+        assert!(bridge.0.state.lock().witnesses.is_empty());
+        frame["session_id"] = json!("T-native");
+        frame["parent_tool_use_id"] = json!("child");
+        bridge.observe_amp(&frame, "plugin__ion_fixture__");
+        assert!(bridge.0.state.lock().witnesses.is_empty());
+        frame["parent_tool_use_id"] = Value::Null;
+        bridge.observe_amp(&frame, "plugin__different__");
+        assert!(bridge.0.state.lock().witnesses.is_empty());
+        bridge.observe_amp(&frame, "plugin__ion_fixture__");
+        bridge.observe_amp(&json!({"type":"user","session_id":"T-native","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","is_error":true}]}}),"plugin__ion_fixture__");
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "amp:T-native",
+                    "toolu_1",
+                    "toolu_1",
+                    "list_teams",
+                    json!({})
+                ))
+                .is_err()
+        );
+        assert!(f.runs().is_empty());
+    }
+    #[test]
+    #[ignore = "Requires installed Amp binary and its unmodified extracted plugin runtime; fake profile/localhost only"]
+    fn amp_source_team_generated_hook_calls_owner_through_actual_native_runtime() {
+        use std::io::BufRead;
+        use std::process::Stdio;
+        let binary = std::path::PathBuf::from(std::env::var_os("ION_TEST_AMP_BINARY").unwrap());
+        let runtime = std::path::PathBuf::from(std::env::var_os("ION_TEST_AMP_RUNTIME").unwrap());
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, _) = f.bridge(&hub, "amp:T-native");
+        let plugin = f.directory.0.join("hook.ts");
+        let source = hub.amp_plugin("plugin__ion_fixture__");
+        assert!(!source.contains(&hub.0.token));
+        assert!(!source.contains(&format!("127.0.0.1:{}", hub.0.port)));
+        std::fs::write(&plugin, source).unwrap();
+        let home = f.directory.0.join("home");
+        std::fs::create_dir(&home).unwrap();
+        let mut command = crate::command_env::command(&binary);
+        command
+            .args([runtime.as_os_str(), plugin.as_os_str()])
+            .current_dir(&f.directory.0)
+            .env_clear()
+            .envs(std::env::vars_os().filter(|(k, _)| {
+                matches!(
+                    k.to_string_lossy().to_ascii_uppercase().as_str(),
+                    "PATH" | "SYSTEMROOT" | "WINDIR" | "COMSPEC" | "PATHEXT" | "TEMP" | "TMP"
+                )
+            }))
+            .env("HOME", &home)
+            .env("USERPROFILE", &home)
+            .env("APPDATA", &home)
+            .env("LOCALAPPDATA", &home)
+            .env("BUN_BE_BUN", "1")
+            .env(
+                "AMP_PLUGIN_URI",
+                url::Url::from_file_path(&plugin).unwrap().as_str(),
+            )
+            .env("AMP_PLUGIN_NAME", "ion_fixture")
+            .env("AMP_PLUGIN_RUNTIME_LOG_FILE", home.join("runtime.log"))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        hub.configure_amp(&mut command, "plugin__ion_fixture__");
+        let mut child = crate::command_env::spawn(&mut command).unwrap();
+        let mut stdin = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let (sender, received) = bounded(64);
+        let reader = thread::spawn(move || {
+            for line in std::io::BufReader::new(stdout)
+                .lines()
+                .map_while(Result::ok)
+            {
+                if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                    if sender.send(value).is_err() {
+                        break;
+                    }
+                }
+            }
+        });
+        let write = |stdin: &mut std::process::ChildStdin, value: Value| {
+            writeln!(stdin, "{value}").unwrap();
+            stdin.flush().unwrap();
+        };
+        let response = |stdin: &mut std::process::ChildStdin,
+                        id: &str,
+                        method: &str,
+                        params: Value|
+         -> Value {
+            write(
+                stdin,
+                json!({"type":"request","id":id,"method":method,"params":params}),
+            );
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                assert!(Instant::now() < deadline, "Native Amp response missing");
+                let value = received.recv_timeout(Duration::from_secs(1)).unwrap();
+                if value["type"] == "request" {
+                    let result = if value["method"] == "client.info" {
+                        json!({"ampURL":"https://amp-fixture.invalid","workspaceRoot":url::Url::from_directory_path(&f.directory.0).unwrap().as_str(),"authenticatedUser":null,"executorKind":"local"})
+                    } else {
+                        Value::Null
+                    };
+                    write(
+                        stdin,
+                        json!({"type":"response","id":value["id"],"result":result}),
+                    );
+                }
+                if value["type"] == "response" && value["id"] == id {
+                    return value;
+                }
+            }
+        };
+        let mut initialized = false;
+        for index in 0..40 {
+            let reply = response(
+                &mut stdin,
+                &format!("init-{index}"),
+                "events.list",
+                json!({}),
+            );
+            if reply["result"]
+                .as_array()
+                .is_some_and(|events| events.iter().any(|e| e == "tool.call"))
+            {
+                initialized = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+        assert!(initialized);
+        let tools = response(&mut stdin, "tools", "tool.list", json!({}));
+        assert_eq!(tools["result"].as_array().unwrap().len(), 5);
+        bridge.observe_amp(
+            &amp_frame("T-native", "toolu_native", "list_teams", json!({})),
+            "plugin__ion_fixture__",
+        );
+        let args = json!({"toolUseID":"toolu_native","tool":"plugin__ion_fixture__list_teams","input":{},"thread":{"id":"T-native"}});
+        let reply = response(&mut stdin, "native-call", "tool.call", args.clone());
+        assert_eq!(reply["result"]["action"], "synthesize");
+        assert!(
+            reply["result"]["result"]["output"]
+                .as_str()
+                .unwrap()
+                .contains("Engineering")
+        );
+        let replay = response(&mut stdin, "replay", "tool.call", args.clone());
+        assert_eq!(replay["result"], reply["result"]);
+        bridge.cancel();
+        let stopped = response(&mut stdin, "stopped", "tool.call", args);
+        assert_eq!(stopped["result"]["action"], "reject-and-continue");
+        assert!(f.runs().is_empty());
+        response(&mut stdin, "dispose", "dispose", json!({}));
+        drop(stdin);
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while child.try_wait().unwrap().is_none() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+        drop(received);
+        let _ = reader.join();
     }
     fn observe(bridge: &Bridge, message: &str, call: &str, name: &str, args: Value) {
         bridge.observe(&json!({"type":"message.updated","properties":{"info":{"id":message,"sessionID":bridge.0.session,"role":"assistant"}}}));

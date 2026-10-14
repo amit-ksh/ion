@@ -215,3 +215,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Remaining harness integrations](64-remaining-harness-integrations.md): Pi/Oh My Pi native Teams bridge and current Amp/Cursor contract gaps.
 
 - [Portable HTML resource bundles](65-portable-html-bundles.md) — pinned local CSS, images and fonts, generated snapshot receipts and owner review.
+
+- [Amp source-task team bridge](66-amp-source-team-bridge.md): native request hook, owner-stream identity, temporary plugin lifetime and acceptance gates.
