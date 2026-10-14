@@ -1591,6 +1591,9 @@ pub(crate) fn verify_binary_document(
     artifact: &Artifact,
     bytes: &[u8],
 ) -> Result<()> {
+    if documents::verify_file(db, artifact, bytes)?.is_some() {
+        return Ok(());
+    }
     documents::verify_pdf(db, artifact, bytes).map(|_| ())
 }
 

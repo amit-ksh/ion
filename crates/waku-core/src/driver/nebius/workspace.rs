@@ -42,7 +42,7 @@ pub(super) fn tools(mut tools: Value, context: Option<&WorkspaceContext>) -> Val
     list.extend(team_tools().as_array().unwrap().iter().cloned());
     list.push(json!({"type":"function","function":{"name":"request_decision","description":"Ask the user to approve or decline a decision before further task or workflow progress. Blocks until the user answers.","parameters":{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"}},"required":["title","detail"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"propose_task","description":"Extract a follow-up task for the user to accept or decline in Inbox. Does not execute the task.","parameters":{"type":"object","properties":{"title":{"type":"string"},"instructions":{"type":"string"}},"required":["title","instructions"],"additionalProperties":false}}}));
-    list.push(json!({"type":"function","function":{"name":"save_document","description":"Publish a generated HTML, Markdown, text, CSV or JSON document to the project's Artifacts collection.","parameters":{"type":"object","properties":{"name":{"type":"string"},"format":{"type":"string","enum":["html","md","txt","csv","json"]},"content":{"type":"string"}},"required":["name","format","content"],"additionalProperties":false}}}));
+    list.push(json!({"type":"function","function":{"name":"save_document","description":"Publish a generated HTML, Markdown, text, CSV, JSON, SVG, XML or YAML document to the project's Artifacts collection.","parameters":{"type":"object","properties":{"name":{"type":"string"},"format":{"type":"string","enum":["html","md","txt","csv","json","svg","xml","yaml","yml"]},"content":{"type":"string"}},"required":["name","format","content"],"additionalProperties":false}}}));
     if context.sandbox_session().is_ok() {
         list.push(json!({"type":"function","function":{"name":"tokenfactory_exec","description":"Run exact arguments in the user's configured Token Factory ConTree session after explicit approval. Local project files are not synced. Never include secrets in arguments.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}}},"required":["argv"],"additionalProperties":false}}}));
     }
@@ -171,7 +171,10 @@ pub(super) fn execute(
             let format = required_str(args, "format")?;
             let content = required_str(args, "content")?;
             anyhow::ensure!(
-                matches!(format, "html" | "md" | "txt" | "csv" | "json"),
+                matches!(
+                    format,
+                    "html" | "md" | "txt" | "csv" | "json" | "svg" | "xml" | "yaml" | "yml"
+                ),
                 "Unsupported generated document format"
             );
             let snapshot = store.load()?;

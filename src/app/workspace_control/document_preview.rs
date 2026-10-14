@@ -134,7 +134,12 @@ fn source_blocks(source: &str, language: Option<&str>) -> Vec<Block> {
 }
 fn prepare(artifact: &Artifact, bytes: Vec<u8>) -> anyhow::Result<PreparedDocument> {
     anyhow::ensure!(
-        bytes.len() <= 64 * 1024
+        bytes.len()
+            <= if artifact.format == "pdf" {
+                waku_document::MAX_DOCUMENT_BYTES
+            } else {
+                64 * 1024
+            }
             && artifact
                 .evidence
                 .as_ref()

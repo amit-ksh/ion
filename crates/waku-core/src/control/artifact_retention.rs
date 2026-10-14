@@ -103,7 +103,20 @@ fn metadata(artifact: &Artifact) -> Result<&ArtifactEvidence> {
             && artifact.name != ".."
             && matches!(
                 artifact.format.as_str(),
-                "html" | "htm" | "pdf" | "md" | "txt" | "csv" | "json" | "docx"
+                "html"
+                    | "htm"
+                    | "pdf"
+                    | "md"
+                    | "txt"
+                    | "csv"
+                    | "json"
+                    | "docx"
+                    | "xlsx"
+                    | "png"
+                    | "svg"
+                    | "xml"
+                    | "yaml"
+                    | "yml"
             )
             && evidence.version == 1
             && evidence.bytes > 0

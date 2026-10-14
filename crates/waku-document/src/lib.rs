@@ -1,7 +1,7 @@
 //! Bounded native PDF rasterization shared by the owner and desktop.
 //! Call on a worker: no filesystem, network, subprocess or authored document actions.
 use anyhow::{Result, ensure};
-pub const MAX_DOCUMENT_BYTES: usize = 64 * 1024;
+pub const MAX_DOCUMENT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_PAGES: u32 = 32;
 pub const MAX_PIXELS: u64 = 3_200_000;
 pub const MAX_PNG_BYTES: usize = 12 * 1024 * 1024;

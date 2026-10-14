@@ -265,7 +265,9 @@ impl Workflow {
         Ok(())
     }
 }
-pub const WORKFLOW_DOCUMENT_FORMATS: &[&str] = &["html", "md", "txt", "csv", "json", "pdf"];
+pub const WORKFLOW_DOCUMENT_FORMATS: &[&str] = &[
+    "html", "md", "txt", "csv", "json", "pdf", "svg", "xml", "yaml", "yml", "docx", "xlsx", "png",
+];
 impl WorkflowStage {
     pub fn document_contract(&self) -> Result<crate::teams::OutputContract, &'static str> {
         if self.required_formats.len() > WORKFLOW_DOCUMENT_FORMATS.len()

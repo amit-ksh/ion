@@ -533,3 +533,339 @@ fn assignment_pdf_text_document_reads_preserve_escape_budget_and_utf8_boundaries
         assert!(reply.get("binary").is_none());
     }
 }
+
+#[test]
+fn additional_text_formats_survive_publication_discovery_and_exact_export() {
+    use waku_protocol::artifact_library::{ArtifactDocumentQuery, ArtifactLibraryQuery};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    for (format, content) in [
+        (
+            "svg",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><text>Report</text></svg>",
+        ),
+        ("xml", "<?xml version=\"1.0\"?><report>complete</report>"),
+        ("yaml", "ready: true\nname: Report\n"),
+        ("yml", "ready: true\n"),
+    ] {
+        let request = Uuid::new_v4();
+        let artifact = f
+            .store
+            .publish_document(
+                &root.lease,
+                request,
+                &format!("Report.{format}"),
+                format,
+                content,
+                102,
+            )
+            .unwrap();
+        let page = f
+            .definitions
+            .list_artifacts(&ArtifactLibraryQuery {
+                project_id: Some(run.project_id),
+                task_id: Some(root.assignment.task_id),
+                format: Some(format.into()),
+                after: None,
+                limit: 32,
+            })
+            .unwrap();
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.items[0].id, artifact.id);
+        let document = f
+            .definitions
+            .read_artifact_document(&ArtifactDocumentQuery {
+                expected: page.items[0].clone(),
+            })
+            .unwrap();
+        assert_eq!(document.bytes, content.as_bytes());
+        assert_eq!(
+            f.store
+                .publish_document(
+                    &root.lease,
+                    request,
+                    &format!("Report.{format}"),
+                    format,
+                    content,
+                    103
+                )
+                .unwrap()
+                .id,
+            artifact.id
+        );
+        assert!(
+            f.store
+                .publish_document(
+                    &root.lease,
+                    request,
+                    &format!("Report.{format}"),
+                    format,
+                    "changed",
+                    103
+                )
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn large_file_publication_pins_hash_summary_replay_and_private_paths() {
+    use sha2::{Digest, Sha256};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let source =
+        "<style>.report{display:grid}</style><p>".to_owned() + &"Report ".repeat(40000) + "</p>";
+    std::fs::write(f.dir.join("large.html"), &source).unwrap();
+    let hash = format!("{:x}", Sha256::digest(source.as_bytes()));
+    let inspected = f
+        .store
+        .inspect_file_document(&root.lease, &f.dir, "large.html", 102)
+        .unwrap();
+    assert_eq!(inspected["sha256"], hash);
+    assert!(inspected.get("content").is_none());
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_file_document(
+            &root.lease,
+            request,
+            &f.dir,
+            "large.html",
+            "large.html",
+            "html",
+            &hash,
+            "A complete large report",
+            102,
+        )
+        .unwrap();
+    assert_eq!(
+        f.definitions.read_document(artifact.id).unwrap(),
+        source.as_bytes()
+    );
+    let reply = f
+        .store
+        .document_model_reply(artifact.id, source.as_bytes())
+        .unwrap();
+    assert_eq!(reply["summary"], "A complete large report");
+    assert_eq!(reply["content_interpreted"], false);
+    assert!(reply.get("content").is_none());
+    std::fs::remove_file(f.dir.join("large.html")).unwrap();
+    assert_eq!(
+        f.store
+            .publish_file_document(
+                &root.lease,
+                request,
+                &f.dir,
+                "large.html",
+                "large.html",
+                "html",
+                &hash,
+                "A complete large report",
+                103
+            )
+            .unwrap()
+            .id,
+        artifact.id
+    );
+    assert!(
+        f.store
+            .publish_file_document(
+                &root.lease,
+                request,
+                &f.dir,
+                "large.html",
+                "large.html",
+                "html",
+                &hash,
+                "Changed summary",
+                103
+            )
+            .is_err()
+    );
+    assert!(
+        f.store
+            .inspect_file_document(&root.lease, &f.dir, "../large.html", 103)
+            .is_err()
+    );
+    std::fs::write(f.dir.join(".env"), "PRIVATE").unwrap();
+    assert!(
+        f.store
+            .inspect_file_document(&root.lease, &f.dir, ".env", 103)
+            .is_err()
+    );
+    let db = f.store.connect().unwrap();
+    db.execute(
+        "DELETE FROM ion_team_file_documents WHERE artifact_id=?",
+        [artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(f.definitions.read_document(artifact.id).is_err());
+}
+#[test]
+fn file_publication_rejects_changed_hash_oversize_and_wrong_envelopes() {
+    use sha2::{Digest, Sha256};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    std::fs::write(f.dir.join("report.txt"), "changed").unwrap();
+    assert!(
+        f.store
+            .publish_file_document(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                "report.txt",
+                "report.txt",
+                "txt",
+                &"0".repeat(64),
+                "Report",
+                102
+            )
+            .is_err()
+    );
+    for format in ["pdf", "png", "docx", "xlsx"] {
+        let hash = format!("{:x}", Sha256::digest(b"changed"));
+        assert!(
+            f.store
+                .publish_file_document(
+                    &root.lease,
+                    Uuid::new_v4(),
+                    &f.dir,
+                    "report.txt",
+                    &format!("report.{format}"),
+                    format,
+                    &hash,
+                    "Report",
+                    102
+                )
+                .is_err()
+        );
+    }
+    std::fs::File::create(f.dir.join("oversized.txt"))
+        .unwrap()
+        .set_len(16 * 1024 * 1024 + 1)
+        .unwrap();
+    assert!(
+        f.store
+            .inspect_file_document(&root.lease, &f.dir, "oversized.txt", 102)
+            .is_err()
+    );
+}
+#[test]
+fn file_publication_binary_originals_export_without_model_decoding() {
+    use sha2::{Digest, Sha256};
+    use waku_protocol::artifact_library::{ArtifactDocumentQuery, ArtifactLibraryQuery};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    // File publications validate envelopes; native rendering/parsing is separate.
+    for (format, bytes) in [
+        ("pdf", pdf_bytes()),
+        ("docx", b"PK\x03\x04opaque office archive".to_vec()),
+        ("xlsx", b"PK\x03\x04opaque workbook archive".to_vec()),
+        (
+            "png",
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDRopaque raster".to_vec(),
+        ),
+    ] {
+        let name = format!("Report.{format}");
+        std::fs::write(f.dir.join(&name), &bytes).unwrap();
+        let hash = format!("{:x}", Sha256::digest(&bytes));
+        let artifact = f
+            .store
+            .publish_file_document(
+                &root.lease,
+                Uuid::new_v4(),
+                &f.dir,
+                &name,
+                &name,
+                format,
+                &hash,
+                "Agent summary",
+                102,
+            )
+            .unwrap();
+        let page = f
+            .definitions
+            .list_artifacts(&ArtifactLibraryQuery {
+                project_id: Some(run.project_id),
+                task_id: None,
+                format: Some(format.into()),
+                after: None,
+                limit: 32,
+            })
+            .unwrap();
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(
+            f.definitions
+                .read_artifact_document(&ArtifactDocumentQuery {
+                    expected: page.items[0].clone()
+                })
+                .unwrap()
+                .bytes,
+            bytes
+        );
+        let reply = f.store.document_model_reply(artifact.id, &bytes).unwrap();
+        assert_eq!(reply["content_interpreted"], false);
+        assert!(reply.get("content").is_none());
+    }
+}
+
+#[test]
+fn file_publication_small_summary_and_recovery_cannot_be_removed_or_changed() {
+    use sha2::{Digest, Sha256};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    std::fs::write(f.dir.join("report.txt"), "Reviewed small report").unwrap();
+    let bytes = b"Reviewed small report";
+    let hash = format!("{:x}", Sha256::digest(bytes));
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_file_document(
+            &root.lease,
+            request,
+            &f.dir,
+            "report.txt",
+            "report.txt",
+            "txt",
+            &hash,
+            "Agent description",
+            102,
+        )
+        .unwrap();
+    let args = serde_json::json!({"path":"report.txt","name":"report.txt","format":"txt","sha256":hash,"summary":"Agent description"});
+    let db = f.store.connect().unwrap();
+    documents::recover_file(&db, &artifact, &args, bytes).unwrap();
+    let mut changed = args.clone();
+    changed["summary"] = "Changed".into();
+    assert!(documents::recover_file(&db, &artifact, &changed, bytes).is_err());
+    let handoff = documents::handoff(&db, &artifact, bytes.to_vec()).unwrap();
+    assert!(handoff.content.contains("Agent description"));
+    assert!(!handoff.content.contains("Reviewed small report"));
+    db.execute(
+        "DELETE FROM ion_team_file_documents WHERE artifact_id=?",
+        [artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(f.definitions.read_document(artifact.id).is_err());
+    assert!(f.store.document_model_reply(artifact.id, bytes).is_err());
+    assert!(
+        f.store
+            .publish_file_document(
+                &root.lease,
+                request,
+                &f.dir,
+                "report.txt",
+                "report.txt",
+                "txt",
+                &hash,
+                "Agent description",
+                103
+            )
+            .is_err()
+    );
+}

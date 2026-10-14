@@ -575,7 +575,7 @@ fn dispatch_next(
                 content: result.summary.clone(),
             });
             for id in &result.artifact_ids {
-                let (name,bytes):(String,Vec<u8>)=tx.query_row("SELECT d.name,d.content FROM ion_team_document_receipts d JOIN ion_team_work w ON w.id=d.work_id WHERE d.artifact_id=? AND w.run_id=? AND length(d.content) BETWEEN 1 AND 65536",params![id.to_string(),previous.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).context("Prior document receipt missing")?;
+                let (name,bytes):(String,Vec<u8>)=tx.query_row("SELECT d.name,d.content FROM ion_team_document_receipts d JOIN ion_team_work w ON w.id=d.work_id WHERE d.artifact_id=? AND w.run_id=? AND length(d.content) BETWEEN 1 AND 16777216",params![id.to_string(),previous.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).context("Prior document receipt missing")?;
                 let body: String = tx
                     .query_row(
                         "SELECT body FROM ion_control_records WHERE id=? AND kind='artifact'",

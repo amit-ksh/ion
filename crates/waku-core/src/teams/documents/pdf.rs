@@ -173,6 +173,11 @@ pub(super) fn model_reply(
     artifact: &Artifact,
     bytes: &[u8],
 ) -> Result<serde_json::Value> {
+    if let Some((_, summary)) = super::files::verify(db, artifact, bytes)? {
+        return Ok(
+            serde_json::json!({"artifact_id":artifact.id,"name":artifact.name,"format":artifact.format,"bytes":bytes.len(),"sha256":artifact.evidence.as_ref().context("Document evidence missing")?.sha256,"summary":summary,"summary_source":"agent","content_interpreted":false,"note":"Exact original available through Artifacts. Summary is agent-authored."}),
+        );
+    }
     if artifact.format == "pdf" {
         let summary = verify(db, artifact, bytes)?.context("PDF summary receipt missing")?;
         Ok(
@@ -195,7 +200,7 @@ pub(in crate::teams) fn handoff(
     artifact: &Artifact,
     bytes: Vec<u8>,
 ) -> Result<PreparedInput> {
-    if artifact.format == "pdf" {
+    if super::files::verify(db, artifact, &bytes)?.is_some() || artifact.format == "pdf" {
         Ok(PreparedInput {
             key: artifact.id.to_string(),
             name: format!("{}.artifact.json", artifact.id),

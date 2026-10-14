@@ -683,7 +683,7 @@ fn workflow_documents_validate_before_save_and_legacy_empty_requirements_are_com
     let revision = f.definitions.load().unwrap().revision;
     for formats in [
         vec!["html", "html"],
-        vec!["docx"],
+        vec!["zip"],
         vec!["exe"],
         vec!["HTML"],
         vec!["md", "txt", "html", "csv", "json", "md"],

@@ -13,7 +13,7 @@ import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTheme } from '@/hooks/use-theme';
 import { clearDefinitionDraft, cloneDefinition, definitionDraftKey, newDefinition, newStage, persistDefinitionDraft, readDefinitionDraft, rebaseDefinitionDraft, removeWorkflowStage, saveDefinitionDraft, type AutomationDefinition, type DefinitionDraft } from '@/lib/automation-editor';
 
-const formats = ['html', 'md', 'txt', 'csv', 'json', 'pdf'];
+const formats = ['html', 'md', 'txt', 'csv', 'json', 'pdf', 'svg', 'xml', 'yaml', 'yml', 'docx', 'xlsx', 'png'];
 const defaultLimits: TeamRunLimits = { maxWorkItems: 64, maxParallelTasks: 4, maxDepth: 8, maxAttempts: 2, maxModelCalls: 64,
   maxTokens: 2000000, requireChildReview: true, maxReworkRounds: 2, timeoutSeconds: 3600 };
 export default function AutomationEditorScreen() {

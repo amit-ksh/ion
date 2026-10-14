@@ -1,11 +1,16 @@
 # Agent Teams release checklist
 
+## Current scope update (2026-10-14)
+
+The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](63-phone-rendered-documents.md) records available behavior and remaining publication/resource work.
+
+
 Updated 2026-10-11. Implementation branch: `codex/ion-agent-teams` in the managed
 worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
-## Current scope correction (2026-10-08)
+## Historical scope correction (2026-10-08)
 
 The user deferred adapters that have not been added yet. Keep all implemented
 adapters and native Nebius/Codex/Claude/OpenCode normal-task Teams connections.
@@ -877,3 +882,29 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] 27 client tests pass, including 7 new persistence/flow cases; final native build, Rust formatting, binding freshness, mechanical UI scan and source checks pass.
 - [ ] Complete [native first-launch/skip/configuration review](62-first-launch-onboarding.md#owner-review-checklist) on both themes and relevant machines.
 - [ ] Perform live credential/gateway/speech and phone acceptance when owner resources are available.
+
+## 2026-10-14 — phone styled HTML/SVG and additional text formats
+
+- [x] Direct/gateway Rendered tab retains authored inline CSS, responsive layout, SVG and embedded assets with a script-disabled, isolated document view.
+- [x] Raise verified HTML/SVG phone rendering from 64 KiB to 1 MiB UTF-8; preserve full virtualized Source/export and the bounded accessible Reading alternative.
+- [x] Batch parsing/filtering/serialization and reject excessive complexity during parsing; owner/foreground/grant/expiry fences discard stale views.
+- [x] Add generated SVG/XML/YAML/YML documents through trusted tools, ordinary artifact collection, library/retention filters, workflow/output requirements and export MIME selection.
+- [x] Full mobile typecheck; phone document/export/render tests and native additional-format publication/discovery/exact-export/replay test pass. Core production/test code check passes.
+- [ ] Run the [native phone layout/device checklist](63-phone-rendered-documents.md#owner-review-checklist) after rebuilding with the new native dependency.
+- [x] Larger file-based publications now preserve exact originals up to 16 MiB with sealed summary/recovery receipts.
+- [ ] Finish verified resource bundles and remaining native harness contracts. The active goal is not complete.
+
+## 2026-10-14 — large file publications and image previews
+
+- [x] Hash/size inspection of a nonprivate regular workspace document and exact-file publication up to 16 MiB, using the trusted assignment lease.
+- [x] Open parent/file components without following links, bound reads, and require the inspected SHA-256 before publication.
+- [x] Atomically store original bytes, artifact provenance and sealed agent path/summary receipt; exact replay can use the durable original after source removal.
+- [x] Add file publication recovery; refuse changed arguments, missing sealed receipt and cleaned original evidence.
+- [x] Keep binary/large document bytes out of model/workflow context; handoffs use labeled agent summaries and hashes.
+- [x] File publication accepts PDF, DOCX, XLSX and PNG alongside text formats; phone discovery/export/output contracts recognize them.
+- [x] Raise direct/gateway/desktop PDF input to 16 MiB, retaining page count/pixel/PNG transfer bounds. Fourteen PDF regression/transport cases pass.
+- [x] Eleven final binary-document regressions (including four large-file publication/recovery cases), workflow format validation and locked desktop/daemon checks pass.
+- [x] Direct/gateway PNG previews validate chunk checksums/order, bounded dimensions/pixels and exact bytes; six image cases and updated full mobile typecheck pass.
+- [x] Twelve shared bridge regressions and the installed Pi 0.84.1/OMP 18.6.1 native callback fixture pass. Accepted Windows sockets use bounded blocking reads; catalog discovery does not consume the scripted tool response.
+- [ ] Review owner native accounts and cold startup under memory pressure; investigation observed an intermittent Pi initialization timeout.
+- [ ] Complete physical-device/native layout acceptance and remaining Amp/Cursor native contracts. The full goal remains active.

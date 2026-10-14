@@ -32,7 +32,19 @@ pub(super) fn validate_contract(contract: &OutputContract) -> Result<()> {
         ensure!(
             matches!(
                 format.as_str(),
-                "html" | "md" | "txt" | "csv" | "json" | "pdf" | "docx" | "xlsx" | "png" | "svg"
+                "html"
+                    | "md"
+                    | "txt"
+                    | "csv"
+                    | "json"
+                    | "pdf"
+                    | "docx"
+                    | "xlsx"
+                    | "png"
+                    | "svg"
+                    | "xml"
+                    | "yaml"
+                    | "yml"
             ),
             "Unsupported required document format"
         );

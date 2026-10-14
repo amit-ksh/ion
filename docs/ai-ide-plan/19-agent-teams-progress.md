@@ -1,5 +1,10 @@
 # Agent teams: implementation progress and review checklist
 
+## Current scope update (2026-10-14)
+
+The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](63-phone-rendered-documents.md) records available behavior and remaining publication/resource work.
+
+
 Updated 2026-10-12. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
@@ -9,7 +14,7 @@ For the current implementation scope, remaining development and live setup, use 
 record historical increments and their verification, not a claim that every
 planned Teams capability is complete.
 
-## Current scope correction (2026-10-08)
+## Historical scope correction (2026-10-08)
 
 The user deferred adapters that have not been added yet. Keep all implemented
 adapters and native Nebius/Codex/Claude/OpenCode normal-task Teams connections.

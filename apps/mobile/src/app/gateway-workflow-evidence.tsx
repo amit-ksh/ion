@@ -1,3 +1,7 @@
+import { ArtifactImagePreview } from "@/components/artifact-image-preview";
+import { prepareArtifactImage, type ArtifactImage } from "@/lib/artifact-image";
+import { ArtifactHtmlPreview } from "@/components/artifact-html-preview";
+import { prepareHtmlViews, type RenderedHtml } from "@/lib/html-rendering";
 import { PdfPageViewer, pdfDigest } from "@/components/artifact-pdf-preview";
 import { readGatewayPdfPage } from "@/lib/gateway-pdf";
 import {
@@ -49,6 +53,7 @@ export default function GatewayWorkflowEvidenceScreen() {
     ticket: number;
   } | null>(null);
   const [readingView, setReadingView] = useState(true);
+  const [rendering, setRendering] = useState(true);
   const markdownStyles = useMemo(
     () => ({
       ...markdown,
@@ -68,6 +73,9 @@ export default function GatewayWorkflowEvidenceScreen() {
       format: string;
       sourceRows: DocumentPreviewRow[];
       readingPreview: DocumentReadingPreview;
+      rendered: RenderedHtml | null;
+      renderError: string | null;
+      image: ArtifactImage | null;
       scope: string;
     } | null>(null);
   const valid =
@@ -118,6 +126,23 @@ export default function GatewayWorkflowEvidenceScreen() {
     };
   }, []);
   useEffect(() => {
+    const expires = state.pairing?.expiresAt;
+    if (expires === undefined) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      const remaining = expires - Date.now();
+      if (remaining <= 0) {
+        epoch.current++;
+        setPreview(null);
+        setPdfPreview(null);
+        return;
+      }
+      timer = setTimeout(arm, Math.min(remaining, 2_147_483_647));
+    };
+    arm();
+    return () => clearTimeout(timer);
+  }, [state.pairing?.expiresAt, scope]);
+  useEffect(() => {
     epoch.current++;
     setPreview(null);
     setPdfPreview(null);
@@ -155,7 +180,15 @@ export default function GatewayWorkflowEvidenceScreen() {
       AppState.currentState !== "active"
     )
       return;
-    if (!exporting && record.bytes > 65_536) {
+    if (
+      !exporting &&
+      record.bytes >
+        (["pdf", "png"].includes(record.format)
+          ? 16 * 1024 * 1024
+          : ["html", "htm", "svg"].includes(record.format)
+            ? 1024 * 1024
+            : 65_536)
+    ) {
       setMessage({
         text: "This document exceeds the Reading preview limit. Export the verified original.",
         error: true,
@@ -174,7 +207,9 @@ export default function GatewayWorkflowEvidenceScreen() {
       visible.current &&
       AppState.currentState === "active" &&
       epoch.current === ticket &&
-      scopeRef.current === started;
+      scopeRef.current === started &&
+      credential.expiresAt > Date.now() &&
+      credential.grants.includes("evidenceRead");
     try {
       const bytes = await readGatewayWorkflowDocument(
         credential,
@@ -207,26 +242,61 @@ export default function GatewayWorkflowEvidenceScreen() {
           scope: started,
           ticket,
         });
+      } else if (record.format === "png") {
+        let image: ArtifactImage | null = null,
+          error: string | null = null;
+        try {
+          image = await prepareArtifactImage(bytes, current);
+        } catch (cause) {
+          error =
+            cause instanceof Error
+              ? cause.message
+              : "Image preview unavailable. Export the original.";
+        }
+        if (!current()) return;
+        setPreview({
+          name: record.name,
+          format: record.format,
+          text: "",
+          sourceRows: [],
+          readingPreview: await prepareDocumentReading("txt", "", current),
+          rendered: null,
+          renderError: error,
+          image,
+          scope: started,
+        });
       } else {
-        if (bytes.length > 65_536)
+        if (
+          bytes.length >
+          (["html", "htm", "svg"].includes(record.format)
+            ? 1024 * 1024
+            : 65_536)
+        )
           throw new Error(
             "This document exceeds the Reading preview limit. Export the verified original.",
           );
         const text = workflowDocumentText(bytes);
-        const sourceRows = documentPreviewRows(record.format, text, false);
-        const readingPreview = await prepareDocumentReading(
-          record.format,
-          text,
-          current,
-        );
+        const htmlViews = ["html", "htm", "svg"].includes(record.format)
+          ? await prepareHtmlViews(text, current, record.format)
+          : null;
+        const sourceRows =
+          htmlViews?.sourceRows ??
+          documentPreviewRows(record.format, text, false);
+        const readingPreview =
+          htmlViews?.readingPreview ??
+          (await prepareDocumentReading(record.format, text, current));
         if (!current()) return;
         setReadingView(true);
+        setRendering(!!htmlViews?.rendered);
         setPreview({
           name: record.name,
           format: record.format,
           text,
           sourceRows,
           readingPreview,
+          rendered: htmlViews?.rendered ?? null,
+          renderError: htmlViews?.renderError ?? null,
+          image: null,
           scope: started,
         });
       }
@@ -247,14 +317,19 @@ export default function GatewayWorkflowEvidenceScreen() {
   // Cached rows belong only to the selected owner/run/credential generation.
   const activePreview =
     preview?.scope === scope &&
+    state.pairing !== null &&
+    state.pairing.expiresAt > Date.now() &&
+    state.pairing.grants.includes("evidenceRead") &&
     visible.current &&
     AppState.currentState === "active"
       ? preview
       : null;
   const previewRows = activePreview
-    ? readingView
-      ? activePreview.readingPreview.rows
-      : activePreview.sourceRows
+    ? rendering && activePreview.rendered
+      ? []
+      : readingView
+        ? activePreview.readingPreview.rows
+        : activePreview.sourceRows
     : [];
   const currentPdf = () =>
     !!pdfPreview &&
@@ -334,32 +409,77 @@ export default function GatewayWorkflowEvidenceScreen() {
                 {activePreview.name}
               </Text>
               <Text style={[styles.body, { color: theme.textSecondary }]}>
-                {readingView &&
-                ["md", "json", "html", "htm"].includes(activePreview.format)
-                  ? activePreview.readingPreview.sourceFallback
-                    ? "Verified document · Source"
-                    : "Verified document · Reading view"
-                  : "Verified document · Source"}
+                {activePreview.image
+                  ? "Verified document · Image"
+                  : rendering && activePreview.rendered
+                    ? "Verified document · Rendered"
+                    : readingView &&
+                        ["md", "json", "html", "htm", "svg"].includes(
+                          activePreview.format,
+                        )
+                      ? activePreview.readingPreview.sourceFallback
+                        ? "Verified document · Source"
+                        : "Verified document · Reading view"
+                      : "Verified document · Source"}
               </Text>
-              {["md", "json", "html", "htm"].includes(activePreview.format) && (
+              {["md", "json", "html", "htm", "svg"].includes(
+                activePreview.format,
+              ) && (
                 <View style={styles.actions}>
+                  {activePreview.rendered && (
+                    <AutomationButton
+                      label="Rendered"
+                      disabled={rendering}
+                      onPress={() => setRendering(true)}
+                    />
+                  )}
                   <AutomationButton
                     label="Reading view"
-                    disabled={readingView}
-                    onPress={() => setReadingView(true)}
+                    disabled={readingView && !rendering}
+                    onPress={() => {
+                      setReadingView(true);
+                      setRendering(false);
+                    }}
                   />
                   <AutomationButton
                     label="Source"
-                    disabled={!readingView}
-                    onPress={() => setReadingView(false)}
+                    disabled={!readingView && !rendering}
+                    onPress={() => {
+                      setReadingView(false);
+                      setRendering(false);
+                    }}
                   />
                 </View>
               )}
-              {["html", "htm"].includes(activePreview.format) && (
+              {rendering && activePreview.rendered && (
+                <ArtifactHtmlPreview
+                  key={scope}
+                  document={activePreview.rendered}
+                  name={activePreview.name}
+                />
+              )}
+              {activePreview.image && (
+                <ArtifactImagePreview
+                  key={scope}
+                  image={activePreview.image}
+                  name={activePreview.name}
+                />
+              )}
+              {activePreview.renderError && (
+                <Text
+                  accessibilityRole="alert"
+                  style={[styles.body, { color: theme.danger }]}
+                >
+                  {activePreview.renderError}
+                </Text>
+              )}
+              {["html", "htm", "svg"].includes(activePreview.format) && (
                 <Text style={[styles.body, { color: theme.textSecondary }]}>
-                  {readingView
-                    ? activePreview.readingPreview.note
-                    : "HTML Source · Scripts, links and media remain inactive."}
+                  {rendering && activePreview.rendered
+                    ? "Page styling and embedded images · Scripts and external resources are inactive."
+                    : readingView
+                      ? activePreview.readingPreview.note
+                      : "HTML Source · Scripts, links and media remain inactive."}
                 </Text>
               )}
               <AutomationButton

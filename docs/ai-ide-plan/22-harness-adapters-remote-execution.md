@@ -1,10 +1,15 @@
 # Teams harness adapters and Nebius execution
 
+## Current scope update (2026-10-14)
+
+The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](63-phone-rendered-documents.md) records available behavior and remaining publication/resource work.
+
+
 Updated 2026-10-08. Implementation: `codex/ion-agent-teams` in the managed
 worktree. No integration into `ion-prod`, cloud deployment or live provider
 acceptance is implied by this checkpoint.
 
-## Current scope correction (2026-10-08)
+## Historical scope correction (2026-10-08)
 
 The user deferred adapters that have not been added yet. Keep all implemented
 adapters and native Nebius/Codex/Claude/OpenCode normal-task Teams connections.
@@ -37,7 +42,7 @@ supersedes references there to unfinished adapters as required development.
 | Antigravity | Private native Gemini completion, canonical one-use gate | Yes | Native Gemini profile and host GEMINI_API_KEY; 1.3.0/1.3.1 |
 | OpenCode 2 | Private standalone CLI, canonical one-use Responses gate | Yes | Native direct OpenAI key; beta-17823 |
 | Fx | Configured direct-provider ask with bounded one-use Chat gate; Linux fixture passed | Yes, Linux/macOS required | Native selected configured OpenAI or Nebius bearer slot; 0.0.13 |
-| Amp, Cursor | Deferred; outside current implementation scope | Not enabled | Selection remains pinned |
+| Amp, Cursor | Native contract implementation/research reopened | Not enabled: native limits/usage proof remain open | Selection remains pinned |
 
 Twelve catalog harnesses have Teams adapter implementations and native transport/
 CLI fixture evidence. Fx 0.0.13's official Linux x86_64 binary passed its real Rust
@@ -50,7 +55,7 @@ Unsupported native account types, custom endpoints and releases block readiness.
 They remain selectable for normal solo use. A saved Teams harness is preserved
 when readiness fails; another CLI or Nebius account is never substituted.
 
-### Amp and Cursor: deferred contract research
+### Amp and Cursor: native contract research (scope reopened 2026-10-14)
 
 Research was checked against current official docs and public native releases on
 2026-10-07. These are contract gaps, not completed adapters or just missing keys.
@@ -73,7 +78,7 @@ Research was checked against current official docs and public native releases on
   See [the SDK contract evidence](RESEARCH-cursor-teams-contract.md).
 
 Readiness reports the specific gap before an attempt/model call starts. These two
-Teams adapters are deferred and are not gates for current implementation completion.
+Teams adapters are reopened implementation requirements. Their native contract gaps remain open; readiness stays disabled until those contracts are supported and verified.
 
 ## Normal tasks invoking saved teams
 

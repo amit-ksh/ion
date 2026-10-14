@@ -83,7 +83,19 @@ fn encode_cursor(cursor: &Cursor) -> Result<String> {
 fn valid_format(format: &str) -> bool {
     matches!(
         format,
-        "md" | "txt" | "json" | "csv" | "html" | "htm" | "pdf" | "docx"
+        "md" | "txt"
+            | "json"
+            | "csv"
+            | "html"
+            | "htm"
+            | "pdf"
+            | "docx"
+            | "xlsx"
+            | "png"
+            | "svg"
+            | "xml"
+            | "yaml"
+            | "yml"
     )
 }
 fn item(artifact: &Artifact) -> Result<ArtifactLibraryItem> {

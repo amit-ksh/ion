@@ -191,7 +191,7 @@ see [gateway history](32-gateway-inbox-usage-history.md).
 - [Physical device setup/review](52-physical-device-review.md): Moto G32/iPhone 15 native builds, bounded prerequisite inspection and actual-device checklist.
 - [Command resource Usage](53-command-resource-usage.md): cached native diagnostics, project scope and keyboard review.
 
-Live Nebius speech deployment and native phone acceptance remain open. Additional harness adapters remain deferred.
+Live Nebius speech deployment and native phone acceptance remain open. The 2026-10-14 goal reopens remaining harness integrations; use the latest harness checklist for current readiness.
 
 - [Actual local speech recognition](54-native-speech-recognition.md): installed CPU model, single/concurrent synthetic audio, bounded memory and remaining phone/cloud gates.
 - [GPU runtime boundary research](RESEARCH-gpu-runtime-boundary.md): current kernel/device/mount/IPC contracts and the distinction between startup snapshots and confinement.
@@ -209,3 +209,7 @@ Live Nebius speech deployment and native phone acceptance remain open. Additiona
 - [GPU collector retention](61-gpu-collector-retention.md): original encoded receipt admission, intersecting scope limits and owner storage diagnostics.
 
 - [First-launch setup](62-first-launch-onboarding.md): skippable desktop connection screens, resumable progress and a persistent setup indicator.
+
+- [Phone rendered documents](63-phone-rendered-documents.md): authored inline HTML/CSS/SVG rendering, larger previews, additional text formats and pending larger binary/file publications.
+
+- [Remaining harness integrations](64-remaining-harness-integrations.md): Pi/Oh My Pi native Teams bridge and current Amp/Cursor contract gaps.

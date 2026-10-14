@@ -1,7 +1,7 @@
 import type { ArtifactLibraryItem, WakuClient } from "@waku/client";
 import { decodeArtifactBytes, validateArtifactItem } from "./artifact-library";
 export const PDF_ZOOMS = [800, 1200, 1600] as const;
-export const PDF_ORIGINAL_LIMIT = 65536;
+export const PDF_ORIGINAL_LIMIT = 16 * 1024 * 1024;
 const PNG_LIMIT = 12 * 1024 * 1024;
 const HASH = /^[0-9a-f]{64}$/;
 export type PdfPagePreview = {

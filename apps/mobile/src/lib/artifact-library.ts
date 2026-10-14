@@ -17,6 +17,12 @@ export const ARTIFACT_FORMATS = [
   "htm",
   "pdf",
   "docx",
+  "xlsx",
+  "png",
+  "svg",
+  "xml",
+  "yaml",
+  "yml",
 ] as const;
 const FIELDS = "bytes,createdAt,format,id,name,origin,projectId,sha256,taskId";
 const shape = (
@@ -290,8 +296,20 @@ export function artifactText(
   bytes: Uint8Array,
 ): string | null {
   if (
-    !["md", "txt", "csv", "json", "html", "htm"].includes(document.format) ||
-    bytes.length > 65_536
+    ![
+      "md",
+      "txt",
+      "csv",
+      "json",
+      "html",
+      "htm",
+      "svg",
+      "xml",
+      "yaml",
+      "yml",
+    ].includes(document.format) ||
+    bytes.length >
+      (["html", "htm", "svg"].includes(document.format) ? 1024 * 1024 : 65_536)
   )
     return null;
   return workflowDocumentText(bytes);

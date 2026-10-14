@@ -67,7 +67,7 @@ export function validateGatewayPdfQuery(
     !id(q.runId) ||
     !integer(q.revision) ||
     q.expected.format !== "pdf" ||
-    q.expected.bytes > 65536 ||
+    q.expected.bytes > 16 * 1024 * 1024 ||
     !["id", "projectId", "teamRunId", "assignmentId"].every((k) =>
       id(q.expected[k]),
     ) ||

@@ -96,7 +96,7 @@ describe("verified owner PDF pages", () => {
     let requests = 0;
     for (const [doc, index, width] of [
       [{ ...expected, format: "html" }, 0, 800],
-      [{ ...expected, bytes: 65537 }, 0, 800],
+      [{ ...expected, bytes: 16 * 1024 * 1024 + 1 }, 0, 800],
       [expected, 32, 800],
       [expected, 0, 500],
       [expected, -1, 800],

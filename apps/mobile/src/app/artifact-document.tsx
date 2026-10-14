@@ -1,3 +1,7 @@
+import { ArtifactImagePreview } from "@/components/artifact-image-preview";
+import { prepareArtifactImage, type ArtifactImage } from "@/lib/artifact-image";
+import { ArtifactHtmlPreview } from "@/components/artifact-html-preview";
+import { prepareHtmlViews, type RenderedHtml } from "@/lib/html-rendering";
 import type { ArtifactLibraryItem } from "@waku/client";
 import * as Crypto from "expo-crypto";
 import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -62,6 +66,7 @@ export default function ArtifactDocumentScreen() {
     [foreground, setForeground] = useState(AppState.currentState === "active"),
     [refresh, setRefresh] = useState(0),
     [reading, setReading] = useState(true),
+    [rendering, setRendering] = useState(true),
     [busy, setBusy] = useState(false),
     [exporting, setExporting] = useState(false);
   const [loaded, setLoaded] = useState<{
@@ -71,6 +76,9 @@ export default function ArtifactDocumentScreen() {
       text: string | null;
       sourceRows: DocumentPreviewRow[];
       readingPreview: DocumentReadingPreview | null;
+      rendered: RenderedHtml | null;
+      renderError: string | null;
+      image: ArtifactImage | null;
     } | null>(null),
     [message, setMessage] = useState<{
       scope: string;
@@ -129,6 +137,7 @@ export default function ArtifactDocumentScreen() {
     setLoaded(null);
     setMessage(null);
     setReading(true);
+    setRendering(true);
     const client = daemon.client,
       selected = route.value,
       started = scope;
@@ -179,19 +188,39 @@ export default function ArtifactDocumentScreen() {
         } catch {
           /* Invalid textual bytes remain exportable as exact original content. */
         }
+        const htmlViews =
+          text !== null &&
+          ["html", "htm", "svg"].includes(selected.document.format)
+            ? await prepareHtmlViews(text, current, selected.document.format)
+            : null;
         const sourceRows =
-          text !== null
+          htmlViews?.sourceRows ??
+          (text !== null
             ? documentPreviewRows(selected.document.format, text, false)
-            : [];
+            : []);
         const readingPreview =
-          text !== null
+          htmlViews?.readingPreview ??
+          (text !== null
             ? await prepareDocumentReading(
                 selected.document.format,
                 text,
                 current,
               )
-            : null;
+            : null);
+        let image: ArtifactImage | null = null,
+          imageError: string | null = null;
+        if (selected.document.format === "png") {
+          try {
+            image = await prepareArtifactImage(bytes, current);
+          } catch (error) {
+            imageError =
+              error instanceof Error
+                ? error.message
+                : "Image preview unavailable. Export the original.";
+          }
+        }
         if (!current()) return;
+        setRendering(!!htmlViews?.rendered);
         setLoaded({
           scope: started,
           document: selected.document,
@@ -199,6 +228,9 @@ export default function ArtifactDocumentScreen() {
           text,
           sourceRows,
           readingPreview,
+          rendered: htmlViews?.rendered ?? null,
+          renderError: htmlViews?.renderError ?? imageError,
+          image,
         });
       })
       .catch((error) => {
@@ -230,9 +262,11 @@ export default function ArtifactDocumentScreen() {
       : null;
   // Verified source and semantic layout are prepared once; render reads memory only.
   const rows = preview
-    ? reading
-      ? (preview.readingPreview?.rows ?? [])
-      : preview.sourceRows
+    ? rendering && preview.rendered
+      ? []
+      : reading
+        ? (preview.readingPreview?.rows ?? [])
+        : preview.sourceRows
     : [];
   async function save() {
     if (
@@ -332,32 +366,49 @@ export default function ArtifactDocumentScreen() {
             {preview && (
               <>
                 <Text style={[styles.body, { color: theme.textSecondary }]}>
-                  {preview.text === null
-                    ? "Verified original document · Export available"
-                    : reading &&
-                        ["md", "json", "html", "htm"].includes(
-                          preview.document.format,
-                        )
-                      ? preview.readingPreview?.sourceFallback
-                        ? "Verified document · Source"
-                        : "Verified document · Reading view"
-                      : "Verified document · Source"}
+                  {preview.image
+                    ? "Verified document · Image"
+                    : preview.text === null
+                      ? "Verified original document · Export available"
+                      : rendering && preview.rendered
+                        ? "Verified document · Rendered"
+                        : reading &&
+                            ["md", "json", "html", "htm", "svg"].includes(
+                              preview.document.format,
+                            )
+                          ? preview.readingPreview?.sourceFallback
+                            ? "Verified document · Source"
+                            : "Verified document · Reading view"
+                          : "Verified document · Source"}
                 </Text>
                 <View style={styles.actions}>
+                  {preview.rendered && (
+                    <AutomationButton
+                      label="Rendered"
+                      disabled={rendering || exporting}
+                      onPress={() => setRendering(true)}
+                    />
+                  )}
                   {preview.text !== null &&
-                    ["md", "json", "html", "htm"].includes(
+                    ["md", "json", "html", "htm", "svg"].includes(
                       preview.document.format,
                     ) && (
                       <>
                         <AutomationButton
                           label="Reading view"
-                          disabled={reading || exporting}
-                          onPress={() => setReading(true)}
+                          disabled={(reading && !rendering) || exporting}
+                          onPress={() => {
+                            setReading(true);
+                            setRendering(false);
+                          }}
                         />
                         <AutomationButton
                           label="Source"
-                          disabled={!reading || exporting}
-                          onPress={() => setReading(false)}
+                          disabled={(!reading && !rendering) || exporting}
+                          onPress={() => {
+                            setReading(false);
+                            setRendering(false);
+                          }}
                         />
                       </>
                     )}
@@ -367,8 +418,30 @@ export default function ArtifactDocumentScreen() {
                     onPress={() => void save()}
                   />
                 </View>
+                {rendering && preview.rendered && (
+                  <ArtifactHtmlPreview
+                    key={scope}
+                    document={preview.rendered}
+                    name={preview.document.name}
+                  />
+                )}
+                {preview.image && (
+                  <ArtifactImagePreview
+                    key={scope}
+                    image={preview.image}
+                    name={preview.document.name}
+                  />
+                )}
+                {preview.renderError && (
+                  <Text
+                    accessibilityRole="alert"
+                    style={[styles.body, { color: theme.danger }]}
+                  >
+                    {preview.renderError}
+                  </Text>
+                )}
                 {preview.document.format === "pdf" &&
-                  preview.document.bytes <= 65536 &&
+                  preview.document.bytes <= 16 * 1024 * 1024 &&
                   daemon.client && (
                     <ArtifactPdfPreview
                       key={scope}
@@ -385,9 +458,10 @@ export default function ArtifactDocumentScreen() {
                     />
                   )}
                 {preview.text === null &&
+                  !preview.image &&
                   !(
                     preview.document.format === "pdf" &&
-                    preview.document.bytes <= 65536
+                    preview.document.bytes <= 16 * 1024 * 1024
                   ) && (
                     <Text style={[styles.body, { color: theme.textSecondary }]}>
                       {["pdf", "docx"].includes(preview.document.format)
@@ -395,12 +469,14 @@ export default function ArtifactDocumentScreen() {
                         : "This document has no supported text preview. Export the verified original."}
                     </Text>
                   )}
-                {["html", "htm"].includes(preview.document.format) &&
+                {["html", "htm", "svg"].includes(preview.document.format) &&
                   preview.text !== null && (
                     <Text style={[styles.body, { color: theme.textSecondary }]}>
-                      {reading
-                        ? preview.readingPreview?.note
-                        : "HTML Source · Scripts, links and media remain inactive."}
+                      {rendering && preview.rendered
+                        ? "Page styling and embedded images · Scripts and external resources are inactive."
+                        : reading
+                          ? preview.readingPreview?.note
+                          : "HTML Source · Scripts, links and media remain inactive."}
                     </Text>
                   )}
               </>
