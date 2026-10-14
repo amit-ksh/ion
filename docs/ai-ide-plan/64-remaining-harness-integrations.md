@@ -2,6 +2,31 @@
 
 Updated 2026-10-14. The active user goal reopens the remaining harness integrations previously deferred on 2026-10-08.
 
+## Current implementation coverage
+
+This table is source-level transport coverage. Native versions, selected account/model routes, configured grants/limits and owner acceptance still apply. A completion transport is not the same feature as an ordinary source conversation invoking a saved team. Direct `@team` execution retains its existing flow.
+
+| Harness | Bounded Teams completion transport | Source-task Teams tools |
+| --- | --- | --- |
+| Nebius | Implemented | Implemented |
+| Codex | Implemented | Implemented |
+| Claude | Implemented | Implemented |
+| OpenCode | Implemented | Implemented |
+| OpenCode 2 | Implemented | Remaining |
+| Pi | Implemented | Implemented |
+| Oh My Pi | Implemented | Implemented |
+| Amp | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining |
+| Cursor | Native completion ceiling/account contract missing | Remaining |
+| Antigravity | Implemented | Remaining |
+| DeepSeek | Implemented | Remaining |
+| Fx | Implemented | Remaining |
+| Grok | Implemented | Remaining |
+| Kimi | Implemented | Remaining |
+
+The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The seven source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other seven still use their ordinary transport without source-team context. No unsupported connection is counted as implemented.
+
+[Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
+
 ## Pi and Oh My Pi normal-task Teams bridge
 
 The native session now loads a scoped extension exposing the five existing Ion Teams actions: list, invoke, inspect runs/run, and read accepted team documents. Native streamed tool-call/session IDs witness each request, and changed arguments, failed tool callbacks, terminal events, Stop and bridge closure revoke pending authorization. Exact invocation replay uses the same durable source-task/tool-call identity across native restart.
@@ -27,8 +52,9 @@ Current official SDK 1.0.37 metadata and complete declarations were inspected. I
 - [x] Fresh native Pi/Oh My Pi fixture acceptance after final compilation.
 - [ ] Review Pi cold startup under memory pressure and slow native catalog/extension initialization.
 - [ ] Verify native authenticated accounts, delegation/result review, Stop and restart on actual owner projects.
-- [ ] Complete Amp native model/allowance/usage proof and source callback identity.
+- [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
+- [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
 - [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
-- [ ] Broader normal-task bridges for other selected installed harnesses where native routes are available.
+- [ ] Complete source-task Teams tools for Cursor, Antigravity, DeepSeek, OpenCode 2, Fx, Grok and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
 
 These are current goal requirements, not deferred successes. The full goal remains active.

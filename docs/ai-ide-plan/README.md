@@ -219,3 +219,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Amp source-task team bridge](66-amp-source-team-bridge.md): native request hook, owner-stream identity, temporary plugin lifetime and acceptance gates.
 
 - [Phone Office reading](67-phone-office-reading.md): bounded DOCX/XLSX extracted content, original export and device review.
+
+- [Windows ACP startup](68-windows-acp-startup.md): native executable launch, exact protocol workspace and account/platform review.

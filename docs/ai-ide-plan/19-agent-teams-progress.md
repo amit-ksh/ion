@@ -3143,3 +3143,12 @@ Fifteen new Office regressions, full mobile TypeScript and a browser parser bund
 The portable HTML tool now embeds pinned raster href/xlink:href references in inline SVG image and filter-image elements. Phone preparation preserves those embedded rasters while retaining the existing script/network isolation and same-document fragment behavior. Resource kind is validated before encoded-cache reuse, preventing a cached stylesheet/font from being accepted as an image.
 
 Eleven native bundle regressions, fourteen phone HTML cases, mobile TypeScript, Rust formatting and locked desktop/daemon binary checks pass. [Resource scope and owner review](65-portable-html-bundles.md) retain external SVG symbol/sprite files and standalone SVG dependencies as unfinished. No visual/device acceptance, provider-account inference or ion-prod merge occurred; remaining harness contracts remain open.
+
+
+## 2026-10-14 — native Windows ACP launch
+
+The shared ACP launcher now uses the selected native executable on Windows, fixing its unconditional Unix env launch. New/load/resume retain the exact protocol workspace. Runtime and catalog/history share this path; existing native account/model negotiation is retained.
+
+The real Windows SDK/stdio fixture verifies session creation, Unicode/special-character workspace propagation, streamed text, turn completion and shutdown. **21 ACP cases pass; 3 authenticated-provider cases are skipped.** Locked desktop/daemon binary checks, Rust formatting and diff checks pass. [Setup and owner review](68-windows-acp-startup.md) explicitly retain real provider startup configuration, resume and descendant-process Stop acceptance.
+
+[Current harness coverage](64-remaining-harness-integrations.md#current-implementation-coverage) now records 12 bounded completion dispatches and 7 source-task Teams connections from current source. Amp/Cursor bounded completion contracts and seven further source-task connections remain development work. No live account/model request, visual test, watcher restart or ion-prod merge occurred. The full goal remains active.

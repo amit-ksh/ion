@@ -237,14 +237,7 @@ fn sdk_agent(
     environment.append(&mut launch.env);
     environment.extend(computer_env);
 
-    // `AcpAgentConfig` deliberately contains only argv and environment. macOS
-    // `env -C` supplies the session cwd without a shell, preserving exact
-    // argument boundaries and the SDK's process-group lifecycle management.
-    let mut args = vec!["-C".to_owned(), cwd.to_owned(), binary.to_owned()];
-    args.extend(launch.args);
-    let config = AcpAgentConfig::new("/usr/bin/env")
-        .args(args)
-        .envs(environment);
+    let config = launch_configuration(binary, cwd, launch.args, environment);
     Ok(AcpAgent::new(config).with_debug(move |line, direction| {
         if direction != LineDirection::Stderr || line.trim().is_empty() {
             return;
@@ -256,6 +249,36 @@ fn sdk_agent(
         lines.push(line.to_owned());
     }))
 }
+
+// The SDK owns process creation and stdio on both platforms. Windows must
+// launch the selected native executable; `/usr/bin/env` is a Unix program.
+// Workspace identity is still supplied on every ACP new/load/resume request.
+fn launch_configuration(
+    binary: &str,
+    cwd: &str,
+    provider_args: Vec<String>,
+    environment: Vec<(String, String)>,
+) -> AcpAgentConfig {
+    #[cfg(windows)]
+    {
+        let _ = cwd;
+        AcpAgentConfig::new(binary)
+            .args(provider_args)
+            .envs(environment)
+    }
+    #[cfg(not(windows))]
+    {
+        // Preserve native macOS/Linux process cwd and exact argv boundaries.
+        let mut args = vec!["-C".to_owned(), cwd.to_owned(), binary.to_owned()];
+        args.extend(provider_args);
+        AcpAgentConfig::new("/usr/bin/env")
+            .args(args)
+            .envs(environment)
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_launch_tests;
 
 /// Builds a short-lived ACP process for session discovery or history replay.
 ///

@@ -953,3 +953,13 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Eleven native bundle regressions, fourteen phone HTML cases, mobile TypeScript, Rust formatting and locked desktop/daemon binary checks pass.
 - [ ] Review SVG images/filter images on the actual phones using [the bundle checklist](65-portable-html-bundles.md#owner-review).
 - [ ] External SVG symbol/sprite files, standalone SVG resource dependencies and remaining native harness contracts/acceptance remain open.
+
+
+## 2026-10-14 — native Windows ACP launch
+
+- [x] Shared Windows ACP runtime/catalog/history helper starts the selected native executable through the existing SDK; Unix retains its existing argv/cwd launch.
+- [x] Keep workspace identity in ACP new/load/resume requests, native provider arguments/environment and account/model controls.
+- [x] Actual Windows SDK/stdio fixture creates a session, preserves Unicode/special-character workspace paths, streams a result and shuts down.
+- [x] 21 ACP cases pass; 3 actual authenticated-provider cases remain skipped. Locked desktop/daemon binary checks, Rust formatting and diff checks pass.
+- [ ] Complete [native CLI/project/resume/Stop acceptance](68-windows-acp-startup.md#owner-review); the synthetic protocol peer does not certify real provider/account behavior or descendant-process cancellation.
+- [ ] Complete the seven remaining source-task Teams transports and native Amp/Cursor completion contracts listed in [current harness coverage](64-remaining-harness-integrations.md#current-implementation-coverage).
