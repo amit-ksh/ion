@@ -260,6 +260,65 @@ export default function (pi) {{
             definitions = json!(definitions),
         )
     }
+    /// Add one temporary Cordis overlay; retain the native profile and login.
+    pub(crate) fn configure_deepseek(&self, command: &mut std::process::Command) -> Result<()> {
+        let plugin = self.0.directory.0.join("ion-deepseek-teams.mjs");
+        let patch = self.0.directory.0.join("ion-deepseek-teams.patch.json");
+        std::fs::write(&plugin, self.deepseek_plugin())?;
+        let uri = url::Url::from_file_path(&plugin)
+            .map_err(|_| anyhow::anyhow!("Invalid DeepSeek plugin path"))?;
+        std::fs::write(
+            &patch,
+            serde_json::to_vec(
+                &json!([{"insert":[{"id":"ion-source-teams","name":uri.as_str(),"inject":["tools"]}]}]),
+            )?,
+        )?;
+        command.arg("--patch").arg(patch);
+        command.env(
+            "ION_DEEPSEEK_TEAM_ENDPOINT",
+            format!("http://127.0.0.1:{}/call", self.0.port),
+        );
+        command.env("ION_DEEPSEEK_TEAM_TOKEN", &self.0.token);
+        Ok(())
+    }
+    fn deepseek_plugin(&self) -> String {
+        let definitions = super::tools()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["function"].clone())
+            .collect::<Vec<_>>();
+        format!(
+            r#"const definitions = {definitions};
+export const name = 'ion-source-team-tools';
+export const inject = ['tools'];
+export function apply(ctx) {{
+  const endpoint = process.env.ION_DEEPSEEK_TEAM_ENDPOINT;
+  const credential = process.env.ION_DEEPSEEK_TEAM_TOKEN;
+  if (!endpoint || !credential) return;
+  for (const def of definitions) ctx.tools.register({{
+    name: 'ion_teams_' + def.name, description: def.description, parameters: def.parameters,
+    output: {{schema: {{type:'string'}}, render(_args, text) {{ return [{{type:'text',text}}]; }} }},
+    timeoutMs: 360000,
+    async execute(args, exec) {{
+      const session = exec.agent?.session?.id;
+      const call = exec.callId;
+      if (typeof session !== 'string' || !session || typeof call !== 'string' || !call ||
+          exec.parent !== undefined || exec.rootCallId !== call || exec.signal.aborted)
+        throw new Error('Ion Teams requires a live main-session model tool call.');
+      const response = await fetch(endpoint, {{method:'POST', headers:{{'Content-Type':'application/json',Authorization:'Bearer ' + credential}},
+        body:JSON.stringify({{session_id:'deepseek:' + session,message_id:call,call_id:call,name:def.name,arguments:args}}),
+        signal:AbortSignal.any([exec.signal,AbortSignal.timeout(340000)])}});
+      const reply = await response.json();
+      if (!response.ok || !reply.ok) throw new Error(reply.text || 'Ion team request did not complete.');
+      return reply.text;
+    }}
+  }});
+}}
+"#,
+            definitions = json!(definitions)
+        )
+    }
     pub(crate) fn configure_amp(&self, command: &mut std::process::Command, prefix: &str) {
         command
             .env(
@@ -451,6 +510,50 @@ impl Bridge {
             }
             Some(kind) if kind == settled_event && event["isTerminal"] != false => self.cancel(),
             _ => {}
+        }
+    }
+    /// Only the driver's live main-session downlink reaches this observer.
+    /// History reads are never used as authorization for a tool callback.
+    pub(crate) fn observe_deepseek(&self, envelope: &Value) {
+        let payload = envelope.get("payload").unwrap_or(envelope);
+        if payload["sessionId"]
+            .as_str()
+            .map(|id| format!("deepseek:{id}"))
+            != Some(self.0.session.clone())
+        {
+            return;
+        }
+        if payload["type"] == "session/event" {
+            let event = &payload["event"];
+            let data = &event["data"];
+            match event["type"].as_str() {
+                Some("tool/call") => {
+                    let arguments = data["arguments"]
+                        .as_str()
+                        .and_then(|text| serde_json::from_str::<Value>(text).ok())
+                        .unwrap_or_else(|| data["arguments"].clone());
+                    self.observe_pi(&json!({"type":"tool_execution_start","toolCallId":data["callId"],"toolName":data["name"],"args":arguments}),"deepseek-end");
+                }
+                Some("tool/result")
+                    if data.get("error").is_some_and(|error| !error.is_null())
+                        || data.pointer("/message/isError") == Some(&Value::Bool(true))
+                        || data.pointer("/message/content/0/isError")
+                            == Some(&Value::Bool(true)) =>
+                {
+                    let call = data
+                        .pointer("/message/toolCallId")
+                        .or_else(|| data.pointer("/message/source/callId"))
+                        .or_else(|| data.pointer("/message/content/0/toolCallId"))
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    self.observe_pi(
+                        &json!({"type":"tool_execution_end","toolCallId":call,"isError":true}),
+                        "deepseek-end",
+                    );
+                }
+                Some("turn/end") => self.cancel(),
+                _ => {}
+            }
         }
     }
     pub(crate) fn observe_amp(&self, event: &Value, prefix: &str) {
@@ -861,6 +964,364 @@ mod tests {
                 received,
             )
         }
+    }
+    fn deepseek_frame(session: &str, kind: &str, data: Value) -> Value {
+        json!({"payload":{"type":"session/event","sessionId":session,"event":{"seq":1,"type":kind,"data":data}}})
+    }
+    #[test]
+    fn deepseek_source_team_live_calls_preserve_owner_approval_replay_and_stop() {
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, events) = f.bridge(&hub, "deepseek:native-session");
+        let call = deepseek_frame(
+            "native-session",
+            "tool/call",
+            json!({"callId":"call-dsh","name":"ion_teams_invoke_team","arguments":f.args().to_string()}),
+        );
+        bridge.observe_deepseek(&call);
+        let invoking = bridge.clone();
+        let args = f.args();
+        let worker = thread::spawn(move || {
+            invoking.0.handle(request(
+                "deepseek:native-session",
+                "call-dsh",
+                "call-dsh",
+                "invoke_team",
+                args,
+            ))
+        });
+        let approval = permission(&events);
+        bridge.respond(&approval, "allow");
+        assert_eq!(worker.join().unwrap().unwrap()["ok"], true);
+        assert_eq!(f.runs().len(), 1);
+        bridge.close();
+        let (resumed, events) = f.bridge(&hub, "deepseek:native-session");
+        resumed.observe_deepseek(&call);
+        assert_eq!(
+            resumed
+                .0
+                .handle(request(
+                    "deepseek:native-session",
+                    "call-dsh",
+                    "call-dsh",
+                    "invoke_team",
+                    f.args()
+                ))
+                .unwrap()["ok"],
+            true
+        );
+        assert!(
+            events
+                .try_iter()
+                .all(|event| !matches!(event, DriverEvent::Permission { .. }))
+        );
+        assert_eq!(f.runs().len(), 1);
+        resumed.cancel();
+        resumed.allow_turn();
+        assert!(
+            resumed
+                .0
+                .handle(request(
+                    "deepseek:native-session",
+                    "call-dsh",
+                    "call-dsh",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+    }
+    #[test]
+    fn deepseek_source_team_foreign_arguments_failed_results_and_end_revoke_callbacks() {
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, _) = f.bridge(&hub, "deepseek:native-session");
+        let frame = deepseek_frame(
+            "foreign-session",
+            "tool/call",
+            json!({"callId":"foreign","name":"ion_teams_invoke_team","arguments":f.args()}),
+        );
+        bridge.observe_deepseek(&frame);
+        assert!(bridge.0.state.lock().witnesses.is_empty());
+        bridge.observe_deepseek(&deepseek_frame(
+            "native-session",
+            "tool/ptc-dispatch-start",
+            json!({"subCallId":"nested","name":"ion_teams_invoke_team","arguments":f.args()}),
+        ));
+        assert!(bridge.0.state.lock().witnesses.is_empty());
+        let frame = deepseek_frame(
+            "native-session",
+            "tool/call",
+            json!({"callId":"changed","name":"ion_teams_invoke_team","arguments":f.args()}),
+        );
+        bridge.observe_deepseek(&frame);
+        let mut changed = frame.clone();
+        changed["payload"]["event"]["data"]["arguments"]["objective"] = json!("Changed scope");
+        bridge.observe_deepseek(&changed);
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "deepseek:native-session",
+                    "changed",
+                    "changed",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+        bridge.observe_deepseek(&deepseek_frame(
+            "native-session",
+            "tool/call",
+            json!({"callId":"failed","name":"ion_teams_get_team_runs","arguments":{}}),
+        ));
+        bridge.observe_deepseek(&deepseek_frame(
+            "native-session",
+            "tool/result",
+            json!({"message":{"toolCallId":"failed","isError":true,"content":[]}}),
+        ));
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "deepseek:native-session",
+                    "failed",
+                    "failed",
+                    "get_team_runs",
+                    json!({})
+                ))
+                .is_err()
+        );
+        bridge.observe_deepseek(&deepseek_frame("native-session", "turn/end", json!({})));
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "deepseek:native-session",
+                    "changed",
+                    "changed",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+        assert!(f.runs().is_empty());
+    }
+    #[test]
+    fn deepseek_source_team_overlay_is_additive_and_has_no_live_credentials() {
+        let hub = Hub::start().unwrap();
+        let mut command = std::process::Command::new("native-dsh");
+        command.args(["--profile", "existing-native-profile"]);
+        hub.configure_deepseek(&mut command).unwrap();
+        let args = command
+            .get_args()
+            .map(|v| v.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            &args[..3],
+            ["--profile", "existing-native-profile", "--patch"]
+        );
+        let patch: Value = serde_json::from_slice(&std::fs::read(&args[3]).unwrap()).unwrap();
+        let uri = url::Url::parse(patch[0]["insert"][0]["name"].as_str().unwrap()).unwrap();
+        let source = std::fs::read_to_string(uri.to_file_path().unwrap()).unwrap();
+        assert!(!source.contains(&hub.0.token));
+        assert!(!source.contains(&format!("127.0.0.1:{}", hub.0.port)));
+        assert_eq!(patch[0]["insert"].as_array().unwrap().len(), 1);
+        assert!(
+            command
+                .get_envs()
+                .any(|(key, value)| key == "ION_DEEPSEEK_TEAM_TOKEN"
+                    && value == Some(std::ffi::OsStr::new(&hub.0.token)))
+        );
+    }
+    #[test]
+    #[ignore = "Requires verified native DeepSeek runtime; private fake profile and loopback only"]
+    fn deepseek_source_team_generated_plugin_calls_owner_through_actual_native_runtime() {
+        use std::io::{BufRead, BufReader};
+        use std::process::{Child, Stdio};
+        let binary = std::env::var_os("ION_TEST_DEEPSEEK_BINARY")
+            .map(std::path::PathBuf::from)
+            .expect("Set ION_TEST_DEEPSEEK_BINARY");
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let mut stale_args = f.args();
+        stale_args["definition_revision"] = json!(0);
+        let wire=[
+            json!({"id":"native-tool","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_dsh_native","type":"function","function":{"name":"ion_teams_list_teams","arguments":"{}"}},{"index":1,"id":"call_dsh_invoke","type":"function","function":{"name":"ion_teams_invoke_team","arguments":f.args().to_string()}},{"index":2,"id":"call_dsh_stale","type":"function","function":{"name":"ion_teams_invoke_team","arguments":stale_args.to_string()}}]},"finish_reason":null}]}),
+            json!({"id":"native-tool","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}),
+            json!({"id":"native-tool","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[],"usage":{"prompt_tokens":100,"completion_tokens":5,"total_tokens":105}}),
+        ].iter().map(|row|format!("data: {row}\n\n")).collect::<String>()+"data: [DONE]\n\n";
+        let (ready, readiness) = bounded::<()>(1);
+        let first_request = Arc::new(AtomicBool::new(true));
+        let server = crate::driver::team_test_http::Server::with_hook(
+            vec![
+                (200, wire.into_bytes()),
+                (
+                    200,
+                    crate::driver::team_test_http::chat("deepseek-v4-flash", "Done"),
+                ),
+            ],
+            move |_| {
+                if first_request.swap(false, Ordering::AcqRel) {
+                    readiness
+                        .recv_timeout(Duration::from_secs(10))
+                        .expect("owner observed the native main session before tool response");
+                }
+            },
+        );
+        let (_profile, mut command) =
+            crate::driver::team_deepseek::source_tools_fixture_command(&binary, &server.url)
+                .unwrap();
+        hub.configure_deepseek(&mut command).unwrap();
+        command
+            .arg("Use the native Ion team catalog tool.")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+        struct Running(
+            Child,
+            #[cfg(windows)] Option<crate::command_env::ProcessTree>,
+        );
+        impl Drop for Running {
+            fn drop(&mut self) {
+                #[cfg(windows)]
+                drop(self.1.take());
+                #[cfg(unix)]
+                unsafe {
+                    libc::kill(-(self.0.id() as i32), libc::SIGKILL);
+                }
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let child = crate::command_env::spawn(&mut command).unwrap();
+        #[cfg(windows)]
+        let tree = crate::command_env::ProcessTree::attach(&child).unwrap();
+        let mut child = Running(
+            child,
+            #[cfg(windows)]
+            Some(tree),
+        );
+        let output = child.0.stdout.take().unwrap();
+        let stderr = child.0.stderr.take().unwrap();
+        let diagnostics = thread::spawn(move || {
+            use std::io::Read;
+            let mut bytes = Vec::new();
+            let _ = stderr.take(16 * 1024).read_to_end(&mut bytes);
+            bytes
+        });
+        let (sender, frames) = crossbeam_channel::unbounded();
+        let reader = thread::spawn(move || {
+            use std::io::Read;
+            for line in BufReader::new(output.take(1024 * 1024)).lines().take(200) {
+                let _ = sender.send(line.unwrap());
+            }
+        });
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut bridge: Option<Bridge> = None;
+        let mut session = String::new();
+        let mut tool_returned = false;
+        let mut finished = false;
+        let mut approved = None;
+        let mut failures = HashSet::<String>::new();
+        let mut failed_result = false;
+        while let Ok(line) = frames.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        {
+            if line.trim() == "Done" {
+                finished = true;
+                continue;
+            }
+            let Some(raw) = line.strip_prefix("__ION_DSH_EVENT__") else {
+                continue;
+            };
+            let row: Value = serde_json::from_str(raw).unwrap();
+            let native_session = row["sessionId"].as_str().unwrap();
+            if bridge.is_none() {
+                session = native_session.into();
+                let (native_bridge, events) = f.bridge(&hub, &format!("deepseek:{session}"));
+                let authorizing = native_bridge.clone();
+                approved = Some(thread::spawn(move || {
+                    let approval = permission(&events);
+                    authorizing.respond(&approval, "allow");
+                }));
+                bridge = Some(native_bridge);
+                ready.try_send(()).unwrap();
+            }
+            assert_eq!(native_session, session);
+            bridge.as_ref().unwrap().observe_deepseek(&json!({"payload":{"type":"session/event","sessionId":session,"event":row["event"]}}));
+            if row["event"]["type"] == "tool/call" {
+                let data = &row["event"]["data"];
+                let args = data["arguments"]
+                    .as_str()
+                    .and_then(|text| serde_json::from_str::<Value>(text).ok())
+                    .unwrap_or_else(|| data["arguments"].clone());
+                if args["definition_revision"].as_u64() == Some(0) {
+                    failures.insert(data["callId"].as_str().unwrap().into());
+                }
+            }
+            if row["event"]["type"] == "tool/result" {
+                let data = &row["event"]["data"];
+                let call = data
+                    .pointer("/message/toolCallId")
+                    .or_else(|| data.pointer("/message/source/callId"))
+                    .or_else(|| data.pointer("/message/content/0/toolCallId"))
+                    .and_then(Value::as_str)
+                    .unwrap();
+                if failures.contains(call) {
+                    let state = bridge.as_ref().unwrap().0.state.lock();
+                    assert!(
+                        state.witnesses[&identity(&format!("deepseek:{session}"), call, call)]
+                            .cancelled
+                            .load(Ordering::Acquire)
+                    );
+                    failed_result = true;
+                } else if data.to_string().contains("Engineering") {
+                    tool_returned = true;
+                }
+            }
+        }
+        while child.0.try_wait().unwrap().is_none() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        let status = child.0.try_wait().unwrap();
+        if status.is_none() {
+            panic!("Native DeepSeek fixture timed out");
+        }
+        reader.join().unwrap();
+        let diagnostics = diagnostics.join().unwrap();
+        assert!(
+            status.unwrap().success(),
+            "Native fixture failed: {}",
+            String::from_utf8_lossy(&diagnostics)
+        );
+        assert!(tool_returned && finished && failed_result);
+        approved.unwrap().join().unwrap();
+        assert_eq!(f.runs().len(), 1);
+        let requests = server.requests.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        let tools = requests[0].body["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 5);
+        assert!(tools.iter().all(|tool| {
+            tool["function"]["name"]
+                .as_str()
+                .unwrap()
+                .starts_with("ion_teams_")
+        }));
+        assert!(
+            requests[1].body["messages"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|message| message["role"] == "tool"
+                    && message["content"]
+                        .as_str()
+                        .is_some_and(|text| text.contains("Engineering")))
+        );
     }
     #[test]
     fn pi_source_team_native_calls_replay_and_fence_stop_for_both_dialects() {

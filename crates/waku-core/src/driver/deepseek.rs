@@ -8,6 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use anyhow::{Context as _, anyhow, bail};
@@ -89,6 +90,8 @@ pub struct DeepSeekDriver {
     // As with the other resident transports, Drop releases this lease before
     // waking the worker so final process teardown cannot block the UI thread.
     server: Option<PooledDeepSeekServer>,
+    source_tools: Option<super::source_teams::opencode::Bridge>,
+    source_stopped: Arc<AtomicBool>,
     session_id: String,
     cwd: std::path::PathBuf,
     agent_preset: Option<String>,
@@ -98,6 +101,13 @@ pub struct DeepSeekDriver {
 
 impl DeepSeekDriver {
     pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
+        Self::start_with_workspace(options, events, None)
+    }
+    pub(crate) fn start_with_workspace(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::source_teams::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
             cwd,
@@ -127,6 +137,10 @@ impl DeepSeekDriver {
         // Subscribe first. A create immediately publishes host and mux state,
         // and buffering that state closes the create/history race.
         let event_rx = server.subscribe(&requested_session_id);
+        let source_tools = workspace
+            .map(|context| server.source_team_tools(context, &requested_session_id, events.clone()))
+            .transpose()?;
+        let source_stopped = Arc::new(AtomicBool::new(false));
         let created = server
             .rpc(
                 "session.create",
@@ -208,9 +222,20 @@ impl DeepSeekDriver {
         let worker_events = events;
         let worker_mode = Arc::clone(&mode);
         let worker_completed_turn_seqs = Arc::clone(&completed_turn_seqs);
+        let worker_source_tools = source_tools.clone();
+        let worker_source_stopped = source_stopped.clone();
         thread::Builder::new()
             .name("waku-deepseek-driver".into())
             .spawn(move || {
+                struct SourceGuard(Option<super::source_teams::opencode::Bridge>);
+                impl Drop for SourceGuard {
+                    fn drop(&mut self) {
+                        if let Some(bridge) = &self.0 {
+                            bridge.close();
+                        }
+                    }
+                }
+                let _source_guard = SourceGuard(worker_source_tools.clone());
                 let mut state = StreamState {
                     last_seq: history.last_seq,
                     turn_active: history.turn_active,
@@ -224,6 +249,11 @@ impl DeepSeekDriver {
                     crossbeam_channel::select! {
                         recv(command_rx) -> message => {
                             let Ok(message) = message else { return; };
+                            if let Some(bridge) = &worker_source_tools {
+                                if let CommandMessage::Respond { request_id, option_id } = &message {
+                                    if bridge.respond(request_id, option_id) { continue; }
+                                }
+                            }
                             if !handle_command(
                                 message,
                                 &worker_server,
@@ -236,7 +266,26 @@ impl DeepSeekDriver {
                             }
                         }
                         recv(event_rx) -> envelope => {
-                            let Ok(envelope) = envelope else { return; };
+                            let Ok(envelope) = envelope else {
+                                if let Some(bridge) = &worker_source_tools {
+                                    bridge.close();
+                                }
+                                return;
+                            };
+                            if let Some(bridge) = &worker_source_tools {
+                                let payload = envelope.get("payload").unwrap_or(&envelope);
+                                if payload["type"] == "session/event"
+                                    && payload["sessionId"].as_str() == Some(worker_session_id.as_str())
+                                    && payload.pointer("/event/type").and_then(Value::as_str) == Some("turn/start")
+                                    && !worker_source_stopped.load(Ordering::Acquire)
+                                {
+                                    bridge.allow_turn();
+                                }
+                                bridge.observe_deepseek(&envelope);
+                                if matches!(payload["type"].as_str(), Some("stream/error" | "host/agent-error" | "waku/process-exited")) {
+                                    bridge.cancel();
+                                }
+                            }
                             if !handle_envelope(
                                 &envelope,
                                 &worker_server,
@@ -254,6 +303,8 @@ impl DeepSeekDriver {
 
         Ok(Self {
             server: Some(server),
+            source_tools,
+            source_stopped,
             session_id,
             cwd,
             agent_preset: selected_agent_preset,
@@ -265,6 +316,10 @@ impl DeepSeekDriver {
 
 impl DriverControl for DeepSeekDriver {
     fn prompt(&self, prompt: String) {
+        self.source_stopped.store(false, Ordering::Release);
+        if let Some(bridge) = &self.source_tools {
+            bridge.allow_turn();
+        }
         let _ = self.commands.send(CommandMessage::Prompt(prompt));
     }
 
@@ -273,10 +328,18 @@ impl DriverControl for DeepSeekDriver {
     }
 
     fn steer(&self, prompt: String) {
+        self.source_stopped.store(false, Ordering::Release);
+        if let Some(bridge) = &self.source_tools {
+            bridge.allow_turn();
+        }
         let _ = self.commands.send(CommandMessage::Steer(prompt));
     }
 
     fn cancel(&self) {
+        self.source_stopped.store(true, Ordering::Release);
+        if let Some(bridge) = &self.source_tools {
+            bridge.cancel();
+        }
         let _ = self.commands.send(CommandMessage::Cancel);
     }
 
@@ -350,6 +413,10 @@ impl DriverControl for DeepSeekDriver {
 
 impl Drop for DeepSeekDriver {
     fn drop(&mut self) {
+        self.source_stopped.store(true, Ordering::Release);
+        if let Some(bridge) = &self.source_tools {
+            bridge.close();
+        }
         drop(self.server.take());
         let _ = self.commands.send(CommandMessage::Shutdown);
     }
@@ -841,7 +908,8 @@ fn handle_tool_result(
     state: &mut StreamState,
 ) {
     let call_id = data
-        .pointer("/message/source/callId")
+        .pointer("/message/toolCallId")
+        .or_else(|| data.pointer("/message/source/callId"))
         .or_else(|| data.pointer("/message/content/0/toolCallId"))
         .and_then(Value::as_str)
         .map(str::to_owned);
@@ -867,6 +935,7 @@ fn handle_tool_result(
     let arguments = stored.as_ref().map(|tool| &tool.arguments);
     let output = data.pointer("/message/content");
     let failed = data.get("error").is_some_and(|error| !error.is_null())
+        || data.pointer("/message/isError") == Some(&Value::Bool(true))
         || data
             .pointer("/message/content/0/isError")
             .and_then(Value::as_bool)
@@ -1593,6 +1662,38 @@ mod tests {
         assert_eq!(&*state.completed_turn_seqs.lock(), &[3]);
     }
 
+    #[test]
+    fn native_top_level_tool_result_id_and_error_remain_correlated() {
+        let (events, received, mut state) = harness();
+        handle_tool_call(
+            &json!({"callId":"native-call","name":"ion_teams_list_teams","arguments":"{}"}),
+            None,
+            &events,
+            &mut state,
+        );
+        assert_eq!(state.tools.len(), 1);
+        handle_tool_result(
+            &json!({"message":{"toolCallId":"native-call","isError":true,"content":[{"type":"text","text":"Stopped"}]}}),
+            None,
+            &events,
+            &mut state,
+        );
+        assert!(state.tools.is_empty());
+        let rows = received
+            .try_iter()
+            .filter_map(|event| {
+                if let DriverEvent::RichActivity(item) = event {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].source_id.as_deref(), Some("native-call"));
+        assert!(rows[1].complete);
+        assert!(rows[1].failed);
+    }
     #[test]
     fn tool_views_preserve_native_title_and_kind() {
         let (events, event_rx, mut state) = harness();

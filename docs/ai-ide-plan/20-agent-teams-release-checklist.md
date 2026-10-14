@@ -962,4 +962,14 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Actual Windows SDK/stdio fixture creates a session, preserves Unicode/special-character workspace paths, streams a result and shuts down.
 - [x] 21 ACP cases pass; 3 actual authenticated-provider cases remain skipped. Locked desktop/daemon binary checks, Rust formatting and diff checks pass.
 - [ ] Complete [native CLI/project/resume/Stop acceptance](68-windows-acp-startup.md#owner-review); the synthetic protocol peer does not certify real provider/account behavior or descendant-process cancellation.
-- [ ] Complete the seven remaining source-task Teams transports and native Amp/Cursor completion contracts listed in [current harness coverage](64-remaining-harness-integrations.md#current-implementation-coverage).
+- [ ] Complete the six remaining source-task Teams transports and native Amp/Cursor completion contracts listed in [current harness coverage](64-remaining-harness-integrations.md#current-implementation-coverage).
+
+
+## 2026-10-15 — DeepSeek normal-task Teams bridge
+
+- [x] Add private temporary native tools; preserve native profile/account/model, with environment-only loopback credentials.
+- [x] Bind source session/call/arguments through the live downlink, reuse owner approval/scope/limits and durable invocation replay; refuse nested/PTC/foreign/changed calls.
+- [x] Fence Stop, failed result, turn end, stream/host failure and teardown; preserve real native tool result identity/error fields.
+- [x] 38 distinct shared/DeepSeek cases pass, including actual native tool registration, returned team catalogue, owner-approved invocation and stale definition rejection. Final locked desktop/daemon binary checks, Rust formatting and diff checks pass.
+- [ ] Complete [resident web and authenticated owner acceptance](69-deepseek-source-team-bridge.md#owner-review). Downloaded SDK default web startup fails due to a missing native session-title package; headless fixture success does not certify it.
+- [ ] Six remaining source-task bridges, Amp/Cursor completion contracts and other full-goal requirements remain open.

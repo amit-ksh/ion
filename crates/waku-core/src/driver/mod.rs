@@ -289,7 +289,9 @@ pub(crate) fn start_local_with_workspace(
         ProviderKind::Cursor | ProviderKind::Fx | ProviderKind::Grok | ProviderKind::Kimi => {
             Arc::new(acp::AcpDriver::start(provider, options, events)?)
         }
-        ProviderKind::DeepSeek => Arc::new(deepseek::DeepSeekDriver::start(options, events)?),
+        ProviderKind::DeepSeek => Arc::new(deepseek::DeepSeekDriver::start_with_workspace(
+            options, events, workspace,
+        )?),
         // OpenCode's own server is its real API, and it is what exposes
         // interactive permission requests.
         ProviderKind::OpenCode => Arc::new(opencode::OpenCodeDriver::start_with_workspace(

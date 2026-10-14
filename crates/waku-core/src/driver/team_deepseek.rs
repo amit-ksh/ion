@@ -386,3 +386,55 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+pub(super) fn source_tools_fixture_command(
+    binary: &Path,
+    endpoint: &str,
+) -> Result<(EmptyDirectory, Command)> {
+    let url = url::Url::parse(endpoint)?;
+    ensure!(
+        url.scheme() == "http"
+            && url.host_str() == Some("127.0.0.1")
+            && url.username().is_empty()
+            && url.password().is_none(),
+        "Native fixture endpoint must be loopback"
+    );
+    let mut session = Session::create(
+        "deepseek-official/deepseek-v4-flash",
+        endpoint,
+        "Use Ion's native team catalog.",
+    )?;
+    let tap = session.root.0.join("native-event-tap.mjs");
+    std::fs::write(
+        &tap,
+        r#"export const name='ion-fixture-event-tap';
+export function apply(ctx) {
+  ctx.on('session/event', (session,event) => {
+    if (['turn/start','turn/end','tool/call','tool/result'].includes(event.type))
+      process.stdout.write('__ION_DSH_EVENT__'+JSON.stringify({sessionId:session.id,event})+'\n');
+  });
+}
+"#,
+    )?;
+    let uri =
+        url::Url::from_file_path(&tap).map_err(|_| anyhow::anyhow!("Invalid fixture path"))?;
+    session
+        .rows
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":"ion-native-event-tap","name":uri.as_str()}));
+    std::fs::write(
+        session
+            .root
+            .0
+            .join("home/profiles")
+            .join(PROFILE)
+            .join("cordis.patch.yml"),
+        serde_json::to_vec(&json!([{"insert":session.rows.clone()}]))?,
+    )?;
+    session.verify(binary, &AtomicBool::new(false))?;
+    let mut command = session.command(binary);
+    command.env("DEEPSEEK_API_KEY", "sk-fixture-only");
+    Ok((session.root, command))
+}

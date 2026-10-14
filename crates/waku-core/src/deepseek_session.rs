@@ -379,6 +379,7 @@ impl StreamControl {
 }
 
 pub(crate) struct DeepSeekServer {
+    source_teams: crate::driver::source_teams::opencode::Hub,
     child: Arc<Mutex<Child>>,
     pub(crate) port: u16,
     events: Arc<EventHub>,
@@ -391,6 +392,7 @@ impl DeepSeekServer {
     }
 
     fn start_with_dsh_home(binary: &Path, dsh_home: Option<&Path>) -> anyhow::Result<Self> {
+        let source_teams = crate::driver::source_teams::opencode::Hub::start()?;
         let supports_no_open = web_supports_no_open(binary, dsh_home);
         let catalog_cwd = crate::acp_session::catalog_working_directory()?;
         #[cfg(unix)]
@@ -398,22 +400,16 @@ impl DeepSeekServer {
             let mut command = crate::command_env::command("/bin/sh");
             command
                 .args(["-c", DSH_GUARDIAN_SCRIPT, "waku-dsh-guardian"])
-                .arg(binary)
-                .args(["web", "--host", "127.0.0.1", "--port", "0"]);
-            if supports_no_open {
-                command.arg("--no-open");
-            }
+                .arg(binary);
             command
         };
         #[cfg(not(unix))]
-        let mut command = {
-            let mut command = crate::command_env::command(binary);
-            command.args(["web", "--host", "127.0.0.1", "--port", "0"]);
-            if supports_no_open {
-                command.arg("--no-open");
-            }
-            command
-        };
+        let mut command = crate::command_env::command(binary);
+        source_teams.configure_deepseek(&mut command)?;
+        command.args(["--profile", "web", "--host", "127.0.0.1", "--port", "0"]);
+        if supports_no_open {
+            command.arg("--no-open");
+        }
         command
             .current_dir(&catalog_cwd)
             .stdin(Stdio::piped())
@@ -426,7 +422,7 @@ impl DeepSeekServer {
         command.process_group(0);
 
         let mut child = crate::command_env::spawn(&mut command)
-            .context("failed to start `dsh web --host 127.0.0.1 --port 0`")?;
+            .context("failed to start `dsh --profile web --host 127.0.0.1 --port 0`")?;
         let stdout = child
             .stdout
             .take()
@@ -551,7 +547,18 @@ impl DeepSeekServer {
             port,
             events,
             streams,
+            source_teams,
         })
+    }
+
+    pub(crate) fn source_team_tools(
+        &self,
+        context: crate::driver::source_teams::WorkspaceContext,
+        session: &str,
+        events: crate::driver::DriverEventSender,
+    ) -> anyhow::Result<crate::driver::source_teams::opencode::Bridge> {
+        self.source_teams
+            .attach(context, format!("deepseek:{session}"), events)
     }
 
     pub(crate) fn subscribe(&self, session_id: &str) -> Receiver<Value> {
@@ -638,6 +645,7 @@ impl DeepSeekServer {
     }
 
     pub(crate) fn shutdown(&self, timeout: Duration) {
+        self.source_teams.close();
         self.streams.cancel();
         terminate_child(&mut self.child.lock(), timeout);
     }
@@ -1076,8 +1084,10 @@ mod tests {
             }
         }
 
-        let binary =
-            crate::command_env::find_executable("dsh").expect("DeepSeek Harness is not installed");
+        let binary = std::env::var_os("ION_TEST_DEEPSEEK_BINARY")
+            .map(std::path::PathBuf::from)
+            .or_else(|| crate::command_env::find_executable("dsh"))
+            .expect("Set ION_TEST_DEEPSEEK_BINARY or install dsh");
         let root =
             TempHarnessHome(std::env::temp_dir().join(format!("waku-dsh-test-{}", Uuid::new_v4())));
         std::fs::create_dir_all(&root.0).unwrap();

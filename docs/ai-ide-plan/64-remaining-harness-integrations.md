@@ -18,12 +18,12 @@ This table is source-level transport coverage. Native versions, selected account
 | Amp | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining |
 | Cursor | Native completion ceiling/account contract missing | Remaining |
 | Antigravity | Implemented | Remaining |
-| DeepSeek | Implemented | Remaining |
+| DeepSeek | Implemented; pinned native fixture | Implemented; full web/owner acceptance remaining |
 | Fx | Implemented | Remaining |
 | Grok | Implemented | Remaining |
 | Kimi | Implemented | Remaining |
 
-The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The seven source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other seven still use their ordinary transport without source-team context. No unsupported connection is counted as implemented.
+The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The eight source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other six still use their ordinary transport without source-team context. No unsupported connection is counted as implemented.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -47,6 +47,12 @@ Current official SDK 1.0.37 metadata and complete declarations were inspected. I
 
 [Official SDK metadata](https://registry.npmjs.org/@cursor%2fsdk/1.0.37), [official SDK documentation](https://cursor.com/docs/sdk/typescript), [Amp plugin reference](https://ampcode.com/manual#plugins), and the earlier [Amp](RESEARCH-amp-teams-contract.md)/[Cursor](RESEARCH-cursor-teams-contract.md) contract investigations record the native seams and missing proof. No live account or paid provider call was used.
 
+## DeepSeek normal-task Teams bridge
+
+The resident native host now receives an additive temporary Cordis patch registering the five existing Ion Teams tools. Native main-session tool-call IDs and arguments are witnessed by the owner before approval and dispatch. Exact replay, Stop, failed callbacks and changed definitions retain the shared worker's durable scope and lifecycle rules. Native account/model/profile settings remain selected.
+
+The actual pinned Windows SDK runtime passes a private headless fixture with native tool registration, catalog return, owner-approved invocation and stale-definition refusal. Its bundled default web profile fails separately because a required session-title plugin is missing; this does not prove production web-host acceptance. A full supported native installation and authenticated owner review are still needed. [Implementation, native evidence and review](69-deepseek-source-team-bridge.md).
+
 ## Review and remaining work
 
 - [x] Fresh native Pi/Oh My Pi fixture acceptance after final compilation.
@@ -55,6 +61,6 @@ Current official SDK 1.0.37 metadata and complete declarations were inspected. I
 - [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
 - [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
 - [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
-- [ ] Complete source-task Teams tools for Cursor, Antigravity, DeepSeek, OpenCode 2, Fx, Grok and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
+- [ ] Complete source-task Teams tools for Cursor, Antigravity, OpenCode 2, Fx, Grok and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
 
 These are current goal requirements, not deferred successes. The full goal remains active.

@@ -3152,3 +3152,10 @@ The shared ACP launcher now uses the selected native executable on Windows, fixi
 The real Windows SDK/stdio fixture verifies session creation, Unicode/special-character workspace propagation, streamed text, turn completion and shutdown. **21 ACP cases pass; 3 authenticated-provider cases are skipped.** Locked desktop/daemon binary checks, Rust formatting and diff checks pass. [Setup and owner review](68-windows-acp-startup.md) explicitly retain real provider startup configuration, resume and descendant-process Stop acceptance.
 
 [Current harness coverage](64-remaining-harness-integrations.md#current-implementation-coverage) now records 12 bounded completion dispatches and 7 source-task Teams connections from current source. Amp/Cursor bounded completion contracts and seven further source-task connections remain development work. No live account/model request, visual test, watcher restart or ion-prod merge occurred. The full goal remains active.
+
+
+## 2026-10-15 — DeepSeek normal-task Teams bridge
+
+Additive temporary native tools now bind DeepSeek source callbacks to the owner's live main session, call ID and exact arguments. The shared worker retains approval/scope intersection, configured limits and durable replay. Stop, failed native results, turn end and host closure revoke callbacks; native account/model/profile remains selected.
+
+**38 distinct cases pass**, including the actual pinned native SDK runtime plugin/catalog/approved invocation/stale-definition fixture. Locked desktop/daemon build and formatting results are recorded in the release checklist. The separate default-web round-trip still fails in that downloaded SDK executable because its session-title plugin dependency is absent; full native installation/owner acceptance is open. [Evidence and owner review](69-deepseek-source-team-bridge.md). Six source-task bridges, Amp/Cursor completion contracts, remaining document resources and physical-device/live-account review remain open. No ion-prod merge, paid inference or visual test occurred.
