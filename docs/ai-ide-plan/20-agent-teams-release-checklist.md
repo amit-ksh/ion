@@ -973,3 +973,13 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] 38 distinct shared/DeepSeek cases pass, including actual native tool registration, returned team catalogue, owner-approved invocation and stale definition rejection. Final locked desktop/daemon binary checks, Rust formatting and diff checks pass.
 - [ ] Complete [resident web and authenticated owner acceptance](69-deepseek-source-team-bridge.md#owner-review). Downloaded SDK default web startup fails due to a missing native session-title package; headless fixture success does not certify it.
 - [ ] Six remaining source-task bridges, Amp/Cursor completion contracts and other full-goal requirements remain open.
+
+
+## 2026-10-15 — portable SVG image dependencies
+
+- [x] Add SVG to explicitly hash-pinned resources; resolve local image/CSS/font/nested-vector dependencies within existing byte/cache/depth bounds.
+- [x] Preserve strict XML case/namespaces, local references, Unicode and distinct cached named-view fragments; refuse unsupported active/foreign/remote/changed/cyclic input.
+- [x] Phone SVG data image/responsive attributes use yielded strict UTF-8/XML preparation, unique byte/image/element ceilings and nested-depth checks on cache hits. Link/object/iframe/use data URLs remain inactive.
+- [x] 34 distinct native/phone cases pass. Full mobile TypeScript, locked desktop/daemon binary checks, Rust/Prettier formatting and diff checks pass.
+- [ ] Complete [SVG image/font/offline/device review](70-portable-svg-images.md#owner-review). Exact SVG originals do not auto-bundle sibling files, and CSS data image URLs retain their existing isolated browser image behavior.
+- [ ] External SVG sprite/symbol inlining, remaining native harness contracts and provider/device acceptance remain open.

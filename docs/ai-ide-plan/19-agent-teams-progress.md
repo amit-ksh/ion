@@ -3159,3 +3159,10 @@ The real Windows SDK/stdio fixture verifies session creation, Unicode/special-ch
 Additive temporary native tools now bind DeepSeek source callbacks to the owner's live main session, call ID and exact arguments. The shared worker retains approval/scope intersection, configured limits and durable replay. Stop, failed native results, turn end and host closure revoke callbacks; native account/model/profile remains selected.
 
 **38 distinct cases pass**, including the actual pinned native SDK runtime plugin/catalog/approved invocation/stale-definition fixture. Locked desktop/daemon build and formatting results are recorded in the release checklist. The separate default-web round-trip still fails in that downloaded SDK executable because its session-title plugin dependency is absent; full native installation/owner acceptance is open. [Evidence and owner review](69-deepseek-source-team-bridge.md). Six source-task bridges, Amp/Cursor completion contracts, remaining document resources and physical-device/live-account review remain open. No ion-prod merge, paid inference or visual test occurred.
+
+
+## 2026-10-15 — portable SVG image dependencies
+
+Pinned static SVG images now embed their own local raster/vector/CSS/font dependencies in portable HTML snapshots. Strict XML preserves case/namespaces, local IDs, Unicode and named views; original files remain intact. Phone preparation validates embedded SVG image/responsive attributes in yielded bounded stages, including cached nested-depth checks, within existing owner/grant/foreground generations.
+
+**34 distinct cases pass** (14 native bundle/publication/worker and 20 phone HTML/SVG), plus full mobile TypeScript, locked desktop/daemon binary checks and Rust/Prettier/diff checks. [Scope and owner review](70-portable-svg-images.md) records exact bounds, CSS image-context limits and original-versus-snapshot behavior. External SVG sprites, remaining native harness requirements and live account/device acceptance stay open. No visual test, paid resource, watcher restart or ion-prod merge occurred.

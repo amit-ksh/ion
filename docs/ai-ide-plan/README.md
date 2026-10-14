@@ -223,3 +223,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Windows ACP startup](68-windows-acp-startup.md): native executable launch, exact protocol workspace and account/platform review.
 
 - [DeepSeek source-task team bridge](69-deepseek-source-team-bridge.md): additive native tools, owner-call approval/replay and full web-host acceptance gap.
+
+- [Portable SVG image dependencies](70-portable-svg-images.md): pinned vector drawings, nested image/CSS/font resources and bounded phone preparation.

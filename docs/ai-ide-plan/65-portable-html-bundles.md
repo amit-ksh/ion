@@ -1,6 +1,6 @@
 # Portable HTML with pinned local resources
 
-Updated 2026-10-14. Implementation: `codex/ion-agent-teams`.
+Updated 2026-10-15. Implementation: `codex/ion-agent-teams`.
 
 ## Publication flow
 
@@ -14,14 +14,14 @@ Stylesheet links become inline styles. CSS `@import` and `url()` resolve relativ
 
 - UTF-8 HTML source: at most 1 MiB.
 - At most 32 explicitly hashed resources; each at most 2 MiB, total original resource bytes at most 8 MiB.
-- Resources: CSS, PNG/JPEG/GIF/WebP and WOFF/WOFF2/TTF/OTF.
+- Resources: CSS, static SVG, PNG/JPEG/GIF/WebP and WOFF/WOFF2/TTF/OTF.
 - Final portable HTML and total expanded resource cache: each at most 16 MiB.
 - HTML token count: at most 50,000. CSS block nesting: at most 32; CSS import depth: at most 16.
 - Cycles, private/unlisted/duplicate/unused resources, changed hashes, malformed serialized names and HTML base elements refuse publication.
 
 The phone rendered view still accepts up to 1 MiB and uses its bounded HTML5 preparation. Larger originals remain available for verified export. Script execution, app credentials, file access and network requests stay disabled in preview. CSP now permits data stylesheets for pinned CSS imports, alongside inline styles and existing data image/font sources.
 
-This increment covers stylesheet links, CSS imports/URL functions, inline styles, `img src`, responsive `srcset`/picture sources, quoted `image-set` alternatives and raster references in inline SVG images/filter images. Phone preparation preserves only raster data URLs on SVG image elements, with remote/file/data-SVG/data-HTML references inactive. Resource MIME is rechecked on encoded-cache hits, so a stylesheet/font cached for CSS cannot satisfy an image reference. External SVG symbol/sprite files and standalone SVG asset dependencies still need additional resolution work. Device rendering and font behavior require the owner checklist below.
+This increment covers stylesheet links, CSS imports/URL functions, inline styles, `img src`, responsive `srcset`/picture sources, quoted `image-set` alternatives and raster references in inline SVG images/filter images. Phone preparation preserves only raster data URLs on SVG image elements, with remote/file/data-SVG/data-HTML references inactive. Resource MIME is rechecked on encoded-cache hits, so a stylesheet/font cached for CSS cannot satisfy an image reference. Pinned standalone SVG images now resolve their image/CSS/font dependencies through the same resource map; see [SVG image publication](70-portable-svg-images.md). External SVG symbol/sprite files still need additional resolution work. Device rendering and font behavior require the owner checklist below.
 
 ## Durable replay and recovery
 
@@ -35,6 +35,7 @@ Model reads and workflow handoffs receive the bounded agent-authored summary and
 - Twelve phone HTML preparation cases pass, including data CSS import/font/image retention, embedded responsive image candidates and remote/invalid candidate refusal.
 - The native trusted worker inspection/publication/summary-read/result flow passes. Two responsive-image/resource-refusal cases also pass; nine native bundle cases pass in total. The final executable also rechecks elapsed lease time inside the publication transaction; all nine native cases pass on that build.
 - The SVG raster/cache-MIME increment passes eleven native bundle cases and fourteen phone HTML cases. Mobile TypeScript and Rust formatting checks pass.
+- The latest SVG asset-dependency increment passes fourteen native bundle cases and twenty phone HTML/SVG cases; locked desktop/daemon checks, mobile TypeScript and Rust/Prettier/diff checks pass. See the dedicated SVG guide for its bounds and native-device acceptance.
 - Core production/test code and locked desktop/daemon binary checks passed for the preceding bundle increment. Native device/visual acceptance has not run.
 
 ## Owner review
@@ -48,4 +49,4 @@ Model reads and workflow handoffs receive the bounded agent-authored summary and
 
 ## Remaining full-goal work
 
-External SVG symbol/sprite files and standalone SVG dependencies, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.
+External SVG symbol/sprite files, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.

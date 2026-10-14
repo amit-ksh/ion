@@ -15,6 +15,8 @@ use std::{
     path::Path,
 };
 
+mod svg;
+
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -249,12 +251,13 @@ fn mime(path: &str) -> Result<&'static str> {
             "jpg" | "jpeg" => "image/jpeg",
             "gif" => "image/gif",
             "webp" => "image/webp",
+            "svg" => "image/svg+xml",
             "woff" => "font/woff",
             "woff2" => "font/woff2",
             "ttf" => "font/ttf",
             "otf" => "font/otf",
             _ => anyhow::bail!(
-                "Bundle resources must be local CSS, PNG/JPEG/GIF/WebP or WOFF/WOFF2/TTF/OTF"
+                "Bundle resources must be local CSS, SVG/PNG/JPEG/GIF/WebP or WOFF/WOFF2/TTF/OTF"
             ),
         },
     )
@@ -312,14 +315,16 @@ impl Bundle {
             .0;
         ensure!(
             css || mime.starts_with("image/"),
-            "An image URL must refer to a supported raster image"
+            "An image URL must refer to a supported image"
         );
+        let fragment = resolved.fragment().filter(|_| mime == "image/svg+xml");
+        let suffix = fragment.map(|id| format!("#{id}")).unwrap_or_default();
         if let Some(encoded) = self.encoded.get(&path) {
-            return Ok(encoded.clone());
+            return Ok(format!("{encoded}{suffix}"));
         }
         ensure!(
             self.visiting.len() < 16 && self.visiting.insert(path.clone()),
-            "Cyclic or deeply nested CSS import"
+            "Cyclic or deeply nested CSS/SVG resource"
         );
         let bytes = self.resources.get(&path).unwrap().1.clone();
         let bytes = if mime == "text/css" {
@@ -327,6 +332,12 @@ impl Bundle {
                 std::str::from_utf8(&bytes).context("Stylesheet must be UTF-8")?,
                 &path,
                 0,
+            )?
+            .into_bytes()
+        } else if mime == "image/svg+xml" {
+            self.svg(
+                std::str::from_utf8(&bytes).context("SVG must be UTF-8")?,
+                &path,
             )?
             .into_bytes()
         } else {
@@ -348,7 +359,7 @@ impl Bundle {
         );
         self.visiting.remove(&path);
         self.encoded.insert(path, value.clone());
-        Ok(value)
+        Ok(format!("{value}{suffix}"))
     }
     fn css(&mut self, text: &str, base: &str, depth: usize) -> Result<String> {
         let mut input = ParserInput::new(text);

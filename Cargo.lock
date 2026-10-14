@@ -8896,6 +8896,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "reqwest 0.12.28",
+ "roxmltree 0.21.1",
  "rusqlite",
  "rust-i18n",
  "serde",

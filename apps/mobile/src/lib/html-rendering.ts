@@ -5,6 +5,8 @@ import {
   type DefaultTreeAdapterMap,
 } from "parse5";
 
+import { RASTER_IMAGE, SVG_FRAGMENT, svgImageValidator } from "./svg-images";
+
 export const MAX_RENDERED_HTML_BYTES = 1024 * 1024;
 const CHUNK = 8192;
 const CSP =
@@ -55,13 +57,21 @@ const URL_ATTRS = new Set([
   "profile",
 ]);
 const DATA_SRCSET =
-  /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/]+={0,2}(?:\s+([\s\S]+))?$/i;
-function embeddedSrcset(value: string): boolean {
+  /^data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,[a-z0-9+/]+={0,2}(?:#[^\s<>"'\\#\x00-\x1f\x7f]+)?(?:\s+([\s\S]+))?$/i;
+async function embeddedSrcset(
+  value: string,
+  svg: (value: string) => Promise<boolean>,
+): Promise<boolean> {
   const candidates = value.trim().split(/\s*,\s*(?=data:image\/)/i);
   if (!candidates.length || candidates.length > 32) return false;
-  return candidates.every((candidate) => {
+  for (const candidate of candidates) {
     const match = DATA_SRCSET.exec(candidate);
-    if (!match) return false;
+    if (
+      !match ||
+      (/^data:image\/svg\+xml;/i.test(candidate) &&
+        !(await svg(candidate.split(/\s/)[0]!)))
+    )
+      return false;
     const seen = new Set<string>();
     for (const descriptor of (match[1] ?? "")
       .trim()
@@ -80,11 +90,13 @@ function embeddedSrcset(value: string): boolean {
         return false;
       seen.add(kind);
     }
-    return (
-      !(seen.has("x") && (seen.has("w") || seen.has("h"))) &&
-      !(seen.has("h") && !seen.has("w"))
-    );
-  });
+    if (
+      (seen.has("x") && (seen.has("w") || seen.has("h"))) ||
+      (seen.has("h") && !seen.has("w"))
+    )
+      return false;
+  }
+  return true;
 }
 export type RenderedHtml = { html: string; removed: boolean };
 export function allowDocumentNavigation(url: string): boolean {
@@ -157,6 +169,7 @@ export async function prepareRenderedHtml(
   const pending: { node: DefaultTreeAdapterMap["node"]; depth: number }[] = [
     { node: document, depth: 0 },
   ];
+  const svgImage = svgImageValidator(current);
   let removed = false,
     visited = 0;
   while (pending.length) {
@@ -182,6 +195,26 @@ export async function prepareRenderedHtml(
         removed = true;
         continue;
       }
+      const imageContext =
+        (node.namespaceURI === HTML_NS && tag === "img") ||
+        (node.namespaceURI === SVG_NS && ["image", "feimage"].includes(tag));
+      const embeddedSvg = new Set<string>(),
+        responsiveImages = new Set<string>();
+      for (const attribute of node.attrs) {
+        if (
+          imageContext &&
+          ["src", "href"].includes(attribute.name) &&
+          /^data:image\/svg\+xml;/i.test(attribute.value) &&
+          (await svgImage(attribute.value))
+        )
+          embeddedSvg.add(attribute.value);
+        if (
+          attribute.name === "srcset" &&
+          (tag === "img" || pictureSource) &&
+          (await embeddedSrcset(attribute.value, svgImage))
+        )
+          responsiveImages.add(attribute.value);
+      }
       node.attrs = node.attrs.filter((attr) => {
         const name = attr.name.toLowerCase();
         if (
@@ -202,7 +235,7 @@ export async function prepareRenderedHtml(
           return false;
         }
         if (URL_ATTRS.has(name)) {
-          // Only raster data images and same-document SVG references are visual.
+          // Only bounded data images and same-document SVG references are visual.
           const embedded =
             ((node.namespaceURI === HTML_NS &&
               tag === "img" &&
@@ -210,17 +243,15 @@ export async function prepareRenderedHtml(
               (node.namespaceURI === SVG_NS &&
                 ["image", "feimage"].includes(tag) &&
                 name === "href")) &&
-            /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(
-              attr.value,
-            );
+            (RASTER_IMAGE.test(attr.value) || embeddedSvg.has(attr.value));
           const fragment =
             node.namespaceURI === SVG_NS &&
             name === "href" &&
-            /^#[a-z0-9_-]+$/i.test(attr.value);
+            SVG_FRAGMENT.test(attr.value);
           const responsive =
             name === "srcset" &&
             (tag === "img" || pictureSource) &&
-            embeddedSrcset(attr.value);
+            responsiveImages.has(attr.value);
           if (!embedded && !fragment && !responsive) {
             removed = true;
             return false;

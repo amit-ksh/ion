@@ -876,18 +876,20 @@ fn html_bundle_publication_keeps_originals_and_replays_without_source_files() {
     let f = Fixture::new();
     let run = f.run();
     let root = f.claim(run.id, run.work[0].id);
-    let source = "<link rel=stylesheet href='theme.css'><img src='plot.png'><p>Report</p>";
+    let source = "<link rel=stylesheet href='theme.css'><img src='drawing.svg'><p>Report</p>";
     let css = ".report{display:grid;background:url(plot.png)}";
     let raster = b"raster bytes";
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><image href='plot.png'/><text>Chart</text></svg>";
     for (path, bytes) in [
         ("index.html", source.as_bytes()),
         ("theme.css", css.as_bytes()),
         ("plot.png", raster.as_slice()),
+        ("drawing.svg", svg.as_bytes()),
     ] {
         std::fs::write(f.dir.join(path), bytes).unwrap();
     }
     let sha = |b: &[u8]| format!("{:x}", Sha256::digest(b));
-    let args = serde_json::json!({"path":"index.html","sha256":sha(source.as_bytes()),"name":"Report.html","summary":"Report with its local styles and plot","resources":[{"path":"theme.css","sha256":sha(css.as_bytes())},{"path":"plot.png","sha256":sha(raster)}]});
+    let args = serde_json::json!({"path":"index.html","sha256":sha(source.as_bytes()),"name":"Report.html","summary":"Report with its local styles and plot","resources":[{"path":"drawing.svg","sha256":sha(svg.as_bytes())},{"path":"theme.css","sha256":sha(css.as_bytes())},{"path":"plot.png","sha256":sha(raster)}]});
     let parsed: HtmlBundleArgs = serde_json::from_value(args.clone()).unwrap();
     let request = Uuid::new_v4();
     let artifact = f
@@ -897,7 +899,12 @@ fn html_bundle_publication_keeps_originals_and_replays_without_source_files() {
     let bytes = f.definitions.read_document(artifact.id).unwrap();
     let portable = std::str::from_utf8(&bytes).unwrap();
     assert!(portable.contains("display:grid"));
+    assert!(portable.contains("data:image/svg+xml;base64,"));
     assert!(portable.contains("data:image/png;base64,"));
+    assert_eq!(
+        std::fs::read_to_string(f.dir.join("drawing.svg")).unwrap(),
+        svg
+    );
     assert!(artifact.evidence.as_ref().unwrap().matches(&bytes));
     assert_eq!(
         std::fs::read_to_string(f.dir.join("index.html")).unwrap(),
@@ -915,7 +922,7 @@ fn html_bundle_publication_keeps_originals_and_replays_without_source_files() {
     let mut changed = args.clone();
     changed["resources"][0]["sha256"] = "0".repeat(64).into();
     assert!(documents::recover_html_bundle(&db, &artifact, &changed, &bytes).is_err());
-    for name in ["index.html", "theme.css", "plot.png"] {
+    for name in ["index.html", "theme.css", "plot.png", "drawing.svg"] {
         std::fs::remove_file(f.dir.join(name)).unwrap();
     }
     assert_eq!(
