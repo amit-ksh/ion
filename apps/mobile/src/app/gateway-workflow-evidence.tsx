@@ -1,3 +1,4 @@
+import { prepareOfficeReading } from "@/lib/office-reading";
 import { ArtifactImagePreview } from "@/components/artifact-image-preview";
 import { prepareArtifactImage, type ArtifactImage } from "@/lib/artifact-image";
 import { ArtifactHtmlPreview } from "@/components/artifact-html-preview";
@@ -68,6 +69,7 @@ export default function GatewayWorkflowEvidenceScreen() {
       null,
     ),
     [preview, setPreview] = useState<{
+      original?: WorkflowDocument;
       name: string;
       text: string;
       format: string;
@@ -183,7 +185,7 @@ export default function GatewayWorkflowEvidenceScreen() {
     if (
       !exporting &&
       record.bytes >
-        (["pdf", "png"].includes(record.format)
+        (["pdf", "png", "docx", "xlsx"].includes(record.format)
           ? 16 * 1024 * 1024
           : ["html", "htm", "svg"].includes(record.format)
             ? 1024 * 1024
@@ -263,6 +265,27 @@ export default function GatewayWorkflowEvidenceScreen() {
           rendered: null,
           renderError: error,
           image,
+          scope: started,
+        });
+      } else if (["docx", "xlsx"].includes(record.format)) {
+        const readingPreview = await prepareOfficeReading(
+          record.format,
+          bytes,
+          current,
+        );
+        if (!current()) return;
+        setReadingView(true);
+        setRendering(false);
+        setPreview({
+          original: record,
+          name: record.name,
+          format: record.format,
+          text: "",
+          sourceRows: [],
+          readingPreview,
+          rendered: null,
+          renderError: null,
+          image: null,
           scope: started,
         });
       } else {
@@ -411,16 +434,18 @@ export default function GatewayWorkflowEvidenceScreen() {
               <Text style={[styles.body, { color: theme.textSecondary }]}>
                 {activePreview.image
                   ? "Verified document · Image"
-                  : rendering && activePreview.rendered
-                    ? "Verified document · Rendered"
-                    : readingView &&
-                        ["md", "json", "html", "htm", "svg"].includes(
-                          activePreview.format,
-                        )
-                      ? activePreview.readingPreview.sourceFallback
-                        ? "Verified document · Source"
-                        : "Verified document · Reading view"
-                      : "Verified document · Source"}
+                  : activePreview.original
+                    ? "Verified original · Extracted text"
+                    : rendering && activePreview.rendered
+                      ? "Verified document · Rendered"
+                      : readingView &&
+                          ["md", "json", "html", "htm", "svg"].includes(
+                            activePreview.format,
+                          )
+                        ? activePreview.readingPreview.sourceFallback
+                          ? "Verified document · Source"
+                          : "Verified document · Reading view"
+                        : "Verified document · Source"}
               </Text>
               {["md", "json", "html", "htm", "svg"].includes(
                 activePreview.format,
@@ -481,6 +506,18 @@ export default function GatewayWorkflowEvidenceScreen() {
                       ? activePreview.readingPreview.note
                       : "HTML Source · Scripts, links and media remain inactive."}
                 </Text>
+              )}
+              {activePreview.original && (
+                <>
+                  <Text style={[styles.body, { color: theme.textSecondary }]}>
+                    {activePreview.readingPreview.note}
+                  </Text>
+                  <AutomationButton
+                    label="Export document"
+                    disabled={reading}
+                    onPress={() => void document(activePreview.original!, true)}
+                  />
+                </>
               )}
               <AutomationButton
                 label="Back to documents"

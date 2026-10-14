@@ -44,7 +44,7 @@ No visual test or physical-device acceptance was run. The user’s AGENTS guidan
 
 ## Remaining development in the full goal
 
-- Additional Office content interpretation; current DOCX/XLSX publication preserves opaque exact originals for export with an explicit agent summary. PNG now has a bounded static preview.
+- [DOCX/XLSX phone content reading](67-phone-office-reading.md) now extracts bounded body text/table cells and workbook cells with fidelity notes. Native model reads still use the explicit agent summary, and complete Office layout/formatting is not reproduced. PNG has a bounded static preview.
 - Finish additional resource references beyond the new pinned CSS/import/URL/img/srcset/image-set bundle path; see [the bundle increment](65-portable-html-bundles.md).
 - Complete remaining native harness contracts and provider acceptance. See the current harness guide; Amp/Cursor contract gaps remain explicit.
 
@@ -56,6 +56,6 @@ No visual test or physical-device acceptance was run. The user’s AGENTS guidan
 
 `inspect_file_document` returns SHA-256/size for a nonprivate regular workspace file. `save_file_document` publishes the exact inspected original up to 16 MiB with the pinned lease/agent/project/task identity. Parent components and the file are opened without following links, and Windows parent/file handles deny write/delete sharing during reads. Changes since inspection refuse publication.
 
-Payload, artifact evidence and a sealed path/summary receipt commit together. An identical replay returns the existing artifact even when its source has been removed; changed arguments or a removed/changed summary receipt refuse. Model reads and workflow handoffs carry the agent summary/hash, with an explicit `content_interpreted: false`, so binary/large text never expands model context. PDF/DOCX/XLSX/PNG envelope checks do not claim full content validity; native PDF rendering and external Office interpretation remain separate. Keep-until-cleaned retention and source-file preservation apply.
+Payload, artifact evidence and a sealed path/summary receipt commit together. An identical replay returns the existing artifact even when its source has been removed; changed arguments or a removed/changed summary receipt refuse. Model reads and workflow handoffs carry the agent summary/hash, with an explicit `content_interpreted: false`, so binary/large text never expands model context. PDF/DOCX/XLSX/PNG envelope checks do not claim full content validity; native PDF rendering and the new bounded phone Office reader remain separate. Full Office layout/formatting remains the external document app's responsibility. Keep-until-cleaned retention and source-file preservation apply.
 
 PDF preview input has also increased to 16 MiB in direct, gateway and desktop native paths; page count/pixel/PNG transfer limits remain bounded. Fourteen existing PDF transport/image cases pass, including the real gateway two-page 12 MiB HTTP transfer fixture. The larger-file core production/test code check and final publication/recovery regressions pass.

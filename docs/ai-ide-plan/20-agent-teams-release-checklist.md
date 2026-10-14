@@ -932,3 +932,14 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Final task-stable tool names, environment-only bridge credentials and preexisting-file preservation pass; 17 shared bridge regressions and the installed native generated-hook fixture pass. Final locked desktop/daemon checks, Rust formatting and diff checks pass.
 - [ ] Complete authenticated CLI/plugin discovery/resume/Stop acceptance using [the owner checklist](66-amp-source-team-bridge.md#owner-acceptance).
 - [ ] Amp/Cursor Teams completion contracts and other outstanding goal items remain open.
+
+
+## 2026-10-14 — phone Office content reading
+
+- [x] DOCX body paragraphs/headings/Unicode/table cell locations and XLSX sheet order, hidden labels, sparse/shared/inline cells and saved formula results in direct Artifacts and gateway evidence.
+- [x] Preserve verified exact original export; distinguish extracted content from original Source and show fidelity limits.
+- [x] Bound ZIP entries, declared/actual expansion, selected XML, structures, sheets/cells and cached rows; verify selected CRC/header/relationship identities. No formula, macro, external resource or authored link execution.
+- [x] Yield while indexing/inflating/decoding/parsing; owner, foreground, grant, credential expiry and generation changes discard stale content.
+- [x] **92 distinct document regressions pass**, including 15 new Office cases and the existing immutable artifact/export, HTML/image and direct/gateway PDF cases. Full mobile TypeScript and browser parser bundling pass.
+- [ ] Complete [iPhone15/MotoG32 Office reading/export/accessibility review](67-phone-office-reading.md#owner-review); visual/device acceptance has not been run.
+- [ ] Remaining HTML resource references, native harness contracts and authenticated/platform acceptance remain open. No ion-prod merge is included.

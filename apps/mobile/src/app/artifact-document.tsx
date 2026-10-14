@@ -1,3 +1,4 @@
+import { prepareOfficeReading } from "@/lib/office-reading";
 import { ArtifactImagePreview } from "@/components/artifact-image-preview";
 import { prepareArtifactImage, type ArtifactImage } from "@/lib/artifact-image";
 import { ArtifactHtmlPreview } from "@/components/artifact-html-preview";
@@ -198,7 +199,7 @@ export default function ArtifactDocumentScreen() {
           (text !== null
             ? documentPreviewRows(selected.document.format, text, false)
             : []);
-        const readingPreview =
+        let readingPreview =
           htmlViews?.readingPreview ??
           (text !== null
             ? await prepareDocumentReading(
@@ -207,6 +208,21 @@ export default function ArtifactDocumentScreen() {
                 current,
               )
             : null);
+        let officeError: string | null = null;
+        if (["docx", "xlsx"].includes(selected.document.format)) {
+          try {
+            readingPreview = await prepareOfficeReading(
+              selected.document.format,
+              bytes,
+              current,
+            );
+          } catch (error) {
+            officeError =
+              error instanceof Error
+                ? error.message
+                : "Office reading unavailable. Export the original.";
+          }
+        }
         let image: ArtifactImage | null = null,
           imageError: string | null = null;
         if (selected.document.format === "png") {
@@ -229,7 +245,7 @@ export default function ArtifactDocumentScreen() {
           sourceRows,
           readingPreview,
           rendered: htmlViews?.rendered ?? null,
-          renderError: htmlViews?.renderError ?? imageError,
+          renderError: htmlViews?.renderError ?? imageError ?? officeError,
           image,
         });
       })
@@ -368,18 +384,21 @@ export default function ArtifactDocumentScreen() {
                 <Text style={[styles.body, { color: theme.textSecondary }]}>
                   {preview.image
                     ? "Verified document · Image"
-                    : preview.text === null
-                      ? "Verified original document · Export available"
-                      : rendering && preview.rendered
-                        ? "Verified document · Rendered"
-                        : reading &&
-                            ["md", "json", "html", "htm", "svg"].includes(
-                              preview.document.format,
-                            )
-                          ? preview.readingPreview?.sourceFallback
-                            ? "Verified document · Source"
-                            : "Verified document · Reading view"
-                          : "Verified document · Source"}
+                    : ["docx", "xlsx"].includes(preview.document.format) &&
+                        preview.readingPreview
+                      ? "Verified original · Extracted text"
+                      : preview.text === null
+                        ? "Verified original document · Export available"
+                        : rendering && preview.rendered
+                          ? "Verified document · Rendered"
+                          : reading &&
+                              ["md", "json", "html", "htm", "svg"].includes(
+                                preview.document.format,
+                              )
+                            ? preview.readingPreview?.sourceFallback
+                              ? "Verified document · Source"
+                              : "Verified document · Reading view"
+                            : "Verified document · Source"}
                 </Text>
                 <View style={styles.actions}>
                   {preview.rendered && (
@@ -457,7 +476,14 @@ export default function ArtifactDocumentScreen() {
                       }
                     />
                   )}
+                {["docx", "xlsx"].includes(preview.document.format) &&
+                  preview.readingPreview && (
+                    <Text style={[styles.body, { color: theme.textSecondary }]}>
+                      {preview.readingPreview.note}
+                    </Text>
+                  )}
                 {preview.text === null &&
+                  !preview.readingPreview &&
                   !preview.image &&
                   !(
                     preview.document.format === "pdf" &&

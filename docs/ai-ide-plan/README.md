@@ -217,3 +217,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Portable HTML resource bundles](65-portable-html-bundles.md) — pinned local CSS, images and fonts, generated snapshot receipts and owner review.
 
 - [Amp source-task team bridge](66-amp-source-team-bridge.md): native request hook, owner-stream identity, temporary plugin lifetime and acceptance gates.
+
+- [Phone Office reading](67-phone-office-reading.md): bounded DOCX/XLSX extracted content, original export and device review.
