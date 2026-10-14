@@ -204,8 +204,12 @@ export async function prepareRenderedHtml(
         if (URL_ATTRS.has(name)) {
           // Only raster data images and same-document SVG references are visual.
           const embedded =
-            tag === "img" &&
-            name === "src" &&
+            ((node.namespaceURI === HTML_NS &&
+              tag === "img" &&
+              name === "src") ||
+              (node.namespaceURI === SVG_NS &&
+                ["image", "feimage"].includes(tag) &&
+                name === "href")) &&
             /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(
               attr.value,
             );

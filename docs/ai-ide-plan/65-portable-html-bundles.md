@@ -8,7 +8,7 @@ A team agent with workspace read access uses `inspect_file_document` for its HTM
 
 The owner reads files through the existing private-path, regular-file and no-link gates. Source files remain in the workspace. Each file must match its inspected SHA-256. The portable HTML artifact has its own exact content hash and assignment/project/task provenance. Its output bytes are a generated snapshot; `save_file_document` continues to publish an exact file original.
 
-Stylesheet links become inline styles. CSS `@import` and `url()` resolve relative to their own stylesheet, including escaped CSS URL tokens. Imported stylesheets become data CSS; raster images and font files become data URLs. Inline style attributes and style elements use the HTML source's directory. Responsive `img`/picture `srcset` candidates and quoted CSS `image-set()` alternatives use the same pinned raster resource map. Media rules and stylesheet media attributes remain. All resolution uses the explicit resource list and performs no network fetch.
+Stylesheet links become inline styles. CSS `@import` and `url()` resolve relative to their own stylesheet, including escaped CSS URL tokens. Imported stylesheets become data CSS; raster images and font files become data URLs. Inline style attributes and style elements use the HTML source's directory. Responsive `img`/picture `srcset` candidates, quoted CSS `image-set()` alternatives and inline SVG `image`/`feImage` href/xlink:href use the same pinned raster resource map. Same-document SVG fragments remain local. Media rules and stylesheet media attributes remain. All resolution uses the explicit resource list and performs no network fetch.
 
 ## Scope and bounds
 
@@ -21,7 +21,7 @@ Stylesheet links become inline styles. CSS `@import` and `url()` resolve relativ
 
 The phone rendered view still accepts up to 1 MiB and uses its bounded HTML5 preparation. Larger originals remain available for verified export. Script execution, app credentials, file access and network requests stay disabled in preview. CSP now permits data stylesheets for pinned CSS imports, alongside inline styles and existing data image/font sources.
 
-This increment covers stylesheet links, CSS imports/URL functions, inline styles, `img src`, responsive `srcset`/picture sources and quoted `image-set` alternatives. SVG resource images and other resource-bearing elements need additional resolution work. Device rendering and font behavior require the owner checklist below.
+This increment covers stylesheet links, CSS imports/URL functions, inline styles, `img src`, responsive `srcset`/picture sources, quoted `image-set` alternatives and raster references in inline SVG images/filter images. Phone preparation preserves only raster data URLs on SVG image elements, with remote/file/data-SVG/data-HTML references inactive. Resource MIME is rechecked on encoded-cache hits, so a stylesheet/font cached for CSS cannot satisfy an image reference. External SVG symbol/sprite files and standalone SVG asset dependencies still need additional resolution work. Device rendering and font behavior require the owner checklist below.
 
 ## Durable replay and recovery
 
@@ -34,16 +34,18 @@ Model reads and workflow handoffs receive the bounded agent-authored summary and
 - Six initial native parser/publication cases pass: media/import/image/font bundling, escaped CSS URLs, inline styles, remote/unlisted/cyclic/deep refusal, stylesheet closing-tag escaping, publication/source preservation, exact replay/recovery and changed/private/duplicate/unused resource refusal.
 - Twelve phone HTML preparation cases pass, including data CSS import/font/image retention, embedded responsive image candidates and remote/invalid candidate refusal.
 - The native trusted worker inspection/publication/summary-read/result flow passes. Two responsive-image/resource-refusal cases also pass; nine native bundle cases pass in total. The final executable also rechecks elapsed lease time inside the publication transaction; all nine native cases pass on that build.
-- Core production/test code and locked desktop/daemon binary checks pass. Native device/visual acceptance has not run.
+- The SVG raster/cache-MIME increment passes eleven native bundle cases and fourteen phone HTML cases. Mobile TypeScript and Rust formatting checks pass.
+- Core production/test code and locked desktop/daemon binary checks passed for the preceding bundle increment. Native device/visual acceptance has not run.
 
 ## Owner review
 
 - [ ] Generate a portable report through a saved team with a local stylesheet, a nested CSS import, an image and a font; review the returned artifact in the result.
 - [ ] Open it in direct Artifacts and gateway evidence on iPhone 15 and Moto G32; inspect media rules, text legibility, image sizing and font fallback.
+- [ ] Include an inline SVG diagram with image/filter image references using both href and xlink:href; confirm the pinned raster appears and same-document fragments remain usable.
 - [ ] Export the verified HTML and open it with network disabled; compare supported embedded resources.
 - [ ] Switch owner/pairing, expire or remove evidence-read permission, or background the phone while preparation is pending; stale content must disappear.
 - [ ] Remove or alter one source file after inspection and confirm a new publication refuses the changed hash; an exact completed-request replay must retain its original artifact.
 
 ## Remaining full-goal work
 
-Additional HTML resource references, Office content interpretation, native harness contract gaps and live provider/device acceptance remain open. This document records the current increment.
+External SVG symbol/sprite files and standalone SVG dependencies, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.

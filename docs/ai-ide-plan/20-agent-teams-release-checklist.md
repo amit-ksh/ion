@@ -943,3 +943,13 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] **92 distinct document regressions pass**, including 15 new Office cases and the existing immutable artifact/export, HTML/image and direct/gateway PDF cases. Full mobile TypeScript and browser parser bundling pass.
 - [ ] Complete [iPhone15/MotoG32 Office reading/export/accessibility review](67-phone-office-reading.md#owner-review); visual/device acceptance has not been run.
 - [ ] Remaining HTML resource references, native harness contracts and authenticated/platform acceptance remain open. No ion-prod merge is included.
+
+
+## 2026-10-14 — inline SVG raster bundle references
+
+- [x] Embed pinned raster resources for SVG image/filter image href and xlink:href; preserve same-document SVG fragments.
+- [x] Keep remote/file/data-SVG/data-HTML references inactive in the phone renderer; retain scripts/network isolation.
+- [x] Validate resource MIME even after a CSS/font has entered the encoded cache; cached nonimages cannot satisfy image references.
+- [x] Eleven native bundle regressions, fourteen phone HTML cases, mobile TypeScript, Rust formatting and locked desktop/daemon binary checks pass.
+- [ ] Review SVG images/filter images on the actual phones using [the bundle checklist](65-portable-html-bundles.md#owner-review).
+- [ ] External SVG symbol/sprite files, standalone SVG resource dependencies and remaining native harness contracts/acceptance remain open.

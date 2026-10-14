@@ -165,3 +165,32 @@ test("responsive image candidates cannot smuggle remote or conflicting URLs", as
     expect(result.html).not.toContain("srcset=");
   }
 });
+
+test("SVG image and filter image hrefs retain only embedded raster resources", async () => {
+  const { html } = await prepareRenderedHtml(
+    '<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image href="data:image/png;base64,AAAA"/><image xlink:href="data:image/jpeg;base64,BBBB"/><filter id="f"><feImage href="data:image/webp;base64,CCCC"/><feImage xlink:href="data:image/gif;base64,DDDD"/></filter><use href="#shape"/></svg>',
+    () => true,
+  );
+  expect(html).toContain('href="data:image/png;base64,AAAA"');
+  expect(html).toContain('xlink:href="data:image/jpeg;base64,BBBB"');
+  expect(html).toContain('<feImage href="data:image/webp;base64,CCCC">');
+  expect(html).toContain('<feImage xlink:href="data:image/gif;base64,DDDD">');
+  expect(html).toContain('href="#shape"');
+});
+
+test("SVG external images, data SVG/HTML, data use and data links remain inactive", async () => {
+  const { html, removed } = await prepareRenderedHtml(
+    '<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image href="https://outside.invalid/p.png"/><feImage xlink:href="file:///private"/><image href="data:image/svg+xml;base64,AAAA"/><image href="data:text/html;base64,BBBB"/><use href="data:image/png;base64,CCCC"/><a xlink:href="data:image/png;base64,DDDD">Link</a></svg>',
+    () => true,
+  );
+  expect(removed).toBe(true);
+  for (const value of [
+    "outside.invalid",
+    "file:///private",
+    "data:image/svg",
+    "data:text/html",
+    "base64,CCCC",
+    "base64,DDDD",
+  ])
+    expect(html).not.toContain(value);
+});

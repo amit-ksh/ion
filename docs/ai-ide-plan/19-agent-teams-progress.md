@@ -3136,3 +3136,10 @@ Owner [setup review checklist](62-first-launch-onboarding.md#owner-review-checkl
 Direct Artifacts and gateway workflow evidence now extract bounded DOCX body paragraphs/table cells and XLSX sheet/cell/formula content after original SHA-256 verification. Native reading rows are virtualized, plain text remains inert, cached formula values and hidden sheets are labelled, and exact original export is preserved. ZIP/XML preparation yields and respects the existing owner/foreground/grant/expiry generation fences. Limits and unsupported Office fidelity are visible; native model replies continue to carry the original explicit summary.
 
 Fifteen new Office regressions, full mobile TypeScript and a browser parser bundle pass. Existing document/export/HTML/image/PDF regression results and physical-device review are in [the release checklist](20-agent-teams-release-checklist.md) and [Office guide](67-phone-office-reading.md). No visual test, paid resource, watcher restart or ion-prod merge occurred. The wider goal remains active, including remaining HTML resource references and native harness contracts/acceptance.
+
+
+## 2026-10-14 — inline SVG raster bundle references
+
+The portable HTML tool now embeds pinned raster href/xlink:href references in inline SVG image and filter-image elements. Phone preparation preserves those embedded rasters while retaining the existing script/network isolation and same-document fragment behavior. Resource kind is validated before encoded-cache reuse, preventing a cached stylesheet/font from being accepted as an image.
+
+Eleven native bundle regressions, fourteen phone HTML cases, mobile TypeScript, Rust formatting and locked desktop/daemon binary checks pass. [Resource scope and owner review](65-portable-html-bundles.md) retain external SVG symbol/sprite files and standalone SVG dependencies as unfinished. No visual/device acceptance, provider-account inference or ion-prod merge occurred; remaining harness contracts remain open.

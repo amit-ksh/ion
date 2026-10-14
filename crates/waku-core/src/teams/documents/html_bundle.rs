@@ -305,6 +305,15 @@ impl Bundle {
             "Invalid bundle resource path"
         );
         self.used.insert(path.clone());
+        let mime = self
+            .resources
+            .get(&path)
+            .context("Referenced local resource is not listed with its inspected hash")?
+            .0;
+        ensure!(
+            css || mime.starts_with("image/"),
+            "An image URL must refer to a supported raster image"
+        );
         if let Some(encoded) = self.encoded.get(&path) {
             return Ok(encoded.clone());
         }
@@ -312,15 +321,7 @@ impl Bundle {
             self.visiting.len() < 16 && self.visiting.insert(path.clone()),
             "Cyclic or deeply nested CSS import"
         );
-        let (mime, bytes) = self
-            .resources
-            .get(&path)
-            .context("Referenced local resource is not listed with its inspected hash")?
-            .clone();
-        ensure!(
-            css || mime.starts_with("image/"),
-            "An image URL must refer to a supported raster image"
-        );
+        let bytes = self.resources.get(&path).unwrap().1.clone();
         let bytes = if mime == "text/css" {
             self.css(
                 std::str::from_utf8(&bytes).context("Stylesheet must be UTF-8")?,
@@ -601,7 +602,10 @@ impl Bundle {
                         if key == "style" {
                             value = self.css(&value, base, 0)?;
                         }
-                        if key == "src" && name == "img" {
+                        if (key == "src" && name == "img")
+                            || (matches!(key, "href" | "xlink:href")
+                                && matches!(name, "image" | "feimage"))
+                        {
                             value = self.url(base, &value, false)?;
                         }
                         if key == "srcset" && matches!(name, "img" | "source") {
@@ -793,5 +797,60 @@ mod responsive_tests {
                 )
                 .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod svg_resource_tests {
+    use super::*;
+    fn fixture() -> Bundle {
+        Bundle {
+            resources: [
+                ("plot.png".into(), ("image/png", b"plot".to_vec())),
+                ("theme.css".into(), ("text/css", b"p{color:green}".to_vec())),
+                ("face.woff2".into(), ("font/woff2", b"font".to_vec())),
+            ]
+            .into_iter()
+            .collect(),
+            encoded: HashMap::new(),
+            visiting: HashSet::new(),
+            used: HashSet::new(),
+        }
+    }
+    #[test]
+    fn svg_image_and_filter_hrefs_embed_pinned_rasters_and_keep_fragments() {
+        let mut bundle = fixture();
+        let html = bundle.html(r##"<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image href="plot.png"/><image xlink:href="plot.png"/><filter id="f"><feImage href="plot.png"/><feImage xlink:href="plot.png"/><feImage href="#local"/></filter><use href="#shape"/></svg>"##, "index.html").unwrap();
+        assert_eq!(html.matches("data:image/png;base64,cGxvdA==").count(), 4);
+        assert!(html.contains(r#"xlink:href="data:image/png;base64,cGxvdA==""#));
+        assert!(html.contains(r##"href="#local""##));
+        assert!(html.contains(r##"href="#shape""##));
+        assert_eq!(bundle.used.len(), 1);
+    }
+    #[test]
+    fn svg_rasters_refuse_remote_unlisted_and_cached_nonimage_resources() {
+        for path in [
+            "missing.png",
+            "https://outside.invalid/plot.png",
+            "//outside.invalid/plot.png",
+            "theme.css",
+            "face.woff2",
+        ] {
+            let mut bundle = fixture();
+            if matches!(path, "theme.css" | "face.woff2") {
+                bundle.url("index.html", path, true).unwrap();
+            }
+            for tag in ["image", "feImage"] {
+                assert!(
+                    bundle
+                        .html(
+                            &format!("<svg><{tag} href=\"{path}\"/></svg>"),
+                            "index.html"
+                        )
+                        .is_err(),
+                    "{tag} {path}"
+                );
+            }
+        }
     }
 }
