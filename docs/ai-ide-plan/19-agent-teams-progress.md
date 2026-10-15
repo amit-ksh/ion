@@ -3174,3 +3174,12 @@ Portable HTML now inlines inspected SVG reference documents once and rewrites lo
 - [x] 102 distinct checks pass, including two actual Windows 2.0.29 driver/fake-model fixtures for approved invocation/result return and Stop. Native stale generation, owner plugin preservation, owned-file cleanup and adopted-service survival pass.
 - [ ] Complete [authenticated model/account, native resume/hot-upgrade and platform review](72-opencode2-native-plugin-contract.md#owner-review). Configure the V2 executable explicitly; unverified native versions expose Teams-unavailable activity.
 - [ ] Implement the five remaining source bridges (Cursor, Antigravity, Fx, Grok, Kimi), native Amp/Cursor completion contracts and the remaining document rendering/full-goal requirements. This checkpoint does not close the active goal.
+
+## 2026-10-15 — portable document CSS names
+
+- [x] Give direct/literal imported-SVG keyframes and custom counter styles a per-file identity across inline CSS, shared imports and nested rules; source HTML names remain native.
+- [x] Preserve shorthand roles, case/escapes/quoted names, keyframe selectors, priorities, marker/content strings, invalid/reserved rules and predefined counter behavior.
+- [x] 50 distinct native/phone checks pass, including two actual production-native fixture exports, trusted-worker publication/replay, phone preparation and independent CSS Tree 3.1.0 grammar with an invalid-value control.
+- [x] Locked offline desktop/daemon checks, full mobile TypeScript, Rust formatting and diff checks pass.
+- [ ] Complete [device/browser and CSS variable/scope acceptance](73-portable-css-names.md#owner-review). Variable-based animation/counter/font names, property registrations, layer/container/scope names and browser use-shadow behavior remain open.
+- [ ] Remaining native harness bridges/contracts and full-goal provider/platform acceptance remain open; this increment does not close the active goal.

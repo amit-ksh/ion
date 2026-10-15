@@ -65,6 +65,6 @@ The checksum-verified released Windows 2.0.29 runtime now passes real driver fix
 - [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
 - [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
 - [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
-- [ ] Complete source-task Teams tools for Cursor, Antigravity, OpenCode 2, Fx, Grok and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
+- [ ] Complete source-task Teams tools for Cursor, Antigravity, Fx, Grok and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
 
 These are current goal requirements, not deferred successes. The full goal remains active.

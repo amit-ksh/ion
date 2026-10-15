@@ -175,6 +175,12 @@ impl Bundle {
                 push(out, &format!(" {key}=\"{}\"", attr(&value)))?;
             }
             push(out, ">")?;
+            if depth == 0 && !names.prefix.is_empty() {
+                let baseline = names.baseline()?;
+                if !baseline.is_empty() {
+                    push(out, &format!("<style>{}</style>", attr(&baseline)))?;
+                }
+            }
             if tag == "style" {
                 let text = node
                     .children()

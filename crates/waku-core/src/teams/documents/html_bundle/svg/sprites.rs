@@ -1,6 +1,8 @@
 //! Inline SVG reference documents with private IDs/classes and zero-specificity
 //! per-compound stylesheet markers. Markers survive native <use> cloning.
 use super::*;
+mod named_styles;
+use named_styles::Globals;
 
 #[derive(Clone)]
 pub(in crate::teams::documents::html_bundle) struct Names {
@@ -8,6 +10,7 @@ pub(in crate::teams::documents::html_bundle) struct Names {
     ids: HashSet<String>,
     pub(super) root: String,
     fonts: HashSet<String>,
+    globals: Globals,
     marker_key: String,
     pub(super) common_marker: String,
     isolate: bool,
@@ -19,6 +22,7 @@ impl Names {
             ids,
             root: String::new(),
             fonts: HashSet::new(),
+            globals: Globals::default(),
             marker_key: String::new(),
             common_marker,
             isolate,
@@ -47,6 +51,9 @@ impl Names {
             out.push_str(&part[word.len()..]);
         }
         out
+    }
+    pub(super) fn baseline(&self) -> Result<String> {
+        self.globals.baseline(&self.prefix)
     }
     pub fn root_marker(&self) -> String {
         format!("data-{}{}_root", self.prefix, self.marker_key)
@@ -198,19 +205,21 @@ impl Sprites {
                 format!("{prefix}{id}")
             };
             let mut fonts = HashSet::new();
+            let mut globals = Globals::default();
             let mut seen = HashSet::new();
             for style in root.descendants().filter(|node| node.has_tag_name("style")) {
                 let text = style
                     .children()
                     .filter_map(|node| node.text())
                     .collect::<String>();
-                gather_fonts(bundle, &text, &path, &mut fonts, &mut seen, 0)?;
+                gather_styles(bundle, &text, &path, &mut fonts, &mut globals, &mut seen, 0)?;
             }
             let imported = Names {
                 prefix,
                 ids,
                 root: root_id,
                 fonts,
+                globals,
                 marker_key: hash(source.as_bytes()),
                 common_marker: self.common_marker.clone(),
                 isolate: true,
@@ -342,7 +351,7 @@ impl Sprites {
         if stylesheet && names.isolate {
             namespace_styles(&resolved, names, 0)
         } else {
-            font_declarations(&resolved, names)
+            declarations(&resolved, names)
         }
     }
 }
@@ -368,15 +377,22 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
             CssToken::CurlyBracketBlock => {
                 let body = nested_text(&mut parser)?;
                 if let Some(name) = at_rule.take() {
-                    push(&mut out, &prelude)?;
+                    push(
+                        &mut out,
+                        &names.globals.prelude(&name, &prelude, &names.prefix)?,
+                    )?;
                     push(&mut out, "{")?;
                     let body = if matches!(
                         name.as_str(),
                         "media" | "supports" | "container" | "layer" | "scope" | "starting-style"
                     ) {
                         namespace_styles(&body, names, depth + 1)?
+                    } else if matches!(name.as_str(), "keyframes" | "-webkit-keyframes") {
+                        named_styles::keyframes(&body, names, depth + 1)?
+                    } else if name == "counter-style" {
+                        declarations_in(&body, names, true)?
                     } else {
-                        font_declarations(&body, names)?
+                        declarations(&body, names)?
                     };
                     push(&mut out, &body)?;
                 } else {
@@ -417,7 +433,7 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
         }
     }
     push(&mut out, &prelude)?;
-    font_declarations(&out, names)
+    declarations(&out, names)
 }
 fn selector(source: &str, names: &Names, depth: usize) -> Result<String> {
     ensure!(depth <= 32, "SVG selector nesting exceeds its bound");
@@ -675,8 +691,11 @@ impl Names {
         Ok(out)
     }
 }
-fn font_declarations(source: &str, names: &Names) -> Result<String> {
-    if names.fonts.is_empty() {
+fn declarations(source: &str, names: &Names) -> Result<String> {
+    declarations_in(source, names, false)
+}
+fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<String> {
+    if names.prefix.is_empty() && names.fonts.is_empty() && names.globals.is_empty() {
         return Ok(source.to_owned());
     }
     let mut input = ParserInput::new(source);
@@ -689,19 +708,22 @@ fn font_declarations(source: &str, names: &Names) -> Result<String> {
         push(out, property)?;
         if colon {
             push(out, ":")?;
-            let css = if property.trim().eq_ignore_ascii_case("font-family") {
-                // Keep !important outside the family token list.
-                if let Some(body) = value.strip_suffix("!important") {
-                    format!("{}!important", names.family(body)?)
-                } else {
-                    names.family(value)?
-                }
-            } else if property.trim().eq_ignore_ascii_case("font") {
-                font_shorthand(value, names)?
+            let decoded = named_styles::property(property);
+            let (body, priority) = named_styles::priority(value)?;
+            let css = if decoded.as_deref() == Some("font-family") {
+                names.family(body)?
+            } else if decoded.as_deref() == Some("font") {
+                font_shorthand(body, names)?
             } else {
-                value.to_owned()
+                names.globals.value(
+                    decoded.as_deref().unwrap_or(""),
+                    body,
+                    &names.prefix,
+                    counter_style,
+                )?
             };
             push(out, &css)?;
+            push(out, priority)?;
         }
         Ok(())
     };
@@ -744,25 +766,37 @@ fn font_declarations(source: &str, names: &Names) -> Result<String> {
     append(&mut out, &property, &value, colon)?;
     Ok(out)
 }
-fn gather_fonts(
+fn gather_styles(
     bundle: &Bundle,
     source: &str,
     base: &str,
     fonts: &mut HashSet<String>,
+    globals: &mut Globals,
     seen: &mut HashSet<String>,
     depth: usize,
 ) -> Result<()> {
     ensure!(
         depth <= 16 && source.len() <= MAX_OUTPUT,
-        "SVG font stylesheet depth/size exceeds its bound"
+        "SVG stylesheet discovery depth/size exceeds its bound"
     );
     let mut input = ParserInput::new(source);
     let mut parser = Parser::new(&mut input);
     let mut kind = String::new();
-    while let Ok(token) = parser.next_including_whitespace_and_comments().cloned() {
+    let mut prelude_start = None;
+    loop {
+        let before = parser.position();
+        let Ok(token) = parser.next_including_whitespace_and_comments().cloned() else {
+            break;
+        };
         match token {
-            CssToken::AtKeyword(name) => kind = name.to_ascii_lowercase(),
+            CssToken::AtKeyword(name) => {
+                kind = name.to_ascii_lowercase();
+                prelude_start = Some(parser.position());
+            }
             CssToken::CurlyBracketBlock => {
+                if let Some(start) = prelude_start.take() {
+                    globals.collect_rule(&kind, parser.slice(start..before))?;
+                }
                 let body = nested_text(&mut parser)?;
                 if kind == "font-face" {
                     let mut input = ParserInput::new(&body);
@@ -788,12 +822,12 @@ fn gather_fonts(
                         }
                     }
                 } else {
-                    gather_fonts(bundle, &body, base, fonts, seen, depth + 1)?;
+                    gather_styles(bundle, &body, base, fonts, globals, seen, depth + 1)?;
                 }
                 kind.clear();
             }
             CssToken::QuotedString(value) | CssToken::UnquotedUrl(value) if kind == "import" => {
-                gather_import(bundle, &value, base, fonts, seen, depth + 1)?;
+                gather_import(bundle, &value, base, fonts, globals, seen, depth + 1)?;
                 kind.clear();
             }
             CssToken::Function(name) if kind == "import" && name.eq_ignore_ascii_case("url") => {
@@ -803,7 +837,7 @@ fn gather_fonts(
                 let value = url
                     .expect_string_cloned()
                     .map_err(|_| anyhow::anyhow!("Invalid SVG CSS import"))?;
-                gather_import(bundle, &value, base, fonts, seen, depth + 1)?;
+                gather_import(bundle, &value, base, fonts, globals, seen, depth + 1)?;
                 kind.clear();
             }
             CssToken::Semicolon => kind.clear(),
@@ -817,6 +851,7 @@ fn gather_import(
     value: &str,
     base: &str,
     fonts: &mut HashSet<String>,
+    globals: &mut Globals,
     seen: &mut HashSet<String>,
     depth: usize,
 ) -> Result<()> {
@@ -830,12 +865,12 @@ fn gather_import(
         let (mime, bytes) = bundle
             .resources
             .get(&path)
-            .context("SVG font stylesheet is not hash-pinned")?;
-        ensure!(*mime == "text/css", "SVG font stylesheet must be CSS");
+            .context("SVG stylesheet is not hash-pinned")?;
+        ensure!(*mime == "text/css", "SVG stylesheet must be CSS");
         (path, bytes.clone())
     };
     if seen.insert(path.clone()) {
-        gather_fonts(
+        gather_styles(
             bundle,
             std::str::from_utf8(&bytes)?,
             if path.starts_with("data:") {
@@ -844,6 +879,7 @@ fn gather_import(
                 &path
             },
             fonts,
+            globals,
             seen,
             depth,
         )?;
