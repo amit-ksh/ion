@@ -3166,3 +3166,10 @@ Additive temporary native tools now bind DeepSeek source callbacks to the owner'
 Pinned static SVG images now embed their own local raster/vector/CSS/font dependencies in portable HTML snapshots. Strict XML preserves case/namespaces, local IDs, Unicode and named views; original files remain intact. Phone preparation validates embedded SVG image/responsive attributes in yielded bounded stages, including cached nested-depth checks, within existing owner/grant/foreground generations.
 
 **34 distinct cases pass** (14 native bundle/publication/worker and 20 phone HTML/SVG), plus full mobile TypeScript, locked desktop/daemon binary checks and Rust/Prettier/diff checks. [Scope and owner review](70-portable-svg-images.md) records exact bounds, CSS image-context limits and original-versus-snapshot behavior. External SVG sprites, remaining native harness requirements and live account/device acceptance stay open. No visual test, paid resource, watcher restart or ion-prod merge occurred.
+
+
+## 2026-10-15 — pinned SVG sprite and paint/path references
+
+Portable HTML now inlines inspected SVG reference documents once and rewrites local symbol/use, text path, gradient/pattern and CSS paint/filter/mask/clip references. Private IDs/classes, original-value attribute snapshots, zero-specificity scope markers and font-family aliases retain referenced styles without changing source document nodes. XML/CSS/resource bounds, original files and exact publication/replay remain enforced.
+
+**42 distinct checks pass**: 19 native bundle/publication/worker, one production fixture export, 21 phone HTML/SVG and one actual native-output-to-phone case. Locked desktop/daemon binaries, full mobile TypeScript, Rust/Prettier formatting and diff checks pass. [Review and fidelity limits](71-portable-svg-references.md) record physical-device shadow styling, wider global CSS names and remaining harness contracts. No visual test, paid resource, watcher restart or ion-prod merge occurred. The full goal remains active.

@@ -21,7 +21,7 @@ Stylesheet links become inline styles. CSS `@import` and `url()` resolve relativ
 
 The phone rendered view still accepts up to 1 MiB and uses its bounded HTML5 preparation. Larger originals remain available for verified export. Script execution, app credentials, file access and network requests stay disabled in preview. CSP now permits data stylesheets for pinned CSS imports, alongside inline styles and existing data image/font sources.
 
-This increment covers stylesheet links, CSS imports/URL functions, inline styles, `img src`, responsive `srcset`/picture sources, quoted `image-set` alternatives and raster references in inline SVG images/filter images. Phone preparation preserves only raster data URLs on SVG image elements, with remote/file/data-SVG/data-HTML references inactive. Resource MIME is rechecked on encoded-cache hits, so a stylesheet/font cached for CSS cannot satisfy an image reference. Pinned standalone SVG images now resolve their image/CSS/font dependencies through the same resource map; see [SVG image publication](70-portable-svg-images.md). External SVG symbol/sprite files still need additional resolution work. Device rendering and font behavior require the owner checklist below.
+This increment covers stylesheet links, CSS imports/URL functions, inline styles, `img src`, responsive `srcset`/picture sources, quoted `image-set` alternatives and raster references in inline SVG images/filter images. Phone preparation preserves only raster data URLs on SVG image elements, with remote/file/data-SVG/data-HTML references inactive. Resource MIME is rechecked on encoded-cache hits, so a stylesheet/font cached for CSS cannot satisfy an image reference. Pinned standalone SVG images now resolve their image/CSS/font dependencies through the same resource map; see [SVG image publication](70-portable-svg-images.md). [Pinned SVG reference documents](71-portable-svg-references.md) now inline bounded external symbol/use/paint/path targets. Device rendering and font behavior require the owner checklist below.
 
 ## Durable replay and recovery
 
@@ -49,4 +49,4 @@ Model reads and workflow handoffs receive the bounded agent-authored summary and
 
 ## Remaining full-goal work
 
-External SVG symbol/sprite files, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.
+Broader CSS-name/browser fidelity for inlined SVG references, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.

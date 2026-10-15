@@ -309,3 +309,16 @@ test("SVG Unicode IDs and encoded named views remain local references", async ()
   expect(html).toContain(`srcset="${url} 1x"`);
   expect(html).toContain('href="#σκιά"');
 });
+
+test("SVG derived namespace fields fit the attribute bound while excessive attributes refuse", async () => {
+  const svg = (count: number) =>
+    `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" ${Array.from({ length: count }, (_, i) => `a${i}="value"`).join(" ")}/>`).toString("base64")}`;
+  const accepted = svg(70),
+    rejected = svg(71);
+  const { html } = await prepareRenderedHtml(
+    `<img src="${accepted}"><img src="${rejected}">`,
+    () => true,
+  );
+  expect(html).toContain(accepted);
+  expect(html).not.toContain(rejected);
+});

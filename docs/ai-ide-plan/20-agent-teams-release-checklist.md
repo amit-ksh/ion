@@ -983,3 +983,13 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] 34 distinct native/phone cases pass. Full mobile TypeScript, locked desktop/daemon binary checks, Rust/Prettier formatting and diff checks pass.
 - [ ] Complete [SVG image/font/offline/device review](70-portable-svg-images.md#owner-review). Exact SVG originals do not auto-bundle sibling files, and CSS data image URLs retain their existing isolated browser image behavior.
 - [ ] External SVG sprite/symbol inlining, remaining native harness contracts and provider/device acceptance remain open.
+
+
+## 2026-10-15 — pinned SVG reference documents
+
+- [x] Inline pinned SVG symbol/use, text-path, gradient/pattern and CSS paint/filter/mask/clip dependencies; preserve local/encoded IDs, repeated targets and root references.
+- [x] Private per-file IDs/classes/font families, original ID/class attribute snapshots, zero-specificity scopes, imports/media/namespaces and pseudo-element handling retain supported styles. Original workspace files and exact publication/replay remain unchanged.
+- [x] Refuse unsupported remote/data/missing/duplicate/cyclic reference documents within existing resource/expansion bounds.
+- [x] 42 distinct native/phone checks pass, including actual production-native output fed through phone preparation. Locked desktop/daemon builds, mobile TypeScript, Rust/Prettier formatting and diff checks pass.
+- [ ] Complete [iPhone15/MotoG32 sprite/style/export review](71-portable-svg-references.md#owner-review). Broader global CSS names and browser shadow styling are recorded fidelity/acceptance gaps.
+- [ ] Remaining native harness bridges/contracts and full-goal account/platform acceptance stay open.

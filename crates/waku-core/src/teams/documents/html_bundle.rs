@@ -283,30 +283,60 @@ fn attr(value: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CssUrlKind {
+    Resource,
+    Image,
+    Import,
+    SvgReference,
+}
+type CssResolver<'a> = dyn FnMut(&mut Bundle, &str, CssUrlKind) -> Result<String> + 'a;
+fn svg_presentation(name: &str) -> bool {
+    matches!(
+        name,
+        "fill"
+            | "stroke"
+            | "filter"
+            | "clip-path"
+            | "mask"
+            | "marker"
+            | "marker-start"
+            | "marker-mid"
+            | "marker-end"
+    )
+}
+fn resource_url(base: &str, value: &str) -> Result<url::Url> {
+    ensure!(
+        !value.chars().any(char::is_control) && !value.contains('\\'),
+        "Invalid bundle resource URL"
+    );
+    let origin = url::Url::parse("https://ion-bundle.invalid/")?;
+    let resolved = origin.join(base)?.join(value)?;
+    ensure!(
+        resolved.origin() == origin.origin()
+            && resolved.username().is_empty()
+            && resolved.password().is_none(),
+        "Bundle resources must be explicitly pinned local files"
+    );
+    Ok(resolved)
+}
+fn resource_path(resolved: &url::Url) -> Result<String> {
+    let path = percent_encoding::percent_decode_str(resolved.path().trim_start_matches('/'))
+        .decode_utf8()?
+        .into_owned();
+    ensure!(
+        !path.contains(['\\', ':', '\0']),
+        "Invalid bundle resource path"
+    );
+    Ok(path)
+}
 impl Bundle {
     fn url(&mut self, base: &str, value: &str, css: bool) -> Result<String> {
         if value.starts_with('#') || value.starts_with("data:") {
             return Ok(value.to_owned());
         }
-        ensure!(
-            !value.chars().any(char::is_control) && !value.contains('\\'),
-            "Invalid bundle resource URL"
-        );
-        let origin = url::Url::parse("https://ion-bundle.invalid/")?;
-        let resolved = origin.join(base)?.join(value)?;
-        ensure!(
-            resolved.origin() == origin.origin()
-                && resolved.username().is_empty()
-                && resolved.password().is_none(),
-            "Bundle resources must be explicitly pinned local files"
-        );
-        let path = percent_encoding::percent_decode_str(resolved.path().trim_start_matches('/'))
-            .decode_utf8()?
-            .into_owned();
-        ensure!(
-            !path.contains(['\\', ':', '\0']),
-            "Invalid bundle resource path"
-        );
+        let resolved = resource_url(base, value)?;
+        let path = resource_path(&resolved)?;
         self.used.insert(path.clone());
         let mime = self
             .resources
@@ -362,24 +392,56 @@ impl Bundle {
         Ok(format!("{value}{suffix}"))
     }
     fn css(&mut self, text: &str, base: &str, depth: usize) -> Result<String> {
+        self.css_using(text, depth, false, &mut |bundle, value, kind| {
+            bundle.url(base, value, kind != CssUrlKind::Image)
+        })
+    }
+    fn css_using(
+        &mut self,
+        text: &str,
+        depth: usize,
+        svg_reference: bool,
+        resolve: &mut CssResolver<'_>,
+    ) -> Result<String> {
         let mut input = ParserInput::new(text);
         let mut parser = Parser::new(&mut input);
-        self.css_tokens(&mut parser, base, depth, false)
+        self.css_tokens(&mut parser, depth, false, svg_reference, resolve)
     }
     fn css_tokens<'i>(
         &mut self,
         parser: &mut Parser<'i, '_>,
-        base: &str,
         depth: usize,
         image_set: bool,
+        inherited_svg_reference: bool,
+        resolve: &mut CssResolver<'_>,
     ) -> Result<String> {
         ensure!(depth <= 32, "CSS nesting exceeds its bound");
         let mut out = String::new();
         let mut import = false;
+        let mut namespace = false;
+        let mut ident: Option<String> = None;
+        let mut property: Option<String> = None;
         while let Ok(token) = parser.next_including_whitespace_and_comments().cloned() {
+            let svg_reference =
+                inherited_svg_reference || property.as_deref().is_some_and(svg_presentation);
+            let kind = if import {
+                CssUrlKind::Import
+            } else if svg_reference {
+                CssUrlKind::SvgReference
+            } else {
+                CssUrlKind::Resource
+            };
             match token {
                 CssToken::UnquotedUrl(value) => {
-                    let value = self.url(base, &value, true)?;
+                    let value = if namespace {
+                        value.to_string()
+                    } else {
+                        resolve(self, &value, kind)?
+                    };
+                    ensure!(
+                        !import || value.starts_with("data:text/css;base64,"),
+                        "CSS imports must reference pinned CSS"
+                    );
                     push(
                         &mut out,
                         &format!(
@@ -390,7 +452,15 @@ impl Bundle {
                     import = false;
                 }
                 CssToken::QuotedString(value) if import || image_set => {
-                    let value = self.url(base, &value, import)?;
+                    let value = resolve(
+                        self,
+                        &value,
+                        if import {
+                            CssUrlKind::Import
+                        } else {
+                            CssUrlKind::Image
+                        },
+                    )?;
                     ensure!(
                         !import || value.starts_with("data:text/css;base64,"),
                         "CSS imports must reference pinned CSS"
@@ -409,7 +479,15 @@ impl Bundle {
                             Ok::<_, cssparser::ParseError<'i, ()>>(value.to_string())
                         })
                         .map_err(|_| anyhow::anyhow!("Invalid CSS resource URL"))?;
-                    let value = self.url(base, &value, true)?;
+                    let value = if namespace {
+                        value
+                    } else {
+                        resolve(self, &value, kind)?
+                    };
+                    ensure!(
+                        !import || value.starts_with("data:text/css;base64,"),
+                        "CSS imports must reference pinned CSS"
+                    );
                     push(
                         &mut out,
                         &format!(
@@ -435,10 +513,16 @@ impl Bundle {
                     let image_strings = matches!(&token, CssToken::Function(name) if name.eq_ignore_ascii_case("image-set") || name.eq_ignore_ascii_case("-webkit-image-set"));
                     let inner = parser
                         .parse_nested_block(|nested| {
-                            self.css_tokens(nested, base, depth + 1, image_strings)
-                                .map_err(|error| {
-                                    nested.new_custom_error::<String, String>(error.to_string())
-                                })
+                            self.css_tokens(
+                                nested,
+                                depth + 1,
+                                image_strings,
+                                svg_reference,
+                                resolve,
+                            )
+                            .map_err(|error| {
+                                nested.new_custom_error::<String, String>(error.to_string())
+                            })
                         })
                         .map_err(|_| anyhow::anyhow!("Invalid nested stylesheet"))?;
                     push(&mut out, &open)?;
@@ -450,8 +534,24 @@ impl Bundle {
                     anyhow::bail!("Malformed CSS resource")
                 }
                 _ => {
+                    match &token {
+                        CssToken::Ident(value) => ident = Some(value.to_ascii_lowercase()),
+                        CssToken::Colon => {
+                            property = ident.take();
+                        }
+                        CssToken::Semicolon => {
+                            property = None;
+                            ident = None;
+                        }
+                        CssToken::WhiteSpace(_) | CssToken::Comment(_) => {}
+                        _ => ident = None,
+                    }
                     if let CssToken::AtKeyword(ref value) = token {
                         import = value.eq_ignore_ascii_case("import");
+                        namespace = value.eq_ignore_ascii_case("namespace");
+                    } else if matches!(token, CssToken::Semicolon) {
+                        namespace = false;
+                        import = false;
                     } else if !matches!(token, CssToken::WhiteSpace(_) | CssToken::Comment(_)) {
                         import = false;
                     }
@@ -535,6 +635,30 @@ impl Bundle {
         tokenizer.end();
         let tokens = tokenizer.sink.tokens.into_inner();
         ensure!(tokens.len() <= 50_000, "HTML token count exceeds its bound");
+        let ids: HashSet<String> = tokens
+            .iter()
+            .filter_map(|token| {
+                if let Token::TagToken(tag) = token {
+                    Some(
+                        tag.attrs
+                            .iter()
+                            .filter(|attr| attr.name.local.as_ref() == "id")
+                            .map(|attr| attr.value.to_string()),
+                    )
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+        let common_marker = format!("data-ion-svg-import-{}", hash(source.as_bytes()));
+        let isolate = self
+            .resources
+            .values()
+            .any(|(mime, _)| *mime == "image/svg+xml");
+        let names = svg::sprites::Names::native(ids.clone(), common_marker.clone(), isolate);
+        let mut sprites = svg::sprites::Sprites::new(ids, common_marker);
+        let mut svg_depth = 0usize;
         let mut out = String::new();
         let mut raw: Option<String> = None;
         let mut style = String::new();
@@ -556,13 +680,18 @@ impl Bundle {
                         "Malformed HTML attribute name"
                     );
                     if tag.kind == TagKind::EndTag && name == "style" {
-                        let css = self.css(&style, base, 0)?.replace('<', "\\3c ");
+                        let css = sprites.css(self, &style, base, &names, true, false)?;
+                        let css = css.replace('<', "\\3c ");
                         push(&mut out, &css)?;
                         style.clear();
                     }
                     if tag.kind == TagKind::EndTag {
+                        if name == "svg" {
+                            svg_depth = svg_depth.saturating_sub(1);
+                        }
                         push(&mut out, &format!("</{name}>"))?;
                         raw = None;
+                        sprites.write_html_defs(&mut out, svg_depth)?;
                         continue;
                     }
                     ensure!(
@@ -582,7 +711,7 @@ impl Bundle {
                             .iter()
                             .find(|a| a.name.local.as_ref() == "href")
                             .context("Stylesheet link has no href")?;
-                        let value = self.url(base, &href.value, true)?;
+                        let value = sprites.stylesheet(self, base, &href.value, &names)?;
                         ensure!(
                             value.starts_with("data:text/css;base64,"),
                             "Stylesheet must reference pinned CSS"
@@ -604,14 +733,41 @@ impl Bundle {
                             &std::str::from_utf8(&decoded)?.replace('<', "\\3c "),
                         )?;
                         push(&mut out, "</style>")?;
+                        sprites.write_html_defs(&mut out, svg_depth)?;
                         continue;
                     }
-                    push(&mut out, &format!("<{name}"))?;
+                    let parent_svg_depth = svg_depth;
+                    if name == "svg" {
+                        svg_depth += 1;
+                        ensure!(svg_depth <= 128, "SVG nesting exceeds its bound");
+                    }
+                    // Resolve first so complete defs precede the referring node.
+                    let mut attrs = Vec::with_capacity(tag.attrs.len());
                     for a in &tag.attrs {
                         let key = a.name.local.as_ref();
                         let mut value = a.value.to_string();
-                        if key == "style" {
-                            value = self.css(&value, base, 0)?;
+                        if key == "style" || (svg_depth > 0 && svg_presentation(key)) {
+                            value = sprites.css(
+                                self,
+                                &value,
+                                base,
+                                &names,
+                                false,
+                                svg_presentation(key),
+                            )?;
+                        }
+                        if svg_depth > 0
+                            && matches!(
+                                name,
+                                "use"
+                                    | "textpath"
+                                    | "lineargradient"
+                                    | "radialgradient"
+                                    | "pattern"
+                            )
+                            && matches!(key, "href" | "xlink:href")
+                        {
+                            value = sprites.reference(self, base, &value, &names)?;
                         }
                         if (key == "src" && name == "img")
                             || (matches!(key, "href" | "xlink:href")
@@ -622,9 +778,17 @@ impl Bundle {
                         if key == "srcset" && matches!(name, "img" | "source") {
                             value = self.srcset(base, &value)?;
                         }
-                        push(&mut out, &format!(" {}=\"{}\"", key, attr(&value)))?;
+                        attrs.push((key, value));
+                    }
+                    sprites.write_html_defs(&mut out, parent_svg_depth)?;
+                    push(&mut out, &format!("<{name}"))?;
+                    for (key, value) in attrs {
+                        push(&mut out, &format!(" {key}=\"{}\"", attr(&value)))?;
                     }
                     push(&mut out, if tag.self_closing { " />" } else { ">" })?;
+                    if name == "svg" && tag.self_closing {
+                        svg_depth = svg_depth.saturating_sub(1);
+                    }
                     if matches!(
                         name,
                         "style" | "script" | "xmp" | "iframe" | "noembed" | "noframes"

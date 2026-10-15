@@ -8,7 +8,7 @@ Updated 2026-10-15. Implementation: `codex/ion-agent-teams`.
 
 Strict XML parsing preserves SVG element/attribute case, namespaces, viewBox, same-document gradient/filter/use references, Unicode and named-view fragments. CSS imports, style elements/attributes and presentation URL attributes are rewritten before embedding. Byte-identical encoded assets are cached; distinct named views retain their own fragment. Existing exact artifact hashes, original inspected resource hashes, atomic publication/argument seals, replay after source removal and keep-until-cleaned retention remain in use.
 
-The generated snapshot is an HTML artifact. Exact `save_file_document` SVG originals remain exact originals; that operation does not automatically resolve sibling files. A standalone drawing can be included as a pinned SVG resource in an HTML report. External symbol/use dependencies are a separate remaining requirement.
+The generated snapshot is an HTML artifact. Exact `save_file_document` SVG originals remain exact originals; that operation does not automatically resolve sibling files. A standalone drawing can be included as a pinned SVG resource in an HTML report. [Pinned SVG reference documents](71-portable-svg-references.md) now resolve external symbol/use and paint/path references.
 
 ## Isolation and bounds
 
@@ -37,4 +37,4 @@ Full mobile TypeScript, locked offline desktop/daemon binary checks, Rust/Pretti
 
 ## Remaining goal work
 
-External SVG symbol/sprite references still need inlining and identifier/reference preservation. XML stylesheet processing instructions and active SVG applications are not supported by this static document preview. Native harness bridges/contracts and live provider/device acceptance remain open in [current harness coverage](64-remaining-harness-integrations.md). This increment does not complete the full goal.
+[Pinned SVG references](71-portable-svg-references.md) now inline bounded symbol/use/paint/path dependencies with private IDs/styles/fonts; that guide records remaining CSS-name/browser fidelity and acceptance work. XML stylesheet processing instructions and active SVG applications are not supported by this static document preview. Native harness bridges/contracts and live provider/device acceptance remain open in [current harness coverage](64-remaining-harness-integrations.md). This increment does not complete the full goal.

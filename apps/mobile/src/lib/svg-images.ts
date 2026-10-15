@@ -84,7 +84,7 @@ export function svgImageValidator(current: () => boolean) {
         if (
           ++elements > 50_000 ||
           ++depth > 128 ||
-          Object.keys(tag.attributes).length > 64 ||
+          Object.keys(tag.attributes).length > 71 ||
           tag.uri !== NS ||
           DENY.has(tag.local.toLowerCase())
         )

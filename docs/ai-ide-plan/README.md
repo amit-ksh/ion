@@ -225,3 +225,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [DeepSeek source-task team bridge](69-deepseek-source-team-bridge.md): additive native tools, owner-call approval/replay and full web-host acceptance gap.
 
 - [Portable SVG image dependencies](70-portable-svg-images.md): pinned vector drawings, nested image/CSS/font resources and bounded phone preparation.
+
+- [Pinned SVG reference documents](71-portable-svg-references.md): symbol/paint/path inlining, scoped IDs/styles/fonts and native-to-phone evidence.

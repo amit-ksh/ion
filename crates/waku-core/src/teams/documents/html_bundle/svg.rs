@@ -1,6 +1,8 @@
 //! Resolve dependencies inside a hash-pinned SVG image before data embedding.
 //! Preserve XML case/namespaces; do not reinterpret SVG using an HTML tokenizer.
 use super::*;
+pub(super) mod sprites;
+use sprites::{Names, Sprites};
 
 const NS: &str = "http://www.w3.org/2000/svg";
 const XLINK: &str = "http://www.w3.org/1999/xlink";
@@ -27,16 +29,34 @@ impl Bundle {
                 && matches!(root.tag_name().namespace(), None | Some(NS)),
             "Use an SVG document root"
         );
+        let ids = sprites::document_ids(root)?;
+        let common_marker = format!("data-ion-svg-import-{}", hash(source.as_bytes()));
+        let mut sprites = Sprites::new(ids.clone(), common_marker.clone());
+        let isolate = self
+            .resources
+            .values()
+            .any(|(mime, _)| *mime == "image/svg+xml");
+        let names = Names::native(ids, common_marker, isolate);
         let mut out = String::new();
-        self.svg_node(root, base, root.tag_name().namespace(), 0, &mut out)?;
+        self.svg_node(
+            root,
+            base,
+            root.tag_name().namespace(),
+            0,
+            &names,
+            &mut sprites,
+            &mut out,
+        )?;
         Ok(out)
     }
-    fn svg_node(
+    pub(super) fn svg_node(
         &mut self,
         node: roxmltree::Node<'_, '_>,
         base: &str,
         namespace: Option<&str>,
         depth: usize,
+        names: &Names,
+        sprites: &mut Sprites,
         out: &mut String,
     ) -> Result<()> {
         ensure!(depth <= 128, "SVG nesting exceeds its bound");
@@ -68,6 +88,33 @@ impl Bundle {
             if depth == 0 {
                 push(out, &format!(" xmlns=\"{NS}\" xmlns:xlink=\"{XLINK}\""))?;
             }
+            let classes = node.attribute("class").unwrap_or_default();
+            if !names.prefix.is_empty() {
+                if node.attribute("class").is_some() {
+                    push(
+                        out,
+                        &format!(
+                            " class=\"{}\" {}=\"{}\"",
+                            attr(&names.classes(classes)),
+                            names.original("class"),
+                            attr(classes)
+                        ),
+                    )?;
+                }
+                push(
+                    out,
+                    &format!(" {}=\"\" {}=\"\"", names.marker(), names.common_marker),
+                )?;
+                if depth == 0 {
+                    push(out, &format!(" {}=\"\"", names.root_marker()))?;
+                }
+                if let Some(id) = node.attribute("id") {
+                    push(out, &format!(" {}=\"{}\"", names.original("id"), attr(id)))?;
+                }
+            }
+            if depth == 0 && !names.prefix.is_empty() && node.attribute("id").is_none() {
+                push(out, &format!(" id=\"{}\"", attr(&names.root)))?;
+            }
             for attribute in node.attributes() {
                 let name = attribute.name();
                 let key = match attribute.namespace() {
@@ -82,7 +129,23 @@ impl Bundle {
                     !name.to_ascii_lowercase().starts_with("on"),
                     "SVG event handlers are unsupported"
                 );
+                if name == "class" && !names.prefix.is_empty() {
+                    continue;
+                }
                 let mut value = attribute.value().to_owned();
+                if name == "font-family" {
+                    value = names.family(&value)?;
+                }
+                if name == "id" {
+                    value = names.id(&value);
+                }
+                if matches!(name, "aria-labelledby" | "aria-describedby") {
+                    value = value
+                        .split_ascii_whitespace()
+                        .map(|id| names.id(id))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                }
                 if name == "href" {
                     if tag == "a" {
                         continue;
@@ -90,10 +153,7 @@ impl Bundle {
                     if matches!(tag, "image" | "feImage") {
                         value = self.url(base, &value, false)?;
                     } else {
-                        ensure!(
-                            value.starts_with('#'),
-                            "External SVG element references must be inlined before publication"
-                        );
+                        value = sprites.reference(self, base, &value, names)?;
                     }
                 } else if matches!(
                     name,
@@ -109,7 +169,8 @@ impl Bundle {
                         | "marker-end"
                         | "cursor"
                 ) {
-                    value = self.css(&value, base, 0)?;
+                    value =
+                        sprites.css(self, &value, base, names, false, svg_presentation(name))?;
                 }
                 push(out, &format!(" {key}=\"{}\"", attr(&value)))?;
             }
@@ -119,11 +180,17 @@ impl Bundle {
                     .children()
                     .filter_map(|child| child.text())
                     .collect::<String>();
-                push(out, &attr(&self.css(&text, base, 0)?))?;
+                push(
+                    out,
+                    &attr(&sprites.css(self, &text, base, names, true, false)?),
+                )?;
             } else {
                 for child in node.children() {
-                    self.svg_node(child, base, namespace, depth + 1, out)?;
+                    self.svg_node(child, base, namespace, depth + 1, names, sprites, out)?;
                 }
+            }
+            if depth == 0 && names.prefix.is_empty() {
+                sprites.write_defs(out)?;
             }
             push(out, &format!("</{tag}>"))?;
         } else if node.is_text() {
