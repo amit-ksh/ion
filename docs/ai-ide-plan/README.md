@@ -239,3 +239,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Grok source-task Teams bridge](76-grok-source-team-bridge.md): released native approval/result/resume/stale-definition/Stop fixtures, bounded identity/argument controls and owner review.
 
 - [Portable CSS layers and containers](77-portable-css-contexts.md): document-local layer/import/container names, style-query grammar, native-to-phone evidence and remaining dynamic/device review.
+
+- [Antigravity source-task native contract](78-antigravity-native-source-contract.md): verified native metadata/stream identity, workspace-only discovery, resume/refusal fixtures and remaining production bridge work.

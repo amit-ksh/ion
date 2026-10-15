@@ -17,7 +17,7 @@ This table is source-level transport coverage. Native versions, selected account
 | Oh My Pi    | Implemented                                        | Implemented                                                     |
 | Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining             |
 | Cursor      | Native completion ceiling/account contract missing | Remaining                                                       |
-| Antigravity | Implemented                                        | Remaining                                                       |
+| Antigravity | Implemented                                        | Remaining; native 1.3.1 metadata contract verified              |
 | DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                |
 | Fx          | Implemented                                        | Remaining                                                       |
 | Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining |
@@ -60,6 +60,12 @@ The checksum-verified released Windows 2.0.29 runtime now passes real driver fix
 ## Grok source-task native contract
 
 The released Windows 1.0.46 runtime now proves a file-hook input rewrite followed by an independent ACP client-hook witness, then MCP result return under the actual native call ID. Identical arguments in one batch keep distinct call identities. Failed hooks/model-forged bindings and consumed replay are refused in the isolated contract fixture. The release omits prompt IDs in both hooks; production must retain native session/call identity with Ion-owned turn/generation cancellation. The shipped daemon now provides a bounded stdin/stdout helper, and all ten helper/native contract cases pass with that executable, without a separate JavaScript runtime for hook execution. [Native evidence, helper checks and the remaining adapter implementation](75-grok-native-source-contract.md). The production source-task bridge now passes approval/durable invocation/result return, native resume/replay, changed-definition refusal, Stop at Ion approval, untrusted-project refusal and final hook cleanup through the actual released runtime. Seven Grok bridge regressions and the shared ACP/source suites pass (57 distinct cases total). Native account/model remain selected, project trust is retained and no paid request is made by the fixtures. [Implementation, evidence and owner review](76-grok-source-team-bridge.md). Authenticated owner-account and other-platform acceptance remain open.
+
+## Antigravity source-task native contract
+
+The checksum-pinned Windows 1.3.1 CLI now passes seven real-runtime contract cases (169 assertions) using the normal native agent, a disposable fake native account and localhost services. Native MCP envelope conversation/step metadata matches independently observed main-stream tool steps and full original wrapper arguments. Identical calls, native provider result return, process resume with advancing step identities, model-authored metadata isolation, missing/changed witness refusal, native strict-policy denial and workspace-only MCP discovery/configuration preservation are verified. Consumed replay, foreign-conversation and invalid-credential controls also refuse. A command hook is not required by this path.
+
+This checkpoint does not register production Antigravity source-task Teams tools. Scoped project configuration leases, the shared worker's approval/replay/Stop lifecycle and actual-driver durable invocation acceptance still need implementation. Native account/model and permissions must remain selected. [Native evidence and production checklist](78-antigravity-native-source-contract.md). The production source-bridge count remains ten.
 
 ## Kimi source-task contract investigation
 

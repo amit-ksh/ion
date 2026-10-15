@@ -1042,3 +1042,15 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Locked offline desktop and both daemon binary checks, Rust/TypeScript/Markdown formatting and diff checks pass. Existing compiler warnings remain.
 - [x] Save [implementation and owner review](77-portable-css-contexts.md). No visual/device test, paid resource, watcher restart or ion-prod merge is included.
 - [ ] Dynamic CSS variable/ident names, property registrations, font features, additional/larger document support, browser/device acceptance and the remaining harness contracts stay open. The full goal remains active.
+
+## 2026-10-15 — Antigravity native source-task contract
+
+- [x] Verify checksum-pinned Antigravity CLI 1.3.1 with the normal native agent, fake native Gemini account and localhost model/MCP services.
+- [x] Prove native envelope conversation/step metadata against independent real-stream original arguments; preserve distinct identical calls and actual provider result identities.
+- [x] Prove native process resume with retained conversation/history and greater step indices. Model-authored argument metadata does not replace the native envelope.
+- [x] Verify missing/changed stream evidence, consumed replay, foreign conversations and invalid transport credentials refuse. Native strict headless policy continues to deny ungranted work.
+- [x] Verify workspace-only MCP discovery and exact preservation of unrelated app entries/unknown fields. An invalid eager-field exploratory probe was corrected; no global owner config change is required for discovery.
+- [x] Pass seven actual-runtime cases (169 assertions, zero skipped), strict standalone fixture TypeScript, Prettier and diff checks. Production Rust is unchanged; no new compilation is claimed.
+- [x] Record [native contract and production checklist](78-antigravity-native-source-contract.md).
+- [ ] Wire the production project entry lease, native witness/shared worker lifecycle and actual-driver approval/durable replay/Stop/configuration acceptance. Antigravity remains unimplemented as a production source-task bridge.
+- [ ] The full document/harness goal remains active: ten source bridges, four still open, Amp/Cursor bounded completion contracts and remaining document/CSS/format/device work.
