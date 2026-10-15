@@ -26,7 +26,7 @@ Locked offline desktop/daemon binary checks, full mobile TypeScript, Rust format
 
 ## Remaining work
 
-Browser cascade/proximity and native use-shadow acceptance remain open. This is not an `@scope` polyfill for browsers that lack the feature. CSS variable-based animation/counter/font names, `@property` registrations, wider font features and layer/container namespaces remain development work in [CSS name coverage](73-portable-css-names.md). Remaining harness contracts are tracked in [the current matrix](64-remaining-harness-integrations.md). The full document/harness goal remains active.
+Browser cascade/proximity and native use-shadow acceptance remain open. This is not an `@scope` polyfill for browsers that lack the feature. CSS variable-based animation/counter/font names, `@property` registrations and wider font features remain development work in [CSS name coverage](73-portable-css-names.md). [Literal layer/container namespaces and related style queries](77-portable-css-contexts.md) are now implemented; their dynamic variable/ident forms remain open. Remaining harness contracts are tracked in [the current matrix](64-remaining-harness-integrations.md). The full document/harness goal remains active.
 
 ## Re-run native-to-phone checks
 

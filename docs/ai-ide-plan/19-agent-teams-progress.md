@@ -3214,3 +3214,12 @@ Portable HTML now inlines inspected SVG reference documents once and rewrites lo
 - [x] Pass 57 distinct cases (33 shared source-bridge, 21 ACP, three explicit native-driver cases), locked offline desktop/daemon checks including the dev binary, Rust formatting and diff checks. Existing compiler warnings remain; skipped account/runtime fixtures are excluded.
 - [x] Record [implementation and review](76-grok-source-team-bridge.md). No owner key, paid request, visual test, watcher restart, deployment or ion-prod merge occurred.
 - [ ] Complete authenticated owner-account/platform acceptance. Ten source-task bridges are now implemented; Cursor, Antigravity, Fx and Kimi source tools, Amp/Cursor bounded completion contracts, wider document/CSS fidelity and device acceptance remain open. The full goal is active.
+
+## 2026-10-15 — Portable CSS layers and named containers
+
+- [x] Give imported SVG reference documents private layer paths and container names, preserving dotted nesting, order statements, anonymous layers and pinned import modifiers/conditions.
+- [x] Rewrite literal names in container queries/declarations and related container-name style features while preserving custom-property data, type keywords, case, comments, escapes and invalid grammar. Keep background resource/output/nesting bounds.
+- [x] Pass 68 distinct checks: 34 native portable publication/worker regressions, one explicit native-to-phone export and 33 phone preparation/independent grammar cases. Full mobile TypeScript passes. A cold independent-parser test timeout was investigated, a bounded rerun passed, and that test has an explicit 20-second budget.
+- [x] Locked offline desktop and both daemon binary checks, Rust/TypeScript/Markdown formatting and diff checks pass. Existing compiler warnings remain.
+- [x] Save [implementation and owner review](77-portable-css-contexts.md). No visual/device test, paid resource, watcher restart or ion-prod merge is included.
+- [ ] Dynamic CSS variable/ident names, property registrations, font features, additional/larger document support, browser/device acceptance and the remaining harness contracts stay open. The full goal remains active.

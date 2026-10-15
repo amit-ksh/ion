@@ -1,6 +1,7 @@
 //! Inline SVG reference documents with private IDs/classes and zero-specificity
 //! per-compound stylesheet markers. Markers survive native <use> cloning.
 use super::*;
+mod context_styles;
 mod named_styles;
 mod scope_styles;
 use named_styles::Globals;
@@ -380,6 +381,8 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                 if let Some(name) = at_rule.take() {
                     let prelude = if name == "scope" {
                         scope_styles::prelude(&prelude, names, depth + 1)?
+                    } else if matches!(name.as_str(), "layer" | "container") {
+                        context_styles::prelude(&name, &prelude, &names.prefix, false)?
                     } else {
                         names.globals.prelude(&name, &prelude, &names.prefix)?
                     };
@@ -407,7 +410,17 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                 prelude.clear();
             }
             CssToken::Semicolon => {
-                push(&mut out, &prelude)?;
+                let rendered = if matches!(at_rule.as_deref(), Some("layer" | "import")) {
+                    context_styles::prelude(
+                        at_rule.as_deref().unwrap(),
+                        &prelude,
+                        &names.prefix,
+                        true,
+                    )?
+                } else {
+                    prelude.clone()
+                };
+                push(&mut out, &rendered)?;
                 push(&mut out, ";")?;
                 prelude.clear();
                 at_rule = None;
@@ -717,6 +730,8 @@ fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<S
                 names.family(body)?
             } else if decoded.as_deref() == Some("font") {
                 font_shorthand(body, names)?
+            } else if matches!(decoded.as_deref(), Some("container" | "container-name")) {
+                context_styles::value(body, &names.prefix, decoded.as_deref() == Some("container"))?
             } else {
                 names.globals.value(
                     decoded.as_deref().unwrap_or(""),
