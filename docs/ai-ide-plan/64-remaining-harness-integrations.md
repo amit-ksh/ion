@@ -53,6 +53,10 @@ The resident native host now receives an additive temporary Cordis patch registe
 
 The actual pinned Windows SDK runtime passes a private headless fixture with native tool registration, catalog return, owner-approved invocation and stale-definition refusal. Its bundled default web profile fails separately because a required session-title plugin is missing; this does not prove production web-host acceptance. A full supported native installation and authenticated owner review are still needed. [Implementation, native evidence and review](69-deepseek-source-team-bridge.md).
 
+## OpenCode 2 native extension seam
+
+The checksum-verified released Windows 2.0.29 runtime now passes a private native plugin discovery/RPC/configuration/tool-registration fixture. Its plugin executor carries the native session/message/call identity that the MCP transport does not forward. The remaining bridge should use that executor and memory-only RPC binding while preserving the adopted service. [Native evidence and implementation checklist](72-opencode2-native-plugin-contract.md). No source-team coverage is added by this contract probe alone.
+
 ## Review and remaining work
 
 - [x] Fresh native Pi/Oh My Pi fixture acceptance after final compilation.
