@@ -235,3 +235,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Portable SVG CSS scopes](74-portable-css-scopes.md): private root/limit selectors, nested and implicit scopes, independent native-to-phone selector checks and remaining browser/device review.
 
 - [Grok source-task native contract and hook helper](75-grok-native-source-contract.md): released hook/MCP identity evidence, bounded native helper and the remaining production bridge requirements.
+
+- [Grok source-task Teams bridge](76-grok-source-team-bridge.md): released native approval/result/resume/stale-definition/Stop fixtures, bounded identity/argument controls and owner review.

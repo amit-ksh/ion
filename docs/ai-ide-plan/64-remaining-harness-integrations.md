@@ -20,10 +20,10 @@ This table is source-level transport coverage. Native versions, selected account
 | Antigravity | Implemented                                        | Remaining                                                       |
 | DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                |
 | Fx          | Implemented                                        | Remaining                                                       |
-| Grok        | Implemented                                        | Remaining                                                       |
+| Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining |
 | Kimi        | Implemented                                        | Remaining                                                       |
 
-The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The nine source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other five still use their ordinary transport without source-team context. No unsupported connection is counted as implemented.
+The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The ten source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other four retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -59,7 +59,7 @@ The checksum-verified released Windows 2.0.29 runtime now passes real driver fix
 
 ## Grok source-task native contract
 
-The released Windows 1.0.46 runtime now proves a file-hook input rewrite followed by an independent ACP client-hook witness, then MCP result return under the actual native call ID. Identical arguments in one batch keep distinct call identities. Failed hooks/model-forged bindings and consumed replay are refused in the isolated contract fixture. The release omits prompt IDs in both hooks; production must retain native session/call identity with Ion-owned turn/generation cancellation. The shipped daemon now provides a bounded stdin/stdout helper, and all ten helper/native contract cases pass with that executable, without a separate JavaScript runtime for hook execution. [Native evidence, helper checks and the remaining adapter implementation](75-grok-native-source-contract.md). The production source-task bridge remains **Remaining** until its durable worker, approval/replay/Stop, setup preservation and actual driver fixtures are wired and pass.
+The released Windows 1.0.46 runtime now proves a file-hook input rewrite followed by an independent ACP client-hook witness, then MCP result return under the actual native call ID. Identical arguments in one batch keep distinct call identities. Failed hooks/model-forged bindings and consumed replay are refused in the isolated contract fixture. The release omits prompt IDs in both hooks; production must retain native session/call identity with Ion-owned turn/generation cancellation. The shipped daemon now provides a bounded stdin/stdout helper, and all ten helper/native contract cases pass with that executable, without a separate JavaScript runtime for hook execution. [Native evidence, helper checks and the remaining adapter implementation](75-grok-native-source-contract.md). The production source-task bridge now passes approval/durable invocation/result return, native resume/replay, changed-definition refusal, Stop at Ion approval, untrusted-project refusal and final hook cleanup through the actual released runtime. Seven Grok bridge regressions and the shared ACP/source suites pass (57 distinct cases total). Native account/model remain selected, project trust is retained and no paid request is made by the fixtures. [Implementation, evidence and owner review](76-grok-source-team-bridge.md). Authenticated owner-account and other-platform acceptance remain open.
 
 ## Kimi source-task contract investigation
 
@@ -77,6 +77,6 @@ Primary source: [native MCP request](https://github.com/MoonshotAI/kimi-code/blo
 - [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
 - [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
 - [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
-- [ ] Complete source-task Teams tools for Cursor, Antigravity, Fx, Grok and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
+- [ ] Complete source-task Teams tools for Cursor, Antigravity, Fx and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
 
 These are current goal requirements, not deferred successes. The full goal remains active.

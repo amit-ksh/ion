@@ -4,7 +4,7 @@ Updated 2026-10-15. Implementation branch: `codex/ion-agent-teams`.
 
 ## Current checkpoint
 
-The released Windows Grok **1.0.46 (2765805b9442)** has a verified candidate path for ordinary source tasks to call saved Ion teams. This checkpoint adds a bounded native hook helper to the daemon executable and reproducible real-runtime contract fixtures. It does **not** yet register production Grok Teams tools; the source-task bridge remains open in [current harness coverage](64-remaining-harness-integrations.md).
+The released Windows Grok **1.0.46 (2765805b9442)** has a verified candidate path for ordinary source tasks to call saved Ion teams. This checkpoint adds a bounded native hook helper to the daemon executable and reproducible real-runtime contract fixtures. The original contract checkpoint did not register production tools. The subsequent [production source-task bridge](76-grok-source-team-bridge.md) now passes actual released-runtime approval, replay/resume, changed-definition, Stop and setup-preservation fixtures; authenticated owner/platform acceptance remains open.
 
 The contract fixture uses an isolated disposable profile/repository, a fake provider credential and loopback-only model/MCP servers. Normal native startup, its initial title request, the native deferred MCP `use_tool` path, file hooks, ACP reverse requests, tool results and the following provider request all use the released executable. It does not modify an owner account, workspace configuration or production Teams state, and makes no paid inference request.
 
@@ -38,16 +38,16 @@ The locked offline production daemon build, standalone fixture TypeScript, Rust/
 
 ## Remaining adapter implementation
 
-- [ ] Add an additive, uniquely owned project hook with safe file leases and exact cleanup; retain existing hooks, account/model settings and folder trust. Do not grant blanket project trust to enable it.
-- [ ] Inject only the five existing Ion Teams MCP tools through native ACP new/load/resume setup, retaining other configured MCPs.
-- [ ] Bind the command hook's per-call value to the main owner's independent ACP reverse hook; validate full arguments, source task/project, native session/call and current owner generation. Refuse subagent/foreign/truncated/changed/expired/unwitnessed calls.
-- [ ] Reuse the bounded source worker for owner approval, access intersection, durable invocation replay and result return. A queued run remains a queued run.
-- [ ] Fence Stop, turn completion/error, failed native callbacks, disconnect, mode change and driver replacement; preserve tombstones so old calls cannot become new authorization.
-- [ ] Remove private binding fields from user-facing tool presentation and errors, while retaining native provider content ordering.
-- [ ] Run actual driver fixtures for approved durable invocation, replay, changed definitions, Stop during approval, native resume, cleanup and owner plugin preservation.
+- [x] Add an additive, uniquely owned project hook with safe file leases and exact cleanup; retain existing hooks, account/model settings and folder trust. Do not grant blanket project trust to enable it.
+- [x] Inject only the five existing Ion Teams MCP tools through native ACP new/load/resume setup, retaining other configured MCPs.
+- [x] Bind the command hook's per-call value to the main owner's independent ACP reverse hook; validate full arguments, source task/project, native session/call and current owner generation. Refuse subagent/foreign/truncated/changed/expired/unwitnessed calls.
+- [x] Reuse the bounded source worker for owner approval, access intersection, durable invocation replay and result return. A queued run remains a queued run.
+- [x] Fence Stop, turn completion/error, failed native callbacks, disconnect, mode change and driver replacement; preserve tombstones so old calls cannot become new authorization.
+- [x] Remove private binding fields from user-facing tool presentation and errors, while retaining native provider content ordering.
+- [x] Run actual driver fixtures for approved durable invocation, replay, changed definitions, Stop during approval, native resume, cleanup and owner plugin preservation.
 - [ ] Complete authenticated owner-project and platform acceptance.
 
-These are unfinished implementation requirements, not deferred successes. The full document/harness goal remains active.
+Implementation and actual Windows driver evidence are recorded in [the production bridge checklist](76-grok-source-team-bridge.md). Owner/platform acceptance and the full remaining document/harness goal remain active.
 
 ## Re-run fixtures
 

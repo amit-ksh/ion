@@ -138,7 +138,7 @@ impl ProjectPlugin {
     ) -> Result<Self> {
         let key = fs::canonicalize(cwd)?
             .join(folder)
-            .join("plugins")
+            .join(plugin_subdir(folder))
             .join(name);
         let mut leases = plugin_registry().lock();
         // Revalidate exact bytes and parent pins even when another live driver
@@ -159,15 +159,22 @@ impl ProjectPlugin {
         Ok(Self(Some(file)))
     }
 }
+fn plugin_subdir(folder: &str) -> &'static str {
+    if folder == ".grok" {
+        "hooks"
+    } else {
+        "plugins"
+    }
+}
 impl PluginFile {
     fn install_at(cwd: &Path, folder: &'static str, name: &str, source: &str) -> Result<Self> {
         ensure!(
-            matches!(folder, ".amp" | ".opencode"),
+            matches!(folder, ".amp" | ".opencode" | ".grok"),
             "Invalid native plugin directory"
         );
         ensure!(
             name.starts_with("ion-teams-")
-                && name.ends_with(".ts")
+                && name.ends_with(if folder == ".grok" { ".json" } else { ".ts" })
                 && !name.contains(['/', '\\', ':']),
             "Invalid generated plugin filename"
         );
@@ -180,7 +187,7 @@ impl PluginFile {
             for path in [
                 &root,
                 &root.join(folder),
-                &root.join(folder).join("plugins"),
+                &root.join(folder).join(plugin_subdir(folder)),
             ] {
                 if path != &root && !path.try_exists()? {
                     fs::create_dir(path)?;
@@ -212,7 +219,7 @@ impl PluginFile {
                     .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
                     .open(&root)?,
             );
-            for part in [folder, "plugins"] {
+            for part in [folder, plugin_subdir(folder)] {
                 let part = std::ffi::CString::new(part)?;
                 let parent = parents.last().unwrap();
                 let created = unsafe { libc::mkdirat(parent.as_raw_fd(), part.as_ptr(), 0o700) };
@@ -239,7 +246,7 @@ impl PluginFile {
         let created = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(root.join(folder).join("plugins").join(name));
+            .open(root.join(folder).join(plugin_subdir(folder)).join(name));
         #[cfg(unix)]
         let created = (|| -> std::io::Result<fs::File> {
             use std::os::fd::{AsRawFd, FromRawFd};
@@ -270,7 +277,7 @@ impl PluginFile {
                     fs::OpenOptions::new()
                         .read(true)
                         .custom_flags(0x00200000)
-                        .open(root.join(folder).join("plugins").join(name))?
+                        .open(root.join(folder).join(plugin_subdir(folder)).join(name))?
                 };
                 #[cfg(unix)]
                 let existing = {
@@ -349,7 +356,7 @@ impl Drop for ProjectPlugin {
                 let key = lease
                     .root
                     .join(lease.folder)
-                    .join("plugins")
+                    .join(plugin_subdir(lease.folder))
                     .join(&lease.name);
                 leases.remove(&key);
                 if !lease.owned {
@@ -365,7 +372,7 @@ impl Drop for ProjectPlugin {
                     fs::OpenOptions::new()
                         .read(true)
                         .custom_flags(0x00200000)
-                        .open(root.join(folder).join("plugins").join(&name))
+                        .open(root.join(folder).join(plugin_subdir(folder)).join(&name))
                 };
                 #[cfg(unix)]
                 let opened = (|| -> std::io::Result<fs::File> {
@@ -409,7 +416,7 @@ impl Drop for ProjectPlugin {
                     return;
                 }
                 #[cfg(windows)]
-                let _ = fs::remove_file(root.join(folder).join("plugins").join(name));
+                let _ = fs::remove_file(root.join(folder).join(plugin_subdir(folder)).join(name));
                 #[cfg(unix)]
                 {
                     use std::os::fd::AsRawFd;

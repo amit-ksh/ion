@@ -370,6 +370,27 @@ export default function(amp) {{
             valid_id(&session) && !self.0.closed.load(Ordering::Acquire),
             "Invalid or closed native server"
         );
+        let bridge = Bridge::start(context, session.clone(), events)?;
+        let mut sessions = self.0.sessions.lock();
+        sessions.retain(|_, b| b.strong_count() > 0);
+        ensure!(
+            sessions
+                .get(&session)
+                .and_then(Weak::upgrade)
+                .is_none_or(|bridge| bridge.worker.is_closed()),
+            "This native OpenCode session already belongs to a source task"
+        );
+        sessions.insert(session, Arc::downgrade(&bridge.0));
+        Ok(bridge)
+    }
+}
+impl Bridge {
+    pub(crate) fn start(
+        context: WorkspaceContext,
+        session: String,
+        events: DriverEventSender,
+    ) -> Result<Self> {
+        ensure!(valid_id(&session), "Invalid native session");
         let state = Arc::new(Mutex::new(State::default()));
         let delivered = state.clone();
         let worker = Worker::start(context, events, move |peer, success, text| {
@@ -396,20 +417,28 @@ export default function(amp) {{
             state,
             worker,
         }));
-        let mut sessions = self.0.sessions.lock();
-        sessions.retain(|_, b| b.strong_count() > 0);
-        ensure!(
-            sessions
-                .get(&session)
-                .and_then(Weak::upgrade)
-                .is_none_or(|bridge| bridge.worker.is_closed()),
-            "This native OpenCode session already belongs to a source task"
-        );
-        sessions.insert(session, Arc::downgrade(&bridge.0));
         Ok(bridge)
     }
-}
-impl Bridge {
+    pub(crate) fn witness_native(&self, call: &str, name: &str, arguments: Value) {
+        self.observe(&json!({"type":"message.updated","properties":{"info":{"sessionID":self.0.session,"id":call,"role":"assistant"}}}));
+        self.observe(&json!({"type":"message.part.updated","properties":{"part":{"sessionID":self.0.session,"messageID":call,"callID":call,"type":"tool","tool":format!("{PREFIX}{name}"),"state":{"status":"running","input":arguments}}}}));
+    }
+    pub(crate) fn invoke_native(&self, call: &str, name: &str, arguments: Value) -> Result<Value> {
+        self.0.handle(Request {
+            session_id: self.0.session.clone(),
+            message_id: call.into(),
+            call_id: call.into(),
+            name: name.into(),
+            arguments,
+        })
+    }
+    pub(crate) fn fail_native(&self, call: &str) {
+        let id = identity(&self.0.session, call, call);
+        if let Some(witness) = self.0.state.lock().witnesses.get_mut(&id) {
+            witness.valid = false;
+            witness.cancelled.store(true, Ordering::Release);
+        }
+    }
     pub(crate) fn observe(&self, event: &Value) {
         let p = &event["properties"];
         match event["type"].as_str() {
@@ -749,6 +778,15 @@ fn connections() -> Result<Sender<Connection>> {
     Ok(sender)
 }
 fn read_request(stream: &mut TcpStream, hub: &HubInner) -> Result<Request> {
+    let (method, path, body) = read_native_request(stream, hub.port, &hub.token)?;
+    ensure!(method == "POST" && path == "/call", "Invalid route");
+    Ok(serde_json::from_value(body)?)
+}
+pub(super) fn read_native_request(
+    stream: &mut TcpStream,
+    port: u16,
+    token: &str,
+) -> Result<(String, String, Value)> {
     // Accepted sockets can inherit nonblocking mode on Windows. Reads belong
     // to bounded background handlers and must honor the timeout below.
     stream.set_nonblocking(false)?;
@@ -767,7 +805,16 @@ fn read_request(stream: &mut TcpStream, hub: &HubInner) -> Result<Request> {
     }
     let head = std::str::from_utf8(&head)?;
     let mut lines = head.split("\r\n");
-    ensure!(lines.next() == Some("POST /call HTTP/1.1"), "Invalid route");
+    let first = lines.next().context("Missing request line")?;
+    let parts = first.split(' ').collect::<Vec<_>>();
+    ensure!(
+        parts.len() == 3
+            && parts[2] == "HTTP/1.1"
+            && (parts[0] == "POST" || parts[0] == "GET" && parts[1] == "/mcp"),
+        "Invalid route"
+    );
+    let method = parts[0].to_owned();
+    let path = parts[1].to_owned();
     let mut headers = HashMap::new();
     for line in lines.filter(|s| !s.is_empty()) {
         let (name, value) = line.split_once(':').context("Invalid HTTP header")?;
@@ -783,11 +830,20 @@ fn read_request(stream: &mut TcpStream, hub: &HubInner) -> Result<Request> {
         "Browser or chunked request rejected"
     );
     ensure!(
-        headers.get("host") == Some(&format!("127.0.0.1:{}", hub.port).as_str())
-            && headers.get("authorization") == Some(&format!("Bearer {}", hub.token).as_str())
-            && headers.get("content-type") == Some(&"application/json"),
+        headers.get("host") == Some(&format!("127.0.0.1:{port}").as_str())
+            && headers.get("authorization") == Some(&format!("Bearer {token}").as_str())
+            && (method == "GET" || headers.get("content-type") == Some(&"application/json")),
         "Invalid loopback authorization"
     );
+    if method == "GET" {
+        ensure!(
+            headers
+                .get("content-length")
+                .is_none_or(|length| *length == "0"),
+            "GET body is unsupported"
+        );
+        return Ok((method, path, Value::Null));
+    }
     let len: usize = headers
         .get("content-length")
         .context("Missing content length")?
@@ -806,7 +862,7 @@ fn read_request(stream: &mut TcpStream, hub: &HubInner) -> Result<Request> {
         ensure!(read > 0, "Incomplete HTTP body");
         offset += read;
     }
-    Ok(serde_json::from_slice(&bytes)?)
+    Ok((method, path, serde_json::from_slice(&bytes)?))
 }
 // Native config content accepts JSONC. Preserve strings (including comment
 // markers in URLs) while removing comments and trailing commas for serde.

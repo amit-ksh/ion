@@ -24,14 +24,14 @@ impl Server {
         Self::with_hook(responses, |_| {})
     }
     pub fn with_timeout(responses: Vec<(u16, Vec<u8>)>, timeout: Duration) -> Self {
-        Self::build(responses, |_, body| body, timeout, None)
+        Self::build(responses, |_, body| body, timeout, None, None)
     }
     pub fn with_timeout_and_optional_preflight(
         responses: Vec<(u16, Vec<u8>)>,
         timeout: Duration,
         preflight: &'static str,
     ) -> Self {
-        Self::build(responses, |_, body| body, timeout, Some(preflight))
+        Self::build(responses, |_, body| body, timeout, Some(preflight), None)
     }
     pub fn with_hook(
         responses: Vec<(u16, Vec<u8>)>,
@@ -45,26 +45,49 @@ impl Server {
             },
             Duration::from_secs(20),
             None,
+            None,
         )
     }
     pub fn with_response_handler(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
     ) -> Self {
-        Self::build(responses, hook, Duration::from_secs(20), None)
+        Self::build(responses, hook, Duration::from_secs(20), None, None)
     }
     pub fn with_optional_preflight(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
         preflight: &'static str,
     ) -> Self {
-        Self::build(responses, hook, Duration::from_secs(20), Some(preflight))
+        Self::build(
+            responses,
+            hook,
+            Duration::from_secs(20),
+            Some(preflight),
+            None,
+        )
+    }
+    /// Native title requests can arrive independently of the main tool loop.
+    /// Handle only recognized auxiliary requests without consuming its finite
+    /// sequence of main responses.
+    pub fn with_auxiliary(
+        responses: Vec<(u16, Vec<u8>)>,
+        auxiliary: impl Fn(&Request) -> Option<Vec<u8>> + Send + 'static,
+    ) -> Self {
+        Self::build(
+            responses,
+            |_, body| body,
+            Duration::from_secs(65),
+            None,
+            Some(Box::new(auxiliary)),
+        )
     }
     fn build(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
         timeout: Duration,
         preflight: Option<&'static str>,
+        auxiliary: Option<Box<dyn Fn(&Request) -> Option<Vec<u8>> + Send>>,
     ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
@@ -73,6 +96,7 @@ impl Server {
         let captured = requests.clone();
         let worker = thread::spawn(move || {
             let mut preflight_count = 0;
+            let mut auxiliary_count = 0;
             for (status, body) in responses {
                 let deadline = Instant::now() + timeout;
                 loop {
@@ -141,6 +165,17 @@ impl Server {
                         assert_eq!(request.body, Value::Null);
                         captured.lock().unwrap().push(request);
                         stream.write_all(b"HTTP/1.1 200 Fixture\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                        continue;
+                    }
+                    if let Some(body) = auxiliary.as_ref().and_then(|handler| handler(&request)) {
+                        auxiliary_count += 1;
+                        assert!(
+                            auxiliary_count <= 8,
+                            "Unexpected repeated native auxiliary request"
+                        );
+                        captured.lock().unwrap().push(request);
+                        write!(stream,"HTTP/1.1 200 Fixture\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",body.len()).unwrap();
+                        stream.write_all(&body).unwrap();
                         continue;
                     }
                     let body = hook(&request, body);

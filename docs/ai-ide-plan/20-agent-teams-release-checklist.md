@@ -1023,3 +1023,13 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Locked offline desktop/debug-daemon checks pass; existing compiler warnings remain.
 - [ ] Complete [production Grok source-task integration, shared worker approval/replay/Stop and actual driver acceptance](75-grok-native-source-contract.md#remaining-adapter-implementation). The source bridge count remains nine.
 - [ ] Remaining native harnesses, CSS name fidelity and full-goal account/device acceptance stay open. This contract checkpoint does not close the active goal.
+
+## 2026-10-15 — Grok production source-task Teams bridge
+
+- [x] Wire five shared Teams tools into native ACP new/load/resume without replacing the selected native account/model or other configured MCPs.
+- [x] Bind initial native call identity, command-hook input rewriting and independent ACP witnessing to the existing durable worker. Refuse foreign, truncated, forged, changed, expired, failed and unwitnessed callbacks.
+- [x] Fence Stop and queued turns with owner tickets. Changed hook input revokes pending approval; retained arguments cap at 1 MiB per active turn.
+- [x] Prove actual released Grok 1.0.46 approval/durable result return, native resume/replay, owner-changed definition refusal, Stop at Ion approval, untrusted-project refusal and hook handoff/final cleanup using the shipped daemon helper.
+- [x] Pass 57 distinct cases (33 shared source-bridge, 21 ACP, three explicit native-driver cases), locked offline desktop/daemon checks including the dev binary, Rust formatting and diff checks. Existing compiler warnings remain; skipped account/runtime fixtures are excluded.
+- [x] Record [implementation and review](76-grok-source-team-bridge.md). No owner key, paid request, visual test, watcher restart, deployment or ion-prod merge occurred.
+- [ ] Complete authenticated owner-account/platform acceptance. Ten source-task bridges are now implemented; Cursor, Antigravity, Fx and Kimi source tools, Amp/Cursor bounded completion contracts, wider document/CSS fidelity and device acceptance remain open. The full goal is active.

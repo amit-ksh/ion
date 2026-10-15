@@ -30,6 +30,7 @@ use parking_lot::Mutex;
 use serde_json::{Map, Value, json};
 
 use super::activity;
+use super::source_teams::grok::GrokBridge;
 use crate::driver::{
     DriverControl, DriverEventSender, DriverEventSink, DriverStartOptions, SessionOptions,
 };
@@ -43,7 +44,11 @@ use waku_protocol::model_catalog::{
 };
 
 enum CommandMessage {
-    Prompt(String),
+    Prompt {
+        text: String,
+        team_turn: Option<u64>,
+    },
+    TurnSettled,
     Steer(String),
     Cancel,
     Respond {
@@ -63,6 +68,7 @@ pub struct AcpDriver {
     supports_steer: bool,
     mode: RuntimeMode,
     computer_use: Option<super::support::HeadlessComputerUseRuntime>,
+    team_bridge: Option<GrokBridge>,
 }
 
 /// Per-provider launch details. Everything after process launch is ACP.
@@ -114,6 +120,23 @@ impl AcpDriver {
         options: DriverStartOptions,
         events: DriverEventSender,
     ) -> anyhow::Result<Self> {
+        Self::start_with_workspace(provider, options, events, None)
+    }
+    pub(super) fn start_with_workspace(
+        provider: ProviderKind,
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
+        Self::start_configured(provider, options, events, workspace, |config| config)
+    }
+    pub(super) fn start_configured(
+        provider: ProviderKind,
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<super::WorkspaceContext>,
+        configure: impl FnOnce(AcpAgentConfig) -> AcpAgentConfig,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
             binary,
             cwd,
@@ -145,7 +168,28 @@ impl AcpDriver {
             None => None,
         };
 
-        let launch = launch_for(provider, reasoning_effort.as_deref())?;
+        let mut launch = launch_for(provider, reasoning_effort.as_deref())?;
+        let team_bridge = if provider == ProviderKind::Grok {
+            workspace.and_then(|context| {
+                let create = || -> anyhow::Result<GrokBridge> {
+                    super::source_teams::grok::verify(&binary)?;
+                    #[cfg(test)]
+                    let helper=std::env::var_os("ION_TEST_ION_DAEMON").map(std::path::PathBuf::from).map(Ok).unwrap_or_else(std::env::current_exe)?;
+                    #[cfg(not(test))]
+                    let helper=std::env::current_exe()?;
+                    GrokBridge::start(context,events.clone(),&cwd,&helper)
+                };
+                match create() {
+                    Ok(bridge)=>Some(bridge),
+                    Err(_)=>{let _=events.send(DriverEvent::Activity{id:None,kind:ActivityKind::Tool,title:"Team tools unavailable".into(),detail:Some("Grok Teams requires native 1.0.46, a writable project hook directory and the Ion daemon helper. Your normal native session remains available.".into()),complete:true});None},
+                }
+            })
+        } else {
+            None
+        };
+        if let Some(bridge) = &team_bridge {
+            launch.env.extend(bridge.environment());
+        }
         let computer_use = (provider == ProviderKind::Grok && computer_use_enabled)
             .then(|| super::support::HeadlessComputerUseRuntime::start(provider, events.clone()))
             .transpose()?;
@@ -160,10 +204,21 @@ impl AcpDriver {
             launch,
             computer_use.as_ref().map(|runtime| &runtime.config),
             stderr_lines.clone(),
+            configure,
         )?;
+        let grok_title_home = grok_title_home.or_else(|| {
+            agent
+                .config()
+                .environment()
+                .get("GROK_HOME")
+                .filter(|home| !home.is_empty())
+                .map(std::path::PathBuf::from)
+        });
         let (commands, command_rx) = smol::channel::unbounded();
         let provider_name = provider.display_name();
         let thread_events = events.clone();
+        let wake = commands.clone();
+        let thread_team_bridge = team_bridge.clone();
 
         thread::Builder::new()
             .name(format!("waku-{}-acp", provider.id()))
@@ -187,12 +242,24 @@ impl AcpDriver {
                     resume_session_id,
                     fork_context,
                     grok_title_home,
+                    thread_team_bridge.clone(),
+                    wake,
                     command_rx,
                     thread_events.clone(),
                 ));
+                if let Some(bridge) = &thread_team_bridge {
+                    bridge.close();
+                }
                 if let Err(error) = result {
                     let stderr = super::support::provider_stderr_error(stderr_lines.lock().clone());
-                    let detail = stderr.unwrap_or_else(|| error.to_string());
+                    let mut detail = json!(stderr.unwrap_or_else(|| error.to_string()));
+                    if let Some(bridge) = &thread_team_bridge {
+                        bridge.scrub(&mut detail);
+                    }
+                    let detail = detail
+                        .as_str()
+                        .unwrap_or("Native connection closed")
+                        .to_owned();
                     let _ = thread_events
                         .send(DriverEvent::Error(format!("{provider_name}: {detail}")));
                 }
@@ -205,6 +272,7 @@ impl AcpDriver {
             supports_steer: provider != ProviderKind::Fx,
             mode,
             computer_use,
+            team_bridge,
         })
     }
 }
@@ -215,6 +283,7 @@ fn sdk_agent(
     mut launch: AcpLaunch,
     computer_use: Option<&super::support::HeadlessComputerUseConfig>,
     stderr_lines: Arc<Mutex<Vec<String>>>,
+    configure: impl FnOnce(AcpAgentConfig) -> AcpAgentConfig,
 ) -> anyhow::Result<AcpAgent> {
     let binary = binary
         .to_str()
@@ -237,10 +306,18 @@ fn sdk_agent(
     environment.append(&mut launch.env);
     environment.extend(computer_env);
 
-    let config = launch_configuration(binary, cwd, launch.args, environment);
+    let config = configure(launch_configuration(binary, cwd, launch.args, environment));
     Ok(AcpAgent::new(config).with_debug(move |line, direction| {
         if direction != LineDirection::Stderr || line.trim().is_empty() {
             return;
+        }
+        #[cfg(test)]
+        if std::env::var_os("ION_TEST_GROK_BINARY").is_some()
+            && line.contains("hook")
+            && !line.contains("Bearer")
+            && !line.contains("token")
+        {
+            eprintln!("Native hook discovery: {line}");
         }
         let mut lines = stderr_lines.lock();
         if lines.len() == 128 {
@@ -292,7 +369,14 @@ pub(crate) fn catalog_agent(
     cwd: &Path,
 ) -> anyhow::Result<AcpAgent> {
     let launch = launch_for(provider, None)?;
-    sdk_agent(binary, cwd, launch, None, Arc::new(Mutex::new(Vec::new())))
+    sdk_agent(
+        binary,
+        cwd,
+        launch,
+        None,
+        Arc::new(Mutex::new(Vec::new())),
+        |config| config,
+    )
 }
 
 type PermissionResponder = Responder<RequestPermissionResponse>;
@@ -374,6 +458,8 @@ async fn run_sdk_connection(
     resume_session_id: Option<String>,
     fork_context: Option<String>,
     grok_title_home: Option<std::path::PathBuf>,
+    team_bridge: Option<GrokBridge>,
+    wake: smol::channel::Sender<CommandMessage>,
     commands: smol::channel::Receiver<CommandMessage>,
     events: DriverEventSender,
 ) -> agent_client_protocol::Result<()> {
@@ -393,8 +479,22 @@ async fn run_sdk_connection(
                 let events = events.clone();
                 let suppress_session_updates = suppress_session_updates.clone();
                 let stream_state = stream_state.clone();
-                async move |notification: SessionNotification, _connection| {
+                let team_bridge = team_bridge.clone();
+                async move |mut notification: SessionNotification, _connection| {
                     if !suppress_session_updates.load(Ordering::Acquire) {
+                        if let Some(bridge) = &team_bridge {
+                            let mut value =
+                                serde_json::to_value(&notification).map_err(|error| {
+                                    agent_client_protocol::Error::internal_error()
+                                        .data(error.to_string())
+                                })?;
+                            bridge.observe(&value);
+                            bridge.scrub(&mut value);
+                            notification = serde_json::from_value(value).map_err(|error| {
+                                agent_client_protocol::Error::internal_error()
+                                    .data(error.to_string())
+                            })?;
+                        }
                         handle_session_update(
                             provider,
                             notification,
@@ -413,6 +513,8 @@ async fn run_sdk_connection(
                 let prompt_requests = prompt_requests.clone();
                 let grok_title_home = grok_title_home.clone();
                 let title_refresh = title_refresh.clone();
+                let team_bridge = team_bridge.clone();
+                let wake = wake.clone();
                 async move |notification: UntypedMessage, _connection| {
                     if notification.method() == "_x.ai/session/prompt_complete" {
                         if let Some(session_id) = finish_xai_prompt_complete(
@@ -420,6 +522,12 @@ async fn run_sdk_connection(
                             &prompt_requests,
                             &events,
                         ) {
+                            if prompt_requests.lock().is_empty() {
+                                if let Some(bridge) = &team_bridge {
+                                    bridge.finish_turn(bridge.active_turn());
+                                }
+                                let _ = wake.try_send(CommandMessage::TurnSettled);
+                            }
                             start_grok_title_refresh(
                                 grok_title_home.as_deref(),
                                 &session_id,
@@ -437,7 +545,16 @@ async fn run_sdk_connection(
             {
                 let events = events.clone();
                 let pending_permissions = pending_permissions.clone();
-                async move |request: RequestPermissionRequest, responder, _connection| {
+                let team_bridge = team_bridge.clone();
+                async move |mut request: RequestPermissionRequest, responder, _connection| {
+                    if let Some(bridge) = &team_bridge {
+                        if let Ok(mut value) = serde_json::to_value(&request) {
+                            bridge.scrub(&mut value);
+                            if let Ok(scrubbed) = serde_json::from_value(value) {
+                                request = scrubbed;
+                            }
+                        }
+                    }
                     handle_permission_request(
                         request,
                         responder,
@@ -453,7 +570,14 @@ async fn run_sdk_connection(
             {
                 let events = events.clone();
                 let pending = pending_user_inputs.clone();
+                let team_bridge = team_bridge.clone();
                 async move |request: UntypedMessage, responder, _connection| {
+                    if matches!(request.method(), "_x.ai/hooks/run" | "x.ai/hooks/run") {
+                        if let Some(bridge) = &team_bridge {
+                            responder.respond(bridge.witness(request.params()))?;
+                            return Ok(Handled::Yes);
+                        }
+                    }
                     let kind = match request.method() {
                         "cursor/ask_question" => AcpUserInputKind::Cursor,
                         "_x.ai/ask_user_question" | "x.ai/ask_user_question" => {
@@ -530,6 +654,7 @@ async fn run_sdk_connection(
                 resume_session_id.as_deref(),
                 &cwd,
                 &suppress_session_updates,
+                team_bridge.as_ref(),
             )
             .await?;
 
@@ -543,6 +668,11 @@ async fn run_sdk_connection(
                     .await;
             }
             let native_session_id = session_id.to_string();
+            if let Some(bridge) = &team_bridge {
+                bridge
+                    .bind(&native_session_id)
+                    .map_err(|_| agent_client_protocol::Error::internal_error())?;
+            }
             let _ = events.send(DriverEvent::Connected {
                 provider_cursor: Some(ProviderResumeCursor::from_session_id(
                     provider,
@@ -568,9 +698,43 @@ async fn run_sdk_connection(
             .await;
             let mut fork_context = fork_context;
 
+            let mut queued = std::collections::VecDeque::new();
             while let Ok(command) = commands.recv().await {
+                let command = match command {
+                    prompt @ CommandMessage::Prompt { .. }
+                        if team_bridge.is_some() && !prompt_requests.lock().is_empty() =>
+                    {
+                        if queued.len() < 64 {
+                            queued.push_back(prompt);
+                        } else {
+                            let _ = events
+                                .send(DriverEvent::Error("Too many queued source turns".into()));
+                        }
+                        continue;
+                    }
+                    CommandMessage::TurnSettled => {
+                        if !prompt_requests.lock().is_empty() {
+                            continue;
+                        }
+                        let Some(prompt) = queued.pop_front() else {
+                            continue;
+                        };
+                        prompt
+                    }
+                    CommandMessage::Cancel => {
+                        queued.clear();
+                        CommandMessage::Cancel
+                    }
+                    command => command,
+                };
                 match command {
-                    CommandMessage::Prompt(text) => {
+                    CommandMessage::Prompt { text, team_turn } => {
+                        if let Some(bridge) = &team_bridge {
+                            if !team_turn.is_some_and(|turn| bridge.activate(turn)) {
+                                let _ = wake.try_send(CommandMessage::TurnSettled);
+                                continue;
+                            }
+                        }
                         let text = fork_context
                             .take()
                             .map(|context| {
@@ -589,6 +753,9 @@ async fn run_sdk_connection(
                             grok_title_home.clone(),
                             title_refresh.clone(),
                             stream_state.clone(),
+                            team_bridge.clone(),
+                            team_turn,
+                            wake.clone(),
                         ) {
                             let _ = events.send(DriverEvent::Error(error.to_string()));
                             let _ = events.send(DriverEvent::TurnFinished {
@@ -619,6 +786,9 @@ async fn run_sdk_connection(
                             grok_title_home.clone(),
                             title_refresh.clone(),
                             stream_state.clone(),
+                            team_bridge.clone(),
+                            team_bridge.as_ref().and_then(GrokBridge::active_turn),
+                            wake.clone(),
                         ) {
                             Ok(()) => {
                                 let _ = events.send(DriverEvent::SteerAccepted { message: text });
@@ -641,6 +811,12 @@ async fn run_sdk_connection(
                         request_id,
                         option_id,
                     } => {
+                        if team_bridge
+                            .as_ref()
+                            .is_some_and(|bridge| bridge.respond(&request_id, &option_id))
+                        {
+                            continue;
+                        }
                         if let Some(responder) = pending_permissions.lock().remove(&request_id) {
                             let _ = responder.respond(RequestPermissionResponse::new(
                                 RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
@@ -689,6 +865,7 @@ async fn run_sdk_connection(
                             .await;
                         }
                     }
+                    CommandMessage::TurnSettled => {}
                     CommandMessage::Shutdown => break,
                 }
             }
@@ -705,6 +882,7 @@ async fn establish_session(
     resume_session_id: Option<&str>,
     cwd: &Path,
     suppress_session_updates: &AtomicBool,
+    team_bridge: Option<&GrokBridge>,
 ) -> agent_client_protocol::Result<(
     SessionId,
     Option<SessionModeState>,
@@ -717,7 +895,11 @@ async fn establish_session(
             .resume
             .is_some()
             && let Ok(response) = connection
-                .send_request(ResumeSessionRequest::new(existing.to_owned(), cwd))
+                .send_request(
+                    ResumeSessionRequest::new(existing.to_owned(), cwd)
+                        .mcp_servers(team_bridge.map(GrokBridge::mcp_servers).unwrap_or_default())
+                        .meta(team_bridge.map(GrokBridge::metadata)),
+                )
                 .block_task()
                 .await
         {
@@ -731,7 +913,11 @@ async fn establish_session(
         if initialize.agent_capabilities.load_session {
             suppress_session_updates.store(true, Ordering::Release);
             let response = connection
-                .send_request(LoadSessionRequest::new(existing.to_owned(), cwd))
+                .send_request(
+                    LoadSessionRequest::new(existing.to_owned(), cwd)
+                        .mcp_servers(team_bridge.map(GrokBridge::mcp_servers).unwrap_or_default())
+                        .meta(team_bridge.map(GrokBridge::metadata)),
+                )
                 .block_task()
                 .await;
             suppress_session_updates.store(false, Ordering::Release);
@@ -746,7 +932,11 @@ async fn establish_session(
     }
 
     let response = connection
-        .send_request(NewSessionRequest::new(cwd))
+        .send_request(
+            NewSessionRequest::new(cwd)
+                .mcp_servers(team_bridge.map(GrokBridge::mcp_servers).unwrap_or_default())
+                .meta(team_bridge.map(GrokBridge::metadata)),
+        )
         .block_task()
         .await?;
     Ok((response.session_id, response.modes, response.config_options))
@@ -1317,6 +1507,9 @@ fn send_prompt(
     grok_title_home: Option<std::path::PathBuf>,
     title_refresh: super::title_refresh::NativeTitleRefresh,
     stream_state: Arc<Mutex<AcpStreamState>>,
+    team_bridge: Option<GrokBridge>,
+    team_turn: Option<u64>,
+    wake: smol::channel::Sender<CommandMessage>,
 ) -> agent_client_protocol::Result<()> {
     stream_state.lock().produced_content = false;
     // Read before the turn runs, so the failure lookup cannot mistake an
@@ -1346,8 +1539,16 @@ fn send_prompt(
     let callback_requests = prompt_requests.clone();
     let callback_events = events.clone();
     let native_session_id = native_session_id.to_owned();
+    let callback_team_bridge = team_bridge.clone();
+    let wake_on_error = wake.clone();
     let registered = sent.on_receiving_result(async move |result| {
         if settle_prompt_request(&callback_requests, &callback_request_id) {
+            if callback_requests.lock().is_empty() {
+                if let Some(bridge) = &callback_team_bridge {
+                    bridge.finish_turn(team_turn);
+                }
+                let _ = wake.try_send(CommandMessage::TurnSettled);
+            }
             // Only an empty turn pays for this lookup, so a healthy turn never
             // waits on Kimi's records.
             let native_failure = wire_offset
@@ -1366,7 +1567,11 @@ fn send_prompt(
         Ok(())
     });
     if registered.is_err() {
+        if let Some(bridge) = &team_bridge {
+            bridge.finish_turn(team_turn);
+        }
         prompt_requests.lock().settle_request(&request_id);
+        let _ = wake_on_error.try_send(CommandMessage::TurnSettled);
     }
     registered
 }
@@ -2044,7 +2249,11 @@ fn classify(kind: &str) -> ActivityKind {
 
 impl DriverControl for AcpDriver {
     fn prompt(&self, prompt: String) {
-        let _ = self.commands.try_send(CommandMessage::Prompt(prompt));
+        let team_turn = self.team_bridge.as_ref().map(GrokBridge::queue_turn);
+        let _ = self.commands.try_send(CommandMessage::Prompt {
+            text: prompt,
+            team_turn,
+        });
     }
 
     fn supports_steer(&self) -> bool {
@@ -2056,6 +2265,9 @@ impl DriverControl for AcpDriver {
     }
 
     fn cancel(&self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.cancel();
+        }
         let _ = self.commands.try_send(CommandMessage::Cancel);
     }
 
@@ -2066,6 +2278,13 @@ impl DriverControl for AcpDriver {
     }
 
     fn respond(&self, request_id: String, option_id: String) {
+        if self
+            .team_bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.respond(&request_id, &option_id))
+        {
+            return;
+        }
         let _ = self.commands.try_send(CommandMessage::Respond {
             request_id,
             option_id,
@@ -2097,6 +2316,9 @@ impl DriverControl for AcpDriver {
 
 impl Drop for AcpDriver {
     fn drop(&mut self) {
+        if let Some(bridge) = &self.team_bridge {
+            bridge.close();
+        }
         self.cancel_computer_use();
         let _ = self.commands.try_send(CommandMessage::Shutdown);
     }
