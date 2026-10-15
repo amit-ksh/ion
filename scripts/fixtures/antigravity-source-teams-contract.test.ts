@@ -25,7 +25,8 @@ type Mode =
   | "missing-witness"
   | "changed-witness"
   | "review"
-  | "workspace";
+  | "workspace"
+  | "plugin";
 const binary = process.env.ION_TEST_ANTIGRAVITY_BINARY;
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -128,8 +129,13 @@ async function contract(mode: Mode, resume = false) {
       "antigravity.google/conversation_id": "model-forged",
       progressToken: "model-forged:0",
     };
+  const pluginName = "ion_native_contract";
+  const serverName =
+    mode === "plugin"
+      ? "ion-teams-native-contract_ion_contract"
+      : "ion_contract";
   const authored = {
-    ServerName: "ion_contract",
+    ServerName: serverName,
     ToolName: "list_teams",
     Arguments: originalArgs,
     toolSummary: "Saved teams",
@@ -220,7 +226,7 @@ async function contract(mode: Mode, resume = false) {
             consumed.has(id) ||
             session !== currentSession ||
             witness.tool_name !== "call_mcp_tool" ||
-            witness.tool_info?.parameters?.ServerName !== "ion_contract" ||
+            witness.tool_info?.parameters?.ServerName !== serverName ||
             witness.tool_info?.parameters?.ToolName !== value.params?.name ||
             !isDeepStrictEqual(
               witness.tool_info?.parameters?.Arguments,
@@ -358,7 +364,24 @@ async function contract(mode: Mode, resume = false) {
         ? "work/.agents/mcp_config.json"
         : "home/.gemini/config/mcp_config.json",
     );
-    writeFileSync(configPath, mcpConfig);
+    let activeConfigPath = configPath;
+    if (mode === "plugin") {
+      const pluginPath = join(
+        root,
+        "work/.agents/plugins",
+        "ion-teams-native-contract",
+      );
+      mkdirSync(pluginPath, { recursive: true });
+      writeFileSync(
+        join(pluginPath, "plugin.json"),
+        JSON.stringify({
+          name: pluginName,
+          description: "Isolated Ion native contract",
+        }),
+      );
+      activeConfigPath = join(pluginPath, "mcp_config.json");
+    }
+    writeFileSync(activeConfigPath, mcpConfig);
     const env = environment(root);
     env.GOOGLE_GEMINI_BASE_URL = url;
     const version = execFileSync(binary!, ["--version"], {
@@ -474,7 +497,7 @@ async function contract(mode: Mode, resume = false) {
       expect(runResult).toBeDefined();
       expect(uuidPattern.test(currentSession)).toBe(true);
       runs.push({ session: currentSession, result: runResult!, phase });
-      expect(readFileSync(configPath, "utf8")).toBe(mcpConfig);
+      expect(readFileSync(activeConfigPath, "utf8")).toBe(mcpConfig);
     }
     expect(errors).toEqual([]);
     if (mode === "review") {
@@ -653,5 +676,11 @@ native(
 native(
   "antigravity workspace-only MCP discovery preserves unrelated app configuration",
   () => contract("workspace"),
+  90000,
+);
+
+native(
+  "antigravity additive workspace plugin discovers namespaced MCP tools",
+  () => contract("plugin"),
   90000,
 );

@@ -17,13 +17,13 @@ This table is source-level transport coverage. Native versions, selected account
 | Oh My Pi    | Implemented                                        | Implemented                                                     |
 | Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining             |
 | Cursor      | Native completion ceiling/account contract missing | Remaining                                                       |
-| Antigravity | Implemented                                        | Remaining; native 1.3.1 metadata contract verified              |
+| Antigravity | Implemented                                        | Implemented; verified native 1.3.1, owner acceptance remaining  |
 | DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                |
 | Fx          | Implemented                                        | Remaining                                                       |
 | Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining |
 | Kimi        | Implemented                                        | Remaining                                                       |
 
-The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The ten source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other four retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
+The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The eleven source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other three retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -65,7 +65,7 @@ The released Windows 1.0.46 runtime now proves a file-hook input rewrite followe
 
 The checksum-pinned Windows 1.3.1 CLI now passes seven real-runtime contract cases (169 assertions) using the normal native agent, a disposable fake native account and localhost services. Native MCP envelope conversation/step metadata matches independently observed main-stream tool steps and full original wrapper arguments. Identical calls, native provider result return, process resume with advancing step identities, model-authored metadata isolation, missing/changed witness refusal, native strict-policy denial and workspace-only MCP discovery/configuration preservation are verified. Consumed replay, foreign-conversation and invalid-credential controls also refuse. A command hook is not required by this path.
 
-This checkpoint does not register production Antigravity source-task Teams tools. Scoped project configuration leases, the shared worker's approval/replay/Stop lifecycle and actual-driver durable invocation acceptance still need implementation. Native account/model and permissions must remain selected. [Native evidence and production checklist](78-antigravity-native-source-contract.md). The production source-bridge count remains ten.
+The production bridge now uses a uniquely owned additive workspace plugin and the shared worker. Actual released-runtime driver cases prove owner-approved durable invocation/result return, native resume with a new step, changed-definition refusal, Stop at approval, queued-prompt cancellation, same-conversation recovery and overlap/final cleanup. Existing native app configuration is not rewritten. The release namespaces plugin servers by directory name; the expanded eight-case contract verifies this explicitly (195 assertions). [Native evidence](78-antigravity-native-source-contract.md), [production implementation and remaining owner review](79-antigravity-source-team-bridge.md). Eleven production source-task bridges are now implemented; authenticated owner-account/platform acceptance remains open.
 
 ## Kimi source-task contract investigation
 
@@ -83,6 +83,6 @@ Primary source: [native MCP request](https://github.com/MoonshotAI/kimi-code/blo
 - [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
 - [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
 - [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
-- [ ] Complete source-task Teams tools for Cursor, Antigravity, Fx and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
+- [ ] Complete source-task Teams tools for Cursor, Fx and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
 
 These are current goal requirements, not deferred successes. The full goal remains active.

@@ -3235,3 +3235,16 @@ Portable HTML now inlines inspected SVG reference documents once and rewrites lo
 - [x] Record [native contract and production checklist](78-antigravity-native-source-contract.md).
 - [ ] Wire the production project entry lease, native witness/shared worker lifecycle and actual-driver approval/durable replay/Stop/configuration acceptance. Antigravity remains unimplemented as a production source-task bridge.
 - [ ] The full document/harness goal remains active: ten source bridges, four still open, Amp/Cursor bounded completion contracts and remaining document/CSS/format/device work.
+
+## 2026-10-15 — Antigravity production source-task Teams bridge
+
+- [x] Register only the five existing Teams actions using a uniquely owned additive native workspace plugin. Preserve native account/model/ordinary tools, explicit permission mode and all existing owner app configuration.
+- [x] Gate native setup to Antigravity CLI 1.3.1. Verify the release namespaces MCP servers by plugin directory, independently of the manifest name.
+- [x] Match native MCP envelope conversation/trajectory-step metadata against the main-conversation stream and exact original wrapper arguments. Keep bounded workers, 2,048 step tombstones, 40 KiB arguments and a 1 MiB active argument budget.
+- [x] Reuse owner approval, scope/limit intersection, durable native-step invocation identity and accepted document reads. Changed target/input, failed/finished steps, foreign callbacks, consumed IDs and stopped generations refuse.
+- [x] Cancel the active and already queued prompts, revoke pending approval and terminate/reap the owned process tree off the UI thread. Retain the acknowledged conversation across interrupted pipe reads for an explicit new prompt.
+- [x] Prove actual native-driver approved persisted invocation/result return, resume/new step, changed-definition refusal, overlapping-driver/final plugin cleanup and Stop/queued-prompt cancellation with same-conversation recovery.
+- [x] Pass 43 distinct checks: 12 Antigravity regressions, two actual released-runtime driver cases, 21 shared source bridge/worker/HTTP cases and eight native contract cases (195 assertions). Optional skipped native fixtures are excluded.
+- [x] Locked offline desktop/both daemon binary checks, strict standalone fixture TypeScript, Rust/Prettier formatting and diff checks pass; existing compiler warnings remain.
+- [x] Save [implementation and owner review](79-antigravity-source-team-bridge.md). Remove the two superseded disposable exploratory probe files; native runtimes and reproducible committed fixtures remain.
+- [ ] Complete authenticated native account/platform acceptance. Eleven source-task bridges are implemented; Cursor, Fx and Kimi source-task bridges, native Amp/Cursor bounded completion contracts and remaining document/CSS/font/format/device work stay open. The full goal is active.

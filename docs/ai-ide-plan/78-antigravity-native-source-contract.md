@@ -6,7 +6,7 @@ Updated 2026-10-15. Implementation branch: `codex/ion-agent-teams`.
 
 The checksum-pinned released Windows **Antigravity CLI 1.3.1** provides a verified native conversation/step correlation path for ordinary tasks to invoke saved Ion teams. This checkpoint adds reproducible native contract fixtures. It does **not** register production source-task Teams tools or close the full document/harness goal.
 
-The fixture uses the normal native agent with its ordinary built-in tools, an isolated disposable native Gemini profile, fake credentials and local model/MCP endpoints. It does not replace the native agent with a JSON-only completion agent. Both identical calls, the native tool results, a following provider request and a separately resumed native process are exercised.
+The following contract fixture uses the normal native agent with its ordinary built-in tools, an isolated disposable native Gemini profile, fake credentials and local model/MCP endpoints. It does not replace the native agent with a JSON-only completion agent. Both identical calls, the native tool results, a following provider request and a separately resumed native process are exercised.
 
 Native Windows executable SHA-512:
 
@@ -56,14 +56,14 @@ The successful case also sends consumed replay, foreign-conversation and wrong-c
 
 Strict standalone TypeScript (`strict` and `noUncheckedIndexedAccess`), Prettier and diff checks pass. Production Rust code is unchanged by this checkpoint; it does not claim a new Rust build, actual durable Ion invocation or user-account/device acceptance. No paid inference, deployment, visual test or watcher restart is performed.
 
-## Remaining production implementation
+## Production implementation checklist
 
-- [ ] Add a scoped project MCP entry for only the existing five Teams actions. Preserve existing app connections, unknown keys and native JSONC behavior; support simultaneous source tasks, driver handoff and owner edits, and clean only an entry Ion still owns.
-- [ ] Keep the selected native account, model, agent, ordinary tools, workspace and permission mode. Gate the native metadata dialect to a verified release.
-- [ ] Bind callbacks to the real main-conversation stream, exact wrapper target/arguments and the live source-task generation. Refuse other conversations/subagents, stale, changed, unwitnessed and consumed callbacks.
-- [ ] Use the existing bounded source worker for owner approval, access/budget intersection, durable invocation replay and accepted document reads. These contract callbacks return a fixture catalog and do not test the real worker.
-- [ ] Fence Stop before/during startup, pending approvals, terminal/error events, process exit, queued prompts, mode changes and driver replacement.
-- [ ] Verify actual-driver saved-team invocation/result return, replay/resume, changed definitions, Stop during owner approval and configuration cleanup/preservation.
+- [x] Add a scoped project MCP entry for only the existing five Teams actions. Preserve existing app connections, unknown keys and native JSONC behavior; support simultaneous source tasks, driver handoff and owner edits, and clean only an entry Ion still owns.
+- [x] Keep the selected native account, model, agent, ordinary tools, workspace and permission mode. Gate the native metadata dialect to a verified release.
+- [x] Bind callbacks to the real main-conversation stream, exact wrapper target/arguments and the live source-task generation. Refuse other conversations/subagents, stale, changed, unwitnessed and consumed callbacks.
+- [x] Use the existing bounded source worker for owner approval, access/budget intersection, durable invocation replay and accepted document reads. These contract callbacks return a fixture catalog and do not test the real worker.
+- [x] Fence Stop before/during startup, pending approvals, terminal/error events, process exit, queued prompts, mode changes and driver replacement.
+- [x] Verify actual-driver saved-team invocation/result return, replay/resume, changed definitions, Stop during owner approval and configuration cleanup/preservation.
 - [ ] Complete authenticated owner-project and platform acceptance. Signed-in Google routes and real owner app/tool interactions are not covered by the fake native Gemini account.
 
 Ten production source-task bridges remain implemented. Antigravity, Cursor, Fx and Kimi source-task bridges and the native Amp/Cursor bounded completion contracts remain open. The broader document rendering/format/device work is still active.
@@ -96,3 +96,7 @@ Use the installed repository compiler; this checkpoint did not download a new co
 - [Native Windows release](https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/windows-x64/cli_windows_x64.exe).
 
 The metadata correlation and lifecycle design are Ion's inference, verified for the pinned release by the actual native fixture. Documentation alone is not used as proof of runtime correlation or full Ion Teams completion.
+
+## Subsequent production bridge
+
+The [production source-task Teams bridge](79-antigravity-source-team-bridge.md) now passes actual released-runtime driver invocation, resume, changed-definition, Stop/queued-prompt recovery and cleanup checks. The expanded contract has eight native cases/195 assertions and verifies the plugin directory namespace independently of the manifest name. The original seven-case checkpoint above is historical evidence; use the production guide for current implementation and owner/platform review.

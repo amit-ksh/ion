@@ -262,9 +262,9 @@ pub(crate) fn start_local_with_workspace(
     options.computer_use_enabled =
         crate::computer_use::resolve_enabled(options.computer_use_enabled);
     let inner: Arc<dyn DriverControl> = match provider {
-        ProviderKind::Antigravity => {
-            Arc::new(antigravity::AntigravityDriver::start(options, events)?)
-        }
+        ProviderKind::Antigravity => Arc::new(
+            antigravity::AntigravityDriver::start_with_workspace(options, events, workspace)?,
+        ),
         ProviderKind::Nebius => Arc::new(nebius::NebiusDriver::start_with_workspace(
             options, events, workspace,
         )?),

@@ -82,6 +82,19 @@ impl Server {
             Some(Box::new(auxiliary)),
         )
     }
+    pub fn with_auxiliary_handler(
+        responses: Vec<(u16, Vec<u8>)>,
+        hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
+        auxiliary: impl Fn(&Request) -> Option<Vec<u8>> + Send + 'static,
+    ) -> Self {
+        Self::build(
+            responses,
+            hook,
+            Duration::from_secs(80),
+            None,
+            Some(Box::new(auxiliary)),
+        )
+    }
     fn build(
         responses: Vec<(u16, Vec<u8>)>,
         hook: impl Fn(&Request, Vec<u8>) -> Vec<u8> + Send + 'static,
