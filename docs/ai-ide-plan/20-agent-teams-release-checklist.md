@@ -1013,3 +1013,13 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [ ] Complete [browser scope/proximity, SVG use-shadow, offline and device acceptance](74-portable-css-scopes.md#owner-review).
 - [ ] Variable-based CSS names, property registrations, wider font features and layer/container namespaces remain development work.
 - [ ] The five remaining source bridges and native Amp/Cursor completion contracts stay open. [Kimi's inspected hook/MCP contract](64-remaining-harness-integrations.md#kimi-source-task-contract-investigation) currently lacks the required proven callback/result correlation. The full goal remains active.
+
+## 2026-10-15 — Grok native source-task contract and hook transport
+
+- [x] Verify released Grok 1.0.46 file-hook argument rewriting, independent ACP reverse-hook witnessing, two distinct native call IDs for identical arguments and native result return with original provider arguments.
+- [x] Verify failed-hook/model-forgery refusal before MCP dispatch in the real ACP transport. The release omits prompt IDs in both hooks; correlation must retain native session/call IDs and Ion-owned lifecycle state.
+- [x] Implement the bounded native daemon hook entrypoint before daemon authentication/config/database startup; retain strict loopback route/authentication, byte/time limits, no proxy/redirects and generic deny replies.
+- [x] Locked offline production daemon build and all ten shipped-helper/native cases pass (205 assertions, zero skipped). Byte limits, authentication, malformed/redirect responses and a stalled owner are exercised. Standalone fixture TypeScript and formatting checks pass.
+- [x] Locked offline desktop/debug-daemon checks pass; existing compiler warnings remain.
+- [ ] Complete [production Grok source-task integration, shared worker approval/replay/Stop and actual driver acceptance](75-grok-native-source-contract.md#remaining-adapter-implementation). The source bridge count remains nine.
+- [ ] Remaining native harnesses, CSS name fidelity and full-goal account/device acceptance stay open. This contract checkpoint does not close the active goal.

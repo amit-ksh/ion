@@ -8,6 +8,11 @@ use anyhow::{Context as _, anyhow, bail};
 use waku_protocol::{DAEMON_TOKEN_ENV, DaemonReady, PROTOCOL_VERSION};
 
 fn main() -> anyhow::Result<()> {
+    if let Some(code) =
+        waku_core::native_team_hook::run_cli(&std::env::args().skip(1).collect::<Vec<_>>())
+    {
+        std::process::exit(code);
+    }
     let arguments = Arguments::parse(std::env::args().skip(1))?;
     let token = daemon_token()?;
     let gateway_pairing_file =
