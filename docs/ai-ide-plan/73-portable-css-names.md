@@ -30,7 +30,7 @@ Locked offline desktop/daemon binary checks, full mobile TypeScript, Rust format
 
 ## Remaining full-goal work
 
-This increment covers direct/literal named CSS references. Names supplied through CSS variables (including variable fallbacks and inherited dynamic values) need additional rewriting before imported SVGs can claim equivalent behavior for those forms. `@property` registrations, font variables/features, cascade layer/container names and scope-rule selector preludes also remain open. Browser-specific use-shadow styling, predefined counter overrides interacting with owner-defined global styles, and physical-device acceptance remain unverified. Source HTML's own authored CSS continues to use the browser directly.
+This increment covers direct/literal named CSS references. Names supplied through CSS variables (including variable fallbacks and inherited dynamic values) need additional rewriting before imported SVGs can claim equivalent behavior for those forms. `@property` registrations, font variables/features and cascade layer/container names also remain open. [Scope-rule root/limit selectors](74-portable-css-scopes.md) are now implemented; browser scope/use-shadow acceptance remains open. Browser-specific use-shadow styling, predefined counter overrides interacting with owner-defined global styles, and physical-device acceptance remain unverified. Source HTML's own authored CSS continues to use the browser directly.
 
 Remaining native harness bridges/contracts and owner-account acceptance are tracked in [current harness coverage](64-remaining-harness-integrations.md). This is an implementation increment, not completion of the active document/harness goal.
 

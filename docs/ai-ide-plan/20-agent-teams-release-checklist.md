@@ -1000,5 +1000,16 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Preserve shorthand roles, case/escapes/quoted names, keyframe selectors, priorities, marker/content strings, invalid/reserved rules and predefined counter behavior.
 - [x] 50 distinct native/phone checks pass, including two actual production-native fixture exports, trusted-worker publication/replay, phone preparation and independent CSS Tree 3.1.0 grammar with an invalid-value control.
 - [x] Locked offline desktop/daemon checks, full mobile TypeScript, Rust formatting and diff checks pass.
-- [ ] Complete [device/browser and CSS variable/scope acceptance](73-portable-css-names.md#owner-review). Variable-based animation/counter/font names, property registrations, layer/container/scope names and browser use-shadow behavior remain open.
+- [ ] Complete [device/browser and CSS variable acceptance](73-portable-css-names.md#owner-review). Variable-based animation/counter/font names, property registrations, layer/container names and browser use-shadow behavior remain open. Scope selectors are covered by the following increment.
 - [ ] Remaining native harness bridges/contracts and full-goal provider/platform acceptance remain open; this increment does not close the active goal.
+
+## 2026-10-15 — portable SVG CSS scopes
+
+- [x] Rewrite `@scope` roots/limits with the reference SVG's private IDs/classes and original attribute selectors; retain relative/nested selectors and conditional/imported rules.
+- [x] Preserve implicit roots and stylesheet parent ownership; use native browser scope semantics within the existing background publication/resource/depth bounds.
+- [x] Full mobile TypeScript and 26 phone document cases pass, including actual production-native scope output, independent CSS Tree grammar with a malformed-selector control and CSS Select root/limit identity checks.
+- [x] 56 distinct checks pass: 27 native document/publication/worker cases, three production fixture exports and 26 phone document cases. Rust formatting and diff checks pass.
+- [x] Locked offline desktop/daemon binary checks and full mobile TypeScript pass; existing compiler warnings remain.
+- [ ] Complete [browser scope/proximity, SVG use-shadow, offline and device acceptance](74-portable-css-scopes.md#owner-review).
+- [ ] Variable-based CSS names, property registrations, wider font features and layer/container namespaces remain development work.
+- [ ] The five remaining source bridges and native Amp/Cursor completion contracts stay open. [Kimi's inspected hook/MCP contract](64-remaining-harness-integrations.md#kimi-source-task-contract-investigation) currently lacks the required proven callback/result correlation. The full goal remains active.

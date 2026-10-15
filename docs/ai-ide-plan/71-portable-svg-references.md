@@ -32,7 +32,7 @@ Locked offline desktop/daemon binary checks, full mobile TypeScript, Rust/Pretti
 
 ## Remaining document and harness work
 
-Actual use-shadow styling and native iOS/Android rendering still require owner acceptance. [Named document CSS](73-portable-css-names.md) now isolates direct/literal keyframe and custom counter-style names, with a production-native-to-phone grammar fixture. CSS variable-based names, property registrations, layer/scope/container names and font variables/features still need further isolation/fidelity work. XML stylesheet processing instructions and interactive SVG applications remain unsupported by the static preview. Remaining harness bridges/contracts and authenticated provider acceptance stay open in [current coverage](64-remaining-harness-integrations.md).
+Actual use-shadow styling and native iOS/Android rendering still require owner acceptance. [Named document CSS](73-portable-css-names.md) now isolates direct/literal keyframe and custom counter-style names, with a production-native-to-phone grammar fixture. [CSS scope roots/limits](74-portable-css-scopes.md) now retain their document namespace. CSS variable-based names, property registrations, layer/container names and font variables/features still need further isolation/fidelity work. XML stylesheet processing instructions and interactive SVG applications remain unsupported by the static preview. Remaining harness bridges/contracts and authenticated provider acceptance stay open in [current coverage](64-remaining-harness-integrations.md).
 
 ## Primary references
 

@@ -49,4 +49,6 @@ Model reads and workflow handoffs receive the bounded agent-authored summary and
 
 ## Remaining full-goal work
 
-[Named document CSS](73-portable-css-names.md) now isolates direct/literal animation and counter-style definitions/references. Broader variable/scope/browser fidelity for inlined SVG references, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.
+[Named document CSS](73-portable-css-names.md) now isolates direct/literal animation and counter-style definitions/references. Broader variable/browser fidelity for inlined SVG references, native harness contract gaps and live provider/device acceptance remain open. [Phone Office content reading](67-phone-office-reading.md) now extracts bounded DOCX/XLSX content; native model reads retain the explicit publication summary. This document records the current increment.
+
+Imported SVG `@scope` roots/limits now follow their private document namespace while retaining nested/implicit native scopes and stylesheet ownership. [Implementation and owner review](74-portable-css-scopes.md) distinguish selector/grammar checks from unverified browser cascade/use-shadow behavior.

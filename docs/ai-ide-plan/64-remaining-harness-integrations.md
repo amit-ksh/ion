@@ -57,6 +57,14 @@ The actual pinned Windows SDK runtime passes a private headless fixture with nat
 
 The checksum-verified released Windows 2.0.29 runtime now passes real driver fixtures for owner-approved team invocation/result return and Stop at owner approval. The additive plugin keeps credentials in memory through authenticated location RPC; the owner witnesses native session/message/call/name/arguments independently. It preserves existing plugins/account/model/service and shares generated-file leases across driver replacement. Release identity/inbox compatibility, stale binding revocation and final cleanup are verified. The bridge is gated to the verified native version. [Implementation, 102 distinct passing checks and owner review](72-opencode2-native-plugin-contract.md). Authenticated native resume/hot-upgrade/platform acceptance remains open.
 
+## Kimi source-task contract investigation
+
+The cached official Kimi Code 2.1.1 source (`f67e639`) exposes native session/tool-call IDs to `PreToolUse`, but that hook returns allow/block decisions and a reason, not a successful replacement tool result. Hook launch failures, timeout and cancellation return an allow decision. Its MCP client forwards the tool name, arguments and abort signal without the engine's native call ID. The MCP JSON-RPC request ID is not that native identity.
+
+A hook that executes work then blocks the original call would report failure after creating work. Matching a separate MCP callback only by arguments would be ambiguous for identical concurrent calls, and hook failure can remove the expected ordering. Neither approach is accepted as an implementation. The remaining bridge needs a supported native executor carrying session/turn/call identity through successful result return, or an equivalently proven native contract. No Kimi source-task Teams tools are registered by this investigation; ordinary Kimi sessions and its existing bounded completion adapter retain their current behavior. No owner account or paid call was used.
+
+Primary source: [native MCP request](https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/mcpCore/client-stdio.ts), [external hook result handling](https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/features/externalHooks/internal/runHook.ts), [official hook reference](https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/customization/hooks.md). The conclusion about insufficient correlation is Ion's inference from those interfaces; it is not a claim that all future Kimi extension paths are unsupported.
+
 ## Review and remaining work
 
 - [x] Fresh native Pi/Oh My Pi fixture acceptance after final compilation.

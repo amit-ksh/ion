@@ -2,6 +2,7 @@
 //! per-compound stylesheet markers. Markers survive native <use> cloning.
 use super::*;
 mod named_styles;
+mod scope_styles;
 use named_styles::Globals;
 
 #[derive(Clone)]
@@ -377,10 +378,12 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
             CssToken::CurlyBracketBlock => {
                 let body = nested_text(&mut parser)?;
                 if let Some(name) = at_rule.take() {
-                    push(
-                        &mut out,
-                        &names.globals.prelude(&name, &prelude, &names.prefix)?,
-                    )?;
+                    let prelude = if name == "scope" {
+                        scope_styles::prelude(&prelude, names, depth + 1)?
+                    } else {
+                        names.globals.prelude(&name, &prelude, &names.prefix)?
+                    };
+                    push(&mut out, &prelude)?;
                     push(&mut out, "{")?;
                     let body = if matches!(
                         name.as_str(),
