@@ -3,6 +3,7 @@
 use super::*;
 mod context_styles;
 mod named_styles;
+mod property_styles;
 mod scope_styles;
 use named_styles::Globals;
 
@@ -56,6 +57,9 @@ impl Names {
     }
     pub(super) fn baseline(&self) -> Result<String> {
         self.globals.baseline(&self.prefix)
+    }
+    pub(super) fn presentation(&self, name: &str, value: &str) -> Result<String> {
+        property_styles::presentation(name, value, &self.prefix)
     }
     pub fn root_marker(&self) -> String {
         format!("data-{}{}_root", self.prefix, self.marker_key)
@@ -378,6 +382,10 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
         match token {
             CssToken::CurlyBracketBlock => {
                 let body = nested_text(&mut parser)?;
+                if at_rule.is_none() && property_styles::custom_declaration(&prelude) {
+                    push(&mut prelude, &format!("{{{body}}}"))?;
+                    continue;
+                }
                 if let Some(name) = at_rule.take() {
                     let prelude = if name == "scope" {
                         scope_styles::prelude(&prelude, names, depth + 1)?
@@ -386,6 +394,7 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                     } else {
                         names.globals.prelude(&name, &prelude, &names.prefix)?
                     };
+                    let prelude = property_styles::prelude(&name, &prelude, &names.prefix)?;
                     push(&mut out, &prelude)?;
                     push(&mut out, "{")?;
                     let body = if matches!(
@@ -417,8 +426,15 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                         &names.prefix,
                         true,
                     )?
+                } else if at_rule.is_none() {
+                    declarations(&prelude, names)?
                 } else {
                     prelude.clone()
+                };
+                let rendered = if let Some(kind) = at_rule.as_deref() {
+                    property_styles::prelude(kind, &rendered, &names.prefix)?
+                } else {
+                    rendered
                 };
                 push(&mut out, &rendered)?;
                 push(&mut out, ";")?;
@@ -448,8 +464,8 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
             _ => push(&mut prelude, &token.to_css_string())?,
         }
     }
-    push(&mut out, &prelude)?;
-    declarations(&out, names)
+    push(&mut out, &declarations(&prelude, names)?)?;
+    Ok(out)
 }
 fn selector(source: &str, names: &Names, depth: usize) -> Result<String> {
     ensure!(depth <= 32, "SVG selector nesting exceeds its bound");
@@ -721,7 +737,7 @@ fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<S
     let mut value = String::new();
     let mut colon = false;
     let append = |out: &mut String, property: &str, value: &str, colon: bool| -> Result<()> {
-        push(out, property)?;
+        push(out, &property_styles::declaration(property, &names.prefix))?;
         if colon {
             push(out, ":")?;
             let decoded = named_styles::property(property);
@@ -740,6 +756,8 @@ fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<S
                     counter_style,
                 )?
             };
+            let css =
+                property_styles::value(&css, &names.prefix, decoded.as_deref().unwrap_or(""))?;
             push(out, &css)?;
             push(out, priority)?;
         }

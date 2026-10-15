@@ -1067,3 +1067,9 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Locked offline desktop/both daemon binary checks, strict standalone fixture TypeScript, Rust/Prettier formatting and diff checks pass; existing compiler warnings remain.
 - [x] Save [implementation and owner review](79-antigravity-source-team-bridge.md). Remove the two superseded disposable exploratory probe files; native runtimes and reproducible committed fixtures remain.
 - [ ] Complete authenticated native account/platform acceptance. Eleven source-task bridges are implemented; Cursor, Fx and Kimi source-task bridges, native Amp/Cursor bounded completion contracts and remaining document/CSS/font/format/device work stay open. The full goal is active.
+
+## 2026-10-16 - Portable CSS custom properties
+
+- [x] Private custom-property identities/registrations and one-pass stylesheet declaration traversal are implemented; 78 distinct native/export/phone checks pass, with mobile types and desktop/both daemon builds.
+- [ ] Complete [typed CSS, native browser/use-shadow and device review](80-portable-css-properties.md#owner-review), including offline/gateway access and revoked reading scope.
+- [ ] Finish dynamic CSS names, wider font support, additional formats/larger documents and remaining native harness integrations/contracts. Full-goal completion remains unproven.

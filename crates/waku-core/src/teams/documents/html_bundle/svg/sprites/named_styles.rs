@@ -539,7 +539,9 @@ mod tests {
         assert!(css.contains("speak-as:private_counter_style_marks"));
         assert!(css.contains("list-style:inside private_counter_style_marks"));
         assert!(css.contains("counter(step,private_counter_style_marks) counters(section,\".\",private_counter_style_fallback-style) \"marks\""));
-        assert!(css.contains("--caption:counter(step,private_counter_style_marks)"));
+        assert!(
+            css.contains("--private_property_caption:counter(step,private_counter_style_marks)")
+        );
         assert_eq!(declarations("list-style:inside inside;list-style-type:'marks';list-style-type:decimal;list-style-type:none;content:counters(chapter,'marks')",&n).unwrap(),"list-style:inside inside;list-style-type:\"marks\";list-style-type:decimal;list-style-type:none;content:counters(chapter,\"marks\")");
     }
 }

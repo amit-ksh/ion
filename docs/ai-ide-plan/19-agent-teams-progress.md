@@ -3248,3 +3248,12 @@ Portable HTML now inlines inspected SVG reference documents once and rewrites lo
 - [x] Locked offline desktop/both daemon binary checks, strict standalone fixture TypeScript, Rust/Prettier formatting and diff checks pass; existing compiler warnings remain.
 - [x] Save [implementation and owner review](79-antigravity-source-team-bridge.md). Remove the two superseded disposable exploratory probe files; native runtimes and reproducible committed fixtures remain.
 - [ ] Complete authenticated native account/platform acceptance. Eleven source-task bridges are implemented; Cursor, Fx and Kimi source-task bridges, native Amp/Cursor bounded completion contracts and remaining document/CSS/font/format/device work stay open. The full goal is active.
+
+## 2026-10-16 - Portable CSS custom properties
+
+- [x] Give imported SVGs private case-sensitive declarations, registrations, variable references, query targets, literal transition references and presentation values; retain native value/cycle/fallback/descriptor behavior.
+- [x] Fix repeated renaming through nested selector bodies; preserve custom-property curly blocks as data and raw geometry values.
+- [x] Pass 78 distinct checks: 41 native regressions/publication/worker cases, two actual native fixture exports and 35 phone reading/preparation/independent grammar cases (473 phone assertions).
+- [x] Full mobile TypeScript, locked offline desktop/both daemon checks and formatting/diff checks pass. Existing warnings remain. The independent parser checks variable syntax, not computed values.
+- [x] Record [implementation and review checklist](80-portable-css-properties.md). No visual/device test, watcher restart, provider request, deployment or ion-prod merge occurred.
+- [ ] Dynamic CSS names, wider fonts, additional formats/larger reading paths, remaining native harness contracts and account/browser/device acceptance remain active goal work.

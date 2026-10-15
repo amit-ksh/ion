@@ -19,6 +19,8 @@ headless personal cloud task execution. Its live review remains open.
 
 ## Locked decisions
 
+- **2026-10-14 current goal:** the user reopened remaining harness integrations alongside additional document formats/larger publications and fuller phone HTML/CSS support. This supersedes the adapter deferral below; [the current harness checklist](64-remaining-harness-integrations.md) records implementation and remaining native contracts. Owner-account/device review remains separate from source-level coverage.
+
 - **2026-10-08 adapter scope correction:** adapters not implemented yet are
   deferred at the user's request. Amp/Cursor Teams completion, remaining normal-task
   Teams bridges (including Pi/Oh My Pi), and additional unsupported account/provider
@@ -243,3 +245,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Antigravity source-task native contract](78-antigravity-native-source-contract.md): verified native metadata/stream identity, workspace-only discovery, resume/refusal fixtures and remaining production bridge work.
 
 - [Antigravity source-task Teams bridge](79-antigravity-source-team-bridge.md): scoped additive plugin, native identity/shared worker, actual driver invocation/resume/Stop recovery and remaining owner review.
+
+- [Portable CSS custom properties](80-portable-css-properties.md): private registrations/variable references, one-pass nested declaration traversal, actual native-to-phone evidence and remaining dynamic/browser/device work.

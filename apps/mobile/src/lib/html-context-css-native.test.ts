@@ -97,7 +97,7 @@ test.skipIf(!fixture)(
       );
       expect(css).toContain(`@container ${prefix}container_card (width >`);
       expect(css).toContain(
-        `@container ${prefix}container_card style(--tone:green)`,
+        `@container ${prefix}container_card style(--${prefix}property_tone:green)`,
       );
       expect(css).toContain(`container:${prefix}container_card/inline-size`);
       expect(css).toContain(`style(container-name:${prefix}container_card)`);

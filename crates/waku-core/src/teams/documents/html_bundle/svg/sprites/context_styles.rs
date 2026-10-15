@@ -323,7 +323,7 @@ mod tests {
     fn context_css_named_container_queries_only_change_name_positions() {
         let source = "@container card (width > 20px), other style(--tone:card), not (width < 1px), style(--tone:card){path{container:card small / inline-size;container-name:card;content:'card'}}";
         let css = namespace_styles(source, &names(), 0).unwrap();
-        assert!(css.contains("@container private_container_card (width > 20px), private_container_other style(--tone:card), not (width < 1px), style(--tone:card)"));
+        assert!(css.contains("@container private_container_card (width > 20px), private_container_other style(--private_property_tone:card), not (width < 1px), style(--private_property_tone:card)"));
         assert!(
             css.contains("container:private_container_card private_container_small / inline-size")
         );
@@ -354,7 +354,7 @@ mod tests {
     fn context_css_style_queries_follow_container_names_without_changing_custom_values() {
         let source = "@container card ((style(container-name:card)) and (width>2px)), style((container:card/size) and (--tone:card)), style(--tokens:style(container-name:card)){path{fill:red}}";
         let css = namespace_styles(source, &names(), 0).unwrap();
-        assert!(css.contains("@container private_container_card ((style(container-name:private_container_card)) and (width>2px)), style((container:private_container_card/size) and (--tone:card)), style(--tokens:style(container-name:card))"));
+        assert!(css.contains("@container private_container_card ((style(container-name:private_container_card)) and (width>2px)), style((container:private_container_card/size) and (--private_property_tone:card)), style(--private_property_tokens:style(container-name:card))"));
         assert!(
             prelude(
                 "container",
@@ -433,7 +433,7 @@ mod publication_tests {
             )));
             assert!(import.contains(&format!("container:{prefix}container_card/inline-size")));
             assert!(import.contains(&format!(
-                "@container {prefix}container_card style(--tone:green)"
+                "@container {prefix}container_card style(--{prefix}property_tone:green)"
             )));
             assert!(import.contains(&format!(
                 "@container {prefix}container_card style(container-name:{prefix}container_card)"

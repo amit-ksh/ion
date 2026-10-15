@@ -172,6 +172,7 @@ impl Bundle {
                     value =
                         sprites.css(self, &value, base, names, false, svg_presentation(name))?;
                 }
+                value = names.presentation(name, &value)?;
                 push(out, &format!(" {key}=\"{}\"", attr(&value)))?;
             }
             push(out, ">")?;

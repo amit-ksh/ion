@@ -32,6 +32,8 @@ All transformation runs during background publication. The existing hash/resourc
 
 ## Remaining goal work
 
+Subsequent increment: [custom-property identities and registrations](80-portable-css-properties.md) are now implemented and checked through actual native-to-phone output. The following paragraph records the scope still open at this earlier checkpoint.
+
 Names supplied through dynamic CSS variables or `ident()` remain untransformed and need further implementation. CSS variables for animation/counter/font names, `@property` registration, broader font features, other document formats/larger reading paths, native browser/use-shadow acceptance and the remaining harness contracts are still part of the active full goal. This document records an implementation increment, not full completion.
 
 ## Re-run native-to-phone checks
