@@ -319,6 +319,9 @@ export function apply(ctx) {{
             definitions = json!(definitions)
         )
     }
+    pub(crate) fn native_binding(&self, session: &str, generation: &str) -> Value {
+        json!({"endpoint":format!("http://127.0.0.1:{}/call",self.0.port),"credential":self.0.token,"session":session,"generation":generation})
+    }
     pub(crate) fn configure_amp(&self, command: &mut std::process::Command, prefix: &str) {
         command
             .env(
@@ -964,6 +967,184 @@ mod tests {
                 received,
             )
         }
+    }
+
+    include!("opencode2_native_tests.rs");
+
+    fn oc2_event(kind: &str, session: &str, data: Value) -> Value {
+        let mut data = data;
+        data["sessionID"] = json!(session);
+        json!({"type":kind,"data":data})
+    }
+    fn oc2_witness(observer: &super::super::opencode2::Observer, call: &str, args: Value) {
+        observer.observe(&oc2_event(
+            "session.step.started",
+            "native",
+            json!({"assistantMessageID":"message"}),
+        ));
+        observer.observe(&oc2_event(
+            "session.tool.input.started",
+            "native",
+            json!({"assistantMessageID":"message","id":call,"name":"ion_fixture_invoke_team"}),
+        ));
+        observer.observe(&oc2_event(
+            "session.tool.input.ended",
+            "native",
+            json!({"assistantMessageID":"message","id":call,"text":args.to_string()}),
+        ));
+    }
+    #[test]
+    fn opencode2_source_team_live_identity_approval_replay_and_stop() {
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, events) = f.bridge(&hub, "opencode2:native");
+        let observer =
+            super::super::opencode2::Observer::new(bridge.clone(), "native", "ion_fixture_");
+        observer.allow_turn();
+        oc2_witness(&observer, "call", f.args());
+        let calling = bridge.clone();
+        let args = f.args();
+        let queued = thread::spawn(move || {
+            calling.0.handle(request(
+                "opencode2:native",
+                "message",
+                "call",
+                "invoke_team",
+                args,
+            ))
+        });
+        let approval = permission(&events);
+        assert!(observer.respond(&approval, "allow"));
+        assert_eq!(queued.join().unwrap().unwrap()["ok"], true);
+        assert_eq!(f.runs().len(), 1);
+        observer.close();
+        let (resumed, events) = f.bridge(&hub, "opencode2:native");
+        let observer =
+            super::super::opencode2::Observer::new(resumed.clone(), "native", "ion_fixture_");
+        observer.allow_turn();
+        oc2_witness(&observer, "call", f.args());
+        assert_eq!(
+            resumed
+                .0
+                .handle(request(
+                    "opencode2:native",
+                    "message",
+                    "call",
+                    "invoke_team",
+                    f.args()
+                ))
+                .unwrap()["ok"],
+            true
+        );
+        assert!(
+            events
+                .try_iter()
+                .all(|event| !matches!(event, DriverEvent::Permission { .. }))
+        );
+        assert_eq!(f.runs().len(), 1);
+        observer.cancel();
+        observer.observe(&oc2_event("session.execution.started", "native", json!({})));
+        observer.allow_turn();
+        oc2_witness(&observer, "call", f.args());
+        assert!(
+            resumed
+                .0
+                .handle(request(
+                    "opencode2:native",
+                    "message",
+                    "call",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+    }
+    #[test]
+    fn opencode2_source_team_foreign_partial_changed_failed_and_terminal_calls_refuse() {
+        for kind in [
+            "session.tool.failed",
+            "session.execution.succeeded",
+            "session.execution.failed",
+            "session.execution.interrupted",
+            "session.deleted",
+            "session.idle",
+        ] {
+            let f = Fixture::new();
+            let hub = Hub::start().unwrap();
+            let (bridge, _) = f.bridge(&hub, "opencode2:native");
+            let observer =
+                super::super::opencode2::Observer::new(bridge.clone(), "native", "ion_fixture_");
+            observer.allow_turn();
+            observer.observe(&oc2_event(
+                "session.step.started",
+                "foreign",
+                json!({"assistantMessageID":"message"}),
+            ));
+            observer.observe(&oc2_event("session.tool.input.started","foreign",json!({"assistantMessageID":"message","id":"call","name":"ion_fixture_invoke_team"})));
+            assert!(bridge.0.state.lock().messages.is_empty());
+            observer.observe(&oc2_event("session.tool.called","native",json!({"assistantMessageID":"message","id":"call","input":f.args(),"executed":true})));
+            assert!(bridge.0.state.lock().witnesses.is_empty());
+            oc2_witness(&observer, "call", f.args());
+            observer.observe(&oc2_event(
+                kind,
+                "native",
+                json!({"assistantMessageID":"message","id":"call"}),
+            ));
+            assert!(
+                bridge
+                    .0
+                    .handle(request(
+                        "opencode2:native",
+                        "message",
+                        "call",
+                        "invoke_team",
+                        f.args()
+                    ))
+                    .is_err()
+            );
+            assert!(f.runs().is_empty());
+        }
+        let f = Fixture::new();
+        let hub = Hub::start().unwrap();
+        let (bridge, _) = f.bridge(&hub, "opencode2:native");
+        let observer =
+            super::super::opencode2::Observer::new(bridge.clone(), "native", "ion_fixture_");
+        observer.allow_turn();
+        oc2_witness(&observer, "changed", f.args());
+        let mut args = f.args();
+        args["objective"] = json!("changed scope");
+        observer.observe(&oc2_event(
+            "session.tool.called",
+            "native",
+            json!({"assistantMessageID":"message","id":"changed","input":args,"executed":true}),
+        ));
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "opencode2:native",
+                    "message",
+                    "changed",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+        oc2_witness(&observer, "declined", f.args());
+        observer.observe(&oc2_event("session.tool.called","native",json!({"assistantMessageID":"message","id":"declined","input":f.args(),"executed":true})));
+        assert!(
+            bridge
+                .0
+                .handle(request(
+                    "opencode2:native",
+                    "message",
+                    "declined",
+                    "invoke_team",
+                    f.args()
+                ))
+                .is_err()
+        );
+        assert!(f.runs().is_empty());
     }
     fn deepseek_frame(session: &str, kind: &str, data: Value) -> Value {
         json!({"payload":{"type":"session/event","sessionId":session,"event":{"seq":1,"type":kind,"data":data}}})

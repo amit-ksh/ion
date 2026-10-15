@@ -1,29 +1,29 @@
 # Remaining harness integrations
 
-Updated 2026-10-14. The active user goal reopens the remaining harness integrations previously deferred on 2026-10-08.
+Updated 2026-10-15. The active user goal reopens the remaining harness integrations previously deferred on 2026-10-08.
 
 ## Current implementation coverage
 
 This table is source-level transport coverage. Native versions, selected account/model routes, configured grants/limits and owner acceptance still apply. A completion transport is not the same feature as an ordinary source conversation invoking a saved team. Direct `@team` execution retains its existing flow.
 
-| Harness | Bounded Teams completion transport | Source-task Teams tools |
-| --- | --- | --- |
-| Nebius | Implemented | Implemented |
-| Codex | Implemented | Implemented |
-| Claude | Implemented | Implemented |
-| OpenCode | Implemented | Implemented |
-| OpenCode 2 | Implemented | Remaining |
-| Pi | Implemented | Implemented |
-| Oh My Pi | Implemented | Implemented |
-| Amp | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining |
-| Cursor | Native completion ceiling/account contract missing | Remaining |
-| Antigravity | Implemented | Remaining |
-| DeepSeek | Implemented; pinned native fixture | Implemented; full web/owner acceptance remaining |
-| Fx | Implemented | Remaining |
-| Grok | Implemented | Remaining |
-| Kimi | Implemented | Remaining |
+| Harness     | Bounded Teams completion transport                 | Source-task Teams tools                                         |
+| ----------- | -------------------------------------------------- | --------------------------------------------------------------- |
+| Nebius      | Implemented                                        | Implemented                                                     |
+| Codex       | Implemented                                        | Implemented                                                     |
+| Claude      | Implemented                                        | Implemented                                                     |
+| OpenCode    | Implemented                                        | Implemented                                                     |
+| OpenCode 2  | Implemented                                        | Implemented; verified native 2.0.29, owner acceptance remaining |
+| Pi          | Implemented                                        | Implemented                                                     |
+| Oh My Pi    | Implemented                                        | Implemented                                                     |
+| Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining             |
+| Cursor      | Native completion ceiling/account contract missing | Remaining                                                       |
+| Antigravity | Implemented                                        | Remaining                                                       |
+| DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                |
+| Fx          | Implemented                                        | Remaining                                                       |
+| Grok        | Implemented                                        | Remaining                                                       |
+| Kimi        | Implemented                                        | Remaining                                                       |
 
-The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The eight source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other six still use their ordinary transport without source-team context. No unsupported connection is counted as implemented.
+The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The nine source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other five still use their ordinary transport without source-team context. No unsupported connection is counted as implemented.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -53,9 +53,9 @@ The resident native host now receives an additive temporary Cordis patch registe
 
 The actual pinned Windows SDK runtime passes a private headless fixture with native tool registration, catalog return, owner-approved invocation and stale-definition refusal. Its bundled default web profile fails separately because a required session-title plugin is missing; this does not prove production web-host acceptance. A full supported native installation and authenticated owner review are still needed. [Implementation, native evidence and review](69-deepseek-source-team-bridge.md).
 
-## OpenCode 2 native extension seam
+## OpenCode 2 normal-task Teams bridge
 
-The checksum-verified released Windows 2.0.29 runtime now passes a private native plugin discovery/RPC/configuration/tool-registration fixture. Its plugin executor carries the native session/message/call identity that the MCP transport does not forward. The remaining bridge should use that executor and memory-only RPC binding while preserving the adopted service. [Native evidence and implementation checklist](72-opencode2-native-plugin-contract.md). No source-team coverage is added by this contract probe alone.
+The checksum-verified released Windows 2.0.29 runtime now passes real driver fixtures for owner-approved team invocation/result return and Stop at owner approval. The additive plugin keeps credentials in memory through authenticated location RPC; the owner witnesses native session/message/call/name/arguments independently. It preserves existing plugins/account/model/service and shares generated-file leases across driver replacement. Release identity/inbox compatibility, stale binding revocation and final cleanup are verified. The bridge is gated to the verified native version. [Implementation, 102 distinct passing checks and owner review](72-opencode2-native-plugin-contract.md). Authenticated native resume/hot-upgrade/platform acceptance remains open.
 
 ## Review and remaining work
 

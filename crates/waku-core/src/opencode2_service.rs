@@ -58,13 +58,10 @@ use crate::http_wire::{
 /// The Basic username the service demands. Any other username answers 401.
 const SERVICE_USER: &str = "opencode";
 const REGISTRATION_FILE: &str = "service.json";
-const HEALTH_ROUTE: &str = "/api/health";
 const EVENT_ROUTE: &str = "/api/event";
 const MODEL_ROUTE: &str = "/api/model";
 
-/// Health is a liveness question, not a work request: a probe that hangs must
-/// not eat the start budget it is being polled inside.
-const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
+/// Catalog refresh is bounded separately from the startup identity probe.
 const MODEL_TIMEOUT: Duration = Duration::from_secs(10);
 /// The service heartbeats `: heartbeat` exactly 15.000s apart (measured over a
 /// live idle stream), so 20s would tear down a healthy connection that merely
@@ -162,9 +159,12 @@ fn read_registration_file(path: &Path) -> Option<ServiceRegistration> {
 /// to talk to it with.
 pub(crate) fn probe(registration: &ServiceRegistration) -> anyhow::Result<Endpoint> {
     let endpoint = Endpoint::basic(&registration.url, SERVICE_USER, &registration.password)?;
-    let health = request_json(&endpoint, "GET", HEALTH_ROUTE, None, HEALTH_TIMEOUT)
-        .context("the OpenCode 2 service did not answer its health route")?;
-    accept_health(registration, &health)?;
+    let health = crate::opencode2_api::health(&endpoint)
+        .context("the OpenCode 2 service did not answer its identity route")?;
+    accept_health(
+        registration,
+        &serde_json::json!({"healthy":health.healthy,"version":health.version,"pid":health.pid}),
+    )?;
     Ok(endpoint)
 }
 
@@ -402,6 +402,28 @@ impl Opencode2Service {
             reader_active: Mutex::new(false),
             binary: binary.to_path_buf(),
         })
+    }
+
+    /// Tests adopt only their privately spawned native host; no global registration
+    /// file or owner profile is touched.
+    #[cfg(test)]
+    pub(crate) fn adopt_fixture(
+        binary: &Path,
+        endpoint: Endpoint,
+        version: &str,
+        pid: u32,
+    ) -> Arc<Self> {
+        Self::adopt(
+            binary,
+            ServiceRegistration {
+                id: "ion-private-fixture".into(),
+                version: Some(version.into()),
+                url: format!("http://{}", endpoint.address()),
+                pid,
+                password: String::new(),
+            },
+            endpoint,
+        )
     }
 
     pub(crate) fn endpoint(&self) -> Endpoint {

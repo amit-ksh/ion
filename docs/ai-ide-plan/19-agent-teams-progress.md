@@ -4,7 +4,6 @@
 
 The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](63-phone-rendered-documents.md) records available behavior and remaining publication/resource work.
 
-
 Updated 2026-10-12. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
 increments of [the agreed plan](18-agent-teams-implementation.md).
@@ -3101,7 +3100,6 @@ New GPU policies bind a versioned `child_storage` object to the exact allocated 
 
 Current native storage proof uses CPU tmpfs fixtures. Actual dedicated ext4/CUDA/aarch64/provider acceptance, XFS quota support, driver/VRAM/HugeTLB/host quotas, persistent collector/upload retention, supported cleanup and billing/credential work remain open. Speech still needs a deployment target/HTTPS hostname and native iPhone 15/Moto G32 review. No paid/cloud allocation, visual test, watcher restart or `ion-prod` merge is included; further harness adapters remain deferred.
 
-
 ## 2026-10-13 — manual artifact and collector retention
 
 Implemented on `codex/ion-agent-teams` with **keep until explicitly cleaned** as the owner default.
@@ -3118,7 +3116,6 @@ Owner review: [artifact retention](60-artifact-retention.md#owner-review-checkli
 
 Provider-supported remote collector/version/upload deletion, physical storage accounting and hold release remain open. Actual CUDA/ext4/macOS/phone acceptance, owner IAM/billing finality, and a speech deployment target/HTTPS hostname remain separate dependencies. Additional harness adapters remain deferred.
 
-
 ## 2026-10-13 — first-launch connection onboarding
 
 - Fresh desktop installs show Welcome → AI providers → Apps → Speech → Personal gateway. All screens can be skipped; configured harnesses and the normal New task flow remain available.
@@ -3130,20 +3127,17 @@ Provider-supported remote collector/version/upload deletion, physical storage ac
 
 Owner [setup review checklist](62-first-launch-onboarding.md#owner-review-checklist) covers first-launch/restart, skip/later configuration, failed tests, session-only vault limitations, keyboard/themes and native webviews. No live key, endpoint, visual or device acceptance is claimed.
 
-
 ## 2026-10-14 — phone Office content reading
 
 Direct Artifacts and gateway workflow evidence now extract bounded DOCX body paragraphs/table cells and XLSX sheet/cell/formula content after original SHA-256 verification. Native reading rows are virtualized, plain text remains inert, cached formula values and hidden sheets are labelled, and exact original export is preserved. ZIP/XML preparation yields and respects the existing owner/foreground/grant/expiry generation fences. Limits and unsupported Office fidelity are visible; native model replies continue to carry the original explicit summary.
 
 Fifteen new Office regressions, full mobile TypeScript and a browser parser bundle pass. Existing document/export/HTML/image/PDF regression results and physical-device review are in [the release checklist](20-agent-teams-release-checklist.md) and [Office guide](67-phone-office-reading.md). No visual test, paid resource, watcher restart or ion-prod merge occurred. The wider goal remains active, including remaining HTML resource references and native harness contracts/acceptance.
 
-
 ## 2026-10-14 — inline SVG raster bundle references
 
 The portable HTML tool now embeds pinned raster href/xlink:href references in inline SVG image and filter-image elements. Phone preparation preserves those embedded rasters while retaining the existing script/network isolation and same-document fragment behavior. Resource kind is validated before encoded-cache reuse, preventing a cached stylesheet/font from being accepted as an image.
 
 Eleven native bundle regressions, fourteen phone HTML cases, mobile TypeScript, Rust formatting and locked desktop/daemon binary checks pass. [Resource scope and owner review](65-portable-html-bundles.md) retain external SVG symbol/sprite files and standalone SVG dependencies as unfinished. No visual/device acceptance, provider-account inference or ion-prod merge occurred; remaining harness contracts remain open.
-
 
 ## 2026-10-14 — native Windows ACP launch
 
@@ -3153,13 +3147,11 @@ The real Windows SDK/stdio fixture verifies session creation, Unicode/special-ch
 
 [Current harness coverage](64-remaining-harness-integrations.md#current-implementation-coverage) now records 12 bounded completion dispatches and 7 source-task Teams connections from current source. Amp/Cursor bounded completion contracts and seven further source-task connections remain development work. No live account/model request, visual test, watcher restart or ion-prod merge occurred. The full goal remains active.
 
-
 ## 2026-10-15 — DeepSeek normal-task Teams bridge
 
 Additive temporary native tools now bind DeepSeek source callbacks to the owner's live main session, call ID and exact arguments. The shared worker retains approval/scope intersection, configured limits and durable replay. Stop, failed native results, turn end and host closure revoke callbacks; native account/model/profile remains selected.
 
 **38 distinct cases pass**, including the actual pinned native SDK runtime plugin/catalog/approved invocation/stale-definition fixture. Locked desktop/daemon build and formatting results are recorded in the release checklist. The separate default-web round-trip still fails in that downloaded SDK executable because its session-title plugin dependency is absent; full native installation/owner acceptance is open. [Evidence and owner review](69-deepseek-source-team-bridge.md). Six source-task bridges, Amp/Cursor completion contracts, remaining document resources and physical-device/live-account review remain open. No ion-prod merge, paid inference or visual test occurred.
-
 
 ## 2026-10-15 — portable SVG image dependencies
 
@@ -3167,9 +3159,18 @@ Pinned static SVG images now embed their own local raster/vector/CSS/font depend
 
 **34 distinct cases pass** (14 native bundle/publication/worker and 20 phone HTML/SVG), plus full mobile TypeScript, locked desktop/daemon binary checks and Rust/Prettier/diff checks. [Scope and owner review](70-portable-svg-images.md) records exact bounds, CSS image-context limits and original-versus-snapshot behavior. External SVG sprites, remaining native harness requirements and live account/device acceptance stay open. No visual test, paid resource, watcher restart or ion-prod merge occurred.
 
-
 ## 2026-10-15 — pinned SVG sprite and paint/path references
 
 Portable HTML now inlines inspected SVG reference documents once and rewrites local symbol/use, text path, gradient/pattern and CSS paint/filter/mask/clip references. Private IDs/classes, original-value attribute snapshots, zero-specificity scope markers and font-family aliases retain referenced styles without changing source document nodes. XML/CSS/resource bounds, original files and exact publication/replay remain enforced.
 
 **42 distinct checks pass**: 19 native bundle/publication/worker, one production fixture export, 21 phone HTML/SVG and one actual native-output-to-phone case. Locked desktop/daemon binaries, full mobile TypeScript, Rust/Prettier formatting and diff checks pass. [Review and fidelity limits](71-portable-svg-references.md) record physical-device shadow styling, wider global CSS names and remaining harness contracts. No visual test, paid resource, watcher restart or ion-prod merge occurred. The full goal remains active.
+
+## 2026-10-15 — OpenCode 2 normal-task Teams bridge
+
+- [x] Additive native project tools, memory-only callback binding and independently witnessed main-session/message/call/name/arguments.
+- [x] Owner approval, durable replay, changed/foreign/failed/provider-hosted call refusal, Stop/terminal/disconnect fencing and mode-change restart.
+- [x] Shared project-plugin leases keep files alive during driver replacement and remove only unchanged owned files after the final driver; existing owner plugins remain untouched.
+- [x] Released native `/api/info` fallback retains process identity checks; strict inbox decoding supports native `time.created` and legacy `timeCreated`.
+- [x] 102 distinct checks pass, including two actual Windows 2.0.29 driver/fake-model fixtures for approved invocation/result return and Stop. Native stale generation, owner plugin preservation, owned-file cleanup and adopted-service survival pass.
+- [ ] Complete [authenticated model/account, native resume/hot-upgrade and platform review](72-opencode2-native-plugin-contract.md#owner-review). Configure the V2 executable explicitly; unverified native versions expose Teams-unavailable activity.
+- [ ] Implement the five remaining source bridges (Cursor, Antigravity, Fx, Grok, Kimi), native Amp/Cursor completion contracts and the remaining document rendering/full-goal requirements. This checkpoint does not close the active goal.

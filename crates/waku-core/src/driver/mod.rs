@@ -300,7 +300,9 @@ pub(crate) fn start_local_with_workspace(
         // OpenCode 2 is not a per-workspace server: one adopted background
         // service carries every workspace, and every Waku task rides its one
         // event stream.
-        ProviderKind::OpenCode2 => Arc::new(opencode2::OpenCode2Driver::start(options, events)?),
+        ProviderKind::OpenCode2 => Arc::new(opencode2::OpenCode2Driver::start_with_workspace(
+            options, events, workspace,
+        )?),
         // Claude serves a realtime stream of user messages on stdin â€” the same
         // transport the Agent SDK drives â€” which is what lets its Supervised
         // mode ask rather than decide alone.

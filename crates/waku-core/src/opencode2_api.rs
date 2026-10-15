@@ -580,16 +580,52 @@ pub(crate) struct SessionExport {
 /// The beta build renamed this member from `data` to `payload`; the older name
 /// is gone, not aliased.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(try_from = "InboxUserWire")]
 pub(crate) struct InboxUser {
     pub id: String,
-    #[serde(rename = "sessionID")]
     pub session_id: String,
-    #[serde(rename = "timeCreated")]
     pub time_created: f64,
-    #[serde(rename = "type")]
     pub kind: String,
     pub payload: Value,
     pub delivery: Delivery,
+}
+#[derive(Deserialize)]
+struct InboxUserWire {
+    id: String,
+    #[serde(rename = "sessionID")]
+    session_id: String,
+    #[serde(rename = "timeCreated")]
+    time_created: Option<f64>,
+    time: Option<InboxTime>,
+    #[serde(rename = "type")]
+    kind: String,
+    payload: Value,
+    delivery: Delivery,
+}
+#[derive(Deserialize)]
+struct InboxTime {
+    created: f64,
+}
+impl TryFrom<InboxUserWire> for InboxUser {
+    type Error = &'static str;
+    fn try_from(wire: InboxUserWire) -> std::result::Result<Self, Self::Error> {
+        let created = match (wire.time_created, wire.time.map(|time| time.created)) {
+            (Some(a), Some(b)) if a == b => a,
+            (Some(a), None) | (None, Some(a)) => a,
+            _ => return Err("Inbox timestamp is missing or ambiguous"),
+        };
+        if !created.is_finite() || created < 0.0 {
+            return Err("Inbox timestamp is invalid");
+        }
+        Ok(Self {
+            id: wire.id,
+            session_id: wire.session_id,
+            time_created: created,
+            kind: wire.kind,
+            payload: wire.payload,
+            delivery: wire.delivery,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -850,9 +886,34 @@ pub(crate) struct SkillInfo {
 }
 
 pub(crate) fn health(endpoint: &Endpoint) -> Result<Health> {
-    // Bare payload: health is one of the routes with no `{ data }` envelope.
-    let response = request(endpoint, "GET", "/api/health", None, HEALTH_TIMEOUT)?;
-    decode(response, "health")
+    // Older beta hosts use health; released V2 exposes the same identity through
+    // info. Only a missing route permits fallback: never mask 401/500 or a
+    // malformed success response from the service the owner selected.
+    let response = match request(endpoint, "GET", "/api/health", None, HEALTH_TIMEOUT) {
+        Ok(response) => return decode(response, "health"),
+        Err(error) if error.is_not_found() => {
+            request(endpoint, "GET", "/api/info", None, HEALTH_TIMEOUT)?
+        }
+        Err(error) => return Err(error),
+    };
+    #[derive(Deserialize)]
+    struct Info {
+        version: String,
+        pid: u32,
+        urls: Vec<String>,
+        paths: Value,
+    }
+    let info: Info = decode(response, "server info")?;
+    if info.version.is_empty() || info.pid == 0 || info.urls.is_empty() || !info.paths.is_object() {
+        return Err(ApiError::Transport(anyhow!(
+            "OpenCode 2 returned incomplete server identity"
+        )));
+    }
+    Ok(Health {
+        healthy: true,
+        version: info.version,
+        pid: info.pid,
+    })
 }
 
 /// Creates a session with a CLIENT-MINTED id.

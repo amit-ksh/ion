@@ -228,4 +228,4 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 
 - [Pinned SVG reference documents](71-portable-svg-references.md): symbol/paint/path inlining, scoped IDs/styles/fonts and native-to-phone evidence.
 
-- [OpenCode 2 native plugin contract](72-opencode2-native-plugin-contract.md): verified released runtime discovery/configuration seam and remaining source-team implementation.
+- [OpenCode 2 native plugin contract](72-opencode2-native-plugin-contract.md): verified native 2.0.29 source-task Teams bridge, actual driver approval/Stop fixtures and owner acceptance checklist.

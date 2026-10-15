@@ -49,6 +49,7 @@ use uuid::Uuid;
 
 use super::activity;
 use super::opencode2_computer_use::{INSTRUCTION_KEY, OpenCode2ComputerUse};
+use super::source_teams::{WorkspaceContext, opencode2::OpenCode2Bridge};
 use super::support::{self, OpenCodePermissionRequest, OpenCodePermissionState};
 use crate::driver::{
     DriverControl, DriverEventSender, DriverEventSink, DriverStartOptions, SessionOptions,
@@ -357,6 +358,7 @@ struct Worker {
     events: DriverEventSender,
     commands: Sender<DriverCommand>,
     computer_use: Option<Arc<OpenCode2ComputerUse>>,
+    source_teams: Option<OpenCode2Bridge>,
 }
 
 pub(super) struct OpenCode2Driver {
@@ -376,6 +378,7 @@ pub(super) struct OpenCode2Driver {
     commands: Sender<DriverCommand>,
     supports_steer: bool,
     computer_use: Option<Arc<OpenCode2ComputerUse>>,
+    source_teams: Option<OpenCode2Bridge>,
 }
 
 impl OpenCode2Driver {
@@ -386,8 +389,24 @@ impl OpenCode2Driver {
         options: DriverStartOptions,
         events: DriverEventSender,
     ) -> anyhow::Result<Self> {
+        Self::start_with_workspace(options, events, None)
+    }
+    pub(super) fn start_with_workspace(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<WorkspaceContext>,
+    ) -> anyhow::Result<Self> {
+        let service = opencode2_service::shared(&options.binary)?;
+        Self::start_on_service(options, events, workspace, service)
+    }
+    pub(super) fn start_on_service(
+        options: DriverStartOptions,
+        events: DriverEventSender,
+        workspace: Option<WorkspaceContext>,
+        service: Arc<Opencode2Service>,
+    ) -> anyhow::Result<Self> {
         let DriverStartOptions {
-            binary,
+            binary: _,
             cwd,
             mode,
             model,
@@ -428,7 +447,6 @@ impl OpenCode2Driver {
             .to_string_lossy()
             .into_owned();
 
-        let service = opencode2_service::shared(&binary)?;
         let endpoint = service.endpoint();
         let resuming = resumed.is_some();
         let session_id = resumed.unwrap_or_else(|| format!("ses_{}", Uuid::new_v4().simple()));
@@ -510,6 +528,25 @@ impl OpenCode2Driver {
             None
         };
 
+        let source_teams = match workspace
+            .map(|context| {
+                OpenCode2Bridge::start(context, events.clone(), &cwd, &service, &session_id)
+            })
+            .transpose()
+        {
+            Ok(bridge) => bridge,
+            Err(error) => {
+                let _ = events.send(DriverEvent::Activity {
+                    id: None,
+                    kind: ActivityKind::Tool,
+                    title: "Team tools unavailable".into(),
+                    detail: Some(error.to_string()),
+                    complete: true,
+                });
+                None
+            }
+        };
+
         // The session's own token totals are a LIFETIME cumulative counter and
         // cannot gauge how full the window is, so read the latest assistant
         // message's per-request usage instead.
@@ -558,12 +595,16 @@ impl OpenCode2Driver {
             events,
             commands: commands.clone(),
             computer_use: computer_use.clone(),
+            source_teams: source_teams.clone(),
         };
         let generation = service.generation();
         let mut state = StreamState::new(session_id.clone(), mode, session_model, generation);
         thread::Builder::new()
             .name(format!("waku-opencode2-{session_id}"))
             .spawn(move || {
+                struct SourceGuard(Option<OpenCode2Bridge>);
+                impl Drop for SourceGuard { fn drop(&mut self) { if let Some(bridge)=&self.0 { bridge.close(); } } }
+                let _source_guard = SourceGuard(worker.source_teams.clone());
                 // The snapshot runs in the same sequential position as the
                 // event loop, before a single frame is decoded. Deferring it
                 // would let a concurrently decoded `session.idle` take the
@@ -581,18 +622,18 @@ impl OpenCode2Driver {
                         recv(frames) -> frame => {
                             let Ok(frame) = frame else { return };
                             match frame {
-                                HubFrame::Event(envelope) => handle_event(
-                                    &envelope,
-                                    &mut state,
-                                    &worker.events,
-                                    &worker.commands,
-                                    &worker.service,
-                                ),
+                                HubFrame::Event(envelope) => {
+                                    if let Some(bridge) = &worker.source_teams { bridge.observe(&envelope); }
+                                    handle_event(&envelope, &mut state, &worker.events, &worker.commands, &worker.service);
+                                },
                                 // Reconnection is the service's job and is
                                 // already under way. A break is NEVER a
                                 // process exit for an adopted daemon.
-                                HubFrame::Disconnected => {}
+                                HubFrame::Disconnected => { if let Some(bridge)=&worker.source_teams { bridge.cancel(); } }
                                 HubFrame::Resync { generation } => {
+                                    if let Some(bridge)=&worker.source_teams {
+                                        if let Err(error)=bridge.ensure_connected() { bridge.close(); let _=worker.events.send(DriverEvent::Activity{id:None,kind:ActivityKind::Tool,title:"Team tools unavailable".into(),detail:Some(error.to_string()),complete:true}); }
+                                    }
                                     if let Some(computer_use) = worker.computer_use.as_ref()
                                         && let Err(error) = computer_use.ensure_connected()
                                     {
@@ -617,12 +658,16 @@ impl OpenCode2Driver {
             // mid-session.
             supports_steer: true,
             computer_use,
+            source_teams,
         })
     }
 }
 
 impl DriverControl for OpenCode2Driver {
     fn prompt(&self, prompt: String) {
+        if let Some(bridge) = &self.source_teams {
+            bridge.allow_turn();
+        }
         let _ = self.commands.send(DriverCommand::Prompt(prompt));
     }
 
@@ -631,10 +676,16 @@ impl DriverControl for OpenCode2Driver {
     }
 
     fn steer(&self, prompt: String) {
+        if let Some(bridge) = &self.source_teams {
+            bridge.allow_turn();
+        }
         let _ = self.commands.send(DriverCommand::Steer(prompt));
     }
 
     fn cancel(&self) {
+        if let Some(bridge) = &self.source_teams {
+            bridge.cancel();
+        }
         self.cancel_computer_use();
         let _ = self.commands.send(DriverCommand::Cancel);
     }
@@ -646,6 +697,13 @@ impl DriverControl for OpenCode2Driver {
     }
 
     fn respond(&self, request_id: String, option_id: String) {
+        if self
+            .source_teams
+            .as_ref()
+            .is_some_and(|bridge| bridge.respond(&request_id, &option_id))
+        {
+            return;
+        }
         let _ = self.commands.send(DriverCommand::Respond {
             request_id,
             option_id,
@@ -660,6 +718,12 @@ impl DriverControl for OpenCode2Driver {
     }
 
     fn apply_options(&self, options: SessionOptions) -> bool {
+        if self.source_teams.is_some() && options.mode != self.mode {
+            if let Some(bridge) = &self.source_teams {
+                bridge.close();
+            }
+            return false;
+        }
         // Unlike v1 the access mode is not installed on the session — v2 has
         // no session-local ruleset — so a mode change is absorbed in place by
         // the worker's own state rather than restarting the driver.
@@ -704,6 +768,9 @@ impl Drop for OpenCode2Driver {
         // The worker retains the final lease and cleans up the MCP runtime
         // when it handles Shutdown; the user's service is never terminated.
         drop(self.computer_use.take());
+        if let Some(bridge) = self.source_teams.take() {
+            bridge.close();
+        }
         let _ = self.commands.send(DriverCommand::Shutdown);
     }
 }
@@ -887,6 +954,9 @@ fn submit_prompt(
     text: &str,
     delivery: Option<Delivery>,
 ) -> Result<Option<opencode2_api::InboxUser>, ApiError> {
+    if let Some(bridge) = &worker.source_teams {
+        bridge.ensure_connected().map_err(ApiError::from)?;
+    }
     if let Some(computer_use) = worker.computer_use.as_ref() {
         computer_use.ensure_connected().map_err(ApiError::from)?;
     }
@@ -916,6 +986,9 @@ fn handle_command(worker: &Worker, message: DriverCommand, state: &mut StreamSta
                 }
                 Ok(None) => state.pending_input = None,
                 Err(error) => {
+                    if let Some(bridge) = &worker.source_teams {
+                        bridge.cancel();
+                    }
                     let _ = events.send(DriverEvent::Error(tr!(
                         "errors.provider_rejected_prompt_detail",
                         provider = "OpenCode 2",
@@ -938,6 +1011,9 @@ fn handle_command(worker: &Worker, message: DriverCommand, state: &mut StreamSta
         }
         DriverCommand::Steer(text) => {
             if matches!(state.turn, TurnState::Idle) {
+                if let Some(bridge) = &worker.source_teams {
+                    bridge.cancel();
+                }
                 let _ = events.send(DriverEvent::SteerRejected {
                     message: text,
                     reason: tr!("errors.provider_no_active_turn", provider = "OpenCode 2"),
@@ -1487,8 +1563,9 @@ fn handle_event(
                 slot.title = activity::input_title(Some(&input)).unwrap_or(slot.title.clone());
                 slot.input = Some(input);
             }
-            // `executed: false` means produced-but-not-run — a denied or
-            // interrupted call — and must never render as a completed one.
+            // This flag identifies provider-hosted execution, not success.
+            // Local tools are emitted with `executed: false`; completion is
+            // reported separately by the success/failed events.
             let slot = slot.clone();
             emit_tool(events, &id, &slot, None, false, false);
         }

@@ -1,6 +1,6 @@
 # OpenCode 2 native plugin contract
 
-Updated 2026-10-15. Investigation for the remaining normal-task Teams bridge.
+Updated 2026-10-15. Implemented normal-task Teams bridge for the verified native 2.0.29 runtime.
 
 ## Verified local evidence
 
@@ -18,15 +18,15 @@ The supported plugin tool executor has those native IDs directly. **Ion implemen
 
 Native RPC at `/api/rpc/<rpcID>/<method>` accepts `{input: ...}` and returns `{output: ...}` for the probed methods. Released 2.0.29 requires explicit input/output schemas in this fixture; omitting a status input schema caused an internal validator error before its handler. The final explicit-schema fixture passed. Do not treat earlier RPC failures as service or account failures.
 
-## Implementation still required
+## Implementation status
 
-- [ ] Generalize the existing pinned project-plugin lifetime helper for `.opencode/plugins/` without weakening Amp cleanup/link/existing-file guarantees.
-- [ ] Generate task-stable native tool names and a credential-free plugin; configure/revoke only this generation through the authenticated location RPC, with abort and stale-generation fencing.
-- [ ] Add the ordinary OpenCode 2 workspace entry point and source bridge, matching live main-session/message/call/name/arguments; never authorize from history or reconnect snapshots.
-- [ ] Route owner approvals and fence failed callbacks, Stop, execution end, disconnect and teardown without stopping the user's adopted service.
-- [ ] Prove native tool execution and result return through a fake loopback provider, owner-approved invocation/replay/Stop and preserved native profile/plugins.
-- [ ] Check release/version and executable-name compatibility. V2 stable distribution uses the `opencode` executable name, while the older Ion catalogue command is `opencode2`; do not silently reinterpret the V1 entry.
-- [ ] Complete actual owner-account/platform acceptance. No full OpenCode 2 source-team implementation or authenticated model execution is claimed by this probe.
+- [x] Generalize the existing pinned project-plugin lifetime helper for `.opencode/plugins/` without weakening Amp cleanup/link/existing-file guarantees.
+- [x] Generate task-stable native tool names and a credential-free plugin; configure/revoke only this generation through the authenticated location RPC, with abort and stale-generation fencing.
+- [x] Add the ordinary OpenCode 2 workspace entry point and source bridge, matching live main-session/message/call/name/arguments; never authorize from history or reconnect snapshots.
+- [x] Route owner approvals and fence failed callbacks, Stop, execution end, disconnect and teardown without stopping the user's adopted service.
+- [x] Prove native tool execution/result return and Stop through a fake loopback provider, with owner approval and preserved native plugins/service; verify durable replay separately through the exact source witness/worker path.
+- [x] Check release/version and executable-name compatibility. V2 stable distribution uses the `opencode` executable name, while the older Ion catalogue command is `opencode2`; do not silently reinterpret the V1 entry.
+- [ ] Complete actual owner-account/platform acceptance, including native resume/hot upgrade with the owner's configured model and projects. The private fixture does not certify authenticated execution.
 
 ## Primary sources
 
@@ -36,4 +36,50 @@ Native RPC at `/api/rpc/<rpcID>/<method>` accepts `{input: ...}` and returns `{o
 - [Native plugin tools and lifecycle](https://dev.opencode.ai/v2/docs/build/plugins)
 - [Native plugin RPC](https://dev.opencode.ai/v2/docs/build/plugins/rpc/)
 
-These native probes change the next implementation seam; the coverage matrix remains unchanged until the bridge itself is implemented and verified.
+The source bridge is now implemented and verified within the pinned native contract; the coverage matrix records this separately from owner-account acceptance.
+
+## 2026-10-15 implementation increment
+
+The ordinary driver now installs the additive native plugin and binds its callback only in memory through the adopted service's authenticated location RPC. The owner independently observes live native session/assistant-message/tool-call/name/arguments before routing the five actions through the existing Teams worker. The plugin requests native permission before callback dispatch. Native tool names are stable per Ion task; generation replacement aborts older callbacks and stale revocation cannot clear a newer binding.
+
+The project plugin lifetime helper now shares a lease across concurrent/replacement drivers and checks original bytes before last-owner cleanup on a background worker. Pre-existing or owner-modified plugins remain untouched. The adopted native service is never stopped by the driver. Prompt rejection, Stop, disconnect, terminal execution, failed calls and source teardown cancel pending authority; reconnect snapshots do not create witnesses.
+
+The bridge is intentionally gated to the verified **2.0.29** plugin runtime, rechecked at bind time. Other native versions retain ordinary execution with an explicit Teams-unavailable activity. Keep the OpenCode 2 binary override pointed at the owner's released V2 executable (`opencode`); the existing V1 entry is not reinterpreted or replaced.
+
+A private native fixture found two release differences missed by the older beta integration: `/api/health` is absent (404), and inbox creation time is encoded as `time.created`. Discovery now falls back to `/api/info` only after 404, retains the descriptor PID check and refuses authentication/transport failures. Inbox decoding supports both native timestamp shapes while rejecting missing/conflicting values. Both final native fixtures pass through the actual Ion driver; registration success alone was not used as acceptance.
+
+The isolated checks use a fake account, a localhost compatible model, private home/config/data/cache/state/temp and a privately owned foreground native server. They do not certify an authenticated owner account, mobile/device behavior, completion allowance contracts or other harnesses. No visual test is included.
+
+The generated tool reached the shared owner callback during the native fixture. A subsequent fixture rejection exposed that `session.tool.called.executed` describes provider-hosted execution: local plugin tools use `false`. Ion now rejects provider-hosted calls as source authority, accepts the witnessed local path, and relies on separate failed/terminal events for cancellation. The final native fixtures assert this flag directly from an independent subscription to the actual native stream.
+
+## Verified results
+
+- Shared source-team suite: **36 passed**, 8 native/account fixtures skipped by default.
+- OpenCode 2 API/service/driver suite: **66 passed**, 12 native/account fixtures skipped by default. Two source-bridge tests overlap the shared suite.
+- Both new ignored native fixtures explicitly run and passed: approved invocation/result return and Stop at owner approval. **102 distinct checks passed** across these runs.
+- The real native turn advertises the generated tool, creates one durable run after Ion approval and returns that run's actual ID to the second local model request. Stopping at approval creates no run.
+- Native binding replacement/revocation, stale-generation refusal, credential-free project source, owner plugin preservation, final owned-file cleanup and adopted-server survival pass in both native fixtures.
+- Shared tests cover changed/foreign/partial/provider-hosted/failed/terminal calls, durable exact replay, Stop and file handoff across replacement drivers. No past/history snapshot is accepted as a fresh call.
+
+The private host retains an isolated profile and fake provider key. The actual Windows 2.0.29 executable is used, with the checksum recorded above. No live provider account, paid request, real desktop interaction or visual/device test is used.
+
+Locked offline desktop/daemon binary checks, workspace Rust formatting, Markdown formatting and diff checks pass. Existing dead-code/future-compatibility warnings remain; no build failure was observed.
+
+## Owner review
+
+- [ ] Set the **OpenCode 2 binary override** to the installed V2 2.0.29 executable. Released V2 uses `opencode`; keep the V1 entry pointed at its own executable. Explicit binary overrides are already supported by provider discovery.
+- [ ] Sign in/configure the model in native OpenCode, then confirm the same selected model/account works in an ordinary Ion task.
+- [ ] Ask the ordinary task to invoke a saved team. Check its exact objective/access approval, one durable run and returned run status/documents.
+- [ ] Stop before accepting the team request; verify no run is created. Reject an approval and verify the same result.
+- [ ] Resume/restart the ordinary task and check existing run identity, without duplicate invocation or accepting stale callbacks. Test a mode change while the task is open.
+- [ ] Keep an existing project plugin; verify it remains unchanged and native tools/account configuration remain usable after Ion task closure.
+- [ ] Review native service restart/upgrade and explicit Teams-unavailable reporting on unverified versions. Hot-upgrade/account acceptance is not proven by the pinned fixture.
+
+Re-run the private native checks with the verified V2 binary (PowerShell):
+
+```powershell
+$env:ION_NATIVE_OPENCODE2_BINARY = (Get-Command opencode).Source
+cargo test --locked -p waku-core --lib opencode2_source_team_native -- --ignored --test-threads=1
+```
+
+The command starts only fixture-owned foreground servers with fake local model responses. It does not use the owner's service or account.

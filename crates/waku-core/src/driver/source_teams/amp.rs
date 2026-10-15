@@ -12,7 +12,7 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, OnceLock, Weak,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -112,15 +112,59 @@ impl Drop for Inner {
 
 /// Native project discovery is additive. Pin parents and never overwrite existing
 /// plugin/settings/account files. Only our unchanged unique file is cleaned.
-struct ProjectPlugin {
+pub(crate) struct ProjectPlugin(Option<Arc<PluginFile>>);
+type PluginRegistry = Mutex<std::collections::HashMap<PathBuf, Weak<PluginFile>>>;
+fn plugin_registry() -> &'static PluginRegistry {
+    static LEASES: OnceLock<PluginRegistry> = OnceLock::new();
+    LEASES.get_or_init(Default::default)
+}
+struct PluginFile {
+    folder: &'static str,
     root: PathBuf,
     name: String,
     bytes: Vec<u8>,
-    parents: Vec<fs::File>,
+    _parents: Vec<fs::File>,
     owned: bool,
 }
 impl ProjectPlugin {
     fn install(cwd: &Path, name: &str, source: &str) -> Result<Self> {
+        Self::install_at(cwd, ".amp", name, source)
+    }
+    pub(crate) fn install_at(
+        cwd: &Path,
+        folder: &'static str,
+        name: &str,
+        source: &str,
+    ) -> Result<Self> {
+        let key = fs::canonicalize(cwd)?
+            .join(folder)
+            .join("plugins")
+            .join(name);
+        let mut leases = plugin_registry().lock();
+        // Revalidate exact bytes and parent pins even when another live driver
+        // already owns the file. Retain that original ownership across handoff.
+        let candidate = PluginFile::install_at(cwd, folder, name, source)?;
+        let file = match leases.get(&key).and_then(Weak::upgrade) {
+            Some(file) => {
+                ensure!(
+                    file.bytes == candidate.bytes,
+                    "Generated native plugin changed during handoff"
+                );
+                file
+            }
+            None => Arc::new(candidate),
+        };
+        leases.retain(|_, file| file.strong_count() > 0);
+        leases.insert(key, Arc::downgrade(&file));
+        Ok(Self(Some(file)))
+    }
+}
+impl PluginFile {
+    fn install_at(cwd: &Path, folder: &'static str, name: &str, source: &str) -> Result<Self> {
+        ensure!(
+            matches!(folder, ".amp" | ".opencode"),
+            "Invalid native plugin directory"
+        );
         ensure!(
             name.starts_with("ion-teams-")
                 && name.ends_with(".ts")
@@ -133,7 +177,11 @@ impl ProjectPlugin {
         {
             use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
             use windows_sys::Win32::Storage::FileSystem::*;
-            for path in [&root, &root.join(".amp"), &root.join(".amp/plugins")] {
+            for path in [
+                &root,
+                &root.join(folder),
+                &root.join(folder).join("plugins"),
+            ] {
                 if path != &root && !path.try_exists()? {
                     fs::create_dir(path)?;
                 }
@@ -147,7 +195,7 @@ impl ProjectPlugin {
                 ensure!(
                     metadata.is_dir()
                         && metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0,
-                    "Amp plugin directory is a link or not a directory"
+                    "Native plugin directory is a link or not a directory"
                 );
                 parents.push(handle);
             }
@@ -164,7 +212,7 @@ impl ProjectPlugin {
                     .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
                     .open(&root)?,
             );
-            for part in [".amp", "plugins"] {
+            for part in [folder, "plugins"] {
                 let part = std::ffi::CString::new(part)?;
                 let parent = parents.last().unwrap();
                 let created = unsafe { libc::mkdirat(parent.as_raw_fd(), part.as_ptr(), 0o700) };
@@ -181,17 +229,17 @@ impl ProjectPlugin {
                         libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
                     )
                 };
-                ensure!(fd >= 0, "Amp plugin directory is a link or unavailable");
+                ensure!(fd >= 0, "Native plugin directory is a link or unavailable");
                 parents.push(unsafe { fs::File::from_raw_fd(fd) });
             }
         }
         #[cfg(not(any(unix, windows)))]
-        anyhow::bail!("Native Amp project plugin installation is unsupported on this platform");
+        anyhow::bail!("Native project plugin installation is unsupported on this platform");
         #[cfg(windows)]
         let created = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(root.join(".amp/plugins").join(name));
+            .open(root.join(folder).join("plugins").join(name));
         #[cfg(unix)]
         let created = (|| -> std::io::Result<fs::File> {
             use std::os::fd::{AsRawFd, FromRawFd};
@@ -222,7 +270,7 @@ impl ProjectPlugin {
                     fs::OpenOptions::new()
                         .read(true)
                         .custom_flags(0x00200000)
-                        .open(root.join(".amp/plugins").join(name))?
+                        .open(root.join(folder).join("plugins").join(name))?
                 };
                 #[cfg(unix)]
                 let existing = {
@@ -235,20 +283,20 @@ impl ProjectPlugin {
                             libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
                         )
                     };
-                    ensure!(fd >= 0, "Existing Amp plugin is unavailable or linked");
+                    ensure!(fd >= 0, "Existing Native plugin is unavailable or linked");
                     unsafe { fs::File::from_raw_fd(fd) }
                 };
                 let metadata = existing.metadata()?;
                 ensure!(
                     metadata.is_file() && metadata.len() == source.len() as u64,
-                    "Existing Amp plugin differs; preserve it for owner review"
+                    "Existing Native plugin differs; preserve it for owner review"
                 );
                 #[cfg(windows)]
                 {
                     use std::os::windows::fs::MetadataExt;
                     ensure!(
                         metadata.file_attributes() & 0x400 == 0,
-                        "Existing Amp plugin is linked"
+                        "Existing Native plugin is linked"
                     );
                 }
                 let mut bytes = Vec::new();
@@ -257,23 +305,25 @@ impl ProjectPlugin {
                     .read_to_end(&mut bytes)?;
                 ensure!(
                     bytes == source.as_bytes(),
-                    "Existing Amp plugin differs; preserve it for owner review"
+                    "Existing Native plugin differs; preserve it for owner review"
                 );
                 return Ok(Self {
+                    folder,
                     root,
                     name: name.into(),
                     bytes,
-                    parents,
+                    _parents: parents,
                     owned: false,
                 });
             }
             Err(error) => return Err(error.into()),
         };
         let plugin = Self {
+            folder,
             root,
             name: name.into(),
             bytes: source.as_bytes().to_vec(),
-            parents,
+            _parents: parents,
             owned,
         };
         file.write_all(&plugin.bytes)?;
@@ -283,25 +333,39 @@ impl ProjectPlugin {
 }
 impl Drop for ProjectPlugin {
     fn drop(&mut self) {
-        // A matching crash-leftover can be reused without taking ownership of
-        // an existing project file. Never remove a file this generation did not create.
-        if !self.owned {
+        let Some(lease) = self.0.take() else {
             return;
-        }
-        let root = self.root.clone();
-        let name = self.name.clone();
-        let expected = std::mem::take(&mut self.bytes);
-        let parents = std::mem::take(&mut self.parents);
+        };
         let _ = std::thread::Builder::new()
-            .name("ion-amp-plugin-cleanup".into())
+            .name("ion-project-plugin-cleanup".into())
             .spawn(move || {
+                // This lock and filesystem work run only on the cleanup worker.
+                // Installation uses the same lock, so a new generation cannot
+                // adopt the file between the last-lease check and removal.
+                let mut leases = plugin_registry().lock();
+                if Arc::strong_count(&lease) > 1 {
+                    return;
+                }
+                let key = lease
+                    .root
+                    .join(lease.folder)
+                    .join("plugins")
+                    .join(&lease.name);
+                leases.remove(&key);
+                if !lease.owned {
+                    return;
+                }
+                let folder = lease.folder;
+                let root = &lease.root;
+                let name = lease.name.clone();
+                let expected = &lease.bytes;
                 #[cfg(windows)]
                 let opened = {
                     use std::os::windows::fs::OpenOptionsExt;
                     fs::OpenOptions::new()
                         .read(true)
                         .custom_flags(0x00200000)
-                        .open(root.join(".amp/plugins").join(&name))
+                        .open(root.join(folder).join("plugins").join(&name))
                 };
                 #[cfg(unix)]
                 let opened = (|| -> std::io::Result<fs::File> {
@@ -309,7 +373,7 @@ impl Drop for ProjectPlugin {
                     let n = std::ffi::CString::new(name.as_str())?;
                     let fd = unsafe {
                         libc::openat(
-                            parents.last().unwrap().as_raw_fd(),
+                            lease._parents.last().unwrap().as_raw_fd(),
                             n.as_ptr(),
                             libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
                         )
@@ -340,28 +404,90 @@ impl Drop for ProjectPlugin {
                     .take((expected.len() + 1) as u64)
                     .read_to_end(&mut bytes)
                     .is_err()
-                    || bytes != expected
+                    || bytes.as_slice() != expected.as_slice()
                 {
                     return;
                 }
                 #[cfg(windows)]
-                let _ = fs::remove_file(root.join(".amp/plugins").join(name));
+                let _ = fs::remove_file(root.join(folder).join("plugins").join(name));
                 #[cfg(unix)]
                 {
                     use std::os::fd::AsRawFd;
                     if let Ok(n) = std::ffi::CString::new(name) {
                         unsafe {
-                            libc::unlinkat(parents.last().unwrap().as_raw_fd(), n.as_ptr(), 0)
+                            libc::unlinkat(
+                                lease._parents.last().unwrap().as_raw_fd(),
+                                n.as_ptr(),
+                                0,
+                            )
                         };
                     }
                 }
-                drop(parents);
             });
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_project_plugin_handoff_keeps_file_until_last_driver_releases() {
+        let temp =
+            crate::driver::team_codex::EmptyDirectory::create("native-plugin-handoff").unwrap();
+        let name = "ion-teams-handoff.ts";
+        let path = temp.0.join(".opencode/plugins").join(name);
+        let first = ProjectPlugin::install_at(&temp.0, ".opencode", name, "generated").unwrap();
+        let replacement =
+            ProjectPlugin::install_at(&temp.0, ".opencode", name, "generated").unwrap();
+        drop(first);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "generated");
+        drop(replacement);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while path.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!path.exists());
+    }
+    #[test]
+    fn opencode_project_plugin_keeps_existing_and_changed_files_and_cleans_only_owned_bytes() {
+        let temp =
+            crate::driver::team_codex::EmptyDirectory::create("opencode2-plugin-files").unwrap();
+        fs::create_dir_all(temp.0.join(".opencode/plugins")).unwrap();
+        let path = temp.0.join(".opencode/plugins/ion-teams-test.ts");
+        fs::write(&path, "existing").unwrap();
+        let old = ProjectPlugin::install_at(&temp.0, ".opencode", "ion-teams-test.ts", "existing")
+            .unwrap();
+        drop(old);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "existing");
+        assert!(
+            ProjectPlugin::install_at(&temp.0, ".opencode", "ion-teams-test.ts", "changed")
+                .is_err()
+        );
+        fs::remove_file(&path).unwrap();
+        let plugin =
+            ProjectPlugin::install_at(&temp.0, ".opencode", "ion-teams-test.ts", "generated")
+                .unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "generated");
+        drop(plugin);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while path.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!path.exists());
+        let plugin =
+            ProjectPlugin::install_at(&temp.0, ".opencode", "ion-teams-test.ts", "generated")
+                .unwrap();
+        fs::write(&path, "owner changed").unwrap();
+        drop(plugin);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "owner changed");
+        assert!(
+            ProjectPlugin::install_at(&temp.0, "../outside", "ion-teams-test.ts", "generated")
+                .is_err()
+        );
+    }
     #[test]
     fn amp_project_plugin_preserves_existing_files_and_cleans_only_unchanged_generated_file() {
         let temp = crate::driver::team_codex::EmptyDirectory::create("amp-plugins").unwrap();
@@ -399,7 +525,7 @@ mod tests {
         let path = temp.0.join(".amp/plugins/ion-teams-existing.ts");
         fs::write(&path, "generated").unwrap();
         let plugin = ProjectPlugin::install(&temp.0, "ion-teams-existing.ts", "generated").unwrap();
-        assert!(!plugin.owned);
+        assert!(!plugin.0.as_ref().unwrap().owned);
         drop(plugin);
         std::thread::sleep(std::time::Duration::from_millis(100));
         assert_eq!(fs::read_to_string(path).unwrap(), "generated");
