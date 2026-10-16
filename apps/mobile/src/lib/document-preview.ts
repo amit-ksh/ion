@@ -1,3 +1,4 @@
+import { MAX_DOCUMENT_TEXT_BYTES, documentPreparation } from "./document-text";
 import type { RootContent } from "mdast";
 import { parseBlocks } from "../md/parse";
 import {
@@ -202,4 +203,49 @@ export async function prepareDocumentReading(
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
+}
+
+/** Complete virtualized source for every supported text publication. The
+ * synchronous semantic parsers retain their small-input bounds. */
+export async function prepareDocumentSource(
+  text: string,
+  current: () => boolean,
+) {
+  const rows: DocumentPreviewRow[] = [];
+  let bytes = 0;
+  const pause = documentPreparation(current);
+  if (!current()) throw new Error("Document reading scope changed");
+  for (let i = 0; i < text.length;) {
+    let end = Math.min(text.length, i + 1000);
+    if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1]!)) end--;
+    const piece = text.slice(i, end);
+    for (const character of piece) {
+      const point = character.codePointAt(0)!;
+      bytes += point <= 127 ? 1 : point <= 2047 ? 2 : point <= 65535 ? 3 : 4;
+    }
+    if (bytes > MAX_DOCUMENT_TEXT_BYTES)
+      throw new Error("Document text exceeds its 16 MiB limit");
+    rows.push({ id: String(i), text: piece, node: null });
+    i = end;
+    await pause(piece.length);
+  }
+  if (!current()) throw new Error("Document reading scope changed");
+  return { rows, bytes };
+}
+export async function prepareTextDocumentViews(
+  format: string,
+  text: string,
+  current: () => boolean,
+) {
+  const source = await prepareDocumentSource(text, current);
+  const readingPreview: DocumentReadingPreview =
+    source.bytes <= 65_536
+      ? await prepareDocumentReading(format, text, current)
+      : {
+          rows: source.rows,
+          sourceFallback: true,
+          note: "Showing complete Source for this larger document. Export keeps the original.",
+        };
+  if (!current()) throw new Error("Document reading scope changed");
+  return { sourceRows: source.rows, readingPreview };
 }

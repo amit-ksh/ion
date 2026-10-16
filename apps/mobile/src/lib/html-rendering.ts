@@ -1,14 +1,17 @@
+import { documentHtmlParser, HTML_PARSE_CHUNK } from "./html-parser";
 import {
-  Parser,
   html as constants,
   defaultTreeAdapter as tree,
   type DefaultTreeAdapterMap,
 } from "parse5";
 
-import { RASTER_IMAGE, SVG_FRAGMENT, svgImageValidator } from "./svg-images";
+import { SVG_FRAGMENT, svgImageValidator } from "./svg-images";
 
-export const MAX_RENDERED_HTML_BYTES = 1024 * 1024;
-const CHUNK = 8192;
+import { MAX_DOCUMENT_TEXT_BYTES, documentPreparation } from "./document-text";
+
+export const MAX_RENDERED_HTML_BYTES = MAX_DOCUMENT_TEXT_BYTES;
+const CHUNK = HTML_PARSE_CHUNK;
+export const MAX_PREPARED_HTML_BYTES = 32 * 1024 * 1024;
 const CSP =
   "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' data:; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'";
 const HTML_NS = constants.NS.HTML;
@@ -98,6 +101,18 @@ async function embeddedSrcset(
   }
   return true;
 }
+/** Validate large raster data attributes in bounded pieces too. Browser image
+ * decoding remains separate; the document CSP still refuses remote fetches. */
+async function embeddedRaster(value: string, current: () => boolean) {
+  const pause = documentPreparation(current, "Document rendering");
+  const header = /^data:image\/(?:png|jpeg|gif|webp);base64,/i.exec(value);
+  if (!header || value.length === header[0].length) return false;
+  for (let i = header[0].length; i < value.length; i += CHUNK) {
+    if (!/^[a-z0-9+/=\s]+$/i.test(value.slice(i, i + CHUNK))) return false;
+    await pause();
+  }
+  return true;
+}
 export type RenderedHtml = { html: string; removed: boolean };
 export function allowDocumentNavigation(url: string): boolean {
   return url === "about:blank" || /^about:blank#[^\s]*$/.test(url);
@@ -114,6 +129,12 @@ export async function prepareRenderedHtml(
     if (!current()) throw new Error("Document rendering scope changed");
   };
   allowed();
+  const pause = documentPreparation(current, "Document rendering");
+  const byteError = () =>
+    new Error(
+      "HTML rendering supports documents up to 16 MiB. Export the original to open a larger document.",
+    );
+  if (source.length > MAX_RENDERED_HTML_BYTES) throw byteError();
   let size = 0;
   // Count UTF-8 without a native TextEncoder requirement, yielding between batches.
   for (let i = 0; i < source.length;) {
@@ -122,48 +143,18 @@ export async function prepareRenderedHtml(
       const point = source.codePointAt(i)!;
       size += point <= 127 ? 1 : point <= 2047 ? 2 : point <= 65535 ? 3 : 4;
       i += point > 65535 ? 2 : 1;
-      if (size > MAX_RENDERED_HTML_BYTES)
-        throw new Error(
-          "HTML rendering supports documents up to 1 MiB. Export the original to open a larger document.",
-        );
+      if (size > MAX_RENDERED_HTML_BYTES) throw byteError();
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await pause();
     allowed();
   }
-  let created = 0;
-  const complexityError = () =>
-    new Error(
-      "This HTML is too complex to render. Use Reading view or export the original.",
-    );
-  const adapter = {
-    ...tree,
-    createElement: (...args: Parameters<typeof tree.createElement>) => {
-      if (++created > 50_000) throw complexityError();
-      return tree.createElement(...args);
-    },
-    onItemPush: (node: DefaultTreeAdapterMap["parentNode"]) => {
-      // Reject deep trees while parsing, before allocating the complete DOM.
-      let depth = 0,
-        parent: DefaultTreeAdapterMap["parentNode"] | null = node;
-      while (parent && "parentNode" in parent) {
-        if (++depth > 128) throw complexityError();
-        parent = parent.parentNode;
-      }
-    },
-  };
-  const parser = new Parser<DefaultTreeAdapterMap>({
-    scriptingEnabled: false,
-    treeAdapter: adapter,
-  });
+  const parser = documentHtmlParser();
   for (let i = 0; i < source.length; i += CHUNK) {
     allowed();
-    parser.tokenizer.write(
-      source.slice(i, i + CHUNK),
-      i + CHUNK >= source.length,
-    );
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    parser.write(source.slice(i, i + CHUNK), i + CHUNK >= source.length);
+    await pause();
   }
-  if (!source.length) parser.tokenizer.write("", true);
+  if (!source.length) parser.write("", true);
   allowed();
   const document = parser.document;
   const pending: { node: DefaultTreeAdapterMap["node"]; depth: number }[] = [
@@ -198,22 +189,23 @@ export async function prepareRenderedHtml(
       const imageContext =
         (node.namespaceURI === HTML_NS && tag === "img") ||
         (node.namespaceURI === SVG_NS && ["image", "feimage"].includes(tag));
-      const embeddedSvg = new Set<string>(),
-        responsiveImages = new Set<string>();
+      const embeddedImages = new Set<(typeof node.attrs)[number]>(),
+        responsiveImages = new Set<(typeof node.attrs)[number]>();
       for (const attribute of node.attrs) {
         if (
           imageContext &&
           ["src", "href"].includes(attribute.name) &&
-          /^data:image\/svg\+xml;/i.test(attribute.value) &&
-          (await svgImage(attribute.value))
+          ((/^data:image\/svg\+xml;/i.test(attribute.value) &&
+            (await svgImage(attribute.value))) ||
+            (await embeddedRaster(attribute.value, current)))
         )
-          embeddedSvg.add(attribute.value);
+          embeddedImages.add(attribute);
         if (
           attribute.name === "srcset" &&
           (tag === "img" || pictureSource) &&
           (await embeddedSrcset(attribute.value, svgImage))
         )
-          responsiveImages.add(attribute.value);
+          responsiveImages.add(attribute);
       }
       node.attrs = node.attrs.filter((attr) => {
         const name = attr.name.toLowerCase();
@@ -243,7 +235,7 @@ export async function prepareRenderedHtml(
               (node.namespaceURI === SVG_NS &&
                 ["image", "feimage"].includes(tag) &&
                 name === "href")) &&
-            (RASTER_IMAGE.test(attr.value) || embeddedSvg.has(attr.value));
+            embeddedImages.has(attr);
           const fragment =
             node.namespaceURI === SVG_NS &&
             name === "href" &&
@@ -251,7 +243,7 @@ export async function prepareRenderedHtml(
           const responsive =
             name === "srcset" &&
             (tag === "img" || pictureSource) &&
-            responsiveImages.has(attr.value);
+            responsiveImages.has(attr);
           if (!embedded && !fragment && !responsive) {
             removed = true;
             return false;
@@ -266,7 +258,7 @@ export async function prepareRenderedHtml(
       for (let i = node.childNodes.length - 1; i >= 0; i--)
         pending.push({ node: node.childNodes[i]!, depth: depth + 1 });
     if (visited % 512 === 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      await pause();
       allowed();
     }
   }
@@ -298,12 +290,38 @@ export async function prepareRenderedHtml(
     stack: { node: DefaultTreeAdapterMap["node"] | string }[] = [
       { node: document },
     ];
-  const escape = (text: string, attribute = false) =>
-    text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(attribute ? /"/g : /$^/g, "&quot;");
+  let preparedBytes = 0,
+    work = 0;
+  const emit = async (text: string, attribute = false, raw = false) => {
+    for (let i = 0; i < text.length;) {
+      let end = Math.min(text.length, i + CHUNK);
+      if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1]!)) end--;
+      let piece = text.slice(i, end);
+      if (!raw)
+        piece = piece
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(attribute ? /"/g : /$^/g, "&quot;");
+      for (const character of piece) {
+        const point = character.codePointAt(0)!;
+        preparedBytes +=
+          point <= 127 ? 1 : point <= 2047 ? 2 : point <= 65535 ? 3 : 4;
+      }
+      if (preparedBytes > MAX_PREPARED_HTML_BYTES)
+        throw new Error(
+          "Prepared HTML exceeds its 32 MiB limit. Use Source or export the original.",
+        );
+      output.push(piece);
+      work += end - i;
+      i = end;
+      if (work >= CHUNK) {
+        work = 0;
+        await pause();
+        allowed();
+      }
+    }
+  };
   const voids = new Set([
     "area",
     "base",
@@ -322,32 +340,42 @@ export async function prepareRenderedHtml(
   let count = 0;
   while (stack.length) {
     const { node } = stack.pop()!;
-    if (typeof node === "string") output.push(node);
+    if (typeof node === "string") await emit(node, false, true);
     else if (tree.isTextNode(node))
-      output.push(
-        node.parentNode &&
+      await emit(
+        node.value,
+        false,
+        !!(
+          node.parentNode &&
           tree.isElementNode(node.parentNode) &&
           node.parentNode.tagName === "style" &&
           node.parentNode.namespaceURI === HTML_NS
-          ? node.value
-          : escape(node.value),
+        ),
       );
     else if (tree.isElementNode(node)) {
-      output.push(
-        `<${node.tagName}${node.attrs.map((attr) => ` ${attr.prefix ? attr.prefix + ":" : ""}${attr.name}="${escape(attr.value, true)}"`).join("")}>`,
-      );
+      await emit(`<${node.tagName}`, false, true);
+      for (const attribute of node.attrs) {
+        await emit(
+          ` ${attribute.prefix ? attribute.prefix + ":" : ""}${attribute.name}="`,
+          false,
+          true,
+        );
+        await emit(attribute.value, true);
+        await emit('"', false, true);
+      }
+      await emit(">", false, true);
       if (!(node.namespaceURI === HTML_NS && voids.has(node.tagName))) {
         stack.push({ node: `</${node.tagName}>` });
         for (let i = node.childNodes.length - 1; i >= 0; i--)
           stack.push({ node: node.childNodes[i]! });
       }
     } else if (node.nodeName === "#documentType")
-      output.push("<!doctype html>");
+      await emit("<!doctype html>", false, true);
     else if ("childNodes" in node)
       for (let i = node.childNodes.length - 1; i >= 0; i--)
         stack.push({ node: node.childNodes[i]! });
     if (++count % 512 === 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      await pause();
       allowed();
     }
   }
@@ -362,23 +390,10 @@ export async function prepareHtmlViews(
   current: () => boolean,
   format = "html",
 ) {
-  const { prepareDocumentReading } = await import("./document-preview");
-  const { previewUtf8Size } = await import("./html-reading");
-  const sourceRows: import("./document-preview").DocumentPreviewRow[] = [];
-  for (let i = 0; i < text.length;) {
-    let end = Math.min(text.length, i + 1000);
-    if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1]!)) end--;
-    sourceRows.push({
-      id: String(i),
-      text: text.slice(i, end),
-      node: null,
-    });
-    i = end;
-    if (sourceRows.length % 32 === 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      if (!current()) throw new Error("Document rendering scope changed");
-    }
-  }
+  const { prepareDocumentReading, prepareDocumentSource } =
+    await import("./document-preview");
+  const source = await prepareDocumentSource(text, current);
+  const sourceRows = source.rows;
   let readingPreview: import("./document-preview").DocumentReadingPreview;
   if (format === "svg")
     readingPreview = {
@@ -386,7 +401,7 @@ export async function prepareHtmlViews(
       sourceFallback: true,
       note: "SVG Source · Choose Rendered to view the drawing.",
     };
-  else if (previewUtf8Size(text) <= 65536)
+  else if (source.bytes <= 65536)
     readingPreview = await prepareDocumentReading("html", text, current);
   else
     readingPreview = {

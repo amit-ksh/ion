@@ -2,7 +2,7 @@
 
 ## Current scope update (2026-10-14)
 
-The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](63-phone-rendered-documents.md) records available behavior and remaining publication/resource work.
+The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](81-phone-large-documents.md) records available behavior and remaining publication/resource work.
 
 Updated 2026-10-12. Development branch: `codex/ion-agent-teams`, based on
 `ion-prod` in a separate managed worktree. This records the foundation, invocation, continuation, native adapter, daemon dispatch, review/rework and token-budget
@@ -3257,3 +3257,12 @@ Portable HTML now inlines inspected SVG reference documents once and rewrites lo
 - [x] Full mobile TypeScript, locked offline desktop/both daemon checks and formatting/diff checks pass. Existing warnings remain. The independent parser checks variable syntax, not computed values.
 - [x] Record [implementation and review checklist](80-portable-css-properties.md). No visual/device test, watcher restart, provider request, deployment or ion-prod merge occurred.
 - [ ] Dynamic CSS names, wider fonts, additional formats/larger reading paths, remaining native harness contracts and account/browser/device acceptance remain active goal work.
+
+## 2026-10-16 - Larger phone documents
+
+- [x] Prepare complete supported UTF-8 originals and HTML/SVG rendered input up to the existing 16 MiB publication limit in direct Artifacts and gateway evidence; retain complete virtualized Source and exact export.
+- [x] Batch strict decoding, source rows, HTML5 tree construction and serialization with scope fences; bound prepared output to 32 MiB and retain Source after refusal.
+- [x] Fix measured character-token/text-rope memory growth and the newly caught entity-offset compaction regression. Pinned parse5 semantics match stock tree construction across malformed/foreign/table/entity and token-boundary cases.
+- [x] Pass 97 phone regressions, no failures/skips, 1,851 assertions; all five production-native fixture families and Office reading are included. Three current-native fixture exports, full mobile types, browser bundle and formatting/diff checks pass.
+- [x] Record [implementation, measured limits and owner review](81-phone-large-documents.md). No visual/device test, paid request, watcher restart, deployment or ion-prod merge occurred.
+- [ ] Finish dynamic CSS name/font fidelity, Cursor/Fx/Kimi source bridges, Amp/Cursor bounded completion contracts, and authenticated provider/browser/device acceptance. The full goal remains active.

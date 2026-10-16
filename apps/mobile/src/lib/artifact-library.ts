@@ -4,7 +4,11 @@ import type {
   ArtifactLibraryQuery,
   WakuClient,
 } from "@waku/client";
-import { workflowDocumentText } from "./gateway-workflow-document";
+import {
+  isTextDocumentFormat,
+  MAX_DOCUMENT_TEXT_BYTES,
+  prepareDocumentText,
+} from "./document-text";
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const NIL = "00000000-0000-0000-0000-000000000000";
 const HASH = /^[0-9a-f]{64}$/;
@@ -291,26 +295,16 @@ export async function decodeArtifactBytes(
   allowed();
   return bytes;
 }
-export function artifactText(
+export async function artifactText(
   document: ArtifactLibraryItem,
   bytes: Uint8Array,
-): string | null {
+  current: () => boolean,
+): Promise<string | null> {
+  if (!current()) throw new Error("Document reading scope changed");
   if (
-    ![
-      "md",
-      "txt",
-      "csv",
-      "json",
-      "html",
-      "htm",
-      "svg",
-      "xml",
-      "yaml",
-      "yml",
-    ].includes(document.format) ||
-    bytes.length >
-      (["html", "htm", "svg"].includes(document.format) ? 1024 * 1024 : 65_536)
+    !isTextDocumentFormat(document.format) ||
+    bytes.length > MAX_DOCUMENT_TEXT_BYTES
   )
     return null;
-  return workflowDocumentText(bytes);
+  return prepareDocumentText(bytes, current);
 }

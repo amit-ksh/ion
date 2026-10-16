@@ -153,7 +153,7 @@ describe("direct phone artifact library", () => {
       digest,
     );
     expect(Buffer.from(result)).toEqual(bytes);
-    expect(artifactText(item, result)).toBe(bytes.toString());
+    expect(await artifactText(item, result, () => true)).toBe(bytes.toString());
   });
   test("metadata substitution and byte/hash mismatch are refused", async () => {
     for (const changed of [
@@ -235,11 +235,23 @@ describe("direct phone artifact library", () => {
       ),
     ).rejects.toThrow("scope changed");
   });
-  test("binary and oversized textual documents keep verified export without truncated previews", () => {
-    expect(artifactText({ ...item, format: "pdf" }, bytes)).toBe(null);
-    expect(artifactText({ ...item, format: "docx" }, bytes)).toBe(null);
-    expect(artifactText(item, new Uint8Array(65537))).toBe(null);
-    expect(() => artifactText(item, new Uint8Array([255]))).toThrow("UTF-8");
+  test("binary and oversized textual documents keep verified export without truncated previews", async () => {
+    expect(
+      await artifactText({ ...item, format: "pdf" }, bytes, () => true),
+    ).toBe(null);
+    expect(
+      await artifactText({ ...item, format: "docx" }, bytes, () => true),
+    ).toBe(null);
+    expect(
+      await artifactText(
+        item,
+        new Uint8Array(16 * 1024 * 1024 + 1),
+        () => true,
+      ),
+    ).toBe(null);
+    await expect(
+      artifactText(item, new Uint8Array([255]), () => true),
+    ).rejects.toThrow("UTF-8");
   });
   test("large original transfer is complete and cancellation is checked while decoding", async () => {
     const payload = Buffer.alloc(100_000, 65),

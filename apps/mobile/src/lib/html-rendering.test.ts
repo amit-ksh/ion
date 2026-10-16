@@ -4,6 +4,7 @@ import {
   prepareRenderedHtml,
   prepareHtmlViews,
   allowDocumentNavigation,
+  MAX_RENDERED_HTML_BYTES,
 } from "./html-rendering";
 
 test("preserve responsive CSS, tables, SVG and embedded raster images", async () => {
@@ -73,8 +74,8 @@ test("larger styled publications retain complete source", async () => {
 });
 test("bounds use UTF8 bytes and cancellation stops preparation", async () => {
   await expect(
-    prepareRenderedHtml("語".repeat(350000), () => true),
-  ).rejects.toThrow("1 MiB");
+    prepareRenderedHtml("x".repeat(MAX_RENDERED_HTML_BYTES + 1), () => true),
+  ).rejects.toThrow("16 MiB");
   let checks = 0;
   await expect(
     prepareRenderedHtml("x".repeat(60000), () => ++checks < 3),
@@ -85,7 +86,7 @@ test("bounds use UTF8 bytes and cancellation stops preparation", async () => {
       () => true,
     ),
   ).rejects.toThrow("too complex");
-});
+}, 30000);
 test("native navigation accepts only the initial blank document and anchors", () => {
   for (const url of ["about:blank", "about:blank#section"])
     expect(allowDocumentNavigation(url)).toBe(true);

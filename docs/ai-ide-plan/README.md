@@ -247,3 +247,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Antigravity source-task Teams bridge](79-antigravity-source-team-bridge.md): scoped additive plugin, native identity/shared worker, actual driver invocation/resume/Stop recovery and remaining owner review.
 
 - [Portable CSS custom properties](80-portable-css-properties.md): private registrations/variable references, one-pass nested declaration traversal, actual native-to-phone evidence and remaining dynamic/browser/device work.
+
+- [Larger phone documents](81-phone-large-documents.md): complete 16 MiB text/HTML preparation, bounded parser memory and serialization, native/phone evidence and current remaining work.

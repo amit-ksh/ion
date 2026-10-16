@@ -2,6 +2,8 @@
 
 Updated 2026-10-16. Implementation branch: `codex/ion-agent-teams`.
 
+Subsequent increment: [larger phone documents](81-phone-large-documents.md) now supports 16 MiB text/HTML input with bounded preparation. Limits/results below describe this earlier checkpoint.
+
 ## Implemented behavior
 
 Each imported SVG reference document now has private, case-sensitive custom-property identities. Declarations, `var()` references, `@property` registrations, supported style/support queries, import supports conditions, literal transition/will-change property references and SVG presentation values use the same per-file identity. Two inspected SVGs sharing a stylesheet can reuse names without binding to each other's property registrations. Source HTML retains its authored names.

@@ -24,8 +24,7 @@ import {
   readArtifactDocument,
 } from "@/lib/artifact-library";
 import {
-  documentPreviewRows,
-  prepareDocumentReading,
+  prepareTextDocumentViews,
   type DocumentPreviewRow,
   type DocumentReadingPreview,
 } from "@/lib/document-preview";
@@ -185,8 +184,9 @@ export default function ArtifactDocumentScreen() {
         if (!current()) return;
         let text: string | null = null;
         try {
-          text = artifactText(selected.document, bytes);
-        } catch {
+          text = await artifactText(selected.document, bytes, current);
+        } catch (error) {
+          if (!current()) throw error;
           /* Invalid textual bytes remain exportable as exact original content. */
         }
         const htmlViews =
@@ -194,20 +194,17 @@ export default function ArtifactDocumentScreen() {
           ["html", "htm", "svg"].includes(selected.document.format)
             ? await prepareHtmlViews(text, current, selected.document.format)
             : null;
-        const sourceRows =
-          htmlViews?.sourceRows ??
-          (text !== null
-            ? documentPreviewRows(selected.document.format, text, false)
-            : []);
-        let readingPreview =
-          htmlViews?.readingPreview ??
-          (text !== null
-            ? await prepareDocumentReading(
+        const textViews =
+          text !== null && !htmlViews
+            ? await prepareTextDocumentViews(
                 selected.document.format,
                 text,
                 current,
               )
-            : null);
+            : null;
+        const sourceRows = htmlViews?.sourceRows ?? textViews?.sourceRows ?? [];
+        let readingPreview =
+          htmlViews?.readingPreview ?? textViews?.readingPreview ?? null;
         let officeError: string | null = null;
         if (["docx", "xlsx"].includes(selected.document.format)) {
           try {

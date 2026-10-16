@@ -1,3 +1,8 @@
+import {
+  isTextDocumentFormat,
+  MAX_DOCUMENT_TEXT_BYTES,
+  prepareDocumentText,
+} from "@/lib/document-text";
 import { prepareOfficeReading } from "@/lib/office-reading";
 import { ArtifactImagePreview } from "@/components/artifact-image-preview";
 import { prepareArtifactImage, type ArtifactImage } from "@/lib/artifact-image";
@@ -6,7 +11,7 @@ import { prepareHtmlViews, type RenderedHtml } from "@/lib/html-rendering";
 import { PdfPageViewer, pdfDigest } from "@/components/artifact-pdf-preview";
 import { readGatewayPdfPage } from "@/lib/gateway-pdf";
 import {
-  documentPreviewRows,
+  prepareTextDocumentViews,
   prepareDocumentReading,
   type DocumentPreviewRow,
   type DocumentReadingPreview,
@@ -37,10 +42,7 @@ import {
 } from "@/components/automation-controls";
 import { useGatewayPortfolio } from "@/hooks/use-gateway-portfolio";
 import { useTheme } from "@/hooks/use-theme";
-import {
-  readGatewayWorkflowDocument,
-  workflowDocumentText,
-} from "@/lib/gateway-workflow-document";
+import { readGatewayWorkflowDocument } from "@/lib/gateway-workflow-document";
 import { exportWorkflowDocument } from "@/lib/workflow-document-export";
 export default function GatewayWorkflowEvidenceScreen() {
   const params = useLocalSearchParams<{ run: string; owner: string }>(),
@@ -182,15 +184,7 @@ export default function GatewayWorkflowEvidenceScreen() {
       AppState.currentState !== "active"
     )
       return;
-    if (
-      !exporting &&
-      record.bytes >
-        (["pdf", "png", "docx", "xlsx"].includes(record.format)
-          ? 16 * 1024 * 1024
-          : ["html", "htm", "svg"].includes(record.format)
-            ? 1024 * 1024
-            : 65_536)
-    ) {
+    if (!exporting && record.bytes > MAX_DOCUMENT_TEXT_BYTES) {
       setMessage({
         text: "This document exceeds the Reading preview limit. Export the verified original.",
         error: true,
@@ -289,25 +283,20 @@ export default function GatewayWorkflowEvidenceScreen() {
           scope: started,
         });
       } else {
-        if (
-          bytes.length >
-          (["html", "htm", "svg"].includes(record.format)
-            ? 1024 * 1024
-            : 65_536)
-        )
+        if (!isTextDocumentFormat(record.format))
           throw new Error(
-            "This document exceeds the Reading preview limit. Export the verified original.",
+            "Reading is unavailable for this document format. Export the verified original.",
           );
-        const text = workflowDocumentText(bytes);
+        const text = await prepareDocumentText(bytes, current);
         const htmlViews = ["html", "htm", "svg"].includes(record.format)
           ? await prepareHtmlViews(text, current, record.format)
           : null;
-        const sourceRows =
-          htmlViews?.sourceRows ??
-          documentPreviewRows(record.format, text, false);
+        const textViews = !htmlViews
+          ? await prepareTextDocumentViews(record.format, text, current)
+          : null;
+        const sourceRows = htmlViews?.sourceRows ?? textViews!.sourceRows;
         const readingPreview =
-          htmlViews?.readingPreview ??
-          (await prepareDocumentReading(record.format, text, current));
+          htmlViews?.readingPreview ?? textViews!.readingPreview;
         if (!current()) return;
         setReadingView(true);
         setRendering(!!htmlViews?.rendered);

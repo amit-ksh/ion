@@ -1,3 +1,4 @@
+import { documentTextSteps } from "./document-text";
 import {
   workflowChunkBytes,
   validatePortfolioResult,
@@ -95,38 +96,11 @@ export async function readGatewayWorkflowDocument(
 }
 /** Native UTF-8 decoding without a required TextDecoder/Buffer polyfill. */
 export function workflowDocumentText(bytes: Uint8Array): string {
-  const text: string[] = [];
-  for (let i = 0; i < bytes.length;) {
-    const first = bytes[i++]!;
-    let point: number, count: number, min: number;
-    if (first < 128) {
-      point = first;
-      count = 0;
-      min = 0;
-    } else if (first >= 194 && first <= 223) {
-      point = first & 31;
-      count = 1;
-      min = 128;
-    } else if (first >= 224 && first <= 239) {
-      point = first & 15;
-      count = 2;
-      min = 2048;
-    } else if (first >= 240 && first <= 244) {
-      point = first & 7;
-      count = 3;
-      min = 65536;
-    } else throw new Error("Document is not valid UTF-8 text");
-    for (let j = 0; j < count; j++) {
-      const next = bytes[i++];
-      if (next === undefined || (next & 192) !== 128)
-        throw new Error("Document is not valid UTF-8 text");
-      point = (point << 6) | (next & 63);
-    }
-    if (point < min || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff))
-      throw new Error("Document is not valid UTF-8 text");
-    text.push(String.fromCodePoint(point));
+  const steps = documentTextSteps(bytes);
+  for (;;) {
+    const step = steps.next();
+    if (step.done) return step.value;
   }
-  return text.join("");
 }
 export function workflowExportName(
   document: Pick<WorkflowDocument, "name" | "format" | "id">,
