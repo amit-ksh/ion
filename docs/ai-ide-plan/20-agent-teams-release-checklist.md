@@ -17,9 +17,10 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [ ] Kimi ordinary-task Teams bridge; [source-host candidate and runtime gates](83-kimi-current-contract.md).
 - [ ] Amp bounded completion allowance/account/metering contract.
 - [ ] Cursor bounded completion ceiling/account contract.
-- [ ] Dynamic CSS named references/`ident()` and remaining font-family fidelity. The [palette/feature increment](85-portable-font-features.md) is implemented and verified separately.
+- [x] Unicode 18.0 font-family matching without normalization; [native-to-phone evidence and owner review](88-portable-unicode-font-families.md).
+- [ ] Dynamic CSS named references/`ident()` and real browser/glyph fidelity. The [palette/feature increment](85-portable-font-features.md) is implemented and verified separately.
 
-Harness coverage is 23/28 paths (about 82% by path count); this is not an overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
+Harness coverage is 24/28 paths (about 86% by path count); this is not an overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
 
 Live acceptance remains separate: selected native provider accounts/platforms, real phone WebViews on iPhone 15/Moto G32, and owner Nebius/speech infrastructure. These need the owner's resources and device review. The dated sections below retain historical checkpoints; older unchecked entries can be superseded by later evidence and are not a cumulative current issue count. The full goal remains active.
 

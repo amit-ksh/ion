@@ -1,5 +1,9 @@
 # Agent teams: implementation progress and review checklist
 
+## Latest document increment (2026-10-16)
+
+Imported font-family identities now use the pinned Unicode 18.0 C/F mapping, with no locale tailoring or normalization. **97 distinct native/publication/export/phone cases pass**, including all-scalar conformance and preservation of original publications. [Implementation and owner review](88-portable-unicode-font-families.md). Dynamic CSS names/`ident()`, browser/glyph acceptance and the four remaining harness paths remain open.
+
 ## Latest native Cursor increment (2026-10-16)
 
 The verified Windows Cursor source-task Teams bridge is implemented. The current ledger is **24/28 source-level paths (about 86%)**, with four integration paths plus platform/document/live-acceptance work remaining. [Implementation, 50 passing Cursor cases and owner review](87-cursor-source-team-bridge.md). The existing ACP/Grok regression filters and desktop/both-daemon compiler gates pass. Changes remain in the implementation worktree until explicitly integrated into ion-prod.

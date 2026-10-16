@@ -2,6 +2,7 @@
 //! per-compound stylesheet markers. Markers survive native <use> cloning.
 use super::*;
 mod context_styles;
+mod font_casefold;
 mod font_styles;
 mod named_styles;
 mod property_styles;
@@ -682,7 +683,7 @@ fn family_name(source: &str) -> Option<String> {
     let first = parser.next().ok()?.clone();
     if let CssToken::QuotedString(name) = first {
         parser.expect_exhausted().ok()?;
-        return Some(name.to_ascii_lowercase());
+        return Some(font_casefold::fold(&name));
     }
     let mut words = Vec::new();
     let CssToken::Ident(first) = first else {
@@ -723,7 +724,7 @@ fn family_name(source: &str) -> Option<String> {
     {
         return None;
     }
-    Some(words.join(" ").to_ascii_lowercase())
+    Some(font_casefold::fold(&words.join(" ")))
 }
 impl Names {
     pub fn family(&self, source: &str) -> Result<String> {
@@ -1011,6 +1012,28 @@ mod tests {
         let html = b.html(r##"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><use href="icons/a.svg#badge" x="3" width="20"/><use xlink:href="icons/b.svg#badge"/><text><textPath href="icons/b.svg#route">Along route</textPath></text><rect fill="url(icons/a.svg#paint)" mask="url(icons/b.svg#cut)"/></svg>"##, "index.html").unwrap();
         assert_eq!(b.used.len(), 4);
         html
+    }
+    #[test]
+    fn imported_font_family_names_use_unicode_caseless_matching_without_normalization() {
+        for (left, right) in [
+            ("Straße", "STRASSE"),
+            ("ΟΣ", "ος"),
+            ("ΜΆΪΟΣ", "μάϊοσ"),
+            ("ЛИЦО", "лицо"),
+            ("Kelvin", "kelvin"),
+            ("ﬃ Face", "FFI face"),
+            ("𐐀 Font", "𐐨 font"),
+            ("İ Face", "i\u{307} face"),
+        ] {
+            let quoted = CssToken::QuotedString(left.into()).to_css_string();
+            assert_eq!(family_name(left), family_name(right), "{left} / {right}");
+            assert_eq!(family_name(&quoted), family_name(right));
+        }
+        assert_ne!(family_name("É Face"), family_name("E\u{301} Face"));
+        assert_ne!(family_name("I Face"), family_name("ı Face"));
+        assert!(family_name("serif").is_none());
+        assert_eq!(family_name("\"SERIF\""), Some("serif".into()));
+        assert!(family_name("inherit").is_none());
     }
     #[test]
     fn sprite_documents_preserve_unique_ids_styles_geometry_fonts_and_repeated_references() {

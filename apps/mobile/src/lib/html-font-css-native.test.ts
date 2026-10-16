@@ -134,6 +134,28 @@ test.skipIf(!fixture)(
     );
   },
 );
+test.skipIf(!fixture)(
+  "native Unicode font family matching survives phone preparation",
+  async () => {
+    const { styles, prefixes } = await prepared();
+    for (const prefix of prefixes) {
+      const imported = styles.find((style) =>
+        style.startsWith(`@font-face{font-family:"${prefix}font_report"`),
+      )!;
+      expect(imported).toBeDefined();
+      for (const family of ["strasse", "οσ", "é face", "é face"])
+        expect(imported).toContain(`font-family:"${prefix}font_${family}"`);
+      expect(imported).toContain(
+        `font-family:"${prefix}font_strasse","${prefix}font_οσ","${prefix}font_é face","${prefix}font_é face",serif`,
+      );
+      expect(imported).toContain(`@font-feature-values"${prefix}font_οσ"`);
+      expect(imported).toContain('content:"Straße ΟΣ É É"');
+      for (const other of prefixes)
+        if (other !== prefix) expect(imported).not.toContain(other);
+    }
+  },
+);
+
 test.skipIf(!fixture || !parserPath)(
   "independent CSS Tree validates native font rule and property grammar",
   async () => {
@@ -210,10 +232,10 @@ test.skipIf(!fixture || !parserPath)(
         }
       });
     }
-    expect(palettes).toBe(3);
-    expect(features).toBe(4);
-    expect(descriptors).toBe(5);
-    expect(properties).toBeGreaterThanOrEqual(21);
+    expect(palettes).toBe(5);
+    expect(features).toBe(6);
+    expect(descriptors).toBe(7);
+    expect(properties).toBeGreaterThanOrEqual(33);
   },
   20000,
 );

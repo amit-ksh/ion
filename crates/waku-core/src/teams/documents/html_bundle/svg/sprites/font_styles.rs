@@ -413,7 +413,7 @@ mod publication_tests {
                     "image/svg+xml",
                     svg.replace("0 red,1 blue", "0 green,1 black").into_bytes(),
                 ),
-                ("shared.css", "text/css", shared.as_bytes().to_vec()),
+                ("shared.css", "text/css", format!("{shared}{}",r#"@font-face{font-family:Straße;src:url(face.woff2)}@font-face{font-family:ΟΣ;src:url(face.woff2)}@font-face{font-family:É Face;src:url(face.woff2)}@font-face{font-family:É Face;src:url(face.woff2)}@font-palette-values --Unicode{font-family:STRASSE;base-palette:0}@font-feature-values ος{@styleset{Case:1}}.label{font-family:STRASSE,'ος',É Face,É Face,serif}.label::before{content:'Straße ΟΣ É É'}"#).into_bytes()),
                 ("face.woff2", "font/woff2", b"wOF2pinned-font".to_vec()),
             ]
             .into_iter()
@@ -425,6 +425,30 @@ mod publication_tests {
         };
         let html=bundle.html(r##"<html><head><style>@font-palette-values --Cool{font-family:Report;base-palette:0}.owner{font-palette:--Cool;font-variant-alternates:styleset(Loop)}</style></head><body><span class="owner">Owner</span><svg xmlns="http://www.w3.org/2000/svg"><use href="a.svg#badge"/><use href="b.svg#badge"/></svg></body></html>"##,"index.html").unwrap();
         assert_eq!(bundle.used.len(), 4);
+        let document = roxmltree::Document::parse(&html).unwrap();
+        for file in ["a.svg", "b.svg"] {
+            let prefix = format!("ion_svg_{}_", hash(file.as_bytes()));
+            let css = document
+                .descendants()
+                .filter(|n| n.has_tag_name("style"))
+                .filter_map(|n| n.text())
+                .find(|css| css.contains(&prefix) && css.contains("data:text/css;base64,"))
+                .unwrap();
+            let encoded = css
+                .split("data:text/css;base64,")
+                .nth(1)
+                .unwrap()
+                .split('"')
+                .next()
+                .unwrap();
+            let imported = String::from_utf8(STANDARD.decode(encoded).unwrap()).unwrap();
+            for name in ["strasse", "οσ", "é face", "é face"] {
+                assert!(imported.contains(&format!("{prefix}font_{name}")), "{name}");
+            }
+            assert!(imported.contains(&format!("@font-feature-values\"{prefix}font_οσ\"")));
+            assert!(imported.contains("content:\"Straße ΟΣ É É\""));
+        }
+
         html
     }
     #[test]

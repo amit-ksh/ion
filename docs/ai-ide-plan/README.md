@@ -261,3 +261,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Cursor binding and native hook transport](86-cursor-binding-transport.md): exact-call state, the verified Windows hook template, native approval limits and remaining production wiring.
 
 - [Cursor source-task Teams integration](87-cursor-source-team-bridge.md): verified Windows production wiring, owned native hook files, 50 passing cases, per-call approval and remaining platform/owner gates.
+
+- [Portable Unicode font families](88-portable-unicode-font-families.md): pinned Unicode 18.0 C/F identities, all-scalar conformance, native-to-phone evidence and remaining dynamic/browser/device work.

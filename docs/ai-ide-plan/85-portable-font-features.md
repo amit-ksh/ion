@@ -34,7 +34,7 @@ The first runs exposed two fixture expectations: source selectors already receiv
 
 ## Remaining work
 
-Literal palettes and named features are this increment's scope. Variable-supplied animation/counter/font/palette/feature/property names and dynamic `ident()` remain development work. Custom-property token data cannot be globally renamed by spelling because one value can serve several CSS roles. Full non-ASCII font-family case matching and physical browser/glyph fidelity also need further work or acceptance.
+Literal palettes and named features are this increment's scope. Variable-supplied animation/counter/font/palette/feature/property names and dynamic `ident()` remain development work. Custom-property token data cannot be globally renamed by spelling because one value can serve several CSS roles. [Unicode family-name matching is now implemented](88-portable-unicode-font-families.md). Physical browser/glyph fidelity still requires owner acceptance.
 
 Harness work remains separate: Cursor/Fx/Kimi ordinary-task Teams bridges and Amp/Cursor bounded completion contracts. Authenticated provider/platform acceptance, Nebius deployment and phone review remain open. This checkpoint does not complete the active full goal.
 
