@@ -1,6 +1,14 @@
 # Agent Teams release checklist
 
-## Current scope update (2026-10-14)
+## Current scope correction (2026-10-16)
+
+The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
+
+**Kimi ordinary-task Teams invocation remains active**: the released-source host fixture is built and its 11 native contract cases pass; production worker wiring and supported packaging/login still need implementation. Continue the document improvements and acceptance of existing integrations. Existing Amp/Cursor source-task bridges and the Fx bounded completion adapter retain their current scope.
+
+The broader catalog still has 24 implemented paths. Of the four previously open paths, one is active and three are deferred. Deferral changes the requested scope, not implementation progress; it does not create an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
+
+## Earlier scope update (2026-10-14)
 
 The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](81-phone-large-documents.md) records available behavior and remaining publication/resource work.
 
@@ -13,17 +21,22 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 - [x] Cursor ordinary-task Teams bridge on verified Windows native 2026.10.01; [implementation and 50 passing cases](87-cursor-source-team-bridge.md).
 - [ ] Additional Cursor worker-platform contracts and authenticated owner acceptance.
-- [ ] Fx ordinary-task Teams bridge; [current native/SDK distinction](84-fx-source-contract.md).
 - [x] Kimi released-source host contract: 11 native cases for default tools/model/config, independent call evidence, result return, denial, Stop and resume; [evidence and distribution limits](90-kimi-native-source-host-fixture.md).
 - [ ] Kimi ordinary-task Teams bridge; the [native source-host fixture](90-kimi-native-source-host-fixture.md) verifies the extension seam, while shared worker wiring, packaging/selection/login compatibility and owner acceptance remain open.
-- [ ] Amp bounded completion allowance/account/metering contract.
-- [ ] Cursor bounded completion ceiling/account contract.
 - [x] Unicode 18.0 font-family matching without normalization; [native-to-phone evidence and owner review](88-portable-unicode-font-families.md).
 - [ ] Dynamic CSS named references/`ident()` and real browser/glyph fidelity. The [palette/feature increment](85-portable-font-features.md) is implemented and verified separately.
 
-Harness coverage is 24/28 paths (about 86% by path count); this is not an overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
+The broader catalog still has 24 implemented paths; Kimi is the one remaining active path from the four listed before this scope correction. Amp/Cursor bounded completion and Fx ordinary-task invocation are deferred, not marked complete. There is no new overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
 
 Live acceptance remains separate: selected native provider accounts/platforms, real phone WebViews on iPhone 15/Moto G32, and owner Nebius/speech infrastructure. These need the owner's resources and device review. The dated sections below retain historical checkpoints; older unchecked entries can be superseded by later evidence and are not a cumulative current issue count. The full goal remains active.
+
+## Deferred integrations (2026-10-16)
+
+- Amp bounded Teams completion: native allowance/account/metering research saved for later.
+- Cursor bounded Teams completion: native ceiling/account research saved for later.
+- Fx ordinary-task Teams invocation: native/SDK identity research saved for later.
+
+These do not block the current requested implementation. Existing integrations and their acceptance checks remain in scope.
 
 ## Historical scope correction (2026-10-08)
 

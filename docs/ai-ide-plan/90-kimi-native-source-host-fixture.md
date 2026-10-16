@@ -78,4 +78,4 @@ Without explicit source/runtime paths these native fixtures are skipped, not cou
 - [ ] Verify native PTY/platform assets, artifact integrity/version gates and license notices for a distributable host.
 - [ ] Review authenticated owner accounts, actual project permissions and additional platforms. The localhost fake-account fixture does not satisfy these checks.
 
-These remain part of the active implementation goal. Fx source-task support, native Amp/Cursor bounded completion contracts, dynamic document CSS names and owner/browser/device/infrastructure acceptance remain open in the [release checklist](20-agent-teams-release-checklist.md).
+Kimi production integration remains part of the active implementation goal, alongside dynamic document CSS names and owner/browser/device/infrastructure acceptance in the [release checklist](20-agent-teams-release-checklist.md). The subsequent 2026-10-16 user instruction defers the not-started Fx source-task bridge and Amp/Cursor bounded completion paths; their research is retained for later.

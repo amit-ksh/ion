@@ -1,31 +1,39 @@
 # Remaining harness integrations
 
-Updated 2026-10-16. The active user goal reopens the remaining harness integrations previously deferred on 2026-10-08.
+Updated 2026-10-16. The latest user instruction defers paths whose implementation has not started. The correction below supersedes the earlier reopening for those paths.
+
+## Current scope correction (2026-10-16)
+
+The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
+
+**Kimi ordinary-task Teams invocation remains active**: the released-source host fixture is built and its 11 native contract cases pass; production worker wiring and supported packaging/login still need implementation. Continue the document improvements and acceptance of existing integrations. Existing Amp/Cursor source-task bridges and the Fx bounded completion adapter retain their current scope.
+
+The broader catalog still has 24 implemented paths. Of the four previously open paths, one is active and three are deferred. Deferral changes the requested scope, not implementation progress; it does not create an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
 ## Current implementation coverage
 
 This table is source-level transport coverage. Native versions, selected account/model routes, configured grants/limits and owner acceptance still apply. A completion transport is not the same feature as an ordinary source conversation invoking a saved team. Direct `@team` execution retains its existing flow.
 
-| Harness     | Bounded Teams completion transport                 | Source-task Teams tools                                                                |
-| ----------- | -------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Nebius      | Implemented                                        | Implemented                                                                            |
-| Codex       | Implemented                                        | Implemented                                                                            |
-| Claude      | Implemented                                        | Implemented                                                                            |
-| OpenCode    | Implemented                                        | Implemented                                                                            |
-| OpenCode 2  | Implemented                                        | Implemented; verified native 2.0.29, owner acceptance remaining                        |
-| Pi          | Implemented                                        | Implemented                                                                            |
-| Oh My Pi    | Implemented                                        | Implemented                                                                            |
-| Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining                                    |
-| Cursor      | Native completion ceiling/account contract missing | Implemented on verified Windows native 2026.10.01; platform/owner acceptance remaining |
-| Antigravity | Implemented                                        | Implemented; verified native 1.3.1, owner acceptance remaining                         |
-| DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                                       |
-| Fx          | Implemented                                        | Remaining                                                                              |
-| Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining                        |
-| Kimi        | Implemented                                        | Remaining                                                                              |
+| Harness     | Bounded Teams completion transport                            | Source-task Teams tools                                                                |
+| ----------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Nebius      | Implemented                                                   | Implemented                                                                            |
+| Codex       | Implemented                                                   | Implemented                                                                            |
+| Claude      | Implemented                                                   | Implemented                                                                            |
+| OpenCode    | Implemented                                                   | Implemented                                                                            |
+| OpenCode 2  | Implemented                                                   | Implemented; verified native 2.0.29, owner acceptance remaining                        |
+| Pi          | Implemented                                                   | Implemented                                                                            |
+| Oh My Pi    | Implemented                                                   | Implemented                                                                            |
+| Amp         | Deferred; native allowance/account/metering research retained | Implemented; authenticated CLI acceptance remaining                                    |
+| Cursor      | Deferred; native ceiling/account research retained            | Implemented on verified Windows native 2026.10.01; platform/owner acceptance remaining |
+| Antigravity | Implemented                                                   | Implemented; verified native 1.3.1, owner acceptance remaining                         |
+| DeepSeek    | Implemented; pinned native fixture                            | Implemented; full web/owner acceptance remaining                                       |
+| Fx          | Implemented                                                   | Deferred; source-task bridge not started                                               |
+| Grok        | Implemented                                                   | Implemented; verified native 1.0.46, owner acceptance remaining                        |
+| Kimi        | Implemented                                                   | Remaining                                                                              |
 
 The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. Twelve source-task connections are explicit in `driver/mod.rs` through `start_with_workspace` and the provider bridge setup. Cursor’s new bridge is gated to the verified Windows runtime; Fx/Kimi retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
 
-Coverage is **24 of 28 distinct integration paths** (12/14 bounded completions and 12/14 ordinary-task bridges), about 86% by path count. Four paths remain development work; Cursor’s additional platform support remains open too; this is not an effort estimate for the whole application or a replacement for live acceptance.
+The broader catalog retains **24 implemented integration paths**. Among the four previously open paths, **Kimi alone remains active**; Amp/Cursor bounded completion and Fx source-task invocation are deferred. Existing Cursor platform support/owner acceptance remains open. No implementation count increased because of this scope change, and this is not an overall application effort estimate.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -41,9 +49,13 @@ The fixture now distinguishes Pi's `--no-tools` (which also disables extensions)
 
 ## Amp
 
+**Current scope:** the unstarted bounded completion adapter is deferred. Its contract research below is retained for later; the implemented source-task bridge and its owner acceptance remain in scope.
+
 The official plugin AI helper can select an exact native model and set `maxTokens`, but `generate` returns only string/object without a metered usage receipt. Current declarative custom-agent configuration can pin a model; its completion token ceiling and metered usage still need proof. The tool execute context lacks a call ID. The current official plugin reference separately exposes `tool.call` with `toolUseID` and a synthesized-result return, which is a candidate for normal-task invocation. Its installed native runtime dispatches these as request methods; `plugins exec` sends the generic event method and therefore does not prove those request hooks. A private fake-profile probe against the unmodified installed runtime now passes the actual `tool.call` request: exact call/thread/arguments reach the callback and its synthesized result returns over RPC. The normal-task bridge is now wired through the owner stream and native request hook. Final approval/replay/Stop, cleanup/preservation, environment-credential and actual-runtime generated-hook fixtures pass. Authenticated full CLI discovery/resume acceptance remains open. [Implementation and remaining acceptance](66-amp-source-team-bridge.md) distinguish this from the still-unfinished Amp Teams completion adapter. No substitute provider/account is used. Teams completion remains an implementation gap until that native allowance/account/usage contract is verified.
 
 ## Cursor
+
+**Current scope:** the unstarted bounded completion adapter is deferred. Its contract research below is retained for later; the implemented Windows source-task bridge and its platform/owner acceptance remain in scope.
 
 **Current follow-up:** [the production Cursor source-task bridge](87-cursor-source-team-bridge.md) connects the independently verified native ACP/hook/permission identities to the shared Teams worker. Fifty Cursor cases pass, including actual native invocation, result return, overlapping-driver resume/replay, changed-definition refusal, Stop recovery, wildcard preauthorization refusal, hard-link/owner-file preservation and worker revocation. The normal ACP account route/default tools remain selected. This increment verifies Windows; additional worker-platform and authenticated owner acceptance remain open. [Chapter 86](86-cursor-binding-transport.md) records the preceding staged contract.
 
@@ -89,10 +101,11 @@ Primary source: [native MCP request](https://github.com/MoonshotAI/kimi-code/blo
 - [ ] Review Pi cold startup under memory pressure and slow native catalog/extension initialization.
 - [ ] Verify native authenticated accounts, delegation/result review, Stop and restart on actual owner projects.
 - [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
-- [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
-- [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
+- Deferred: Amp native model/allowance/account/usage proof for bounded Teams completion.
+- Deferred: Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
 - [x] Complete the verified Windows Cursor source-task bridge with exact native call identity, approval/replay/Stop and native fixture acceptance; see chapter 87.
 - [ ] Complete additional Cursor worker-platform contracts and authenticated owner acceptance.
-- [ ] Complete source-task Teams tools for Fx and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
+- [ ] Complete Kimi source-task Teams tools, with real shared-worker approval/replay/Stop and supported host packaging/login.
+- Deferred: Fx source-task Teams tools; retain its native/SDK contract research.
 
-These are current goal requirements, not deferred successes. The full goal remains active.
+Kimi implementation and existing integration acceptance remain active. The three deferred paths require a later request; research and deferral are not completion.

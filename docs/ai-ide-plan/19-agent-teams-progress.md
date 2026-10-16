@@ -1,5 +1,13 @@
 # Agent teams: implementation progress and review checklist
 
+## Current scope correction (2026-10-16)
+
+The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
+
+**Kimi ordinary-task Teams invocation remains active**: the released-source host fixture is built and its 11 native contract cases pass; production worker wiring and supported packaging/login still need implementation. Continue the document improvements and acceptance of existing integrations. Existing Amp/Cursor source-task bridges and the Fx bounded completion adapter retain their current scope.
+
+The broader catalog still has 24 implemented paths. Of the four previously open paths, one is active and three are deferred. Deferral changes the requested scope, not implementation progress; it does not create an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
+
 ## Latest Kimi source-host contract increment (2026-10-16)
 
 The pinned released Kimi engine now runs through the official ACP composition with a private native profile and a localhost HTTP model provider. **11 distinct native contract cases pass**, covering tool results, permissions, default tools, cancellation and lifecycle; strict TypeScript/syntax/format/diff checks pass. Evidence is recorded in [chapter 90](90-kimi-native-source-host-fixture.md), with the [source interface analysis](89-kimi-source-host-contract.md). This is a source-host contract fixture; production worker wiring, distributable host selection/login compatibility and authenticated owner acceptance remain open. Harness coverage is still **24/28 paths (about 86%)**, not an overall app completion estimate.
