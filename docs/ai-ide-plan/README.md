@@ -273,3 +273,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Dynamic CSS names contract](91-dynamic-css-names-contract.md): primary standards, variable inheritance, invalid values, computed identifiers and isolation limits.
 
 - [Portable computed CSS names](92-portable-computed-css-names.md): bounded native identifier/fallback handling, 107 native-to-phone checks and remaining arbitrary substitution/browser/device work.
+
+- [Kimi production source-task bridge](93-kimi-source-team-bridge.md): explicit host selection, additive native tools, shared worker authority, local source-host preparation and remaining release packaging/account acceptance.

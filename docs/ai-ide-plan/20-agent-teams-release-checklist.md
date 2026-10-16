@@ -4,9 +4,9 @@
 
 The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
 
-**Kimi ordinary-task Teams invocation remains active**: the released-source host fixture is built and its 11 native contract cases pass; production worker wiring and supported packaging/login still need implementation. Continue the document improvements and acceptance of existing integrations. Existing Amp/Cursor source-task bridges and the Fx bounded completion adapter retain their current scope.
+**Kimi ordinary-task Teams invocation now has a production bridge and explicit local source host**: 22 Kimi Rust cases (including six real-engine driver cases) and six launcher/Windows-PTY checks pass. Full release packaging/native assets and owner-account acceptance remain active development/review; see [chapter 93](93-kimi-source-team-bridge.md). Continue document improvements and acceptance of existing integrations. Existing Amp/Cursor source-task bridges and the Fx bounded completion adapter retain their current scope.
 
-The broader catalog still has 24 implemented paths. Of the four previously open paths, one is active and three are deferred. Deferral changes the requested scope, not implementation progress; it does not create an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
+The broader catalog now has 25 implemented source-level paths after the Kimi bridge increment. Three unstarted paths remain deferred. Kimi release packaging/owner acceptance and document work remain open. Deferral did not mark a capability complete; this is not an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
 ## Earlier scope update (2026-10-14)
 
@@ -22,12 +22,13 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [x] Cursor ordinary-task Teams bridge on verified Windows native 2026.10.01; [implementation and 50 passing cases](87-cursor-source-team-bridge.md).
 - [ ] Additional Cursor worker-platform contracts and authenticated owner acceptance.
 - [x] Kimi released-source host contract: 11 native cases for default tools/model/config, independent call evidence, result return, denial, Stop and resume; [evidence and distribution limits](90-kimi-native-source-host-fixture.md).
-- [ ] Kimi ordinary-task Teams bridge; the [native source-host fixture](90-kimi-native-source-host-fixture.md) verifies the extension seam, while shared worker wiring, packaging/selection/login compatibility and owner acceptance remain open.
+- [x] Kimi production source-task Teams bridge with explicit local source-host selection, native callback/ACP identity, shared worker approval/grants/limits/replay and six native driver cases; [77-case increment and exact scope](93-kimi-source-team-bridge.md).
+- [ ] Kimi self-contained release packaging, fast startup, native PTY/platform assets, full integrity/notices and actual owner-account/catalog/migration/login acceptance. The local source launcher does not complete these gates.
 - [x] Unicode 18.0 font-family matching without normalization; [native-to-phone evidence and owner review](88-portable-unicode-font-families.md).
 - [x] Bounded computed CSS name paths and literal fallbacks, preserving native function wrappers and invalid values; [107 native-to-phone checks and exact scope](92-portable-computed-css-names.md).
 - [ ] General arbitrary variable-supplied names, partial font/shorthand substitution, dynamic counters and real browser/glyph/device fidelity. See [the standards contract](91-dynamic-css-names-contract.md).
 
-The broader catalog still has 24 implemented paths; Kimi is the one remaining active path from the four listed before this scope correction. Amp/Cursor bounded completion and Fx ordinary-task invocation are deferred, not marked complete. There is no new overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
+The broader catalog now has 25 implemented source-level paths. Kimi release packaging and owner acceptance remain active. Amp/Cursor bounded completion and Fx ordinary-task invocation are deferred, not marked complete. There is no new overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
 
 Live acceptance remains separate: selected native provider accounts/platforms, real phone WebViews on iPhone 15/Moto G32, and owner Nebius/speech infrastructure. These need the owner's resources and device review. The dated sections below retain historical checkpoints; older unchecked entries can be superseded by later evidence and are not a cumulative current issue count. The full goal remains active.
 

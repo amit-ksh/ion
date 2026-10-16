@@ -34,6 +34,7 @@ use super::source_teams::{
     acp_bridge::AcpTeamBridge,
     cursor::{CursorApproval, CursorBridge},
     grok::GrokBridge,
+    kimi::KimiBridge,
 };
 use crate::driver::{
     DriverControl, DriverEventSender, DriverEventSink, DriverStartOptions, SessionOptions,
@@ -212,7 +213,7 @@ impl AcpDriver {
             |config| {
                 let mut config = configure(config);
                 if provider == ProviderKind::Cursor
-                    && let Some(context) = cursor_workspace
+                    && let Some(context) = cursor_workspace.clone()
                 {
                     match CursorBridge::start(context, events.clone(), &cwd, &config) {
                         Ok(bridge) => {
@@ -224,6 +225,48 @@ impl AcpDriver {
                                 id: None, kind: ActivityKind::Tool,
                                 title: "Team tools unavailable".into(),
                                 detail: Some("Cursor Teams requires the verified Windows native runtime and an available project hook file. Check hook access and retry from the task.".into()), complete: true,
+                            });
+                        }
+                    }
+                }
+                if provider == ProviderKind::Kimi
+                    && let Some(context) = cursor_workspace
+                {
+                    // Separate explicit source-host selection leaves the native
+                    // binary used by catalog/bounded completion unchanged.
+                    let selected = config
+                        .environment()
+                        .iter()
+                        .find(|(key, _)| key.eq_ignore_ascii_case("ION_KIMI_SOURCE_HOST"))
+                        .map(|(_, value)| value)
+                        .filter(|value| !value.is_empty());
+                    let candidate = selected.map(|host| {
+                        launch_configuration(
+                            host,
+                            &cwd.to_string_lossy(),
+                            vec!["acp".into()],
+                            config
+                                .environment()
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect(),
+                        )
+                    });
+                    match KimiBridge::start(
+                        context,
+                        events.clone(),
+                        &cwd,
+                        candidate.as_ref().unwrap_or(&config),
+                    ) {
+                        Ok(bridge) => {
+                            config = candidate.unwrap_or(config).envs(bridge.environment());
+                            team_bridge = Some(AcpTeamBridge::Kimi(bridge));
+                        }
+                        Err(_) => {
+                            let _ = events.send(DriverEvent::Activity {
+                                id: None, kind: ActivityKind::Tool,
+                                title: "Team tools unavailable".into(),
+                                detail: Some("Kimi Teams requires the separately installed Ion Kimi source host. Set ION_KIMI_SOURCE_HOST to its prepared launcher before starting Ion. Your normal Kimi session remains available.".into()), complete: true,
                             });
                         }
                     }

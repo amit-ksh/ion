@@ -70,12 +70,16 @@ bun test scripts/fixtures/kimi-source-host-contract.test.ts --timeout 180000
 
 Without explicit source/runtime paths these native fixtures are skipped, not counted as passes. The controller verifies lockfile, ACP composition and executor hashes before loading source.
 
-## Remaining implementation and acceptance
+## Production follow-up
 
-- [ ] Connect the witnessed callback to the existing shared Ion worker and real production tool schemas; retain owner approval, intersected grants, durable request identities and run/token limits.
-- [ ] Verify changed-team refusal, worker-side Stop/replay/queued-turn fencing, stale callbacks and real invocation/result review through that shared worker.
+[Chapter 93](93-kimi-source-team-bridge.md) records the subsequent production bridge and local source-host launcher. The fixture evidence here remains the original extension-seam proof. Follow chapter 93 and the current release checklist for implemented behavior, verification and remaining distribution/account work.
+
+## Original fixture follow-up checklist
+
+- [x] Connect the witnessed callback to the existing shared Ion worker and real production tool schemas; retain owner approval, intersected grants, durable request identities and run/token limits.
+- [x] Verify changed-team refusal, worker-side Stop/replay/queued-turn fencing, stale callbacks and real invocation/result review through that shared worker.
 - [ ] Produce and explicitly select a separately versioned source-host distribution, preserving configured Kimi home, model/account routing, native tools/permissions and supported login delegation. Do not silently replace the selected stock binary or claim it loads an unsupported plugin.
 - [ ] Verify native PTY/platform assets, artifact integrity/version gates and license notices for a distributable host.
 - [ ] Review authenticated owner accounts, actual project permissions and additional platforms. The localhost fake-account fixture does not satisfy these checks.
 
-Kimi production integration remains part of the active implementation goal, alongside dynamic document CSS names and owner/browser/device/infrastructure acceptance in the [release checklist](20-agent-teams-release-checklist.md). The subsequent 2026-10-16 user instruction defers the not-started Fx source-task bridge and Amp/Cursor bounded completion paths; their research is retained for later.
+Kimi release packaging/account acceptance remains part of the active implementation goal, alongside remaining document CSS names and owner/browser/device/infrastructure acceptance in the [release checklist](20-agent-teams-release-checklist.md). The subsequent 2026-10-16 user instruction defers the not-started Fx source-task bridge and Amp/Cursor bounded completion paths; their research is retained for later.
