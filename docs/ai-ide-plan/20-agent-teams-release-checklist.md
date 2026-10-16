@@ -1112,3 +1112,12 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Save [reproducible evidence and next gates](82-cursor-current-contract.md). The fixture uses disposable profiles and no owner credentials or paid inference.
 - [ ] Bind an external tool callback to its exact native invocation before Ion work, with prompt/approval/replay/Stop fences. SDK account/permission behavior is a separate explicit route, not a transparent replacement.
 - [ ] Complete native completion allowance/account/usage proof. Neither Cursor integration path is enabled by this research; coverage stays at 23/28 paths.
+
+## 2026-10-16 - Cursor native binding and bounded hook transport
+
+- [x] Prove native Windows project-cache hook discovery and input rewriting before the exact-call permission/MCP handoff. Distinct identical calls, original-versus-rewritten arguments, denial and Stop are retained.
+- [x] Implement the staged one-use Rust binding state and the exact native-tested PowerShell callback template. Keep the transport token in process environment, outside command/configuration text; bound UTF-8 request/response sizes and time, and disable proxy/redirects.
+- [x] Pass 34 distinct cases: 20 actual native runtime cases (202 assertions), 12 Rust binding-state cases and two hook-command cases, with no failures/skips in the accepted runs. Strict standalone TypeScript, locked offline desktop/both-daemon compilation and formatting/diff checks pass.
+- [x] Save [findings, verification and remaining integration](86-cursor-binding-transport.md). Native remembered approval can remove the per-call witness; the future bridge must require one-time Ion approval and refuse an unwitnessed route. Staged components remain unused until wiring is complete.
+- [ ] Finish owned hook configuration/lifetime, ACP lifecycle and approval wiring, shared worker invocation/replay/Stop/resume, scrubbing and actual production-driver acceptance. Cursor source tools remain disabled; implementation coverage stays 23/28 paths.
+- [ ] Complete the other four harness paths, remaining document CSS/font fidelity and authenticated provider/platform/device acceptance. The full goal remains active.

@@ -257,3 +257,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Fx ordinary-task contract](84-fx-source-contract.md): native MCP identity gap, SDK-host distinction and remaining supported-host acceptance.
 
 - [Portable font palettes and named features](85-portable-font-features.md): private imported document identities, native/phone grammar evidence and remaining browser/device review.
+
+- [Cursor binding and native hook transport](86-cursor-binding-transport.md): exact-call state, the verified Windows hook template, native approval limits and remaining production wiring.

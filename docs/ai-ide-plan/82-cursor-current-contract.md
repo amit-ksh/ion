@@ -4,6 +4,10 @@ Checked: 2026-10-16. This follows [the earlier contract](RESEARCH-cursor-teams-c
 
 Verification: **5 native cases passed, 0 failed, 47 assertions**. Strict fixture TypeScript checking and formatting also passed.
 
+## 2026-10-16 follow-up
+
+[The binding/transport increment](86-cursor-binding-transport.md) supersedes the earlier unsuccessful-hook findings below: the released native Windows CLI now runs an inline PowerShell hook, loads a per-workspace cache entry, rewrites forged input and exposes the rewritten value in its exact-call permission request. Twenty current native cases pass, including authenticated loopback, Unicode and adverse responses. Native **Allow always** can remove that permission witness on later calls. Production ACP/shared-worker integration and completion allowance remain unfinished; counts do not change.
+
 ## Result
 
 There are now two concrete seams, with different boundaries:

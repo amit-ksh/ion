@@ -2,6 +2,7 @@
 //! grants, queue replay and document scope are owned here, never model arguments.
 pub(crate) mod amp;
 pub(crate) mod antigravity;
+pub(crate) mod cursor;
 pub(crate) mod grok;
 pub(crate) mod opencode;
 pub(crate) mod opencode2;
