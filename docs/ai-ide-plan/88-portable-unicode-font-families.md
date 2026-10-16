@@ -2,6 +2,8 @@
 
 Updated 2026-10-16. Implementation branch: `codex/ion-agent-teams`.
 
+Current follow-up: [bounded computed-name and literal fallback support](92-portable-computed-css-names.md) is now implemented. General arbitrary variable streams, partial families/shorthands, dynamic counters and real browser/device acceptance remain open; the sections below record this chapter’s earlier checkpoint.
+
 ## Change
 
 Imported SVG font families now use Unicode caseless matching instead of ASCII-only lowercasing when creating their private document identities. Both declaration discovery and family references share the same parser and folded key. ASCII keys remain stable.

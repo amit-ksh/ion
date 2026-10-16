@@ -134,7 +134,7 @@ impl Bundle {
                 }
                 let mut value = attribute.value().to_owned();
                 if name == "font-family" {
-                    value = names.family(&value)?;
+                    value = names.family_value(&value)?;
                 }
                 if name == "id" {
                     value = names.id(&value);

@@ -71,6 +71,32 @@ pub(super) fn value(source: &str, prefix: &str, property: &str) -> Result<String
     values(source, prefix, property_references(property), 0)
 }
 fn variable(source: &str, prefix: &str, references: bool, depth: usize) -> Result<String> {
+    let mut argument_input = ParserInput::new(source);
+    let mut argument = Parser::new(&mut argument_input);
+    let argument_start = argument.position().byte_index();
+    if matches!(argument.next().cloned(), Ok(CssToken::Function(name)) if name.eq_ignore_ascii_case("ident"))
+    {
+        let body = nested_text(&mut argument)?;
+        let end = argument.position().byte_index();
+        let tail = match argument.next().cloned() {
+            Ok(CssToken::Comma) => {
+                let offset = argument.position().byte_index();
+                format!(
+                    "{}{}",
+                    &source[end..offset],
+                    values(&source[offset..], prefix, references, depth + 1)?
+                )
+            }
+            Err(_) => source[end..].into(),
+            _ => return Ok(source.into()),
+        };
+        let mapped = computed_property(&body, prefix)?;
+        let mapped = values(&mapped, prefix, false, depth + 1)?;
+        return Ok(format!(
+            "{}ident({mapped}){tail}",
+            &source[..argument_start]
+        ));
+    }
     let Some((start, end, name)) = first_ident(source).filter(|(_, _, name)| custom(name)) else {
         return Ok(source.into());
     };
@@ -94,6 +120,19 @@ fn variable(source: &str, prefix: &str, references: bool, depth: usize) -> Resul
         identifier(&name, prefix)
     ))
 }
+fn computed_property(source: &str, prefix: &str) -> Result<String> {
+    if let Some(value) = computed_names::literal(source)? {
+        return Ok(if custom(&value) {
+            computed_names::quoted(&format!("--{prefix}property_{}", &value[2..]))
+        } else {
+            source.into()
+        });
+    }
+    Ok(
+        computed_names::affix(source, prefix, "property", true, &[])?
+            .unwrap_or_else(|| source.into()),
+    )
+}
 fn values(source: &str, prefix: &str, references: bool, depth: usize) -> Result<String> {
     ensure!(depth <= 32, "CSS custom-property nesting exceeds its bound");
     let mut input = ParserInput::new(source);
@@ -113,6 +152,8 @@ fn values(source: &str, prefix: &str, references: bool, depth: usize) -> Result<
                 let body = nested_text(&mut parser)?;
                 let rendered = if name.eq_ignore_ascii_case("var") {
                     variable(&body, prefix, references, depth)?
+                } else if references && name.eq_ignore_ascii_case("ident") {
+                    values(&computed_property(&body, prefix)?, prefix, false, depth + 1)?
                 } else {
                     values(&body, prefix, false, depth + 1)?
                 };

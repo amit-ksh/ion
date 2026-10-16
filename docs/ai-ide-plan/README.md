@@ -269,3 +269,7 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Kimi source-host contract](89-kimi-source-host-contract.md): pinned released lifecycle, native tool activation, identity and packaging/login gates.
 
 - [Native Kimi source-host fixture](90-kimi-native-source-host-fixture.md): real official engine/HTTP execution, permissions, built-in preservation, cancellation/resume and remaining production integration.
+
+- [Dynamic CSS names contract](91-dynamic-css-names-contract.md): primary standards, variable inheritance, invalid values, computed identifiers and isolation limits.
+
+- [Portable computed CSS names](92-portable-computed-css-names.md): bounded native identifier/fallback handling, 107 native-to-phone checks and remaining arbitrary substitution/browser/device work.

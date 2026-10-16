@@ -1,6 +1,7 @@
 //! Inline SVG reference documents with private IDs/classes and zero-specificity
 //! per-compound stylesheet markers. Markers survive native <use> cloning.
 use super::*;
+mod computed_names;
 mod context_styles;
 mod font_casefold;
 mod font_styles;
@@ -415,9 +416,9 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                     } else if name == "font-feature-values" {
                         font_styles::feature_body(&body, names)?
                     } else if name == "counter-style" {
-                        declarations_in(&body, names, true)?
+                        declarations_in(&body, names, true, true)?
                     } else {
-                        declarations(&body, names)?
+                        declarations_in(&body, names, false, true)?
                     };
                     push(&mut out, &body)?;
                 } else {
@@ -699,7 +700,7 @@ fn family_name(source: &str) -> Option<String> {
     if words.iter().any(|word| {
         matches!(
             word.to_ascii_lowercase().as_str(),
-            "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "default"
+            "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "revert-rule" | "default"
         )
     }) {
         return None;
@@ -728,6 +729,16 @@ fn family_name(source: &str) -> Option<String> {
 }
 impl Names {
     pub fn family(&self, source: &str) -> Result<String> {
+        self.family_in(source, false, 0)
+    }
+    pub fn family_value(&self, source: &str) -> Result<String> {
+        self.family_in(source, true, 0)
+    }
+    fn family_in(&self, source: &str, computed: bool, depth: usize) -> Result<String> {
+        ensure!(
+            depth <= 32,
+            "Computed font-family nesting exceeds its bound"
+        );
         if self.prefix.is_empty() {
             return Ok(source.to_owned());
         }
@@ -736,6 +747,9 @@ impl Names {
         let mut out = String::new();
         let mut part = String::new();
         let append = |out: &mut String, part: &str| -> Result<()> {
+            if computed && let Some(mapped) = self.computed_family(part, depth)? {
+                return push(out, &mapped);
+            }
             if let Some(name) = family_name(part).filter(|name| self.fonts.contains(name)) {
                 push(
                     out,
@@ -769,11 +783,76 @@ impl Names {
         append(&mut out, &part)?;
         Ok(out)
     }
+    fn computed_family(&self, source: &str, depth: usize) -> Result<Option<String>> {
+        if !source.contains('(') {
+            return Ok(None);
+        }
+        let mut input = ParserInput::new(source);
+        let mut parser = Parser::new(&mut input);
+        let mut resolved = String::new();
+        let mut saw_computed = false;
+        while let Ok(token) = parser.next().cloned() {
+            match token {
+                CssToken::Ident(_) => {
+                    if !resolved.is_empty() {
+                        push(&mut resolved, " ")?;
+                    }
+                    push(&mut resolved, &token.to_css_string())?;
+                }
+                CssToken::Function(function) => {
+                    let body = nested_text(&mut parser)?;
+                    if function.eq_ignore_ascii_case("var")
+                        && resolved.is_empty()
+                        && !saw_computed
+                        && parser.is_exhausted()
+                    {
+                        if let Some(offset) = computed_names::fallback_offset(&body) {
+                            return Ok(Some(format!(
+                                "{}({}{})",
+                                CssToken::Ident(function).to_css_string(),
+                                &body[..offset],
+                                self.family_in(&body[offset..], true, depth + 1)?
+                            )));
+                        }
+                    }
+                    if !function.eq_ignore_ascii_case("ident") {
+                        return Ok(None);
+                    }
+                    let Some(name) = computed_names::literal(&body)? else {
+                        return Ok(None);
+                    };
+                    if computed_names::reserved(&name, &[]) {
+                        return Ok(None);
+                    }
+                    if !resolved.is_empty() {
+                        push(&mut resolved, " ")?;
+                    }
+                    push(&mut resolved, &CssToken::Ident(name.into()).to_css_string())?;
+                    saw_computed = true;
+                }
+                _ => return Ok(None),
+            }
+        }
+        let Some(name) =
+            family_name(&resolved).filter(|name| saw_computed && self.fonts.contains(name))
+        else {
+            return Ok(None);
+        };
+        Ok(Some(format!(
+            "ident({})",
+            computed_names::quoted(&format!("{}font_{name}", self.prefix))
+        )))
+    }
 }
 fn declarations(source: &str, names: &Names) -> Result<String> {
-    declarations_in(source, names, false)
+    declarations_in(source, names, false, false)
 }
-fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<String> {
+fn declarations_in(
+    source: &str,
+    names: &Names,
+    counter_style: bool,
+    descriptors: bool,
+) -> Result<String> {
     if names.prefix.is_empty() && names.fonts.is_empty() && names.globals.is_empty() {
         return Ok(source.to_owned());
     }
@@ -790,7 +869,11 @@ fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<S
             let decoded = named_styles::property(property);
             let (body, priority) = named_styles::priority(value)?;
             let css = if decoded.as_deref() == Some("font-family") {
-                names.family(body)?
+                if descriptors {
+                    names.family(body)?
+                } else {
+                    names.family_value(body)?
+                }
             } else if decoded.as_deref() == Some("font") {
                 font_shorthand(body, names)?
             } else if matches!(decoded.as_deref(), Some("container" | "container-name")) {
@@ -1210,7 +1293,10 @@ fn font_shorthand(source: &str, names: &Names) -> Result<String> {
             }
             let head = parser.slice(start..end).to_owned();
             while parser.next_including_whitespace_and_comments().is_ok() {}
-            return Ok(format!("{head} {}", names.family(parser.slice_from(end))?));
+            return Ok(format!(
+                "{head} {}",
+                names.family_value(parser.slice_from(end))?
+            ));
         }
     }
     Ok(source.to_owned())

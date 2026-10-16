@@ -5,7 +5,7 @@ use super::*;
 fn css_wide(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
-        "initial" | "inherit" | "unset" | "revert" | "revert-layer"
+        "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "revert-rule"
     )
 }
 fn container_reserved(name: &str) -> bool {
@@ -217,6 +217,9 @@ pub(super) fn value(source: &str, prefix: &str, shorthand: bool) -> Result<Strin
     if prefix.is_empty() {
         return Ok(source.into());
     }
+    if !shorthand {
+        return computed_container_names(source, prefix, 0);
+    }
     let mut input = ParserInput::new(source);
     let mut parser = Parser::new(&mut input);
     let mut saw_name = false;
@@ -248,6 +251,91 @@ pub(super) fn value(source: &str, prefix: &str, shorthand: bool) -> Result<Strin
         }
     }
     push(&mut out, &source[split..])?;
+    Ok(out)
+}
+
+fn computed_container_names(source: &str, prefix: &str, depth: usize) -> Result<String> {
+    ensure!(depth <= 32, "Computed container nesting exceeds its bound");
+    let mut validation_input = ParserInput::new(source);
+    let mut validation = Parser::new(&mut validation_input);
+    while let Ok(token) = validation.next().cloned() {
+        match token {
+            CssToken::Ident(name) if !container_reserved(&name) => {}
+            CssToken::Function(name)
+                if name.eq_ignore_ascii_case("ident") || name.eq_ignore_ascii_case("var") =>
+            {
+                let body = nested_text(&mut validation)?;
+                if name.eq_ignore_ascii_case("ident")
+                    && computed_names::literal(&body)?.is_some_and(|name| container_reserved(&name))
+                {
+                    return Ok(source.into());
+                }
+            }
+            _ => return Ok(source.into()),
+        }
+    }
+    let mut input = ParserInput::new(source);
+    let mut parser = Parser::new(&mut input);
+    let mut out = String::new();
+    loop {
+        let start = parser.position().byte_index();
+        let Ok(token) = parser.next_including_whitespace_and_comments().cloned() else {
+            break;
+        };
+        match token {
+            CssToken::Ident(name) if !container_reserved(&name) => {
+                push(&mut out, &ident(&name, prefix, "container"))?
+            }
+            CssToken::Function(name) => {
+                let body = nested_text(&mut parser)?;
+                let mapped = if name.eq_ignore_ascii_case("ident") {
+                    if let Some(value) = computed_names::literal(&body)? {
+                        if container_reserved(&value) {
+                            body.clone()
+                        } else {
+                            computed_names::quoted(&format!("{prefix}container_{value}"))
+                        }
+                    } else {
+                        computed_names::affix(
+                            &body,
+                            prefix,
+                            "container",
+                            false,
+                            &["none", "and", "or", "not"],
+                        )?
+                        .unwrap_or_else(|| body.clone())
+                    }
+                } else if name.eq_ignore_ascii_case("var") {
+                    if let Some(offset) = computed_names::fallback_offset(&body) {
+                        format!(
+                            "{}{}",
+                            &body[..offset],
+                            computed_container_names(&body[offset..], prefix, depth + 1)?
+                        )
+                    } else {
+                        body.clone()
+                    }
+                } else {
+                    body.clone()
+                };
+                if mapped == body {
+                    push(&mut out, &source[start..parser.position().byte_index()])?;
+                } else {
+                    push(
+                        &mut out,
+                        &format!("{}({mapped})", CssToken::Ident(name).to_css_string()),
+                    )?;
+                }
+            }
+            CssToken::ParenthesisBlock
+            | CssToken::SquareBracketBlock
+            | CssToken::CurlyBracketBlock => {
+                nested_text(&mut parser)?;
+                push(&mut out, &source[start..parser.position().byte_index()])?;
+            }
+            _ => push(&mut out, &source[start..parser.position().byte_index()])?,
+        }
+    }
     Ok(out)
 }
 
@@ -340,11 +428,14 @@ mod tests {
             "and",
             "not",
             "var(--container)",
-            "ident('--card')",
             "'card'",
         ] {
             assert_eq!(value(source, "p_", false).unwrap(), source);
         }
+        assert_eq!(
+            value("ident('--card')", "p_", false).unwrap(),
+            r#"ident("p_container_--card")"#
+        );
         assert_eq!(
             prelude("container", "@container not (width < 1px)", "p_", false).unwrap(),
             "@container not (width < 1px)"

@@ -24,7 +24,8 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [x] Kimi released-source host contract: 11 native cases for default tools/model/config, independent call evidence, result return, denial, Stop and resume; [evidence and distribution limits](90-kimi-native-source-host-fixture.md).
 - [ ] Kimi ordinary-task Teams bridge; the [native source-host fixture](90-kimi-native-source-host-fixture.md) verifies the extension seam, while shared worker wiring, packaging/selection/login compatibility and owner acceptance remain open.
 - [x] Unicode 18.0 font-family matching without normalization; [native-to-phone evidence and owner review](88-portable-unicode-font-families.md).
-- [ ] Dynamic CSS named references/`ident()` and real browser/glyph fidelity. The [palette/feature increment](85-portable-font-features.md) is implemented and verified separately.
+- [x] Bounded computed CSS name paths and literal fallbacks, preserving native function wrappers and invalid values; [107 native-to-phone checks and exact scope](92-portable-computed-css-names.md).
+- [ ] General arbitrary variable-supplied names, partial font/shorthand substitution, dynamic counters and real browser/glyph/device fidelity. See [the standards contract](91-dynamic-css-names-contract.md).
 
 The broader catalog still has 24 implemented paths; Kimi is the one remaining active path from the four listed before this scope correction. Amp/Cursor bounded completion and Fx ordinary-task invocation are deferred, not marked complete. There is no new overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
 

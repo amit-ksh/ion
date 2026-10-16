@@ -2,6 +2,8 @@
 
 Updated 2026-10-16. Implementation branch: `codex/ion-agent-teams`.
 
+Current follow-up: [bounded computed-name and literal fallback support](92-portable-computed-css-names.md) is now implemented. General arbitrary variable streams, partial families/shorthands, dynamic counters and real browser/device acceptance remain open; the sections below record this chapter’s earlier checkpoint.
+
 ## Implementation
 
 Imported SVG documents now give literal font-palette rule names and named font-feature keys a private per-file identity. Their rule declarations and literal uses follow the same identity through local styles, pinned CSS imports, inline declarations, font presentation values and supported property queries. Registered font-family aliases remain aligned with feature and palette rule family descriptors; installed family names remain available.

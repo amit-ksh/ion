@@ -8,6 +8,10 @@ The user deferred integration paths whose implementation has not started: **Amp 
 
 The broader catalog still has 24 implemented paths. Of the four previously open paths, one is active and three are deferred. Deferral changes the requested scope, not implementation progress; it does not create an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
+## Latest computed CSS document increment (2026-10-16)
+
+Imported SVG name references now preserve supported `ident()` expressions across animation-name/container-name values, palette/feature arguments, complete known font families and computed custom-property references. Literal fallbacks stay in their authored location; opaque data, generic/installed fonts, invalid values and native function wrappers are preserved. **107 distinct native/publication/export/phone cases pass**; full mobile TypeScript, locked offline desktop/both-daemon checks and formatting/diff checks pass. [Implementation, parser compatibility and remaining work](92-portable-computed-css-names.md), [primary standards contract](91-dynamic-css-names-contract.md). General arbitrary variable streams, partial families/shorthands, dynamic counters, real browser/glyph/device acceptance and Kimi production wiring remain open. The latest harness deferrals above still apply.
+
 ## Latest Kimi source-host contract increment (2026-10-16)
 
 The pinned released Kimi engine now runs through the official ACP composition with a private native profile and a localhost HTTP model provider. **11 distinct native contract cases pass**, covering tool results, permissions, default tools, cancellation and lifecycle; strict TypeScript/syntax/format/diff checks pass. Evidence is recorded in [chapter 90](90-kimi-native-source-host-fixture.md), with the [source interface analysis](89-kimi-source-host-contract.md). This is a source-host contract fixture; production worker wiring, distributable host selection/login compatibility and authenticated owner acceptance remain open. Harness coverage is still **24/28 paths (about 86%)**, not an overall app completion estimate.

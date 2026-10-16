@@ -100,7 +100,38 @@ fn values(source: &str, prefix: &str, mode: Mode, depth: usize) -> Result<String
             CssToken::Function(name) => {
                 let opening = parser.position().byte_index();
                 let body = nested_text(&mut parser)?;
-                let rendered = if name.eq_ignore_ascii_case("var") {
+                let rendered = if name.eq_ignore_ascii_case("ident")
+                    && matches!(mode, Mode::Palette | Mode::FeatureArgs)
+                {
+                    let palette = matches!(mode, Mode::Palette);
+                    if let Some(value) = computed_names::literal(&body)? {
+                        if (palette && dashed(&value))
+                            || (!palette && !computed_names::reserved(&value, &[]))
+                        {
+                            let name = if palette {
+                                format!("--{prefix}font_palette_{}", &value[2..])
+                            } else {
+                                format!("{prefix}font_feature_{value}")
+                            };
+                            computed_names::quoted(&name)
+                        } else {
+                            body.clone()
+                        }
+                    } else {
+                        computed_names::affix(
+                            &body,
+                            prefix,
+                            if palette {
+                                "font_palette"
+                            } else {
+                                "font_feature"
+                            },
+                            palette,
+                            &[],
+                        )?
+                        .unwrap_or_else(|| body.clone())
+                    }
+                } else if name.eq_ignore_ascii_case("var") {
                     let mut input = ParserInput::new(&body);
                     let mut inner = Parser::new(&mut input);
                     if matches!(inner.next(),Ok(CssToken::Ident(name)) if dashed(name))

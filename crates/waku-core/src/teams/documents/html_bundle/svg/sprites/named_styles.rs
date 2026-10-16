@@ -9,7 +9,7 @@ pub(super) struct Globals {
 fn wide(value: &str) -> bool {
     matches!(
         value.to_ascii_lowercase().as_str(),
-        "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "default"
+        "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "revert-rule" | "default"
     )
 }
 fn identifier(value: &str, prefix: &str, kind: &str) -> String {
@@ -162,8 +162,8 @@ impl Globals {
             return Ok(source.into());
         }
         match property {
-            "animation-name" | "-webkit-animation-name" => self.animation(source, prefix, false),
-            "animation" | "-webkit-animation" => self.animation(source, prefix, true),
+            "animation-name" | "-webkit-animation-name" => self.animation(source, prefix, false, 0),
+            "animation" | "-webkit-animation" => self.animation(source, prefix, true, 0),
             "list-style-type" => self.counter_values(source, prefix, CounterMode::Type, 0),
             "list-style" => self.counter_values(source, prefix, CounterMode::List, 0),
             "fallback" if descriptor => self.counter_values(source, prefix, CounterMode::Type, 0),
@@ -174,7 +174,14 @@ impl Globals {
             _ => self.counter_values(source, prefix, CounterMode::Functions, 0),
         }
     }
-    fn animation(&self, source: &str, prefix: &str, shorthand: bool) -> Result<String> {
+    fn animation(
+        &self,
+        source: &str,
+        prefix: &str,
+        shorthand: bool,
+        depth: usize,
+    ) -> Result<String> {
+        ensure!(depth <= 32, "Computed animation nesting exceeds its bound");
         let mut input = ParserInput::new(source);
         let mut parser = Parser::new(&mut input);
         let mut out = String::new();
@@ -205,6 +212,31 @@ impl Globals {
                     push(&mut out, &token.to_css_string())?;
                 }
                 CssToken::Function(name) => {
+                    let body = nested_text(&mut parser)?;
+                    let body = if !shorthand && name.eq_ignore_ascii_case("ident") {
+                        if let Some(value) = computed_names::literal(&body)? {
+                            if computed_names::reserved(&value, &["none"]) {
+                                body
+                            } else {
+                                computed_names::quoted(&format!("{prefix}animation_{value}"))
+                            }
+                        } else {
+                            computed_names::affix(&body, prefix, "animation", false, &["none"])?
+                                .unwrap_or(body)
+                        }
+                    } else if !shorthand && name.eq_ignore_ascii_case("var") {
+                        if let Some(offset) = computed_names::fallback_offset(&body) {
+                            format!(
+                                "{}{}",
+                                &body[..offset],
+                                self.animation(&body[offset..], prefix, false, depth + 1)?
+                            )
+                        } else {
+                            body
+                        }
+                    } else {
+                        body
+                    };
                     if matches!(
                         name.to_ascii_lowercase().as_str(),
                         "linear" | "steps" | "cubic-bezier"
@@ -213,11 +245,7 @@ impl Globals {
                     }
                     push(
                         &mut out,
-                        &format!(
-                            "{}({})",
-                            CssToken::Ident(name).to_css_string(),
-                            nested_text(&mut parser)?
-                        ),
+                        &format!("{}({})", CssToken::Ident(name).to_css_string(), body),
                     )?;
                 }
                 CssToken::ParenthesisBlock => {
