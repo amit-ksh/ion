@@ -25,6 +25,7 @@ use std::{
 };
 const HOST: &str =
     "ion-kimi-host/0.1.0 kimi/2.2.0 source/472192c34c1efad89a369870eff0da0b708ce9bb protocol/1";
+const COMPILED_HOST: &str = "ion-kimi-host/0.2.0 kimi/2.2.0 source/472192c34c1efad89a369870eff0da0b708ce9bb protocol/1 compiled/1";
 const PREFIX: &str = "ion_teams_";
 const DENIED: &str = "Ion Teams could not verify this active native Kimi call. Retry from the task; no invocation is automatically retried.";
 #[derive(Clone)]
@@ -104,7 +105,7 @@ impl KimiBridge {
             Duration::from_secs(15),
         )?;
         ensure!(
-            std::str::from_utf8(&output)?.trim() == HOST,
+            [HOST, COMPILED_HOST].contains(&std::str::from_utf8(&output)?.trim()),
             "Select the separately installed Ion Kimi host to enable Teams"
         );
         Self::listen(context, events)

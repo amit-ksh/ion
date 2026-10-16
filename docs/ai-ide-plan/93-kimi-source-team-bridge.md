@@ -2,6 +2,10 @@
 
 Implementation worktree: `codex/ion-agent-teams`. This is a separately selected source host for the released Kimi Code **2.2.0** engine at commit `472192c34c1efad89a369870eff0da0b708ce9bb`. The three deferred harness paths remain outside scope.
 
+## Compiled package follow-up
+
+[Chapter 94](94-kimi-compiled-host.md) implements and verifies the relocated Windows/x64 compiled package, bundled runtime/native assets/notices and actual native Bash without source/loader fallbacks. The source execution path below remains useful for development; its historical startup/package limitations do not describe that compiled artifact. Signed release/update authenticity, other platforms, real owner accounts and interactive terminal acceptance remain open.
+
 ## Production path
 
 `driver/acp.rs` can select a prepared host through **`ION_KIMI_SOURCE_HOST`** from the final configured process environment. The selection affects the ordinary ACP source session. The existing Kimi native executable selection, catalog and bounded completion adapter retain their own version/account contracts. If no compatible host is selected, the ordinary native session remains available and Ion reports that Teams tools are unavailable.

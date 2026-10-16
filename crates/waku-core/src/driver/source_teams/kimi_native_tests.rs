@@ -44,6 +44,15 @@ fn private_config(config: AcpAgentConfig, root: &Path, guard: &Path) -> AcpAgent
     ] {
         result = result.env(name, root.join(path).to_string_lossy());
     }
+    if let Some(package) = std::env::var_os("ION_TEST_KIMI_PACKAGE") {
+        result = result
+            .env("ION_TEST_KIMI_PACKAGE_ROOT", package.to_string_lossy())
+            .env("ION_TEST_KIMI_FIXTURE_ROOT", root.to_string_lossy())
+            .env(
+                "ION_KIMI_HOST_CONFIG",
+                root.join("compiled-host.json").to_string_lossy(),
+            );
+    }
     result
         .env(
             "NODE_OPTIONS",
@@ -192,38 +201,69 @@ function check(raw){let args=Array.isArray(raw[0])?raw[0]:raw;let host;if(typeof
 const connect=net.Socket.prototype.connect;net.Socket.prototype.connect=function(...args){check(args);return connect.apply(this,args);};const secure=tls.connect;tls.connect=function(...args){check(args);return secure.apply(this,args);};"#).unwrap();
     let login = root.join("native-login.mjs");
     fs::write(&login,"import {writeFileSync} from 'node:fs';if(process.argv[2]==='--version')console.log('2.2.0');else writeFileSync(process.env.KIMI_CODE_HOME+'/login-forward.json',JSON.stringify({args:process.argv.slice(2),home:process.env.KIMI_CODE_HOME}));").unwrap();
-    let prepare = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../scripts/kimi-host/prepare-source-host.mjs");
-    let output = Command::new(&node)
-        .arg(&prepare)
-        .arg("--source")
-        .arg(&source)
-        .arg("--node")
-        .arg(&node)
-        .arg("--native-command")
-        .arg(&node)
-        .arg("--native-entry")
-        .arg(&login)
-        .arg("--output")
-        .arg(root.join("host"))
-        .output()
+    let compiled = std::env::var_os("ION_TEST_KIMI_PACKAGE").map(PathBuf::from);
+    let binary = if let Some(package) = &compiled {
+        use std::io::Write;
+        let mut append = fs::OpenOptions::new().append(true).open(&guard).unwrap();
+        append.write_all(br#"
+import {registerHooks} from 'node:module';import {fileURLToPath} from 'node:url';import {resolve,relative,isAbsolute,sep} from 'node:path';
+const roots=[process.env.ION_TEST_KIMI_PACKAGE_ROOT,process.env.ION_TEST_KIMI_FIXTURE_ROOT].map(p=>resolve(p));
+function allowed(path){return roots.some(root=>{const rel=relative(root,path);return rel==='' || rel!=='..' && !rel.startsWith('..'+sep) && !isAbsolute(rel);});}
+registerHooks({resolve(spec,context,next){const result=next(spec,context);if(result.url.startsWith('file:') && !allowed(fileURLToPath(result.url)))throw Error('Fixture refused a module outside the compiled package');return result;}});
+"#).unwrap();
+        fs::write(
+            root.join("compiled-host.json"),
+            json!({"format":1,"nativeCommand":node,"nativeArgs":[login]}).to_string(),
+        )
         .unwrap();
-    assert!(
-        output.status.success(),
-        "Host preparation: {}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-    let binary = root.join(if cfg!(windows) {
-        "host/ion-kimi-host.cmd"
+        package.join(if cfg!(windows) {
+            "ion-kimi-host.cmd"
+        } else {
+            "ion-kimi-host"
+        })
     } else {
-        "host/ion-kimi-host"
-    });
-    let config_before = fs::read(root.join("host/host.json")).unwrap();
+        let prepare = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../scripts/kimi-host/prepare-source-host.mjs");
+        let output = Command::new(&node)
+            .arg(&prepare)
+            .arg("--source")
+            .arg(&source)
+            .arg("--node")
+            .arg(&node)
+            .arg("--native-command")
+            .arg(&node)
+            .arg("--native-entry")
+            .arg(&login)
+            .arg("--output")
+            .arg(root.join("host"))
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "Host preparation: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let binary = root.join(if cfg!(windows) {
+            "host/ion-kimi-host.cmd"
+        } else {
+            "host/ion-kimi-host"
+        });
+        binary
+    };
+    let config_path = if compiled.is_some() {
+        root.join("compiled-host.json")
+    } else {
+        root.join("host/host.json")
+    };
+    let config_before = fs::read(&config_path).unwrap();
     // Test real launcher login delegation, never claiming the fake logs in.
     let mut command = crate::command_env::command(&binary);
     command
         .args(["acp", "--login", "--region", "global"])
         .env("KIMI_CODE_HOME", root.join("home"));
+    if compiled.is_some() {
+        command.env("ION_KIMI_HOST_CONFIG", &config_path);
+    }
     let bytes = crate::team_process::bounded_process(
         &mut command,
         b"",
@@ -242,6 +282,9 @@ const connect=net.Socket.prototype.connect;net.Socket.prototype.connect=function
     let name = if mode == "read" {
         args = json!({"path":root.join("work/evidence.txt")});
         "Read"
+    } else if mode == "bash" {
+        args = json!({"command":r#"printf 'ion-native-bash-proof\n'; if [ -n "${ION_KIMI_TEAM_TOKEN-}" ] || [ -n "${ION_KIMI_TEAM_ENDPOINT-}" ]; then printf 'ion-credential-exposed\n'; exit 19; fi"#,"timeout":10});
+        "Bash"
     } else {
         "ion_teams_invoke_team"
     };
@@ -291,7 +334,10 @@ const connect=net.Socket.prototype.connect;net.Socket.prototype.connect=function
     fs::write(root.join("home/config.toml"), &config).unwrap();
     let (driver, received, cursor) = connect(&f, &binary, &guard, None);
     let (_, approvals) = turn(&driver, &received, mode);
-    assert_eq!(approvals, usize::from(!matches!(mode, "read" | "stale")));
+    assert_eq!(
+        approvals,
+        usize::from(!matches!(mode, "read" | "stale" | "bash"))
+    );
     assert_eq!(
         f.runs().len(),
         usize::from(matches!(mode, "allow" | "resume"))
@@ -367,6 +413,15 @@ const connect=net.Socket.prototype.connect;net.Socket.prototype.connect=function
         assert_eq!(result["tool_call_id"], "same-native-id");
         if mode == "read" {
             assert!(result.to_string().contains("ion-native-read-evidence"));
+        } else if mode == "bash" {
+            assert!(
+                result.to_string().contains("ion-native-bash-proof"),
+                "{result}"
+            );
+            assert!(
+                !result.to_string().contains("ion-credential-exposed"),
+                "{result}"
+            );
         } else if mode == "allow" || mode == "resume" {
             assert!(result.to_string().contains(&f.runs()[0].id.to_string()));
         }
@@ -379,10 +434,7 @@ const connect=net.Socket.prototype.connect;net.Socket.prototype.connect=function
         fs::read(root.join("home/config.toml")).unwrap(),
         config.as_bytes()
     );
-    assert_eq!(
-        fs::read(root.join("host/host.json")).unwrap(),
-        config_before
-    );
+    assert_eq!(fs::read(&config_path).unwrap(), config_before);
 }
 #[test]
 #[ignore = "requires explicit pinned Kimi source and Node runtime"]
@@ -413,4 +465,10 @@ fn kimi_source_native_driver_builtin_read() {
 #[ignore = "requires explicit pinned Kimi source and Node runtime"]
 fn kimi_source_native_driver_resume() {
     fixture("resume");
+}
+
+#[test]
+#[ignore = "requires explicit pinned Kimi source or compiled package and Node runtime"]
+fn kimi_source_native_driver_bash() {
+    fixture("bash");
 }

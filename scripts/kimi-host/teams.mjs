@@ -86,6 +86,15 @@ export function connection(endpoint, token) {
     });
 }
 export async function installTeams(source, post) {
+  const load = (relative) =>
+    import(
+      pathToFileURL(
+        join(source, "packages/agent-core-v2/src", relative + ".ts"),
+      ).href
+    );
+  return installNativeTeams(post, load);
+}
+export async function installNativeTeams(post, load) {
   const definitions = await post("/tools", {}, undefined, 10000);
   if (
     !Array.isArray(definitions) ||
@@ -99,12 +108,6 @@ export async function installTeams(source, post) {
     )
   )
     throw Error(refused);
-  const load = (relative) =>
-    import(
-      pathToFileURL(
-        join(source, "packages/agent-core-v2/src", relative + ".ts"),
-      ).href
-    );
   const core = await load("index");
   const { createDecorator } = await load("_base/di/instantiation");
   const { registerScopedService, ScopeActivation } =

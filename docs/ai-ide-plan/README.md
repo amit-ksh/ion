@@ -275,3 +275,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Portable computed CSS names](92-portable-computed-css-names.md): bounded native identifier/fallback handling, 107 native-to-phone checks and remaining arbitrary substitution/browser/device work.
 
 - [Kimi production source-task bridge](93-kimi-source-team-bridge.md): explicit host selection, additive native tools, shared worker authority, local source-host preparation and remaining release packaging/account acceptance.
+
+- [Kimi compiled host](94-kimi-compiled-host.md): relocated self-contained Windows/x64 engine/runtime/assets/notices, full inventory checks, native Bash/Teams acceptance and remaining owner/release gates.
