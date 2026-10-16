@@ -41,6 +41,17 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             content BLOB NOT NULL, PRIMARY KEY(work_id,request_id));
         CREATE TABLE IF NOT EXISTS ion_team_html_bundles (
             artifact_id TEXT PRIMARY KEY REFERENCES ion_team_document_receipts(artifact_id), arguments TEXT NOT NULL, signature TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ion_team_html_source_archives (
+            artifact_id TEXT PRIMARY KEY REFERENCES ion_team_html_bundles(artifact_id) ON DELETE CASCADE,
+            version INTEGER NOT NULL CHECK(version=1),
+            source_count INTEGER NOT NULL CHECK(source_count BETWEEN 1 AND 33),
+            byte_count INTEGER NOT NULL CHECK(byte_count BETWEEN 0 AND 9437184));
+        CREATE TABLE IF NOT EXISTS ion_team_html_sources (
+            artifact_id TEXT NOT NULL REFERENCES ion_team_html_source_archives(artifact_id) ON DELETE CASCADE,
+            path TEXT NOT NULL CHECK(length(path) BETWEEN 1 AND 512),
+            mime TEXT NOT NULL,sha256 TEXT NOT NULL CHECK(length(sha256)=64),
+            content BLOB NOT NULL CHECK(length(content)<=2097152),
+            PRIMARY KEY(artifact_id,path));
         CREATE TABLE IF NOT EXISTS ion_team_file_documents (
             artifact_id TEXT PRIMARY KEY REFERENCES ion_team_document_receipts(artifact_id),
             path TEXT NOT NULL,summary TEXT NOT NULL,signature TEXT NOT NULL);

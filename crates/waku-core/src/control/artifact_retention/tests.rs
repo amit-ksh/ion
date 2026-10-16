@@ -828,3 +828,110 @@ fn invalid_publication_json_reports_error_even_when_filters_would_hide_it() {
     );
     assert!(f.path(&artifact).exists());
 }
+
+fn source_copy_fixture(f: &Fixture, artifact: Uuid) {
+    let db = f.store.connect().unwrap();
+    db.execute_batch(
+        "CREATE TABLE ion_team_html_sources(artifact_id TEXT,path TEXT,content BLOB);",
+    )
+    .unwrap();
+    for (id, path) in [
+        (artifact, "index.html"),
+        (artifact, "sprite.svg"),
+        (Uuid::new_v4(), "unrelated.svg"),
+    ] {
+        db.execute(
+            "INSERT INTO ion_team_html_sources VALUES(?,?,?)",
+            params![id.to_string(), path, b"retained pinned source".as_slice()],
+        )
+        .unwrap();
+    }
+}
+#[test]
+fn html_source_cleanup_keeps_active_protection_and_releases_only_parent_copies() {
+    for run in ["active", "completed"] {
+        let f = Fixture::new();
+        let artifact = f.add();
+        let artifact = f.team(&artifact, run, "completed");
+        source_copy_fixture(&f, artifact.id);
+        let db = f.store.connect().unwrap();
+        let request = f.request(&artifact);
+        if run == "active" {
+            assert!(f.clean(&request, 100).is_err());
+            assert!(
+                db.query_row(
+                    "SELECT sum(length(content)) FROM ion_team_html_sources WHERE artifact_id=?",
+                    [artifact.id.to_string()],
+                    |r| r.get::<_, u64>(0)
+                )
+                .unwrap()
+                    > 0
+            );
+        } else {
+            let receipt = f.clean(&request, 100).unwrap();
+            assert_eq!(f.clean(&request, 101).unwrap().bytes, receipt.bytes);
+            assert_eq!(
+                db.query_row(
+                    "SELECT sum(length(content)) FROM ion_team_html_sources WHERE artifact_id=?",
+                    [artifact.id.to_string()],
+                    |r| r.get::<_, u64>(0)
+                )
+                .unwrap(),
+                0
+            );
+            assert_eq!(
+                db.query_row(
+                    "SELECT count(*) FROM ion_team_html_sources WHERE artifact_id=?",
+                    [artifact.id.to_string()],
+                    |r| r.get::<_, u32>(0)
+                )
+                .unwrap(),
+                2
+            );
+            assert!(f.store.read_document(artifact.id).is_err());
+        }
+        assert!(
+            db.query_row(
+                "SELECT length(content) FROM ion_team_html_sources WHERE path='unrelated.svg'",
+                [],
+                |r| r.get::<_, u64>(0)
+            )
+            .unwrap()
+                > 0
+        );
+    }
+}
+#[test]
+fn html_source_cleanup_failure_rolls_back_original_bytes_and_cleanup_receipt() {
+    let f = Fixture::new();
+    let artifact = f.add();
+    let artifact = f.team(&artifact, "completed", "completed");
+    source_copy_fixture(&f, artifact.id);
+    let db = f.store.connect().unwrap();
+    db.execute_batch("CREATE TRIGGER refuse_html_cleanup BEFORE UPDATE ON ion_team_html_sources BEGIN SELECT RAISE(ABORT,'fixture cleanup failure');END;").unwrap();
+    let request = f.request(&artifact);
+    assert!(f.clean(&request, 100).is_err());
+    assert_eq!(
+        f.store.read_document(artifact.id).unwrap(),
+        b"retained original bytes"
+    );
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM ion_artifact_cleanup", [], |r| r
+            .get::<_, u32>(0))
+            .unwrap(),
+        0
+    );
+    assert!(
+        db.query_row(
+            "SELECT sum(length(content)) FROM ion_team_html_sources WHERE artifact_id=?",
+            [artifact.id.to_string()],
+            |r| r.get::<_, u64>(0)
+        )
+        .unwrap()
+            > 0
+    );
+    db.execute_batch("DROP TRIGGER refuse_html_cleanup")
+        .unwrap();
+    f.clean(&request, 101).unwrap();
+    assert!(f.store.read_document(artifact.id).is_err());
+}

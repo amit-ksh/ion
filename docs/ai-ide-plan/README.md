@@ -287,3 +287,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Complete animation fallbacks](98-complete-animation-fallbacks.md): complete-context variable fallback names, borrowed source boundaries, 139 native-to-phone checks and remaining primary-variable/device review.
 
 - [Phone equation rendering](99-phone-mathml-rendering.md): native presentation MathML, static annotations/actions, namespace-reparse controls and publication-to-phone review.
+
+- [Retained HTML resource originals](100-html-resource-originals.md): exact versioned source history, bounded reads, atomic cleanup, 200 native/export/phone checks and remaining resource loading work.

@@ -1207,3 +1207,6 @@ fn native_mathml_phone_fixture() {
     )
     .unwrap();
 }
+
+#[path = "html_source_tests.rs"]
+mod html_sources;

@@ -19,6 +19,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 ## Current document/harness goal: remaining work (2026-10-17)
 
+- [x] Retain exact pinned HTML/resource originals transactionally, with versioned legacy-aware reads, source bounds, model-summary separation and parent-artifact cleanup/cascade behavior; [200 native/export/phone cases and later review](100-html-resource-originals.md). Existing exports are byte-identical and desktop/both-daemon checks pass.
+- [ ] Add authenticated bounded source transport and a native resource-document loader before claiming general variable/cascade fidelity for external SVG documents. Browser/device acceptance remains separate.
+
 - [x] Phone presentation MathML, static actions/annotations, namespace-reparse controls and actual durable equation publication-to-phone handoff; [155 native/export/phone cases and later device checklist](99-phone-mathml-rendering.md). Full mobile/strict fixture types and formatting/diff checks pass.
 - [ ] Actual equation layout, math fonts/glyph selection, large-text behavior and native iPhone 15/Moto G32 acceptance.
 

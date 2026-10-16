@@ -517,6 +517,14 @@ impl ControlStore {
                 )? == 1,
                 "Team document storage changed"
             );
+            // Resource originals belong to the same protected artifact. Release
+            // their bytes atomically, retaining only publication/cleanup metadata.
+            if has_table(&tx, "ion_team_html_sources")? {
+                tx.execute(
+                    "UPDATE ion_team_html_sources SET content=x'' WHERE artifact_id=?",
+                    [artifact.id.to_string()],
+                )?;
+            }
             tx.execute(
                 "UPDATE ion_control_revision SET revision=revision+1 WHERE id=1",
                 [],

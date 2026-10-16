@@ -15,7 +15,9 @@ use std::{
     path::Path,
 };
 
+mod sources;
 mod svg;
+pub use sources::{HtmlBundleSource, HtmlBundleSources};
 
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -92,7 +94,8 @@ pub(super) fn verify(
             == Some("ion-html-bundle")
             && artifact.format == "html"
             && artifact.name == args.name
-            && seal(artifact, &args)? == signature
+            && (seal(artifact, &args)? == signature
+                || sources::seal(artifact, &args)? == signature)
             && artifact.evidence.as_ref().is_some_and(
                 |e| e.matches(bytes) && e.producer.origin == ArtifactOrigin::TeamAssignment
             ),
@@ -229,9 +232,10 @@ impl TeamCoordinator {
                 params![
                     artifact.id.to_string(),
                     serde_json::to_string(args)?,
-                    seal(&artifact, args)?
+                    sources::seal(&artifact, args)?
                 ],
             )?;
+            sources::save(&tx, &artifact, args, source.as_bytes(), &bundle.resources)?;
         }
         tx.commit()?;
         Ok(artifact)

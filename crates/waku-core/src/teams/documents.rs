@@ -7,6 +7,7 @@ mod pdf;
 pub(super) use files::{recover as recover_file, verify as verify_file};
 pub(crate) use html_bundle::Args as HtmlBundleArgs;
 pub(super) use html_bundle::recover as recover_html_bundle;
+pub use html_bundle::{HtmlBundleSource, HtmlBundleSources};
 pub(super) use pdf::{handoff, recover as recover_pdf, verify as verify_pdf};
 
 impl TeamCoordinator {

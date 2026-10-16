@@ -8,6 +8,10 @@ The user deferred integration paths whose implementation has not started: **Amp 
 
 The broader catalog now has 25 implemented source-level paths after the Kimi bridge increment. Three unstarted paths remain deferred. Kimi signed release/additional-platform/owner acceptance and document work remain open. Deferral did not mark a capability complete; this is not an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
+## Latest HTML resource-original increment (2026-10-17)
+
+New pinned HTML bundles retain exact HTML/resource originals with versioned receipt history, ordered hash/MIME-checked reads and the same parent-artifact cleanup holds. Publication and cleanup failures roll back all copies; legacy exports remain readable without fabricated source history. **200 distinct native/export/phone cases pass**. All eleven existing preview exports remain byte-identical, 64 phone cases pass with 2,892 assertions, and desktop/both-daemon and formatting checks pass. [Implementation, storage bounds, nine new lifecycle cases and review](100-html-resource-originals.md). This supplies the source-data prerequisite for native resource-document loading. Authenticated source transport, the native loader and browser/device acceptance remain open. Every unstarted harness adapter remains deferred.
+
 ## Latest phone equation increment (2026-10-17)
 
 The shared HTML Rendered view now retains presentation MathML equations, authored math CSS, labels and bounded annotations. Interactive actions become static rows, and malformed HTML/MathML namespace repair cannot restore legacy glyph tags. Complete Source/export and the Reading placeholder retain their existing roles. **155 distinct native/export/phone cases pass**, including 64 phone cases with 2,892 assertions using eleven fresh native exports. Full mobile/strict fixture types and formatting/diff checks pass. [Implementation, actual publication/replay evidence and owner review](99-phone-mathml-rendering.md). General dynamic SVG/CSS fidelity and actual browser/font/device acceptance remain open. Unstarted harness adapters remain deferred.
