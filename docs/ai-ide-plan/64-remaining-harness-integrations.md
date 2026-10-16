@@ -4,7 +4,7 @@ Updated 2026-10-16. The latest user instruction defers paths whose implementatio
 
 ## Current scope correction (2026-10-16)
 
-The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
+The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities. Any other unstarted harness adapter also stays out of scope until the user explicitly reopens it.
 
 **Kimi ordinary-task Teams invocation has a production bridge and a relocated compiled Windows/x64 package**: 37 worker/native/package/source-launcher cases pass, including actual Bash, a nonexistent source path and outside-import refusal. [Compiled packaging and remaining owner/release gates](94-kimi-compiled-host.md) follow the [source bridge](93-kimi-source-team-bridge.md). Signed release/update distribution, additional platforms and authenticated owner acceptance remain open. Document improvements and existing integration acceptance continue; the existing Amp/Cursor source bridges and Fx bounded adapter keep their scope.
 
@@ -107,7 +107,8 @@ Primary source: [native MCP request](https://github.com/MoonshotAI/kimi-code/blo
 - Deferred: Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
 - [x] Complete the verified Windows Cursor source-task bridge with exact native call identity, approval/replay/Stop and native fixture acceptance; see chapter 87.
 - [ ] Complete additional Cursor worker-platform contracts and authenticated owner acceptance.
-- [ ] Complete Kimi source-task Teams tools, with real shared-worker approval/replay/Stop and supported host packaging/login.
+- [x] Kimi source-task Teams tools and compiled Windows host with shared-worker approval/replay/Stop; see chapters 93–94.
+- [ ] Complete Kimi signed release/update authenticity, additional-platform and authenticated owner/login/interactive-terminal acceptance.
 - Deferred: Fx source-task Teams tools; retain its native/SDK contract research.
 
 Kimi implementation and existing integration acceptance remain active. The three deferred paths require a later request; research and deferral are not completion.

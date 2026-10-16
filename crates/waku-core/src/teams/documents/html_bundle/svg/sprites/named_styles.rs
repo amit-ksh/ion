@@ -1,10 +1,12 @@
 //! File-local CSS names for inlined SVG documents. Values are parsed by their
 //! property grammar: a keyword or string is not blindly renamed across CSS.
 use super::*;
+use std::collections::BTreeSet;
+mod counters;
 
 #[derive(Clone, Default)]
 pub(super) struct Globals {
-    counters: HashSet<String>,
+    counters: BTreeSet<String>,
 }
 fn wide(value: &str) -> bool {
     matches!(
@@ -46,9 +48,65 @@ pub(super) fn priority(source: &str) -> Result<(&str, &str)> {
 }
 // W3C CSS Counter Styles 3 sections 6/7. These predefined names canonicalize
 // ASCII case; author-defined names retain exact case.
+const PREDEFINED: &[&str] = &[
+    "decimal",
+    "decimal-leading-zero",
+    "arabic-indic",
+    "armenian",
+    "upper-armenian",
+    "lower-armenian",
+    "bengali",
+    "cambodian",
+    "khmer",
+    "cjk-decimal",
+    "devanagari",
+    "georgian",
+    "gujarati",
+    "gurmukhi",
+    "hebrew",
+    "kannada",
+    "lao",
+    "malayalam",
+    "mongolian",
+    "myanmar",
+    "oriya",
+    "persian",
+    "lower-roman",
+    "upper-roman",
+    "tamil",
+    "telugu",
+    "thai",
+    "tibetan",
+    "lower-alpha",
+    "lower-latin",
+    "upper-alpha",
+    "upper-latin",
+    "lower-greek",
+    "hiragana",
+    "hiragana-iroha",
+    "katakana",
+    "katakana-iroha",
+    "disc",
+    "circle",
+    "square",
+    "disclosure-open",
+    "disclosure-closed",
+    "cjk-earthly-branch",
+    "cjk-heavenly-stem",
+    "japanese-informal",
+    "japanese-formal",
+    "korean-hangul-formal",
+    "korean-hanja-informal",
+    "korean-hanja-formal",
+    "simp-chinese-informal",
+    "simp-chinese-formal",
+    "trad-chinese-informal",
+    "trad-chinese-formal",
+    "cjk-ideographic",
+    "ethiopic-numeric",
+];
 fn predefined(value: &str) -> bool {
-    const NAMES: &str = "decimal decimal-leading-zero arabic-indic armenian upper-armenian lower-armenian bengali cambodian khmer cjk-decimal devanagari georgian gujarati gurmukhi hebrew kannada lao malayalam mongolian myanmar oriya persian lower-roman upper-roman tamil telugu thai tibetan lower-alpha lower-latin upper-alpha upper-latin lower-greek hiragana hiragana-iroha katakana katakana-iroha disc circle square disclosure-open disclosure-closed cjk-earthly-branch cjk-heavenly-stem japanese-informal japanese-formal korean-hangul-formal korean-hanja-informal korean-hanja-formal simp-chinese-informal simp-chinese-formal trad-chinese-informal trad-chinese-formal cjk-ideographic ethiopic-numeric";
-    NAMES.split_ascii_whitespace().any(|name| name == value)
+    PREDEFINED.contains(&value)
 }
 fn counter_key(value: &str) -> String {
     let lower = value.to_ascii_lowercase();
@@ -164,14 +222,22 @@ impl Globals {
         match property {
             "animation-name" | "-webkit-animation-name" => self.animation(source, prefix, false, 0),
             "animation" | "-webkit-animation" => self.animation(source, prefix, true, 0),
-            "list-style-type" => self.counter_values(source, prefix, CounterMode::Type, 0),
-            "list-style" => self.counter_values(source, prefix, CounterMode::List, 0),
-            "fallback" if descriptor => self.counter_values(source, prefix, CounterMode::Type, 0),
-            "speak-as" if descriptor => self.counter_values(source, prefix, CounterMode::Speak, 0),
-            "system" if descriptor => self.counter_values(source, prefix, CounterMode::System, 0),
+            "list-style-type" => {
+                self.counter_values(source, prefix, CounterMode::Type, !descriptor, 0)
+            }
+            "list-style" => self.counter_values(source, prefix, CounterMode::List, !descriptor, 0),
+            "fallback" if descriptor => {
+                self.counter_values(source, prefix, CounterMode::Type, !descriptor, 0)
+            }
+            "speak-as" if descriptor => {
+                self.counter_values(source, prefix, CounterMode::Speak, false, 0)
+            }
+            "system" if descriptor => {
+                self.counter_values(source, prefix, CounterMode::System, false, 0)
+            }
             // counter()/counters() may occur in content, a var fallback, or a
             // custom property's token sequence. Ordinary strings stay literal.
-            _ => self.counter_values(source, prefix, CounterMode::Functions, 0),
+            _ => self.counter_values(source, prefix, CounterMode::Functions, !descriptor, 0),
         }
     }
     fn animation(
@@ -260,156 +326,6 @@ impl Globals {
                 _ => push(&mut out, &token.to_css_string())?,
             }
         }
-        Ok(out)
-    }
-    fn counter_values(
-        &self,
-        source: &str,
-        prefix: &str,
-        mode: CounterMode,
-        depth: usize,
-    ) -> Result<String> {
-        ensure!(depth <= 32, "CSS named-value nesting exceeds its bound");
-        let mut input = ParserInput::new(source);
-        let mut parser = Parser::new(&mut input);
-        let mut out = String::new();
-        let mut extends = false;
-        while let Ok(token) = parser.next_including_whitespace_and_comments().cloned() {
-            match token {
-                CssToken::Ident(name) => {
-                    let keyword = name.to_ascii_lowercase();
-                    let replace = match mode {
-                        CounterMode::Functions => false,
-                        CounterMode::Type => !wide(&name) && keyword != "none",
-                        CounterMode::List => {
-                            !wide(&name)
-                                && !matches!(keyword.as_str(), "none" | "inside" | "outside")
-                        }
-                        CounterMode::Speak => !matches!(
-                            keyword.as_str(),
-                            "auto" | "bullets" | "numbers" | "words" | "spell-out"
-                        ),
-                        CounterMode::System => {
-                            if extends {
-                                extends = false;
-                                true
-                            } else {
-                                extends = keyword == "extends";
-                                false
-                            }
-                        }
-                    };
-                    let key = counter_key(&name);
-                    if replace && self.counters.contains(&key) {
-                        push(&mut out, &identifier(&key, prefix, "counter_style"))?;
-                    } else {
-                        push(&mut out, &CssToken::Ident(name).to_css_string())?;
-                    }
-                }
-                CssToken::Function(name) => {
-                    let body = nested_text(&mut parser)?;
-                    let rewritten = match name.to_ascii_lowercase().as_str() {
-                        "counter" => self.counter_function(&body, prefix, 1, depth + 1)?,
-                        "counters" => self.counter_function(&body, prefix, 2, depth + 1)?,
-                        _ => {
-                            self.counter_values(&body, prefix, CounterMode::Functions, depth + 1)?
-                        }
-                    };
-                    push(
-                        &mut out,
-                        &format!("{}({rewritten})", CssToken::Ident(name).to_css_string()),
-                    )?;
-                }
-                CssToken::ParenthesisBlock => push(
-                    &mut out,
-                    &format!(
-                        "({})",
-                        self.counter_values(
-                            &nested_text(&mut parser)?,
-                            prefix,
-                            CounterMode::Functions,
-                            depth + 1
-                        )?
-                    ),
-                )?,
-                CssToken::SquareBracketBlock => {
-                    push(&mut out, &format!("[{}]", nested_text(&mut parser)?))?
-                }
-                CssToken::CurlyBracketBlock => {
-                    push(&mut out, &format!("{{{}}}", nested_text(&mut parser)?))?
-                }
-                _ => push(&mut out, &token.to_css_string())?,
-            }
-        }
-        Ok(out)
-    }
-    fn counter_function(
-        &self,
-        source: &str,
-        prefix: &str,
-        style_index: usize,
-        depth: usize,
-    ) -> Result<String> {
-        ensure!(
-            depth <= 32,
-            "CSS counter function nesting exceeds its bound"
-        );
-        let mut input = ParserInput::new(source);
-        let mut parser = Parser::new(&mut input);
-        let mut out = String::new();
-        let mut part = String::new();
-        let mut index = 0;
-        while let Ok(token) = parser.next_including_whitespace_and_comments().cloned() {
-            if matches!(token, CssToken::Comma) {
-                push(
-                    &mut out,
-                    &self.counter_values(
-                        &part,
-                        prefix,
-                        if index == style_index {
-                            CounterMode::Type
-                        } else {
-                            CounterMode::Functions
-                        },
-                        depth,
-                    )?,
-                )?;
-                push(&mut out, ",")?;
-                part.clear();
-                index += 1;
-                continue;
-            }
-            match token {
-                CssToken::Function(name) => push(
-                    &mut part,
-                    &format!(
-                        "{}({})",
-                        CssToken::Ident(name).to_css_string(),
-                        nested_text(&mut parser)?
-                    ),
-                )?,
-                CssToken::ParenthesisBlock => {
-                    push(&mut part, &format!("({})", nested_text(&mut parser)?))?
-                }
-                CssToken::SquareBracketBlock => {
-                    push(&mut part, &format!("[{}]", nested_text(&mut parser)?))?
-                }
-                _ => push(&mut part, &token.to_css_string())?,
-            }
-        }
-        push(
-            &mut out,
-            &self.counter_values(
-                &part,
-                prefix,
-                if index == style_index {
-                    CounterMode::Type
-                } else {
-                    CounterMode::Functions
-                },
-                depth,
-            )?,
-        )?;
         Ok(out)
     }
 }

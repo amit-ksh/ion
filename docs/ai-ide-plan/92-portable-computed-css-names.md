@@ -52,8 +52,8 @@ Run the eight phone files from the verification command in chapter 85 plus `html
 
 ## Still required
 
-- [ ] General arbitrary variable-supplied names, partial family/shorthand substitution, dynamic counter-style references and unknown installed-font selection.
+- [ ] General arbitrary variable-supplied names, partial family/shorthand substitution, builtin-selecting counter prefixes and unknown installed-font selection. Proven computed counter-style references and literal fallbacks are implemented in [chapter 95](95-portable-computed-counter-styles.md).
 - [ ] Real computed browser behavior and unsupported-function fallbacks on iPhone 15 and Moto G32, including use-shadow inheritance and real fonts.
-- [ ] Complete the active Kimi production Teams integration and acceptance of existing harnesses. The user deferred unstarted Amp/Cursor bounded completion and Fx source-task invocation; those remain outside the current requested implementation.
+- [ ] Complete Kimi signed distribution, additional-platform and authenticated owner acceptance, plus acceptance of existing harnesses. Its source bridge and compiled Windows host are implemented in [chapters 93–94](94-kimi-compiled-host.md). The user deferred unstarted Amp/Cursor bounded completion and Fx source-task invocation; those remain outside the current requested implementation.
 
 This is progress on the active document goal, not a claim that every dynamic CSS name or the full application is complete.

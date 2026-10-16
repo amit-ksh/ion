@@ -19,7 +19,7 @@ headless personal cloud task execution. Its live review remains open.
 
 ## Locked decisions
 
-- **2026-10-16 current scope correction:** defer the not-started Amp/Cursor bounded Teams execution paths and Fx ordinary-task Teams invocation. Keep their research for later. Kimi ordinary-task Teams invocation has started and remains active, alongside document improvements and existing integration/platform/account/device acceptance. The [current harness ledger](64-remaining-harness-integrations.md) records these as deferred, not implemented. This supersedes the 2026-10-14 reopening for those three paths.
+- **2026-10-16 current scope correction:** defer the not-started Amp/Cursor bounded Teams execution paths and Fx ordinary-task Teams invocation. Keep their research for later. Kimi ordinary-task Teams invocation has a production bridge and compiled Windows host; its release/platform/owner acceptance remains active alongside document improvements and existing integration acceptance. Any other unstarted harness adapter also stays out of scope until the user explicitly reopens it. The [current harness ledger](64-remaining-harness-integrations.md) records these as deferred, not implemented. This supersedes the 2026-10-14 reopening for those three paths.
 
 - **2026-10-14 current goal:** the user reopened remaining harness integrations alongside additional document formats/larger publications and fuller phone HTML/CSS support. This supersedes the adapter deferral below; [the current harness checklist](64-remaining-harness-integrations.md) records implementation and remaining native contracts. Owner-account/device review remains separate from source-level coverage.
 
@@ -277,3 +277,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Kimi production source-task bridge](93-kimi-source-team-bridge.md): explicit host selection, additive native tools, shared worker authority, local source-host preparation and remaining release packaging/account acceptance.
 
 - [Kimi compiled host](94-kimi-compiled-host.md): relocated self-contained Windows/x64 engine/runtime/assets/notices, full inventory checks, native Bash/Teams acceptance and remaining owner/release gates.
+
+- [Portable computed counter styles](95-portable-computed-counter-styles.md): private literal/fallback/fixed-prefix references, 118 native-to-phone checks and remaining expression/device review.

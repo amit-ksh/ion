@@ -2,11 +2,15 @@
 
 ## Current scope correction (2026-10-16)
 
-The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
+The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities. Any other unstarted harness adapter also stays out of scope until the user explicitly reopens it.
 
 **Kimi ordinary-task Teams invocation has a production bridge and a relocated compiled Windows/x64 package**: 37 worker/native/package/source-launcher cases pass, including actual Bash, a nonexistent source path and outside-import refusal. [Compiled packaging and remaining owner/release gates](94-kimi-compiled-host.md) follow the [source bridge](93-kimi-source-team-bridge.md). Signed release/update distribution, additional platforms and authenticated owner acceptance remain open. Document improvements and existing integration acceptance continue; the existing Amp/Cursor source bridges and Fx bounded adapter keep their scope.
 
 The broader catalog now has 25 implemented source-level paths after the Kimi bridge increment. Three unstarted paths remain deferred. Kimi signed release/additional-platform/owner acceptance and document work remain open. Deferral did not mark a capability complete; this is not an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
+
+## Latest computed counter-style document increment (2026-10-16)
+
+Imported SVG counter-style references now retain proven computed identities in list properties and counter function style arguments, including literal variable fallbacks and safe fixed author prefixes. Native function wrappers, predefined styles, counter names/separators, descriptors and opaque values retain their roles. **118 distinct native/publication/export/phone cases pass**, including 47 phone cases with 1,098 assertions. Full mobile/fixture TypeScript, locked offline desktop/both-daemon checks and formatting/diff checks pass. [Implementation, verification and device review](95-portable-computed-counter-styles.md). General variable-supplied names, builtin-selecting prefixes and real browser/glyph/device acceptance remain open. All unstarted harness adapters remain deferred.
 
 ## Latest Kimi compiled package increment (2026-10-16)
 

@@ -2,7 +2,7 @@
 
 ## Current scope correction (2026-10-16)
 
-The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities.
+The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities. Any other unstarted harness adapter also stays out of scope until the user explicitly reopens it.
 
 **Kimi ordinary-task Teams invocation has a production bridge and a relocated compiled Windows/x64 package**: 37 worker/native/package/source-launcher cases pass, including actual Bash, a nonexistent source path and outside-import refusal. [Compiled packaging and remaining owner/release gates](94-kimi-compiled-host.md) follow the [source bridge](93-kimi-source-team-bridge.md). Signed release/update distribution, additional platforms and authenticated owner acceptance remain open. Document improvements and existing integration acceptance continue; the existing Amp/Cursor source bridges and Fx bounded adapter keep their scope.
 
@@ -27,7 +27,8 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [ ] Kimi signed release/update authenticity, broad startup reliability, additional host platforms, owner native account/catalog/configuration migration/login and full interactive terminal acceptance.
 - [x] Unicode 18.0 font-family matching without normalization; [native-to-phone evidence and owner review](88-portable-unicode-font-families.md).
 - [x] Bounded computed CSS name paths and literal fallbacks, preserving native function wrappers and invalid values; [107 native-to-phone checks and exact scope](92-portable-computed-css-names.md).
-- [ ] General arbitrary variable-supplied names, partial font/shorthand substitution, dynamic counters and real browser/glyph/device fidelity. See [the standards contract](91-dynamic-css-names-contract.md).
+- [x] Bounded computed counter-style references and literal fallbacks in their property/function roles; [118 native-to-phone checks and owner review](95-portable-computed-counter-styles.md).
+- [ ] General arbitrary variable-supplied names, partial font/shorthand substitution, builtin-selecting counter prefixes and real browser/glyph/device fidelity. See [the standards contract](91-dynamic-css-names-contract.md).
 
 The broader catalog now has 25 implemented source-level paths. Kimi release packaging and owner acceptance remain active. Amp/Cursor bounded completion and Fx ordinary-task invocation are deferred, not marked complete. There is no new overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
 
