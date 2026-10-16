@@ -16,6 +16,73 @@ const CSP =
   "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' data:; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'";
 const HTML_NS = constants.NS.HTML;
 const SVG_NS = constants.NS.SVG;
+const MATH_NS = constants.NS.MATHML;
+// Presentation MathML stays in its native namespace. No script-based equation
+// renderer is required. Unknown/legacy external-glyph elements stay excluded.
+const MATH_ELEMENTS = new Set([
+  "math",
+  "merror",
+  "mfrac",
+  "mi",
+  "mmultiscripts",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mprescripts",
+  "mroot",
+  "mrow",
+  "ms",
+  "mspace",
+  "msqrt",
+  "mstyle",
+  "msub",
+  "msubsup",
+  "msup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
+  "none",
+  "semantics",
+  "maction",
+  "annotation",
+  "annotation-xml",
+]);
+const MATH_TEXT_ENCODINGS = new Set([
+  "text/plain",
+  "application/x-tex",
+  "application/x-latex",
+]);
+const MATH_XML_ENCODINGS = new Set([
+  "text/html",
+  "application/xhtml+xml",
+  "application/mathml+xml",
+  "application/mathml-presentation+xml",
+]);
+function keepMathElement(node: DefaultTreeAdapterMap["element"]): boolean {
+  if (!MATH_ELEMENTS.has(node.tagName)) return false;
+  if (!["annotation", "annotation-xml"].includes(node.tagName)) return true;
+  // External annotations are never retrieved, even when their encoding is known.
+  if (node.attrs.some((attr) => attr.name.toLowerCase() === "href"))
+    return false;
+  const encoding = node.attrs
+    .find((attr) => attr.name === "encoding")
+    ?.value.trim()
+    .toLowerCase();
+  if (!encoding) return false;
+  if (node.tagName === "annotation")
+    return (
+      MATH_TEXT_ENCODINGS.has(encoding) &&
+      !node.childNodes.some(tree.isElementNode)
+    );
+  // HTML integration points are parsed by HTML5 and pass through the same
+  // namespace, active-content and attribute checks as the surrounding page.
+  return MATH_XML_ENCODINGS.has(encoding);
+}
 const OMIT = new Set([
   "xmp",
   "noembed",
@@ -33,6 +100,10 @@ const OMIT = new Set([
   "link",
   "template",
   "foreignobject",
+  // HTML table repair can foster-parent these names into a MathML text
+  // integration point. A browser reparse would then change their namespace.
+  "mglyph",
+  "malignmark",
   "animate",
   "animatemotion",
   "animatetransform",
@@ -58,6 +129,9 @@ const URL_ATTRS = new Set([
   "archive",
   "usemap",
   "profile",
+  "altimg",
+  "definitionurl",
+  "cdgroup",
 ]);
 const DATA_SRCSET =
   /^data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,[a-z0-9+/]+={0,2}(?:#[^\s<>"'\\#\x00-\x1f\x7f]+)?(?:\s+([\s\S]+))?$/i;
@@ -170,7 +244,7 @@ export async function prepareRenderedHtml(
         "This HTML is too complex to render. Use Reading view or export the original.",
       );
     if (tree.isElementNode(node)) {
-      const tag = node.tagName.toLowerCase();
+      let tag = node.tagName.toLowerCase();
       const pictureSource =
         tag === "source" &&
         node.parentNode &&
@@ -178,13 +252,23 @@ export async function prepareRenderedHtml(
         node.parentNode.namespaceURI === HTML_NS &&
         node.parentNode.tagName === "picture";
       if (
-        ![HTML_NS, SVG_NS].includes(node.namespaceURI) ||
+        ![HTML_NS, SVG_NS, MATH_NS].includes(node.namespaceURI) ||
+        (node.namespaceURI === MATH_NS && !keepMathElement(node)) ||
         OMIT.has(tag) ||
         (tag === "source" && !pictureSource)
       ) {
         tree.detachNode(node);
         removed = true;
         continue;
+      }
+      if (node.namespaceURI === MATH_NS && tag === "maction") {
+        // Preserve static children without introducing interactive tooltips or
+        // selection-dependent content into the script-disabled document view.
+        tag = node.tagName = "mrow";
+        node.attrs = node.attrs.filter(
+          (attr) => !["actiontype", "selection"].includes(attr.name),
+        );
+        removed = true;
       }
       const imageContext =
         (node.namespaceURI === HTML_NS && tag === "img") ||

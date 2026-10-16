@@ -4,6 +4,8 @@ Updated 2026-10-14. Implementation worktree: `codex/ion-agent-teams`.
 
 Subsequent increment: [larger phone documents](81-phone-large-documents.md) now supports 16 MiB text/HTML input with bounded preparation. Limits/results below describe this earlier checkpoint.
 
+Subsequent [phone equation rendering](99-phone-mathml-rendering.md) preserves native presentation MathML, authored math CSS and selected static annotations. Complete Source/export remain available; browser/font/device review remains open. All unstarted harness adapters are deferred by the latest scope correction.
+
 ## Requested scope
 
 The current goal adds additional formats, larger publications, fuller phone HTML/CSS rendering and the previously deferred harness integrations. This increment adds rendered HTML/SVG, four text formats and hash-pinned file publications up to 16 MiB. Native publication/recovery regressions and the desktop/daemon checks pass. It does not mark the complete goal achieved.

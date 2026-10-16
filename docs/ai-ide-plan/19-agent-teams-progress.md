@@ -8,6 +8,10 @@ The user deferred integration paths whose implementation has not started: **Amp 
 
 The broader catalog now has 25 implemented source-level paths after the Kimi bridge increment. Three unstarted paths remain deferred. Kimi signed release/additional-platform/owner acceptance and document work remain open. Deferral did not mark a capability complete; this is not an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
+## Latest phone equation increment (2026-10-17)
+
+The shared HTML Rendered view now retains presentation MathML equations, authored math CSS, labels and bounded annotations. Interactive actions become static rows, and malformed HTML/MathML namespace repair cannot restore legacy glyph tags. Complete Source/export and the Reading placeholder retain their existing roles. **155 distinct native/export/phone cases pass**, including 64 phone cases with 2,892 assertions using eleven fresh native exports. Full mobile/strict fixture types and formatting/diff checks pass. [Implementation, actual publication/replay evidence and owner review](99-phone-mathml-rendering.md). General dynamic SVG/CSS fidelity and actual browser/font/device acceptance remain open. Unstarted harness adapters remain deferred.
+
 ## Latest complete animation fallback increment (2026-10-17)
 
 Animation shorthand fallbacks now retain private keyframe identities when a variable fills a complete animation/list member, including nested and multi-animation fallbacks. Borrowed source ranges retain first arguments, wrappers and authored boundaries; partial fragments and opaque data retain their contexts. **139 distinct native/publication/export/phone cases pass**, including 51 phone cases with 1,386 assertions. Full mobile/fixture types, desktop/both-daemon checks and formatting/diff checks pass. [Implementation, selection/empty-value controls and owner review](98-complete-animation-fallbacks.md). Arbitrary primary variable values, general cascade/timeline behavior and actual browser/device acceptance remain open. Unstarted harness adapters stay deferred.

@@ -1141,3 +1141,69 @@ fn native_pptx_phone_fixture() {
     .unwrap();
     assert!(f.definitions.read_artifact_document(&query).is_err());
 }
+
+fn mathml_publication_fixture() -> serde_json::Value {
+    use sha2::{Digest, Sha256};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let source = r#"<link rel="stylesheet" href="math.css"><h1>Technical report</h1><math display="block" aria-label="Quadratic roots"><semantics><mrow><mi>x</mi><mo>=</mo><mfrac><mrow><mo>&minus;</mo><mi>b</mi><mo>&PlusMinus;</mo><msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>&minus;</mo><mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow><mrow><mn>2</mn><mi>a</mi></mrow></mfrac></mrow><annotation encoding="application/x-tex">x = (-b + sqrt(b^2-4ac))/(2a)</annotation></semantics></math><math><munder><mo>&sum;</mo><mi>i</mi></munder><msup><mi>x</mi><mn>2</mn></msup></math>"#;
+    let css = "@import 'layout.css';math{font-size:1.2rem;math-style:normal}mfrac{color:green}";
+    let imported = "@media(max-width:600px){math{font-size:1rem}}";
+    for (name, content) in [
+        ("index.html", source),
+        ("math.css", css),
+        ("layout.css", imported),
+    ] {
+        std::fs::write(f.dir.join(name), content).unwrap();
+    }
+    let sha = |bytes: &[u8]| format!("{:x}", Sha256::digest(bytes));
+    let args = serde_json::json!({"path":"index.html", "sha256":sha(source.as_bytes()), "name":"Equations.html", "summary":"Technical report with equations", "resources":[{"path":"math.css", "sha256":sha(css.as_bytes())}, {"path":"layout.css", "sha256":sha(imported.as_bytes())}]});
+    let parsed: HtmlBundleArgs = serde_json::from_value(args.clone()).unwrap();
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_html_bundle(&root.lease, request, &f.dir, &parsed, 102)
+        .unwrap();
+    let bytes = f.definitions.read_document(artifact.id).unwrap();
+    assert!(artifact.evidence.as_ref().unwrap().matches(&bytes));
+    let html = std::str::from_utf8(&bytes).unwrap();
+    assert!(html.contains("<mfrac>"));
+    assert!(html.contains("<msqrt>"));
+    assert!(html.contains("∑"));
+    assert!(html.contains("math-style:normal"));
+    let reply = f.store.document_model_reply(artifact.id, &bytes).unwrap();
+    assert_eq!(reply["summary"], parsed.summary);
+    assert!(reply.get("content").is_none());
+    for (name, content) in [
+        ("index.html", source),
+        ("math.css", css),
+        ("layout.css", imported),
+    ] {
+        assert_eq!(std::fs::read_to_string(f.dir.join(name)).unwrap(), content);
+        std::fs::remove_file(f.dir.join(name)).unwrap();
+    }
+    assert_eq!(
+        f.store
+            .publish_html_bundle(&root.lease, request, &f.dir, &parsed, 103)
+            .unwrap()
+            .id,
+        artifact.id
+    );
+    let replay = f.definitions.read_document(artifact.id).unwrap();
+    assert_eq!(replay, bytes);
+    serde_json::json!({"html":html, "sha256":sha(&bytes), "source":source, "summary":parsed.summary})
+}
+#[test]
+fn html_bundle_mathml_publication_preserves_equations_and_durable_replay() {
+    mathml_publication_fixture();
+}
+#[test]
+#[ignore = "Exports actual publication/replay output to ION_MATHML_NATIVE_FIXTURE"]
+fn native_mathml_phone_fixture() {
+    std::fs::write(
+        std::env::var_os("ION_MATHML_NATIVE_FIXTURE").expect("Set ION_MATHML_NATIVE_FIXTURE"),
+        serde_json::to_vec(&mathml_publication_fixture()).unwrap(),
+    )
+    .unwrap();
+}

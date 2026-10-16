@@ -45,6 +45,8 @@ The final combined run took 116.21 seconds. Its full-size HTML case took 40.33 s
 
 ## Remaining implementation and acceptance
 
+[Phone equation rendering](99-phone-mathml-rendering.md) now preserves native presentation MathML in the same HTML preparation path, with static annotations/actions and explicit Source/Reading behavior. Its publication/namespace regressions pass; actual math font/layout/device acceptance remains open.
+
 The larger phone reading gap is closed at the implementation/regression level. Subsequent increments add [computed CSS names](92-portable-computed-css-names.md), [computed counter styles](95-portable-computed-counter-styles.md) and [PowerPoint reading](96-phone-powerpoint-reading.md). General arbitrary variable-supplied names, partial font/shorthand substitutions and real browser/font/use-shadow/device acceptance remain open.
 
 The [current harness ledger](64-remaining-harness-integrations.md) records 25 implemented source-level paths. The verified Windows Cursor source bridge and Kimi production/compiled host are implemented. The user deferred every unstarted harness adapter, including Amp/Cursor bounded Teams completion and Fx ordinary-task Teams invocation; those are not current release blockers. Existing release/platform/authenticated owner acceptance remains open. Earlier path counts in dated checkpoints are not a current overall app percentage.
