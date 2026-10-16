@@ -45,6 +45,8 @@ The official plugin AI helper can select an exact native model and set `maxToken
 
 ## Cursor
 
+**2026-10-16 native evidence:** [the current contract and runnable fixture](82-cursor-current-contract.md) prove selected fake-model native ACP tool discovery, distinct main-stream/permission call IDs, successful MCP results, denial, pending Stop and fail-closed missing-hook behavior. Five actual-runtime cases pass. MCP does not forward the native identity, and plugin hook discovery is not an execution boundary in the pinned release. Production correlation and the bounded completion ceiling remain unfinished; counts do not change.
+
 Current official SDK 1.0.37 metadata and complete declarations were inspected. Its 150 declaration files (6,656,963 bytes) expose no `maxOutputTokens`, `maxTokens`, `maxSteps`, `maxTurns` or `maxCost` completion control. Archive SHA-256: `992e4889e298f1ac5dfeeda6cf4db5eb1008aa3b1ea03883a17c2ea052f1efd2`; npm SHA512 integrity verified. Disabling tools/retries and eventual usage accounting cannot prove a preauthorized spending ceiling. Native Cursor account/model stays selected; full Teams completion remains open.
 
 [Official SDK metadata](https://registry.npmjs.org/@cursor%2fsdk/1.0.37), [official SDK documentation](https://cursor.com/docs/sdk/typescript), [Amp plugin reference](https://ampcode.com/manual#plugins), and the earlier [Amp](RESEARCH-amp-teams-contract.md)/[Cursor](RESEARCH-cursor-teams-contract.md) contract investigations record the native seams and missing proof. No live account or paid provider call was used.

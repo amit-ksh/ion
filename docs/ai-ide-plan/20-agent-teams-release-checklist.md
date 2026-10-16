@@ -11,7 +11,7 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 ## Current document/harness goal: remaining work (2026-10-16)
 
-- [ ] Cursor ordinary-task Teams bridge.
+- [ ] Cursor ordinary-task Teams bridge; [current native evidence and remaining binding gate](82-cursor-current-contract.md).
 - [ ] Fx ordinary-task Teams bridge; [current native/SDK distinction](84-fx-source-contract.md).
 - [ ] Kimi ordinary-task Teams bridge; [source-host candidate and runtime gates](83-kimi-current-contract.md).
 - [ ] Amp bounded completion allowance/account/metering contract.
@@ -1104,3 +1104,11 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Full mobile TypeScript, locked offline desktop/both-daemon checks, Rust/Prettier formatting and diff checks pass. Existing compiler warnings remain.
 - [x] Save [implementation, exact evidence and owner review](85-portable-font-features.md). The synthetic font fixture verifies resource plumbing and grammar, not actual glyph/color-font fidelity. No visual/device test, watcher restart, deployment or ion-prod merge occurred.
 - [ ] Finish dynamic CSS name/ident behavior, remaining font-family fidelity, five native harness paths and authenticated provider/browser/device acceptance. The full goal remains active.
+
+## 2026-10-16 - Current Cursor native contract evidence
+
+- [x] Drive the pinned released Windows CLI's native hosted-agent protocol with a fake Cursor account/catalog and localhost Connect/MCP services; preserve native built-ins and approval flow.
+- [x] Pass five actual-runtime cases, 47 assertions: distinct identical calls, successful native result return, denial, Stop at native approval, missing fail-closed hook and pinned plugin-hook discovery behavior. Strict fixture TypeScript, Prettier and diff checks pass.
+- [x] Save [reproducible evidence and next gates](82-cursor-current-contract.md). The fixture uses disposable profiles and no owner credentials or paid inference.
+- [ ] Bind an external tool callback to its exact native invocation before Ion work, with prompt/approval/replay/Stop fences. SDK account/permission behavior is a separate explicit route, not a transparent replacement.
+- [ ] Complete native completion allowance/account/usage proof. Neither Cursor integration path is enabled by this research; coverage stays at 23/28 paths.

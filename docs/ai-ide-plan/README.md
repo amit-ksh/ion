@@ -250,6 +250,8 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 
 - [Larger phone documents](81-phone-large-documents.md): complete 16 MiB text/HTML preparation, bounded parser memory and serialization, native/phone evidence and current remaining work.
 
+- [Current Cursor contract](82-cursor-current-contract.md): five real native ACP/MCP fixture cases, hook discovery limits and remaining production identity/allowance gates.
+
 - [Current Kimi contract](83-kimi-current-contract.md): official source-host candidate, installed-plugin limits and remaining runtime/packaging proof.
 
 - [Fx ordinary-task contract](84-fx-source-contract.md): native MCP identity gap, SDK-host distinction and remaining supported-host acceptance.
