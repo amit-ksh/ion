@@ -725,7 +725,7 @@ fn file_publication_rejects_changed_hash_oversize_and_wrong_envelopes() {
             )
             .is_err()
     );
-    for format in ["pdf", "png", "docx", "xlsx"] {
+    for format in ["pdf", "png", "docx", "xlsx", "pptx"] {
         let hash = format!("{:x}", Sha256::digest(b"changed"));
         assert!(
             f.store
@@ -765,6 +765,7 @@ fn file_publication_binary_originals_export_without_model_decoding() {
         ("pdf", pdf_bytes()),
         ("docx", b"PK\x03\x04opaque office archive".to_vec()),
         ("xlsx", b"PK\x03\x04opaque workbook archive".to_vec()),
+        ("pptx", b"PK\x03\x04opaque slide archive".to_vec()),
         (
             "png",
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDRopaque raster".to_vec(),
@@ -1045,4 +1046,98 @@ fn html_bundle_refuses_changed_unlisted_private_duplicate_and_unused_resources()
             .iter()
             .all(|r| !matches!(r, ControlRecord::Artifact(_)))
     );
+}
+
+#[test]
+#[ignore = "Publishes the PPTX source at ION_PPTX_SOURCE_FIXTURE and exports actual protocol bytes to ION_PPTX_NATIVE_FIXTURE"]
+fn native_pptx_phone_fixture() {
+    use waku_protocol::artifact_library::{ArtifactDocumentQuery, ArtifactLibraryQuery};
+    let f = Fixture::new();
+    let run = f.run();
+    let root = f.claim(run.id, run.work[0].id);
+    let original = std::fs::read(
+        std::env::var_os("ION_PPTX_SOURCE_FIXTURE").expect("Set ION_PPTX_SOURCE_FIXTURE"),
+    )
+    .unwrap();
+    let source = f.dir.join("Review.pptx");
+    std::fs::write(&source, &original).unwrap();
+    let inspected = f
+        .store
+        .inspect_file_document(&root.lease, &f.dir, "Review.pptx", 102)
+        .unwrap();
+    let hash = inspected["sha256"].as_str().unwrap();
+    let request = Uuid::new_v4();
+    let artifact = f
+        .store
+        .publish_file_document(
+            &root.lease,
+            request,
+            &f.dir,
+            "Review.pptx",
+            "Review.pptx",
+            "pptx",
+            hash,
+            "Slide overview, hidden completion slide and table evidence",
+            102,
+        )
+        .unwrap();
+    assert!(artifact.evidence.as_ref().unwrap().matches(&original));
+    let page = f
+        .definitions
+        .list_artifacts(&ArtifactLibraryQuery {
+            project_id: Some(run.project_id),
+            task_id: None,
+            format: Some("pptx".into()),
+            after: None,
+            limit: 32,
+        })
+        .unwrap();
+    assert_eq!(page.items.len(), 1);
+    let query = ArtifactDocumentQuery {
+        expected: page.items[0].clone(),
+    };
+    let exported = f.definitions.read_artifact_document(&query).unwrap();
+    assert_eq!(exported.bytes, original);
+    let model = f
+        .store
+        .document_model_reply(artifact.id, &original)
+        .unwrap();
+    assert_eq!(model["content_interpreted"], false);
+    assert!(model.get("content").is_none());
+    std::fs::remove_file(&source).unwrap();
+    let reopened = TeamCoordinator::new(f.definitions.path());
+    assert_eq!(
+        reopened
+            .publish_file_document(
+                &root.lease,
+                request,
+                &f.dir,
+                "Review.pptx",
+                "Review.pptx",
+                "pptx",
+                hash,
+                "Slide overview, hidden completion slide and table evidence",
+                103
+            )
+            .unwrap()
+            .id,
+        artifact.id
+    );
+    assert_eq!(
+        f.definitions.read_artifact_document(&query).unwrap().bytes,
+        original
+    );
+    std::fs::write(
+        std::env::var_os("ION_PPTX_NATIVE_FIXTURE").expect("Set ION_PPTX_NATIVE_FIXTURE"),
+        serde_json::to_vec(&serde_json::json!({"type":"artifactDocument","document":exported}))
+            .unwrap(),
+    )
+    .unwrap();
+    let db = f.store.connect().unwrap();
+    db.execute(
+        "DELETE FROM ion_team_file_documents WHERE artifact_id=?",
+        [artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(f.definitions.read_artifact_document(&query).is_err());
 }

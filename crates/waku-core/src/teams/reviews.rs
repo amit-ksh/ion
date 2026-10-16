@@ -40,6 +40,7 @@ pub(super) fn validate_contract(contract: &OutputContract) -> Result<()> {
                     | "pdf"
                     | "docx"
                     | "xlsx"
+                    | "pptx"
                     | "png"
                     | "svg"
                     | "xml"

@@ -22,6 +22,7 @@ export const ARTIFACT_FORMATS = [
   "pdf",
   "docx",
   "xlsx",
+  "pptx",
   "png",
   "svg",
   "xml",

@@ -279,3 +279,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Kimi compiled host](94-kimi-compiled-host.md): relocated self-contained Windows/x64 engine/runtime/assets/notices, full inventory checks, native Bash/Teams acceptance and remaining owner/release gates.
 
 - [Portable computed counter styles](95-portable-computed-counter-styles.md): private literal/fallback/fixed-prefix references, 118 native-to-phone checks and remaining expression/device review.
+
+- [Phone PowerPoint reading](96-phone-powerpoint-reading.md): PPTX publication/workflow/library/retention support, bounded ordered slide text, exact original export, 168 native/phone checks and later device review.

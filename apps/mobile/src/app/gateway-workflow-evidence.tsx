@@ -261,7 +261,7 @@ export default function GatewayWorkflowEvidenceScreen() {
           image,
           scope: started,
         });
-      } else if (["docx", "xlsx"].includes(record.format)) {
+      } else if (["docx", "xlsx", "pptx"].includes(record.format)) {
         const readingPreview = await prepareOfficeReading(
           record.format,
           bytes,

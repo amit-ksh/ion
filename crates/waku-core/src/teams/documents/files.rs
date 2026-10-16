@@ -10,7 +10,7 @@ use std::{
 pub(super) const MAX_BYTES: usize = 16 * 1024 * 1024;
 const FORMATS: &[&str] = &[
     "html", "htm", "md", "txt", "csv", "json", "svg", "xml", "yaml", "yml", "pdf", "docx", "xlsx",
-    "png",
+    "pptx", "png",
 ];
 
 pub(super) fn read(root: &Path, relative: &str) -> Result<Vec<u8>> {
@@ -137,7 +137,7 @@ fn validate(format: &str, bytes: &[u8]) -> Result<()> {
                     .is_some_and(|end| bytes[..=end].ends_with(b"%%EOF")),
             "File has no PDF envelope"
         ),
-        "docx" | "xlsx" => ensure!(
+        "docx" | "xlsx" | "pptx" => ensure!(
             bytes.starts_with(b"PK\x03\x04"),
             "Office document has no ZIP envelope"
         ),
@@ -185,7 +185,7 @@ pub(in crate::teams) fn verify(
                 .evidence
                 .as_ref()
                 .is_none_or(|e| e.producer.activity_id.as_deref() != Some("ion-file-publication"))
-                && !matches!(artifact.format.as_str(), "docx" | "xlsx" | "png")
+                && !matches!(artifact.format.as_str(), "docx" | "xlsx" | "pptx" | "png")
                 && bytes.len() <= 64 * 1024,
             "File publication receipt is missing"
         );
@@ -198,7 +198,7 @@ pub(in crate::teams) fn verify(
                 .evidence
                 .as_ref()
                 .is_none_or(|e| e.producer.activity_id.as_deref() != Some("ion-file-publication"))
-                && !matches!(artifact.format.as_str(), "docx" | "xlsx" | "png")
+                && !matches!(artifact.format.as_str(), "docx" | "xlsx" | "pptx" | "png")
                 && bytes.len() <= 64 * 1024,
             "File publication receipt is missing"
         );

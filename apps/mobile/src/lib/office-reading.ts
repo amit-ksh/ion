@@ -25,6 +25,14 @@ const SHEET = [
   "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
   "http://purl.oclc.org/ooxml/spreadsheetml/main",
 ];
+const PRESENTATION = [
+  "http://schemas.openxmlformats.org/presentationml/2006/main",
+  "http://purl.oclc.org/ooxml/presentationml/main",
+];
+const DRAWING = [
+  "http://schemas.openxmlformats.org/drawingml/2006/main",
+  "http://purl.oclc.org/ooxml/drawingml/main",
+];
 const MC = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 const is = (tag: OfficeTag | undefined, namespaces: string[], local: string) =>
   !!tag && namespaces.includes(tag.uri) && tag.local === local;
@@ -82,7 +90,7 @@ function requiredRelation(
 }
 async function mainPart(
   pkg: Package,
-  format: "docx" | "xlsx",
+  format: "docx" | "xlsx" | "pptx",
   current: OfficeScope,
 ) {
   const rels = await relationships(pkg, "", current);
@@ -92,21 +100,32 @@ async function mainPart(
   if (mains.length !== 1)
     throw new Error("Office package must identify exactly one main document.");
   const part = requiredRelation(mains[0], "officeDocument", "");
-  const expected =
-    format === "docx"
-      ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
-      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
-  const overrides = new Map<string, string>();
+  const expected = {
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+  }[format];
+  const overrides = new Map<string, string>(),
+    defaults = new Map<string, string>();
   await readOfficeXml(await pkg.read("[Content_Types].xml"), current, {
     open(tag, ancestors) {
       if (!ancestors.length && (tag.uri !== TYPES || tag.local !== "Types"))
         throw new Error("Invalid Office content-types root.");
-      if (
-        ancestors.length !== 1 ||
-        tag.uri !== TYPES ||
-        tag.local !== "Override"
-      )
+      if (ancestors.length !== 1 || tag.uri !== TYPES) return;
+      if (tag.local === "Default") {
+        const extension = attr(tag, "Extension")?.toLowerCase(),
+          type = attr(tag, "ContentType");
+        if (
+          !extension ||
+          !/^[a-z0-9]+$/.test(extension) ||
+          !type ||
+          defaults.has(extension)
+        )
+          throw new Error("Invalid or duplicate Office default content type.");
+        defaults.set(extension, type);
         return;
+      }
+      if (tag.local !== "Override") return;
       const name = attr(tag, "PartName"),
         type = attr(tag, "ContentType");
       if (!name?.startsWith("/") || !type)
@@ -117,9 +136,14 @@ async function mainPart(
       overrides.set(resolved, type);
     },
   });
-  if (overrides.get(part) !== expected)
+  const contentType = (name: string) =>
+    overrides.get(name) ??
+    defaults.get(
+      name.split("/").at(-1)?.split(".").at(-1)?.toLowerCase() ?? "",
+    );
+  if (contentType(part) !== expected)
     throw new Error("Office format does not match the published document.");
-  return part;
+  return { part, contentType };
 }
 class Reading {
   rows: DocumentPreviewRow[] = [];
@@ -443,20 +467,189 @@ async function readWorkbook(
   };
 }
 
+async function readPresentation(
+  pkg: Package,
+  part: string,
+  contentType: (name: string) => string | undefined,
+  current: OfficeScope,
+): Promise<DocumentReadingPreview> {
+  const p = (tag: OfficeTag | undefined, local: string) =>
+    is(tag, PRESENTATION, local);
+  const a = (tag: OfficeTag | undefined, local: string) =>
+    is(tag, DRAWING, local);
+  const slides: string[] = [],
+    ids = new Set<number>(),
+    references = new Set<string>();
+  let lists = 0;
+  await readOfficeXml(await pkg.read(part), current, {
+    open(tag, ancestors) {
+      if (!ancestors.length && !p(tag, "presentation"))
+        throw new Error("Invalid presentation root.");
+      if (p(tag, "sldIdLst") && ancestors.length === 1 && ++lists > 1)
+        throw new Error("Duplicate presentation slide list.");
+      if (
+        !p(tag, "sldId") ||
+        ancestors.length !== 2 ||
+        !p(ancestors[1], "sldIdLst")
+      )
+        return;
+      const number = attr(tag, "id"),
+        id = REL.map((uri) => attr(tag, "id", uri)).find(Boolean);
+      const numeric = Number(number);
+      if (
+        !number ||
+        !/^[0-9]+$/.test(number) ||
+        numeric < 256 ||
+        numeric > 2147483647 ||
+        !id ||
+        ids.has(numeric) ||
+        references.has(id) ||
+        slides.length >= 256
+      )
+        throw new Error("Invalid, duplicate or excessive presentation slide.");
+      ids.add(numeric);
+      references.add(id);
+      slides.push(id);
+    },
+  });
+  const reading = new Reading();
+  if (!slides.length) {
+    reading.add("This presentation has no slides.");
+  } else {
+    const rels = await relationships(pkg, part, current),
+      seen = new Set<string>();
+    let tableCount = 0,
+      rows = 0,
+      cells = 0;
+    for (let index = 0; index < slides.length; index++) {
+      officeAllowed(current);
+      const slide = requiredRelation(rels.get(slides[index]!), "slide", part);
+      if (seen.has(slide))
+        throw new Error("Presentation references a slide more than once.");
+      seen.add(slide);
+      if (
+        contentType(slide) !==
+        "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+      )
+        throw new Error("Presentation slide has the wrong content type.");
+      let paragraph: { text: string; heading: number } | null = null,
+        shape: { title: boolean } | null = null,
+        table: { id: number; row: number; cell: number } | null = null;
+      const ignored = (ancestors: OfficeTag[]) =>
+        ancestors.some(
+          (tag) =>
+            (tag.uri === MC && tag.local === "Choice") ||
+            ((PRESENTATION.includes(tag.uri) || DRAWING.includes(tag.uri)) &&
+              tag.local === "extLst"),
+        );
+      const body = (ancestors: OfficeTag[]) =>
+        ancestors.some((tag) => p(tag, "spTree")) &&
+        ancestors.some((tag) => p(tag, "cSld"));
+      await readOfficeXml(await pkg.read(slide), current, {
+        open(tag, ancestors) {
+          if (!ancestors.length) {
+            if (!p(tag, "sld")) throw new Error("Invalid slide root.");
+            const show = attr(tag, "show") ?? "true";
+            if (!["true", "false", "1", "0"].includes(show))
+              throw new Error("Invalid slide visibility.");
+            reading.add(
+              "Slide " +
+                (index + 1) +
+                (show === "false" || show === "0" ? " · Hidden" : ""),
+              2,
+            );
+          }
+          if (ignored([...ancestors, tag]) || !body(ancestors)) return;
+          if (p(tag, "sp")) {
+            if (shape) throw new Error("Unsupported nested slide shape.");
+            shape = { title: false };
+          }
+          if (
+            p(tag, "ph") &&
+            p(ancestors.at(-1), "nvPr") &&
+            shape &&
+            ["title", "ctrTitle"].includes(attr(tag, "type") ?? "")
+          )
+            shape.title = true;
+          if (p(tag, "cNvPr") && ancestors.some((tag) => p(tag, "pic"))) {
+            const label = attr(tag, "descr") || attr(tag, "title");
+            if (label) reading.add("[Image: " + label + "]");
+          }
+          if (a(tag, "tbl")) {
+            if (table || ++tableCount > 1024)
+              throw new Error("Slide tables exceed reading limits.");
+            table = { id: tableCount, row: 0, cell: 0 };
+          }
+          if (a(tag, "tr") && table && a(ancestors.at(-1), "tbl")) {
+            if (++rows > 10000)
+              throw new Error("Slide table rows exceed reading limits.");
+            table.row++;
+            table.cell = 0;
+          }
+          if (a(tag, "tc") && table && a(ancestors.at(-1), "tr")) {
+            if (++cells > 20000)
+              throw new Error("Slide table cells exceed reading limits.");
+            table.cell++;
+          }
+          if (
+            a(tag, "p") &&
+            (p(ancestors.at(-1), "txBody") || a(ancestors.at(-1), "txBody"))
+          ) {
+            if (paragraph)
+              throw new Error("Unsupported nested slide paragraph.");
+            paragraph = { text: "", heading: shape?.title ? 3 : 0 };
+          }
+          if (a(tag, "br") && paragraph) paragraph.text += "\n";
+        },
+        text(text, ancestors) {
+          if (paragraph && a(ancestors.at(-1), "t") && !ignored(ancestors))
+            paragraph.text += text;
+        },
+        close(tag, ancestors) {
+          if (ignored([...ancestors, tag]) || !body(ancestors)) return;
+          if (a(tag, "p") && paragraph) {
+            const label = table
+              ? "Table " +
+                table.id +
+                " · Row " +
+                table.row +
+                " · Cell " +
+                table.cell +
+                "\n"
+              : "";
+            if (paragraph.text)
+              reading.add(label + paragraph.text, paragraph.heading);
+            paragraph = null;
+          }
+          if (a(tag, "tbl")) table = null;
+          if (p(tag, "sp")) shape = null;
+        },
+      });
+    }
+  }
+  return {
+    rows: reading.rows,
+    sourceFallback: false,
+    note: "Extracted slide text in presentation order, including hidden slides, explicit titles, table cells and image descriptions. Fields show saved text. Layout, master text, numbering, charts, SmartArt, media, notes, comments, animations and custom-show order are not reproduced. Export the original for the complete presentation.",
+  };
+}
+
 /** Call only after the original's immutable metadata and SHA-256 have been verified. */
 export async function prepareOfficeReading(
   format: string,
   bytes: Uint8Array,
   current: OfficeScope,
 ): Promise<DocumentReadingPreview> {
-  if (format !== "docx" && format !== "xlsx")
+  if (format !== "docx" && format !== "xlsx" && format !== "pptx")
     throw new Error("Unsupported Office reading format.");
   const pkg = await openOfficePackage(bytes, current),
-    part = await mainPart(pkg, format, current);
+    { part, contentType } = await mainPart(pkg, format, current);
   const result =
     format === "docx"
       ? await readWord(pkg, part, current)
-      : await readWorkbook(pkg, part, current);
+      : format === "xlsx"
+        ? await readWorkbook(pkg, part, current)
+        : await readPresentation(pkg, part, contentType, current);
   officeAllowed(current);
   return result;
 }

@@ -125,6 +125,7 @@ export function workflowDocumentMime(format: string): string {
       docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       json: "application/json",
       xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       png: "image/png",
       svg: "image/svg+xml",
       xml: "application/xml",

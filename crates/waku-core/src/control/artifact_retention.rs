@@ -112,6 +112,7 @@ fn metadata(artifact: &Artifact) -> Result<&ArtifactEvidence> {
                     | "json"
                     | "docx"
                     | "xlsx"
+                    | "pptx"
                     | "png"
                     | "svg"
                     | "xml"

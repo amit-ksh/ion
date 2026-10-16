@@ -91,6 +91,7 @@ fn valid_format(format: &str) -> bool {
             | "pdf"
             | "docx"
             | "xlsx"
+            | "pptx"
             | "png"
             | "svg"
             | "xml"

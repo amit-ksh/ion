@@ -17,7 +17,10 @@ worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
-## Current document/harness goal: remaining work (2026-10-16)
+## Current document/harness goal: remaining work (2026-10-17)
+
+- [x] PPTX publication/collection, workflow/output formats, artifact/retention handling, exact original export and direct/gateway phone extracted reading; [168 native/phone checks and later owner review](96-phone-powerpoint-reading.md).
+- [ ] PPTX physical-device/accessibility/representative-document review. The extracted reader does not reproduce complete PowerPoint slide layout, media or notes.
 
 - [x] Cursor ordinary-task Teams bridge on verified Windows native 2026.10.01; [implementation and 50 passing cases](87-cursor-source-team-bridge.md).
 - [ ] Additional Cursor worker-platform contracts and authenticated owner acceptance.

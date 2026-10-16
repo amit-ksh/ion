@@ -45,15 +45,9 @@ The final combined run took 116.21 seconds. Its full-size HTML case took 40.33 s
 
 ## Remaining implementation and acceptance
 
-The larger phone reading gap is closed at the implementation/regression level. The active full goal still includes dynamic CSS names/`ident()` and wider font fidelity, plus these five native harness integration paths:
+The larger phone reading gap is closed at the implementation/regression level. Subsequent increments add [computed CSS names](92-portable-computed-css-names.md), [computed counter styles](95-portable-computed-counter-styles.md) and [PowerPoint reading](96-phone-powerpoint-reading.md). General arbitrary variable-supplied names, partial font/shorthand substitutions and real browser/font/use-shadow/device acceptance remain open.
 
-- [ ] Cursor ordinary-task Teams tools.
-- [ ] Fx ordinary-task Teams tools.
-- [ ] Kimi ordinary-task Teams tools.
-- [ ] Amp bounded Teams completion allowance/account/metering contract.
-- [ ] Cursor bounded Teams completion ceiling/account contract.
-
-[Current harness coverage](64-remaining-harness-integrations.md) is **23 implemented paths out of 28** (12/14 bounded completions and 11/14 source-task bridges), about 82% by path count. This is not an effort-weighted percentage for the entire app. Real authenticated provider/platform and phone browser/use-shadow/device acceptance remain open. No goal-complete claim follows from this checkpoint.
+The [current harness ledger](64-remaining-harness-integrations.md) records 25 implemented source-level paths. The verified Windows Cursor source bridge and Kimi production/compiled host are implemented. The user deferred every unstarted harness adapter, including Amp/Cursor bounded Teams completion and Fx ordinary-task Teams invocation; those are not current release blockers. Existing release/platform/authenticated owner acceptance remains open. Earlier path counts in dated checkpoints are not a current overall app percentage.
 
 ## Re-run
 

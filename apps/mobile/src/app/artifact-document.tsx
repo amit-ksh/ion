@@ -206,7 +206,7 @@ export default function ArtifactDocumentScreen() {
         let readingPreview =
           htmlViews?.readingPreview ?? textViews?.readingPreview ?? null;
         let officeError: string | null = null;
-        if (["docx", "xlsx"].includes(selected.document.format)) {
+        if (["docx", "xlsx", "pptx"].includes(selected.document.format)) {
           try {
             readingPreview = await prepareOfficeReading(
               selected.document.format,
@@ -381,8 +381,9 @@ export default function ArtifactDocumentScreen() {
                 <Text style={[styles.body, { color: theme.textSecondary }]}>
                   {preview.image
                     ? "Verified document · Image"
-                    : ["docx", "xlsx"].includes(preview.document.format) &&
-                        preview.readingPreview
+                    : ["docx", "xlsx", "pptx"].includes(
+                          preview.document.format,
+                        ) && preview.readingPreview
                       ? "Verified original · Extracted text"
                       : preview.text === null
                         ? "Verified original document · Export available"
@@ -473,7 +474,7 @@ export default function ArtifactDocumentScreen() {
                       }
                     />
                   )}
-                {["docx", "xlsx"].includes(preview.document.format) &&
+                {["docx", "xlsx", "pptx"].includes(preview.document.format) &&
                   preview.readingPreview && (
                     <Text style={[styles.body, { color: theme.textSecondary }]}>
                       {preview.readingPreview.note}
@@ -487,7 +488,9 @@ export default function ArtifactDocumentScreen() {
                     preview.document.bytes <= 16 * 1024 * 1024
                   ) && (
                     <Text style={[styles.body, { color: theme.textSecondary }]}>
-                      {["pdf", "docx"].includes(preview.document.format)
+                      {["pdf", "docx", "xlsx", "pptx"].includes(
+                        preview.document.format,
+                      )
                         ? "Export the verified original to read it in your document app."
                         : "This document has no supported text preview. Export the verified original."}
                     </Text>

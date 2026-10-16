@@ -2,6 +2,8 @@
 
 Updated 2026-10-14. Implementation branch: `codex/ion-agent-teams`.
 
+Subsequent update: [PowerPoint reading](96-phone-powerpoint-reading.md) adds PPTX publication/original export and the same bounded direct/gateway extracted-text flow. The Word/Excel behavior and historical evidence below remain applicable.
+
 ## Available behavior
 
 Direct Artifacts and gateway workflow evidence now read verified **DOCX** and **XLSX** originals on the phone. The existing original metadata/SHA-256 checks run before extraction. The original bytes remain unchanged and exportable.

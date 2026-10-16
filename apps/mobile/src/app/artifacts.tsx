@@ -24,6 +24,8 @@ const NAMES: Record<string, string> = {
   htm: "HTML (HTM)",
   pdf: "PDF",
   docx: "Word",
+  xlsx: "Excel",
+  pptx: "PowerPoint",
 };
 export default function ArtifactsScreen() {
   const theme = useTheme(),
