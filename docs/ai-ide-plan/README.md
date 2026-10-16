@@ -137,8 +137,8 @@ target; see [the deployment checklist](../../services/speech/README.md).
 
 - [Agent teams implementation progress and review checklist](19-agent-teams-progress.md):
   durable coordination, native dispatch, parent review/rework and token budgets;
-  implemented adapters, remote execution work and live acceptance; unfinished
-  adapter additions are deferred.
+  implemented adapters, remote execution work and live acceptance; the current
+  reopened harness scope is recorded in chapter 64.
 
 - [Agent Teams release checklist](20-agent-teams-release-checklist.md): implemented
   coverage, remaining development and your live setup/review tasks in one place.
@@ -249,3 +249,7 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Portable CSS custom properties](80-portable-css-properties.md): private registrations/variable references, one-pass nested declaration traversal, actual native-to-phone evidence and remaining dynamic/browser/device work.
 
 - [Larger phone documents](81-phone-large-documents.md): complete 16 MiB text/HTML preparation, bounded parser memory and serialization, native/phone evidence and current remaining work.
+
+- [Current Kimi contract](83-kimi-current-contract.md): official source-host candidate, installed-plugin limits and remaining runtime/packaging proof.
+
+- [Fx ordinary-task contract](84-fx-source-contract.md): native MCP identity gap, SDK-host distinction and remaining supported-host acceptance.

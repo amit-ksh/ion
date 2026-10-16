@@ -1,6 +1,6 @@
 # Remaining harness integrations
 
-Updated 2026-10-15. The active user goal reopens the remaining harness integrations previously deferred on 2026-10-08.
+Updated 2026-10-16. The active user goal reopens the remaining harness integrations previously deferred on 2026-10-08.
 
 ## Current implementation coverage
 
@@ -24,6 +24,8 @@ This table is source-level transport coverage. Native versions, selected account
 | Kimi        | Implemented                                        | Remaining                                                       |
 
 The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The eleven source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other three retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
+
+Coverage is **23 of 28 distinct integration paths** (12/14 bounded completions and 11/14 ordinary-task bridges), about 82% by path count. Five paths remain development work; this is not an effort estimate for the whole application or a replacement for live acceptance.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -68,6 +70,8 @@ The checksum-pinned Windows 1.3.1 CLI now passes seven real-runtime contract cas
 The production bridge now uses a uniquely owned additive workspace plugin and the shared worker. Actual released-runtime driver cases prove owner-approved durable invocation/result return, native resume with a new step, changed-definition refusal, Stop at approval, queued-prompt cancellation, same-conversation recovery and overlap/final cleanup. Existing native app configuration is not rewritten. The release namespaces plugin servers by directory name; the expanded eight-case contract verifies this explicitly (195 assertions). [Native evidence](78-antigravity-native-source-contract.md), [production implementation and remaining owner review](79-antigravity-source-team-bridge.md). Eleven production source-task bridges are now implemented; authenticated owner-account/platform acceptance remains open.
 
 ## Kimi source-task contract investigation
+
+**2026-10-16 update:** [current Kimi source research](83-kimi-current-contract.md) revalidates released 2.2.0 and identifies an in-process source-host candidate. Installed-plugin/ACP support and production/native runtime proof are still missing. The cached 2.1.1 analysis below records the earlier external-hook/MCP path. [Current Fx evidence](84-fx-source-contract.md) separately records its native transport identity gap. Counts remain unchanged.
 
 The cached official Kimi Code 2.1.1 source (`f67e639`) exposes native session/tool-call IDs to `PreToolUse`, but that hook returns allow/block decisions and a reason, not a successful replacement tool result. Hook launch failures, timeout and cancellation return an allow decision. Its MCP client forwards the tool name, arguments and abort signal without the engine's native call ID. The MCP JSON-RPC request ID is not that native identity.
 
