@@ -1,0 +1,2 @@
+# Preserve the pinned upstream license verbatim across Windows checkouts.
+node-24.19.0.txt -text -whitespace
