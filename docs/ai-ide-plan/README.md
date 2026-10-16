@@ -281,3 +281,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Portable computed counter styles](95-portable-computed-counter-styles.md): private literal/fallback/fixed-prefix references, 118 native-to-phone checks and remaining expression/device review.
 
 - [Phone PowerPoint reading](96-phone-powerpoint-reading.md): PPTX publication/workflow/library/retention support, bounded ordered slide text, exact original export, 168 native/phone checks and later device review.
+
+- [Portable animation shorthand](97-portable-animation-shorthand.md): computed keyframe roles, unknown substitution tracking, none/fill correction, 129 native-to-phone checks and remaining browser/timeline review.

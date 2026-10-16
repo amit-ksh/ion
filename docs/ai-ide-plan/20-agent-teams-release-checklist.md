@@ -19,6 +19,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 ## Current document/harness goal: remaining work (2026-10-17)
 
+- [x] Proven computed animation shorthand names, explicit unknown-slot handling and ordinary none/fill-mode correction; [129 native-to-phone cases and owner review](97-portable-animation-shorthand.md).
+- [ ] General variable-supplied animation values, complete modern timeline roles and actual phone computed animation behavior.
+
 - [x] PPTX publication/collection, workflow/output formats, artifact/retention handling, exact original export and direct/gateway phone extracted reading; [168 native/phone checks and later owner review](96-phone-powerpoint-reading.md).
 - [ ] PPTX physical-device/accessibility/representative-document review. The extracted reader does not reproduce complete PowerPoint slide layout, media or notes.
 

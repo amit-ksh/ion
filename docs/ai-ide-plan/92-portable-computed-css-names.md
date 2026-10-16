@@ -8,7 +8,7 @@ Imported SVG documents now keep proven computed-name references aligned with the
 
 Implemented paths:
 
-- Animation-name longhands, including literal fallback lists and safe fixed-prefix identifier expressions. Animation shorthand stays on the existing path because unknown variables can change keyword roles.
+- Animation-name longhands, including literal fallback lists and safe fixed-prefix identifier expressions. [Chapter 97](97-portable-animation-shorthand.md) subsequently adds proven computed shorthand roles and explicit unknown-slot tracking; general variable-supplied shorthands remain open.
 - Container-name values, with reserved keywords and invalid lists preserved. Container shorthand remains separate.
 - Font-palette and named font-feature arguments, including fixed dashed prefixes for palettes and fixed nonreserved prefixes for feature names.
 - Literal complete font families assembled from identifier expressions, including Unicode caseless matching against collected document fonts. Whole-family literal fallbacks follow the same private identity. Presentation font-family values use the same property grammar.

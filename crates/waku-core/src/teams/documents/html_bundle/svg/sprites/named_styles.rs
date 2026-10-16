@@ -2,6 +2,7 @@
 //! property grammar: a keyword or string is not blindly renamed across CSS.
 use super::*;
 use std::collections::BTreeSet;
+mod animation;
 mod counters;
 
 #[derive(Clone, Default)]
@@ -240,94 +241,6 @@ impl Globals {
             _ => self.counter_values(source, prefix, CounterMode::Functions, !descriptor, 0),
         }
     }
-    fn animation(
-        &self,
-        source: &str,
-        prefix: &str,
-        shorthand: bool,
-        depth: usize,
-    ) -> Result<String> {
-        ensure!(depth <= 32, "Computed animation nesting exceeds its bound");
-        let mut input = ParserInput::new(source);
-        let mut parser = Parser::new(&mut input);
-        let mut out = String::new();
-        let mut consumed = Animation::default();
-        while let Ok(token) = parser.next_including_whitespace_and_comments().cloned() {
-            match token {
-                CssToken::Comma => {
-                    consumed = Animation::default();
-                    push(&mut out, ",")?;
-                }
-                CssToken::Ident(name) => {
-                    let reserved = if shorthand {
-                        consumed.keyword(&name)
-                    } else {
-                        wide(&name) || name.eq_ignore_ascii_case("none")
-                    };
-                    if !reserved {
-                        push(&mut out, &identifier(&name, prefix, "animation"))?;
-                    } else {
-                        push(&mut out, &CssToken::Ident(name).to_css_string())?;
-                    }
-                }
-                CssToken::QuotedString(name) => {
-                    push(&mut out, &identifier(&name, prefix, "animation"))?
-                }
-                CssToken::Number { .. } => {
-                    consumed.iteration = true;
-                    push(&mut out, &token.to_css_string())?;
-                }
-                CssToken::Function(name) => {
-                    let body = nested_text(&mut parser)?;
-                    let body = if !shorthand && name.eq_ignore_ascii_case("ident") {
-                        if let Some(value) = computed_names::literal(&body)? {
-                            if computed_names::reserved(&value, &["none"]) {
-                                body
-                            } else {
-                                computed_names::quoted(&format!("{prefix}animation_{value}"))
-                            }
-                        } else {
-                            computed_names::affix(&body, prefix, "animation", false, &["none"])?
-                                .unwrap_or(body)
-                        }
-                    } else if !shorthand && name.eq_ignore_ascii_case("var") {
-                        if let Some(offset) = computed_names::fallback_offset(&body) {
-                            format!(
-                                "{}{}",
-                                &body[..offset],
-                                self.animation(&body[offset..], prefix, false, depth + 1)?
-                            )
-                        } else {
-                            body
-                        }
-                    } else {
-                        body
-                    };
-                    if matches!(
-                        name.to_ascii_lowercase().as_str(),
-                        "linear" | "steps" | "cubic-bezier"
-                    ) {
-                        consumed.timing = true;
-                    }
-                    push(
-                        &mut out,
-                        &format!("{}({})", CssToken::Ident(name).to_css_string(), body),
-                    )?;
-                }
-                CssToken::ParenthesisBlock => {
-                    push(&mut out, &format!("({})", nested_text(&mut parser)?))?
-                }
-                CssToken::SquareBracketBlock => {
-                    push(&mut out, &format!("[{}]", nested_text(&mut parser)?))?
-                }
-                CssToken::CurlyBracketBlock => {
-                    push(&mut out, &format!("{{{}}}", nested_text(&mut parser)?))?
-                }
-                _ => push(&mut out, &token.to_css_string())?,
-            }
-        }
-        Ok(out)
-    }
 }
 #[derive(Clone, Copy)]
 enum CounterMode {
@@ -336,37 +249,6 @@ enum CounterMode {
     List,
     Speak,
     System,
-}
-#[derive(Default)]
-struct Animation {
-    timing: bool,
-    iteration: bool,
-    direction: bool,
-    fill: bool,
-    play: bool,
-}
-impl Animation {
-    fn keyword(&mut self, word: &str) -> bool {
-        if wide(word) || word.eq_ignore_ascii_case("none") {
-            return true;
-        }
-        let slot = match word.to_ascii_lowercase().as_str() {
-            "ease" | "linear" | "ease-in" | "ease-out" | "ease-in-out" | "step-start"
-            | "step-end" => Some(&mut self.timing),
-            "infinite" => Some(&mut self.iteration),
-            "normal" | "reverse" | "alternate" | "alternate-reverse" => Some(&mut self.direction),
-            "forwards" | "backwards" | "both" => Some(&mut self.fill),
-            "running" | "paused" => Some(&mut self.play),
-            _ => None,
-        };
-        match slot {
-            Some(slot) if !*slot => {
-                *slot = true;
-                true
-            }
-            _ => false,
-        }
-    }
 }
 pub(super) fn keyframes(source: &str, names: &Names, depth: usize) -> Result<String> {
     ensure!(depth <= 32, "CSS keyframe nesting exceeds its bound");

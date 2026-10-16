@@ -8,6 +8,10 @@ The user deferred integration paths whose implementation has not started: **Amp 
 
 The broader catalog now has 25 implemented source-level paths after the Kimi bridge increment. Three unstarted paths remain deferred. Kimi signed release/additional-platform/owner acceptance and document work remain open. Deferral did not mark a capability complete; this is not an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
+## Latest animation shorthand document increment (2026-10-17)
+
+Computed keyframe names now follow proven shorthand keyword roles, including the ordinary none/fill-mode correction. Unknown substitutions and identifiers retain explicit slot uncertainty, and native function/fallback wrappers remain intact. **129 distinct native/publication/export/phone cases pass**, with 49 phone cases and 1,264 assertions. Full mobile/fixture types, locked offline desktop/both-daemon checks and formatting/diff checks pass. [Implementation, independent role proof and owner review](97-portable-animation-shorthand.md). General arbitrary variable/cascade behavior, modern timeline roles and actual browser/device acceptance remain open. Unstarted harness adapters stay deferred.
+
 ## Latest PowerPoint document increment (2026-10-17)
 
 PPTX now follows AI publication/collection, library filters, workflow/team format requirements, retention, original export and direct/gateway phone reading. The existing Extracted text view reads ordered slide text, hidden-slide labels, explicit titles, table cells and image descriptions while retaining the complete original. **168 distinct native/phone cases pass**, including 117 phone cases with 2,423 assertions and the actual native publication/export-to-phone round trip. Full mobile/fixture types, browser reader bundle, desktop/both-daemon checks and formatting/diff checks pass. [Implementation, bounds, fidelity limits and owner review](96-phone-powerpoint-reading.md). Physical-device and representative-document review remain open; fidelity limits are documented and unstarted harness adapters stay deferred.
