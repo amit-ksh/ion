@@ -195,7 +195,11 @@ fn condition(
                 "{}{property}{}{}",
                 &source[..start],
                 &source[end..offset],
-                value(&source[offset..], prefix, &name.to_ascii_lowercase())?
+                value(
+                    &font_styles::value(&name.to_ascii_lowercase(), &source[offset..], prefix)?,
+                    prefix,
+                    &name.to_ascii_lowercase()
+                )?
             ));
         }
         if custom(&name) && kind == Query::Container && parser.is_exhausted() {

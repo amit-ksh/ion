@@ -9,6 +9,19 @@ worktree. These changes have not been integrated into `ion-prod` by this task.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
+## Current document/harness goal: remaining work (2026-10-16)
+
+- [ ] Cursor ordinary-task Teams bridge.
+- [ ] Fx ordinary-task Teams bridge; [current native/SDK distinction](84-fx-source-contract.md).
+- [ ] Kimi ordinary-task Teams bridge; [source-host candidate and runtime gates](83-kimi-current-contract.md).
+- [ ] Amp bounded completion allowance/account/metering contract.
+- [ ] Cursor bounded completion ceiling/account contract.
+- [ ] Dynamic CSS named references/`ident()` and remaining font-family fidelity. The [palette/feature increment](85-portable-font-features.md) is implemented and verified separately.
+
+Harness coverage is 23/28 paths (about 82% by path count); this is not an overall app effort percentage. Larger phone documents and the previously added formats are implemented with the bounds in [chapter 81](81-phone-large-documents.md).
+
+Live acceptance remains separate: selected native provider accounts/platforms, real phone WebViews on iPhone 15/Moto G32, and owner Nebius/speech infrastructure. These need the owner's resources and device review. The dated sections below retain historical checkpoints; older unchecked entries can be superseded by later evidence and are not a cumulative current issue count. The full goal remains active.
+
 ## Historical scope correction (2026-10-08)
 
 The user deferred adapters that have not been added yet. Keep all implemented
@@ -1082,3 +1095,12 @@ This completes local manual artifact cleanup and collector admission/diagnostics
 - [x] Pass 97 phone regressions, no failures/skips, 1,851 assertions; all five production-native fixture families and Office reading are included. Three current-native fixture exports, full mobile types, browser bundle and formatting/diff checks pass.
 - [x] Record [implementation, measured limits and owner review](81-phone-large-documents.md). No visual/device test, paid request, watcher restart, deployment or ion-prod merge occurred.
 - [ ] Finish dynamic CSS name/font fidelity, Cursor/Fx/Kimi source bridges, Amp/Cursor bounded completion contracts, and authenticated provider/browser/device acceptance. The full goal remains active.
+
+## 2026-10-16 - Portable font palettes and named features
+
+- [x] Give imported SVG palette rules and named font-feature values private identities across pinned CSS, literal uses and supported queries/presentation values; preserve native font data and case-sensitive feature keys.
+- [x] Keep generic fallbacks separate from quoted families, retain invalid rule/family syntax, and preserve installed families alongside registered aliases.
+- [x] Pass 95 distinct checks: 44 native bundle cases, three publication/worker cases, six explicitly executed native exports and 42 phone cases (682 phone assertions). All six native fixture families retain their identities and valid grammar after phone preparation.
+- [x] Full mobile TypeScript, locked offline desktop/both-daemon checks, Rust/Prettier formatting and diff checks pass. Existing compiler warnings remain.
+- [x] Save [implementation, exact evidence and owner review](85-portable-font-features.md). The synthetic font fixture verifies resource plumbing and grammar, not actual glyph/color-font fidelity. No visual/device test, watcher restart, deployment or ion-prod merge occurred.
+- [ ] Finish dynamic CSS name/ident behavior, remaining font-family fidelity, five native harness paths and authenticated provider/browser/device acceptance. The full goal remains active.

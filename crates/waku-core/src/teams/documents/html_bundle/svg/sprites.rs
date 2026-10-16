@@ -2,6 +2,7 @@
 //! per-compound stylesheet markers. Markers survive native <use> cloning.
 use super::*;
 mod context_styles;
+mod font_styles;
 mod named_styles;
 mod property_styles;
 mod scope_styles;
@@ -59,7 +60,12 @@ impl Names {
         self.globals.baseline(&self.prefix)
     }
     pub(super) fn presentation(&self, name: &str, value: &str) -> Result<String> {
-        property_styles::presentation(name, value, &self.prefix)
+        let value = if name == "font-variant" {
+            font_styles::value(name, value, &self.prefix)?
+        } else {
+            value.to_owned()
+        };
+        property_styles::presentation(name, &value, &self.prefix)
     }
     pub fn root_marker(&self) -> String {
         format!("data-{}{}_root", self.prefix, self.marker_key)
@@ -395,6 +401,7 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                         names.globals.prelude(&name, &prelude, &names.prefix)?
                     };
                     let prelude = property_styles::prelude(&name, &prelude, &names.prefix)?;
+                    let prelude = font_styles::prelude(&name, &prelude, names)?;
                     push(&mut out, &prelude)?;
                     push(&mut out, "{")?;
                     let body = if matches!(
@@ -404,6 +411,8 @@ fn namespace_styles(source: &str, names: &Names, depth: usize) -> Result<String>
                         namespace_styles(&body, names, depth + 1)?
                     } else if matches!(name.as_str(), "keyframes" | "-webkit-keyframes") {
                         named_styles::keyframes(&body, names, depth + 1)?
+                    } else if name == "font-feature-values" {
+                        font_styles::feature_body(&body, names)?
                     } else if name == "counter-style" {
                         declarations_in(&body, names, true)?
                     } else {
@@ -670,14 +679,51 @@ fn nth_selector(source: &str, names: &Names, depth: usize) -> Result<String> {
 fn family_name(source: &str) -> Option<String> {
     let mut input = ParserInput::new(source);
     let mut parser = Parser::new(&mut input);
+    let first = parser.next().ok()?.clone();
+    if let CssToken::QuotedString(name) = first {
+        parser.expect_exhausted().ok()?;
+        return Some(name.to_ascii_lowercase());
+    }
     let mut words = Vec::new();
+    let CssToken::Ident(first) = first else {
+        return None;
+    };
+    words.push(first.to_string());
     while let Ok(token) = parser.next().cloned() {
         match token {
-            CssToken::Ident(word) | CssToken::QuotedString(word) => words.push(word.to_string()),
+            CssToken::Ident(word) => words.push(word.to_string()),
             _ => return None,
         }
     }
-    (!words.is_empty()).then(|| words.join(" ").to_ascii_lowercase())
+    if words.iter().any(|word| {
+        matches!(
+            word.to_ascii_lowercase().as_str(),
+            "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "default"
+        )
+    }) {
+        return None;
+    }
+    if words.len() == 1
+        && matches!(
+            words[0].to_ascii_lowercase().as_str(),
+            "serif"
+                | "sans-serif"
+                | "cursive"
+                | "fantasy"
+                | "monospace"
+                | "system-ui"
+                | "ui-serif"
+                | "ui-sans-serif"
+                | "ui-monospace"
+                | "ui-rounded"
+                | "emoji"
+                | "math"
+                | "fangsong"
+        )
+    {
+        return None;
+    }
+    Some(words.join(" ").to_ascii_lowercase())
 }
 impl Names {
     pub fn family(&self, source: &str) -> Result<String> {
@@ -756,6 +802,7 @@ fn declarations_in(source: &str, names: &Names, counter_style: bool) -> Result<S
                     counter_style,
                 )?
             };
+            let css = font_styles::value(decoded.as_deref().unwrap_or(""), &css, &names.prefix)?;
             let css =
                 property_styles::value(&css, &names.prefix, decoded.as_deref().unwrap_or(""))?;
             push(out, &css)?;

@@ -253,3 +253,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Current Kimi contract](83-kimi-current-contract.md): official source-host candidate, installed-plugin limits and remaining runtime/packaging proof.
 
 - [Fx ordinary-task contract](84-fx-source-contract.md): native MCP identity gap, SDK-host distinction and remaining supported-host acceptance.
+
+- [Portable font palettes and named features](85-portable-font-features.md): private imported document identities, native/phone grammar evidence and remaining browser/device review.
