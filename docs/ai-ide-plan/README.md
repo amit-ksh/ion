@@ -263,3 +263,7 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Cursor source-task Teams integration](87-cursor-source-team-bridge.md): verified Windows production wiring, owned native hook files, 50 passing cases, per-call approval and remaining platform/owner gates.
 
 - [Portable Unicode font families](88-portable-unicode-font-families.md): pinned Unicode 18.0 C/F identities, all-scalar conformance, native-to-phone evidence and remaining dynamic/browser/device work.
+
+- [Kimi source-host contract](89-kimi-source-host-contract.md): pinned released lifecycle, native tool activation, identity and packaging/login gates.
+
+- [Native Kimi source-host fixture](90-kimi-native-source-host-fixture.md): real official engine/HTTP execution, permissions, built-in preservation, cancellation/resume and remaining production integration.

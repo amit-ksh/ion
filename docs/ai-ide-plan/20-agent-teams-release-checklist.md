@@ -14,7 +14,8 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 - [x] Cursor ordinary-task Teams bridge on verified Windows native 2026.10.01; [implementation and 50 passing cases](87-cursor-source-team-bridge.md).
 - [ ] Additional Cursor worker-platform contracts and authenticated owner acceptance.
 - [ ] Fx ordinary-task Teams bridge; [current native/SDK distinction](84-fx-source-contract.md).
-- [ ] Kimi ordinary-task Teams bridge; [source-host candidate and runtime gates](83-kimi-current-contract.md).
+- [x] Kimi released-source host contract: 11 native cases for default tools/model/config, independent call evidence, result return, denial, Stop and resume; [evidence and distribution limits](90-kimi-native-source-host-fixture.md).
+- [ ] Kimi ordinary-task Teams bridge; the [native source-host fixture](90-kimi-native-source-host-fixture.md) verifies the extension seam, while shared worker wiring, packaging/selection/login compatibility and owner acceptance remain open.
 - [ ] Amp bounded completion allowance/account/metering contract.
 - [ ] Cursor bounded completion ceiling/account contract.
 - [x] Unicode 18.0 font-family matching without normalization; [native-to-phone evidence and owner review](88-portable-unicode-font-families.md).

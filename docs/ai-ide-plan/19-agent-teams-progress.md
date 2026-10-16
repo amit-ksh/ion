@@ -1,5 +1,9 @@
 # Agent teams: implementation progress and review checklist
 
+## Latest Kimi source-host contract increment (2026-10-16)
+
+The pinned released Kimi engine now runs through the official ACP composition with a private native profile and a localhost HTTP model provider. **11 distinct native contract cases pass**, covering tool results, permissions, default tools, cancellation and lifecycle; strict TypeScript/syntax/format/diff checks pass. Evidence is recorded in [chapter 90](90-kimi-native-source-host-fixture.md), with the [source interface analysis](89-kimi-source-host-contract.md). This is a source-host contract fixture; production worker wiring, distributable host selection/login compatibility and authenticated owner acceptance remain open. Harness coverage is still **24/28 paths (about 86%)**, not an overall app completion estimate.
+
 ## Latest document increment (2026-10-16)
 
 Imported font-family identities now use the pinned Unicode 18.0 C/F mapping, with no locale tailoring or normalization. **97 distinct native/publication/export/phone cases pass**, including all-scalar conformance and preservation of original publications. [Implementation and owner review](88-portable-unicode-font-families.md). Dynamic CSS names/`ident()`, browser/glyph acceptance and the four remaining harness paths remain open.

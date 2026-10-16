@@ -2,6 +2,8 @@
 
 Checked 2026-10-16. Research only; no production adapter, native runtime acceptance, account access, paid inference, installation, configuration edits, visual testing or watcher changes.
 
+Current follow-up: [released lifecycle analysis](89-kimi-source-host-contract.md) and [native source-host execution](90-kimi-native-source-host-fixture.md) verify the candidate below in a private fixture. Production worker wiring and a selected, distributable source host remain open; this historical research note is not installed-CLI acceptance.
+
 ## Result
 
 The external-hook/MCP gap described in [remaining harness integrations](64-remaining-harness-integrations.md#kimi-source-task-contract-investigation) remains in the current released source. A more promising **in-process source-host contract** exists: the native registry can add an executable tool whose callback receives the engine's turn and tool-call identity and returns a successful native tool result. Native default tools and permission processing can stay assembled. This is an implementation candidate requiring a real source-host fixture and an explicit packaging/version policy; it is not a verified extension of an installed `kimi.exe`.

@@ -6,22 +6,22 @@ Updated 2026-10-16. The active user goal reopens the remaining harness integrati
 
 This table is source-level transport coverage. Native versions, selected account/model routes, configured grants/limits and owner acceptance still apply. A completion transport is not the same feature as an ordinary source conversation invoking a saved team. Direct `@team` execution retains its existing flow.
 
-| Harness     | Bounded Teams completion transport                 | Source-task Teams tools                                         |
-| ----------- | -------------------------------------------------- | --------------------------------------------------------------- |
-| Nebius      | Implemented                                        | Implemented                                                     |
-| Codex       | Implemented                                        | Implemented                                                     |
-| Claude      | Implemented                                        | Implemented                                                     |
-| OpenCode    | Implemented                                        | Implemented                                                     |
-| OpenCode 2  | Implemented                                        | Implemented; verified native 2.0.29, owner acceptance remaining |
-| Pi          | Implemented                                        | Implemented                                                     |
-| Oh My Pi    | Implemented                                        | Implemented                                                     |
-| Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining             |
+| Harness     | Bounded Teams completion transport                 | Source-task Teams tools                                                                |
+| ----------- | -------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Nebius      | Implemented                                        | Implemented                                                                            |
+| Codex       | Implemented                                        | Implemented                                                                            |
+| Claude      | Implemented                                        | Implemented                                                                            |
+| OpenCode    | Implemented                                        | Implemented                                                                            |
+| OpenCode 2  | Implemented                                        | Implemented; verified native 2.0.29, owner acceptance remaining                        |
+| Pi          | Implemented                                        | Implemented                                                                            |
+| Oh My Pi    | Implemented                                        | Implemented                                                                            |
+| Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining                                    |
 | Cursor      | Native completion ceiling/account contract missing | Implemented on verified Windows native 2026.10.01; platform/owner acceptance remaining |
-| Antigravity | Implemented                                        | Implemented; verified native 1.3.1, owner acceptance remaining  |
-| DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                |
-| Fx          | Implemented                                        | Remaining                                                       |
-| Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining |
-| Kimi        | Implemented                                        | Remaining                                                       |
+| Antigravity | Implemented                                        | Implemented; verified native 1.3.1, owner acceptance remaining                         |
+| DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                                       |
+| Fx          | Implemented                                        | Remaining                                                                              |
+| Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining                        |
+| Kimi        | Implemented                                        | Remaining                                                                              |
 
 The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. Twelve source-task connections are explicit in `driver/mod.rs` through `start_with_workspace` and the provider bridge setup. Cursor’s new bridge is gated to the verified Windows runtime; Fx/Kimi retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
 
@@ -75,7 +75,7 @@ The production bridge now uses a uniquely owned additive workspace plugin and th
 
 ## Kimi source-task contract investigation
 
-**2026-10-16 update:** [current Kimi source research](83-kimi-current-contract.md) revalidates released 2.2.0 and identifies an in-process source-host candidate. Installed-plugin/ACP support and production/native runtime proof are still missing. The cached 2.1.1 analysis below records the earlier external-hook/MCP path. [Current Fx evidence](84-fx-source-contract.md) separately records its native transport identity gap. Counts remain unchanged.
+**2026-10-16 update:** [released source analysis](89-kimi-source-host-contract.md) and the [executed native source-host fixture](90-kimi-native-source-host-fixture.md) now verify the in-process lifecycle/tool/result/permission seam using the official 2.2.0 engine and a localhost HTTP provider. Shared Ion worker wiring, a separately packaged/selected host with login compatibility and authenticated owner/platform acceptance remain open. Stock installed-plugin/ACP tool registration is still unsupported by the inspected contract. The cached 2.1.1 analysis below records the earlier external-hook/MCP path. [Current Fx evidence](84-fx-source-contract.md) separately records its native transport identity gap. Counts remain unchanged.
 
 The cached official Kimi Code 2.1.1 source (`f67e639`) exposes native session/tool-call IDs to `PreToolUse`, but that hook returns allow/block decisions and a reason, not a successful replacement tool result. Hook launch failures, timeout and cancellation return an allow decision. Its MCP client forwards the tool name, arguments and abort signal without the engine's native call ID. The MCP JSON-RPC request ID is not that native identity.
 
