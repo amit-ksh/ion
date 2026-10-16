@@ -2,6 +2,8 @@
 
 Updated 2026-10-17. Implementation branch: `codex/ion-agent-teams`.
 
+Subsequent update: [complete animation fallbacks](98-complete-animation-fallbacks.md) adds known-context variable fallback handling while retaining native wrappers. The evidence below records the earlier shorthand increment.
+
 ## Change
 
 Imported SVG documents now preserve proven computed keyframe names in animation and vendor animation shorthand. Complete literal identifier expressions follow the earlier keyword slots; fixed author-name prefixes are transformed only when they cannot produce a reserved keyword or dashed timeline name. Native identifier and variable wrappers remain in the output.

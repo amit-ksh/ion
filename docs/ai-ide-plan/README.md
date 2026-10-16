@@ -283,3 +283,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Phone PowerPoint reading](96-phone-powerpoint-reading.md): PPTX publication/workflow/library/retention support, bounded ordered slide text, exact original export, 168 native/phone checks and later device review.
 
 - [Portable animation shorthand](97-portable-animation-shorthand.md): computed keyframe roles, unknown substitution tracking, none/fill correction, 129 native-to-phone checks and remaining browser/timeline review.
+
+- [Complete animation fallbacks](98-complete-animation-fallbacks.md): complete-context variable fallback names, borrowed source boundaries, 139 native-to-phone checks and remaining primary-variable/device review.

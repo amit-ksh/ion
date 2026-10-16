@@ -8,6 +8,10 @@ The user deferred integration paths whose implementation has not started: **Amp 
 
 The broader catalog now has 25 implemented source-level paths after the Kimi bridge increment. Three unstarted paths remain deferred. Kimi signed release/additional-platform/owner acceptance and document work remain open. Deferral did not mark a capability complete; this is not an overall app completion percentage. This correction supersedes the 2026-10-14 reopening for those three paths.
 
+## Latest complete animation fallback increment (2026-10-17)
+
+Animation shorthand fallbacks now retain private keyframe identities when a variable fills a complete animation/list member, including nested and multi-animation fallbacks. Borrowed source ranges retain first arguments, wrappers and authored boundaries; partial fragments and opaque data retain their contexts. **139 distinct native/publication/export/phone cases pass**, including 51 phone cases with 1,386 assertions. Full mobile/fixture types, desktop/both-daemon checks and formatting/diff checks pass. [Implementation, selection/empty-value controls and owner review](98-complete-animation-fallbacks.md). Arbitrary primary variable values, general cascade/timeline behavior and actual browser/device acceptance remain open. Unstarted harness adapters stay deferred.
+
 ## Latest animation shorthand document increment (2026-10-17)
 
 Computed keyframe names now follow proven shorthand keyword roles, including the ordinary none/fill-mode correction. Unknown substitutions and identifiers retain explicit slot uncertainty, and native function/fallback wrappers remain intact. **129 distinct native/publication/export/phone cases pass**, with 49 phone cases and 1,264 assertions. Full mobile/fixture types, locked offline desktop/both-daemon checks and formatting/diff checks pass. [Implementation, independent role proof and owner review](97-portable-animation-shorthand.md). General arbitrary variable/cascade behavior, modern timeline roles and actual browser/device acceptance remain open. Unstarted harness adapters stay deferred.

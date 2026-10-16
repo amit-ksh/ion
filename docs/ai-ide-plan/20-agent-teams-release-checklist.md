@@ -19,6 +19,8 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 ## Current document/harness goal: remaining work (2026-10-17)
 
+- [x] Complete animation/list-member variable fallbacks with native wrapper/first-argument preservation; [139 native-to-phone cases and owner review](98-complete-animation-fallbacks.md). Partial fragments and arbitrary primary variable values retain their remaining scope.
+
 - [x] Proven computed animation shorthand names, explicit unknown-slot handling and ordinary none/fill-mode correction; [129 native-to-phone cases and owner review](97-portable-animation-shorthand.md).
 - [ ] General variable-supplied animation values, complete modern timeline roles and actual phone computed animation behavior.
 

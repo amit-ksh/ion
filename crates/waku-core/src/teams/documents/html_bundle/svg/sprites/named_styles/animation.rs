@@ -10,6 +10,53 @@ impl Globals {
         depth: usize,
     ) -> Result<String> {
         ensure!(depth <= 32, "Computed animation nesting exceeds its bound");
+        if !shorthand {
+            return self.animation_tokens(source, prefix, false, depth);
+        }
+        // cssparser skips unconsumed nested blocks on next(). Thus commas in
+        // easing functions, computed names and var fallbacks never split a member.
+        let mut input = ParserInput::new(source);
+        let mut parser = Parser::new(&mut input);
+        let mut start = 0;
+        let mut out = String::new();
+        while let Ok(token) = parser.next_including_whitespace_and_comments() {
+            if matches!(token, CssToken::Comma) {
+                let end = parser.position().byte_index();
+                push(
+                    &mut out,
+                    &self.animation_member(&source[start..end - 1], prefix, depth)?,
+                )?;
+                push(&mut out, ",")?;
+                start = end;
+            }
+        }
+        push(
+            &mut out,
+            &self.animation_member(&source[start..], prefix, depth)?,
+        )?;
+        Ok(out)
+    }
+    fn animation_member(&self, source: &str, prefix: &str, depth: usize) -> Result<String> {
+        if let Some((start, end)) = whole_var_fallback(source)? {
+            let mut out = String::new();
+            push(&mut out, &source[..start])?;
+            push(
+                &mut out,
+                &self.animation(&source[start..end], prefix, true, depth + 1)?,
+            )?;
+            push(&mut out, &source[end..])?;
+            return Ok(out);
+        }
+        self.animation_tokens(source, prefix, true, depth)
+    }
+    fn animation_tokens(
+        &self,
+        source: &str,
+        prefix: &str,
+        shorthand: bool,
+        depth: usize,
+    ) -> Result<String> {
+        ensure!(depth <= 32, "Computed animation nesting exceeds its bound");
         let mut input = ParserInput::new(source);
         let mut parser = Parser::new(&mut input);
         let mut out = String::new();
@@ -96,6 +143,32 @@ impl Globals {
         }
         Ok(out)
     }
+}
+/// Borrow only the complete fallback range. The first argument and native
+/// wrapper keep their authored position, including Variables 2 expressions.
+/// No variable value is looked up, selected, expanded, or re-evaluated here.
+fn whole_var_fallback<'i>(source: &'i str) -> Result<Option<(usize, usize)>> {
+    let mut input = ParserInput::new(source);
+    let mut parser = Parser::new(&mut input);
+    if !matches!(parser.next(), Ok(CssToken::Function(name)) if name.eq_ignore_ascii_case("var")) {
+        return Ok(None);
+    }
+    let range = parser
+        .parse_nested_block(|inner| {
+            let mut fallback = None;
+            while let Ok(token) = inner.next_including_whitespace_and_comments() {
+                if matches!(token, CssToken::Comma) && fallback.is_none() {
+                    fallback = Some(inner.position().byte_index());
+                }
+            }
+            let end = inner.position().byte_index();
+            Ok::<_, cssparser::ParseError<'i, ()>>(fallback.map(|start| (start, end)))
+        })
+        .map_err(|_| anyhow::anyhow!("Invalid animation fallback block"))?;
+    if parser.expect_exhausted().is_err() {
+        return Ok(None);
+    }
+    Ok(range)
 }
 #[derive(Clone, Copy, Default)]
 enum Slot {
@@ -226,3 +299,7 @@ impl Animation {
 #[cfg(test)]
 #[path = "animation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "animation_fallback_tests.rs"]
+mod fallback_tests;
