@@ -1,5 +1,6 @@
 //! Source-task team tools shared by native harness transports. Project identity,
 //! grants, queue replay and document scope are owned here, never model arguments.
+pub(crate) mod acp_bridge;
 pub(crate) mod amp;
 pub(crate) mod antigravity;
 pub(crate) mod cursor;

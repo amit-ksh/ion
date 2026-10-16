@@ -11,7 +11,8 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 ## Current document/harness goal: remaining work (2026-10-16)
 
-- [ ] Cursor ordinary-task Teams bridge; [current native evidence and remaining binding gate](82-cursor-current-contract.md).
+- [x] Cursor ordinary-task Teams bridge on verified Windows native 2026.10.01; [implementation and 50 passing cases](87-cursor-source-team-bridge.md).
+- [ ] Additional Cursor worker-platform contracts and authenticated owner acceptance.
 - [ ] Fx ordinary-task Teams bridge; [current native/SDK distinction](84-fx-source-contract.md).
 - [ ] Kimi ordinary-task Teams bridge; [source-host candidate and runtime gates](83-kimi-current-contract.md).
 - [ ] Amp bounded completion allowance/account/metering contract.

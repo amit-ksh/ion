@@ -309,6 +309,42 @@ impl Bindings {
         }
         Ok(())
     }
+    pub(super) fn revoke(&mut self, id: &str) {
+        if let Some(call) = self.calls.get_mut(id) {
+            call.valid = false;
+            call.approved = false;
+            call.arguments = Value::Null;
+        }
+    }
+    pub(super) fn bound_call(&self, input: &Value) -> Option<String> {
+        let nonce = input[FIELD].as_str()?;
+        self.nonces
+            .get(nonce)
+            .and_then(|id| self.hooks.get(id))
+            .and_then(|hook| hook.call.clone())
+    }
+    pub(super) fn owns(&self, id: &str) -> bool {
+        self.calls.contains_key(id)
+    }
+    pub(super) fn approved(&self, id: &str) -> Result<Invocation> {
+        let call = self.calls.get(id).context("Unobserved native approval")?;
+        ensure!(
+            self.running
+                && call.valid
+                && call.approved
+                && !call.consumed
+                && call.expires >= Instant::now(),
+            "Native approval is no longer active"
+        );
+        Ok(Invocation {
+            call_id: id.into(),
+            name: call.name.clone(),
+            arguments: call.arguments.clone(),
+        })
+    }
+    pub(super) fn scrub(&self, value: &mut Value) {
+        super::scrub(value, &self.nonces);
+    }
     pub(super) fn consume(&mut self, native_name: &str, input: &Value) -> Result<Invocation> {
         ensure!(self.running, "Cursor source stopped");
         let name = self.name(native_name)?;

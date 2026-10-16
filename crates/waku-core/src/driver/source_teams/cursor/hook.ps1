@@ -21,6 +21,7 @@
             $IonClient.MaxResponseContentBufferSize = 65536
             $IonClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $IonToken)
             $IonBody = [System.Net.Http.StringContent]::new($IonPayload, [System.Text.Encoding]::UTF8, 'application/json')
+            $IonBody.Headers.ContentType.CharSet = $null
             $IonUri = [System.UriBuilder]::new('http', '127.0.0.1', __ION_HOOK_PORT__, 'hook').Uri
             $IonResponse = $IonClient.PostAsync($IonUri, $IonBody).GetAwaiter().GetResult()
             if ([int]$IonResponse.StatusCode -ne 200) {

@@ -1,5 +1,9 @@
 # Agent teams: implementation progress and review checklist
 
+## Latest native Cursor increment (2026-10-16)
+
+The verified Windows Cursor source-task Teams bridge is implemented. The current ledger is **24/28 source-level paths (about 86%)**, with four integration paths plus platform/document/live-acceptance work remaining. [Implementation, 50 passing Cursor cases and owner review](87-cursor-source-team-bridge.md). The existing ACP/Grok regression filters and desktop/both-daemon compiler gates pass. Changes remain in the implementation worktree until explicitly integrated into ion-prod.
+
 ## Current scope update (2026-10-14)
 
 The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](81-phone-large-documents.md) records available behavior and remaining publication/resource work.

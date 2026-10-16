@@ -1,5 +1,7 @@
 # Cursor native binding and hook transport
 
+Historical staged checkpoint. [Chapter 87](87-cursor-source-team-bridge.md) now records the completed Windows production integration and current acceptance gates.
+
 Updated 2026-10-16. Implementation branch: `codex/ion-agent-teams`. This is an implementation checkpoint for the remaining Cursor source-task Teams bridge. It does **not** enable the adapter or change the 23/28 implemented-path count.
 
 ## Verified native contract

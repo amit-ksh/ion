@@ -30,7 +30,11 @@ use parking_lot::Mutex;
 use serde_json::{Map, Value, json};
 
 use super::activity;
-use super::source_teams::grok::GrokBridge;
+use super::source_teams::{
+    acp_bridge::AcpTeamBridge,
+    cursor::{CursorApproval, CursorBridge},
+    grok::GrokBridge,
+};
 use crate::driver::{
     DriverControl, DriverEventSender, DriverEventSink, DriverStartOptions, SessionOptions,
 };
@@ -68,7 +72,7 @@ pub struct AcpDriver {
     supports_steer: bool,
     mode: RuntimeMode,
     computer_use: Option<super::support::HeadlessComputerUseRuntime>,
-    team_bridge: Option<GrokBridge>,
+    team_bridge: Option<AcpTeamBridge>,
 }
 
 /// Per-provider launch details. Everything after process launch is ACP.
@@ -169,7 +173,8 @@ impl AcpDriver {
         };
 
         let mut launch = launch_for(provider, reasoning_effort.as_deref())?;
-        let team_bridge = if provider == ProviderKind::Grok {
+        let cursor_workspace = workspace.clone();
+        let mut team_bridge = if provider == ProviderKind::Grok {
             workspace.and_then(|context| {
                 let create = || -> anyhow::Result<GrokBridge> {
                     super::source_teams::grok::verify(&binary)?;
@@ -180,7 +185,7 @@ impl AcpDriver {
                     GrokBridge::start(context,events.clone(),&cwd,&helper)
                 };
                 match create() {
-                    Ok(bridge)=>Some(bridge),
+                    Ok(bridge)=>Some(AcpTeamBridge::Grok(bridge)),
                     Err(_)=>{let _=events.send(DriverEvent::Activity{id:None,kind:ActivityKind::Tool,title:"Team tools unavailable".into(),detail:Some("Grok Teams requires native 1.0.46, a writable project hook directory and the Ion daemon helper. Your normal native session remains available.".into()),complete:true});None},
                 }
             })
@@ -204,7 +209,27 @@ impl AcpDriver {
             launch,
             computer_use.as_ref().map(|runtime| &runtime.config),
             stderr_lines.clone(),
-            configure,
+            |config| {
+                let mut config = configure(config);
+                if provider == ProviderKind::Cursor
+                    && let Some(context) = cursor_workspace
+                {
+                    match CursorBridge::start(context, events.clone(), &cwd, &config) {
+                        Ok(bridge) => {
+                            config = config.envs(bridge.environment());
+                            team_bridge = Some(AcpTeamBridge::Cursor(bridge));
+                        }
+                        Err(_) => {
+                            let _ = events.send(DriverEvent::Activity {
+                                id: None, kind: ActivityKind::Tool,
+                                title: "Team tools unavailable".into(),
+                                detail: Some("Cursor Teams requires the verified Windows native runtime and an available project hook file. Check hook access and retry from the task.".into()), complete: true,
+                            });
+                        }
+                    }
+                }
+                config
+            },
         )?;
         let grok_title_home = grok_title_home.or_else(|| {
             agent
@@ -380,7 +405,35 @@ pub(crate) fn catalog_agent(
 }
 
 type PermissionResponder = Responder<RequestPermissionResponse>;
-type PendingPermissions = Arc<Mutex<HashMap<String, PermissionResponder>>>;
+struct PendingPermission {
+    responder: PermissionResponder,
+    cursor: Option<CursorApproval>,
+    options: HashMap<String, bool>,
+}
+impl PendingPermission {
+    fn cancel(self) -> agent_client_protocol::Result<()> {
+        if let Some(approval) = self.cursor {
+            let _ = approval.decide(false);
+        }
+        self.responder.respond(RequestPermissionResponse::new(
+            RequestPermissionOutcome::Cancelled,
+        ))
+    }
+    fn respond(self, option: String) -> agent_client_protocol::Result<()> {
+        if let Some(approval) = &self.cursor {
+            let Some(allowed) = self.options.get(&option) else {
+                return self.cancel();
+            };
+            if approval.decide(*allowed).is_err() && *allowed {
+                return self.cancel();
+            }
+        }
+        self.responder.respond(RequestPermissionResponse::new(
+            RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(option)),
+        ))
+    }
+}
+type PendingPermissions = Arc<Mutex<HashMap<String, PendingPermission>>>;
 
 #[derive(Clone, Copy)]
 enum AcpUserInputKind {
@@ -458,7 +511,7 @@ async fn run_sdk_connection(
     resume_session_id: Option<String>,
     fork_context: Option<String>,
     grok_title_home: Option<std::path::PathBuf>,
-    team_bridge: Option<GrokBridge>,
+    team_bridge: Option<AcpTeamBridge>,
     wake: smol::channel::Sender<CommandMessage>,
     commands: smol::channel::Receiver<CommandMessage>,
     events: DriverEventSender,
@@ -546,7 +599,32 @@ async fn run_sdk_connection(
                 let events = events.clone();
                 let pending_permissions = pending_permissions.clone();
                 let team_bridge = team_bridge.clone();
-                async move |mut request: RequestPermissionRequest, responder, _connection| {
+                async move |mut request: RequestPermissionRequest,
+                            responder: PermissionResponder,
+                            _connection| {
+                    let cursor = if let Some(bridge) = &team_bridge {
+                        match serde_json::to_value(&request)
+                            .ok()
+                            .map(|value| bridge.permission(&value))
+                        {
+                            Some(Ok(approval)) => approval,
+                            _ => {
+                                responder.respond(RequestPermissionResponse::new(
+                                    RequestPermissionOutcome::Cancelled,
+                                ))?;
+                                return Ok(());
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    if cursor.is_some() {
+                        // Remembered native grants skip the only independent ACP
+                        // witness. Offer per-call approval for Ion tools only.
+                        request
+                            .options
+                            .retain(|option| option.kind != PermissionOptionKind::AllowAlways);
+                    }
                     if let Some(bridge) = &team_bridge {
                         if let Ok(mut value) = serde_json::to_value(&request) {
                             bridge.scrub(&mut value);
@@ -561,6 +639,7 @@ async fn run_sdk_connection(
                         auto_approve,
                         &pending_permissions,
                         &events,
+                        cursor,
                     )
                 }
             },
@@ -787,7 +866,7 @@ async fn run_sdk_connection(
                             title_refresh.clone(),
                             stream_state.clone(),
                             team_bridge.clone(),
-                            team_bridge.as_ref().and_then(GrokBridge::active_turn),
+                            team_bridge.as_ref().and_then(AcpTeamBridge::active_turn),
                             wake.clone(),
                         ) {
                             Ok(()) => {
@@ -817,12 +896,8 @@ async fn run_sdk_connection(
                         {
                             continue;
                         }
-                        if let Some(responder) = pending_permissions.lock().remove(&request_id) {
-                            let _ = responder.respond(RequestPermissionResponse::new(
-                                RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                                    option_id,
-                                )),
-                            ));
+                        if let Some(permission) = pending_permissions.lock().remove(&request_id) {
+                            let _ = permission.respond(option_id);
                         }
                     }
                     CommandMessage::RespondUserInput {
@@ -882,7 +957,7 @@ async fn establish_session(
     resume_session_id: Option<&str>,
     cwd: &Path,
     suppress_session_updates: &AtomicBool,
-    team_bridge: Option<&GrokBridge>,
+    team_bridge: Option<&AcpTeamBridge>,
 ) -> agent_client_protocol::Result<(
     SessionId,
     Option<SessionModeState>,
@@ -897,8 +972,12 @@ async fn establish_session(
             && let Ok(response) = connection
                 .send_request(
                     ResumeSessionRequest::new(existing.to_owned(), cwd)
-                        .mcp_servers(team_bridge.map(GrokBridge::mcp_servers).unwrap_or_default())
-                        .meta(team_bridge.map(GrokBridge::metadata)),
+                        .mcp_servers(
+                            team_bridge
+                                .map(AcpTeamBridge::mcp_servers)
+                                .unwrap_or_default(),
+                        )
+                        .meta(team_bridge.map(AcpTeamBridge::metadata)),
                 )
                 .block_task()
                 .await
@@ -915,8 +994,12 @@ async fn establish_session(
             let response = connection
                 .send_request(
                     LoadSessionRequest::new(existing.to_owned(), cwd)
-                        .mcp_servers(team_bridge.map(GrokBridge::mcp_servers).unwrap_or_default())
-                        .meta(team_bridge.map(GrokBridge::metadata)),
+                        .mcp_servers(
+                            team_bridge
+                                .map(AcpTeamBridge::mcp_servers)
+                                .unwrap_or_default(),
+                        )
+                        .meta(team_bridge.map(AcpTeamBridge::metadata)),
                 )
                 .block_task()
                 .await;
@@ -934,8 +1017,12 @@ async fn establish_session(
     let response = connection
         .send_request(
             NewSessionRequest::new(cwd)
-                .mcp_servers(team_bridge.map(GrokBridge::mcp_servers).unwrap_or_default())
-                .meta(team_bridge.map(GrokBridge::metadata)),
+                .mcp_servers(
+                    team_bridge
+                        .map(AcpTeamBridge::mcp_servers)
+                        .unwrap_or_default(),
+                )
+                .meta(team_bridge.map(AcpTeamBridge::metadata)),
         )
         .block_task()
         .await?;
@@ -1507,7 +1594,7 @@ fn send_prompt(
     grok_title_home: Option<std::path::PathBuf>,
     title_refresh: super::title_refresh::NativeTitleRefresh,
     stream_state: Arc<Mutex<AcpStreamState>>,
-    team_bridge: Option<GrokBridge>,
+    team_bridge: Option<AcpTeamBridge>,
     team_turn: Option<u64>,
     wake: smol::channel::Sender<CommandMessage>,
 ) -> agent_client_protocol::Result<()> {
@@ -1683,10 +1770,8 @@ fn finish_prompt(
 }
 
 fn cancel_pending_permissions(pending: &PendingPermissions) {
-    for (_, responder) in pending.lock().drain() {
-        let _ = responder.respond(RequestPermissionResponse::new(
-            RequestPermissionOutcome::Cancelled,
-        ));
+    for (_, permission) in pending.lock().drain() {
+        let _ = permission.cancel();
     }
 }
 
@@ -1948,6 +2033,7 @@ fn handle_permission_request(
     auto_approve: bool,
     pending: &PendingPermissions,
     events: &impl DriverEventSink,
+    cursor: Option<CursorApproval>,
 ) -> agent_client_protocol::Result<()> {
     let request_id = responder.id().to_string();
     let params = serde_json::to_value(&request)?;
@@ -1964,6 +2050,14 @@ fn handle_permission_request(
         })
         .collect::<Vec<_>>();
 
+    let permission = PendingPermission {
+        responder,
+        cursor,
+        options: options
+            .iter()
+            .map(|option| (option.id.clone(), option.allow))
+            .collect(),
+    };
     if auto_approve {
         let choice = request
             .options
@@ -1976,14 +2070,8 @@ fn handle_permission_request(
                     .find(|option| option.kind == PermissionOptionKind::AllowOnce)
             });
         return match choice {
-            Some(choice) => responder.respond(RequestPermissionResponse::new(
-                RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                    choice.option_id.clone(),
-                )),
-            )),
-            None => responder.respond(RequestPermissionResponse::new(
-                RequestPermissionOutcome::Cancelled,
-            )),
+            Some(choice) => permission.respond(choice.option_id.to_string()),
+            None => permission.cancel(),
         };
     }
 
@@ -1999,7 +2087,7 @@ fn handle_permission_request(
             .map(|kind| tr!("permission.agent_wants_to", action = kind))
             .unwrap_or_else(|| tr!("permission.agent_asks_for_permission"))
     });
-    pending.lock().insert(request_id.clone(), responder);
+    pending.lock().insert(request_id.clone(), permission);
     if events
         .send(DriverEvent::Permission {
             request_id: request_id.clone(),
@@ -2008,11 +2096,9 @@ fn handle_permission_request(
             options,
         })
         .is_err()
-        && let Some(responder) = pending.lock().remove(&request_id)
+        && let Some(permission) = pending.lock().remove(&request_id)
     {
-        let _ = responder.respond(RequestPermissionResponse::new(
-            RequestPermissionOutcome::Cancelled,
-        ));
+        let _ = permission.cancel();
     }
     Ok(())
 }
@@ -2249,7 +2335,7 @@ fn classify(kind: &str) -> ActivityKind {
 
 impl DriverControl for AcpDriver {
     fn prompt(&self, prompt: String) {
-        let team_turn = self.team_bridge.as_ref().map(GrokBridge::queue_turn);
+        let team_turn = self.team_bridge.as_ref().map(AcpTeamBridge::queue_turn);
         let _ = self.commands.try_send(CommandMessage::Prompt {
             text: prompt,
             team_turn,

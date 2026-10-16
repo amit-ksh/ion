@@ -16,16 +16,16 @@ This table is source-level transport coverage. Native versions, selected account
 | Pi          | Implemented                                        | Implemented                                                     |
 | Oh My Pi    | Implemented                                        | Implemented                                                     |
 | Amp         | Native allowance/account/metering contract missing | Implemented; authenticated CLI acceptance remaining             |
-| Cursor      | Native completion ceiling/account contract missing | Remaining                                                       |
+| Cursor      | Native completion ceiling/account contract missing | Implemented on verified Windows native 2026.10.01; platform/owner acceptance remaining |
 | Antigravity | Implemented                                        | Implemented; verified native 1.3.1, owner acceptance remaining  |
 | DeepSeek    | Implemented; pinned native fixture                 | Implemented; full web/owner acceptance remaining                |
 | Fx          | Implemented                                        | Remaining                                                       |
 | Grok        | Implemented                                        | Implemented; verified native 1.0.46, owner acceptance remaining |
 | Kimi        | Implemented                                        | Remaining                                                       |
 
-The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. The eleven source-task connections are explicit in `driver/mod.rs` through `start_with_workspace`; the other three retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
+The 12 completion dispatch arms are explicit in `driver/team_worker.rs`; Amp/Cursor remain refused. Twelve source-task connections are explicit in `driver/mod.rs` through `start_with_workspace` and the provider bridge setup. Cursor’s new bridge is gated to the verified Windows runtime; Fx/Kimi retain their ordinary transport without source-team tool registration. No unsupported connection is counted as implemented.
 
-Coverage is **23 of 28 distinct integration paths** (12/14 bounded completions and 11/14 ordinary-task bridges), about 82% by path count. Five paths remain development work; this is not an effort estimate for the whole application or a replacement for live acceptance.
+Coverage is **24 of 28 distinct integration paths** (12/14 bounded completions and 12/14 ordinary-task bridges), about 86% by path count. Four paths remain development work; Cursor’s additional platform support remains open too; this is not an effort estimate for the whole application or a replacement for live acceptance.
 
 [Windows ACP startup](68-windows-acp-startup.md) now uses the selected native executable instead of a Unix launcher. Its synthetic protocol fixture verifies framing/workspace propagation; real provider configuration/account and Stop acceptance remain separate.
 
@@ -45,7 +45,7 @@ The official plugin AI helper can select an exact native model and set `maxToken
 
 ## Cursor
 
-**Current follow-up:** [the staged Cursor binding and hook transport](86-cursor-binding-transport.md) verifies working project-cache hook rewriting, native permission/content correlation, authenticated bounded loopback and adverse HTTP behavior. Its binding state and command template are implemented; native ACP lifecycle/shared-worker/owned-hook integration is still required before source tools can be enabled. The normal ACP default and existing account route remain intact.
+**Current follow-up:** [the production Cursor source-task bridge](87-cursor-source-team-bridge.md) connects the independently verified native ACP/hook/permission identities to the shared Teams worker. Fifty Cursor cases pass, including actual native invocation, result return, overlapping-driver resume/replay, changed-definition refusal, Stop recovery, wildcard preauthorization refusal, hard-link/owner-file preservation and worker revocation. The normal ACP account route/default tools remain selected. This increment verifies Windows; additional worker-platform and authenticated owner acceptance remain open. [Chapter 86](86-cursor-binding-transport.md) records the preceding staged contract.
 
 **2026-10-16 native evidence:** [the current contract and runnable fixture](82-cursor-current-contract.md) prove selected fake-model native ACP tool discovery, distinct main-stream/permission call IDs, successful MCP results, denial, pending Stop and fail-closed missing-hook behavior. Five actual-runtime cases pass. MCP does not forward the native identity, and plugin hook discovery is not an execution boundary in the pinned release. Production correlation and the bounded completion ceiling remain unfinished; counts do not change.
 
@@ -91,6 +91,8 @@ Primary source: [native MCP request](https://github.com/MoonshotAI/kimi-code/blo
 - [x] Bind Amp source callbacks to native owner-observed thread/tool-use identity; see the dedicated source-task bridge guide.
 - [ ] Complete Amp native model/allowance/account/usage proof for bounded Teams completion.
 - [ ] Complete Cursor native completion ceiling and account/catalog limits, with adversarial dispatch/cancel fixtures.
-- [ ] Complete source-task Teams tools for Cursor, Fx and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
+- [x] Complete the verified Windows Cursor source-task bridge with exact native call identity, approval/replay/Stop and native fixture acceptance; see chapter 87.
+- [ ] Complete additional Cursor worker-platform contracts and authenticated owner acceptance.
+- [ ] Complete source-task Teams tools for Fx and Kimi, with exact native call identity, approval/replay/Stop and native fixture acceptance.
 
 These are current goal requirements, not deferred successes. The full goal remains active.
