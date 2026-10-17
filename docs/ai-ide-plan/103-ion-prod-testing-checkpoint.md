@@ -1,6 +1,8 @@
 # ion-prod testing checkpoint
 
-Prepared 2026-10-17 for integration of `codex/ion-agent-teams` into `ion-prod`.
+Integrated 2026-10-17: `ion-prod` fast-forwarded to implementation commit `946b753` from `codex/ion-agent-teams`. Locked dependencies are installed in the main checkout; mobile, shared-client and gateway TypeScript checks pass there.
+
+The checkout's pre-existing planning notes are preserved in the named Git stash `ion-prod pre-integration owner planning notes 2026-10-17` (`29ce4e94c592a771b92e26af31d2db97a2778a66`). The merged plan contains the newer Teams decisions. Local `.lavish` files remain untouched.
 
 This checkpoint is ready for owner testing. The full document/harness objective is still open. Unstarted Amp/Cursor bounded Teams execution, Fx ordinary-task Teams invocation and other unstarted harness adapters remain out of scope.
 
