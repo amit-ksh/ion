@@ -187,7 +187,20 @@ async function embeddedRaster(value: string, current: () => boolean) {
   }
   return true;
 }
-export type RenderedHtml = { html: string; removed: boolean };
+export type RenderedHtml = {
+  html: string;
+  removed: boolean;
+  resources?: import("./html-resource-document").HtmlResourceDocument;
+};
+export type HtmlRenderResourcePolicy = {
+  csp: string;
+  reference(
+    tag: string,
+    namespace: string,
+    attribute: string,
+    value: string,
+  ): boolean;
+};
 export function allowDocumentNavigation(url: string): boolean {
   return url === "about:blank" || /^about:blank#[^\s]*$/.test(url);
 }
@@ -198,6 +211,7 @@ export function allowDocumentNavigation(url: string): boolean {
 export async function prepareRenderedHtml(
   source: string,
   current: () => boolean,
+  resourcePolicy?: HtmlRenderResourcePolicy,
 ): Promise<RenderedHtml> {
   const allowed = () => {
     if (!current()) throw new Error("Document rendering scope changed");
@@ -251,10 +265,23 @@ export async function prepareRenderedHtml(
         tree.isElementNode(node.parentNode) &&
         node.parentNode.namespaceURI === HTML_NS &&
         node.parentNode.tagName === "picture";
+      const stylesheet =
+        !!resourcePolicy &&
+        node.namespaceURI === HTML_NS &&
+        tag === "link" &&
+        node.attrs.some(
+          (a) =>
+            a.name === "rel" && a.value.trim().toLowerCase() === "stylesheet",
+        ) &&
+        node.attrs.some(
+          (a) =>
+            a.name === "href" &&
+            resourcePolicy.reference(tag, node.namespaceURI, a.name, a.value),
+        );
       if (
         ![HTML_NS, SVG_NS, MATH_NS].includes(node.namespaceURI) ||
         (node.namespaceURI === MATH_NS && !keepMathElement(node)) ||
-        OMIT.has(tag) ||
+        (OMIT.has(tag) && !stylesheet) ||
         (tag === "source" && !pictureSource)
       ) {
         tree.detachNode(node);
@@ -328,7 +355,14 @@ export async function prepareRenderedHtml(
             name === "srcset" &&
             (tag === "img" || pictureSource) &&
             responsiveImages.has(attr);
-          if (!embedded && !fragment && !responsive) {
+          const pinned =
+            resourcePolicy?.reference(
+              tag,
+              node.namespaceURI,
+              name,
+              attr.value,
+            ) ?? false;
+          if (!embedded && !fragment && !responsive && !pinned) {
             removed = true;
             return false;
           }
@@ -356,7 +390,7 @@ export async function prepareRenderedHtml(
     tree.createElement("meta", HTML_NS, [{ name: "charset", value: "utf-8" }]),
     tree.createElement("meta", HTML_NS, [
       { name: "http-equiv", value: "Content-Security-Policy" },
-      { name: "content", value: CSP },
+      { name: "content", value: resourcePolicy?.csp ?? CSP },
     ]),
     tree.createElement("meta", HTML_NS, [
       { name: "name", value: "viewport" },
@@ -473,6 +507,7 @@ export async function prepareHtmlViews(
   text: string,
   current: () => boolean,
   format = "html",
+  resources?: import("./html-resource-document").HtmlResourceDocument,
 ) {
   const { prepareDocumentReading, prepareDocumentSource } =
     await import("./document-preview");
@@ -496,7 +531,9 @@ export async function prepareHtmlViews(
   let rendered: RenderedHtml | null = null,
     renderError: string | null = null;
   try {
-    rendered = await prepareRenderedHtml(text, current);
+    rendered = resources
+      ? { html: "", removed: false, resources }
+      : await prepareRenderedHtml(text, current);
   } catch (error) {
     if (!current()) throw error;
     renderError =

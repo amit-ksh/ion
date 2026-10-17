@@ -12,8 +12,9 @@ The broader catalog now has 25 implemented source-level paths after the Kimi bri
 
 The user has reopened the remaining harness integrations and requested additional document formats, larger publications and fuller HTML/CSS phone rendering. This supersedes the earlier adapter deferral for the active goal. Unsupported native account/model/budget contracts remain implementation gaps, rather than completed capabilities. [Current document increment](81-phone-large-documents.md) records available behavior and remaining publication/resource work.
 
-Updated 2026-10-11. Implementation branch: `codex/ion-agent-teams` in the managed
-worktree. These changes have not been integrated into `ion-prod` by this task.
+Updated 2026-10-17. Implementation branch: `codex/ion-agent-teams` in the managed
+worktree. The user requested integration into `ion-prod` at this testing checkpoint.
+Use [the testing handoff](103-ion-prod-testing-checkpoint.md) for startup and review.
 Use [implementation progress](19-agent-teams-progress.md) for checkpoint evidence
 and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
@@ -21,7 +22,9 @@ and [the confirmed specification](18-agent-teams-implementation.md) for scope.
 
 - [x] Retain exact pinned HTML/resource originals transactionally, with versioned legacy-aware reads, source bounds, model-summary separation and parent-artifact cleanup/cascade behavior; [200 native/export/phone cases and later review](100-html-resource-originals.md). Existing exports are byte-identical and desktop/both-daemon checks pass.
 - [x] Publication-bound source manifests, direct/gateway resource routes, full phone digest/scope verification, empty CSS resources, eight-chunk batches, bounded transfer-reply retention and exact readmission; [270 checks, types/bindings/binary gates and later review](101-html-resource-transport.md).
-- [ ] Create and connect the native resource-document loader and combined storage presentation before claiming general variable/cascade fidelity for external SVG documents. Browser/device acceptance remains separate.
+- [x] Create scoped resource-host implementations and connect direct/gateway Rendered previews, with exact native/browser file authority, lifecycle closure and separate SVG/CSS identities; [94 cases, 46 real HTTP assertions and exact remaining gates](102-scoped-html-resource-hosts.md).
+- [ ] Android Kotlin/Expo and Apple Swift builds; actual WebView/browser origin, dynamic CSS/SVG, performance and device acceptance. Source integration is not proof of these gates.
+- [ ] Include retained resource originals in combined storage presentation.
 
 - [x] Phone presentation MathML, static actions/annotations, namespace-reparse controls and actual durable equation publication-to-phone handoff; [155 native/export/phone cases and later device checklist](99-phone-mathml-rendering.md). Full mobile/strict fixture types and formatting/diff checks pass.
 - [ ] Actual equation layout, math fonts/glyph selection, large-text behavior and native iPhone 15/Moto G32 acceptance.

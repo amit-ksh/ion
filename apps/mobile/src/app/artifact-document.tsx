@@ -1,3 +1,6 @@
+import { prepareHtmlResourceDocument } from "@/lib/html-resource-document";
+import { readArtifactHtmlResources } from "@/lib/html-resource-readers";
+import { pdfDigest } from "@/components/artifact-pdf-preview";
 import { prepareOfficeReading } from "@/lib/office-reading";
 import { ArtifactImagePreview } from "@/components/artifact-image-preview";
 import { prepareArtifactImage, type ArtifactImage } from "@/lib/artifact-image";
@@ -77,6 +80,7 @@ export default function ArtifactDocumentScreen() {
       sourceRows: DocumentPreviewRow[];
       readingPreview: DocumentReadingPreview | null;
       rendered: RenderedHtml | null;
+      current: () => boolean;
       renderError: string | null;
       image: ArtifactImage | null;
     } | null>(null),
@@ -189,11 +193,42 @@ export default function ArtifactDocumentScreen() {
           if (!current()) throw error;
           /* Invalid textual bytes remain exportable as exact original content. */
         }
+        let resources:
+            Awaited<ReturnType<typeof prepareHtmlResourceDocument>> | undefined,
+          resourceError: string | null = null;
+        try {
+          const resourceSet =
+            selected.document.format === "html"
+              ? await readArtifactHtmlResources(
+                  client,
+                  selected.document,
+                  bytes,
+                  current,
+                  pdfDigest,
+                )
+              : null;
+          resources = resourceSet
+            ? await prepareHtmlResourceDocument(resourceSet, current)
+            : undefined;
+        } catch (cause) {
+          if (!current()) throw cause;
+          resourceError =
+            "Linked document resources unavailable. Use Reading view, Source or export the original.";
+        }
         const htmlViews =
           text !== null &&
           ["html", "htm", "svg"].includes(selected.document.format)
-            ? await prepareHtmlViews(text, current, selected.document.format)
+            ? await prepareHtmlViews(
+                text,
+                current,
+                selected.document.format,
+                resources,
+              )
             : null;
+        if (htmlViews && resourceError) {
+          htmlViews.rendered = null;
+          htmlViews.renderError = resourceError;
+        }
         const textViews =
           text !== null && !htmlViews
             ? await prepareTextDocumentViews(
@@ -242,6 +277,7 @@ export default function ArtifactDocumentScreen() {
           sourceRows,
           readingPreview,
           rendered: htmlViews?.rendered ?? null,
+          current,
           renderError: htmlViews?.renderError ?? imageError ?? officeError,
           image,
         });
@@ -439,6 +475,7 @@ export default function ArtifactDocumentScreen() {
                   <ArtifactHtmlPreview
                     key={scope}
                     document={preview.rendered}
+                    current={preview.current}
                     name={preview.document.name}
                   />
                 )}

@@ -63,5 +63,10 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  }
 }

@@ -291,3 +291,7 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Retained HTML resource originals](100-html-resource-originals.md): exact versioned source history, bounded reads, atomic cleanup, 200 native/export/phone checks and remaining resource loading work.
 
 - [Publication-bound HTML resource transport](101-html-resource-transport.md): committed resource manifests, direct/gateway readers, bounded chunks/receipt recovery, 270 regression/export checks and the remaining native loader.
+
+- [Scoped HTML resource hosts](102-scoped-html-resource-hosts.md): direct/gateway preview wiring, native read-only loopback origins, browser worker isolation, 94 cases/46 HTTP assertions and remaining native/browser/device acceptance.
+
+- [ion-prod testing checkpoint](103-ion-prod-testing-checkpoint.md): startup commands, owner review order, verified checks and remaining native/device gates.

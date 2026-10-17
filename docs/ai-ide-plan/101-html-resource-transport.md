@@ -2,6 +2,8 @@
 
 Updated 2026-10-17. Implementation branch: `codex/ion-agent-teams`.
 
+[Subsequent source integration](102-scoped-html-resource-hosts.md) now connects these readers to native/browser resource hosts; native application builds and real browser/device acceptance remain open. This chapter records the transport checkpoint.
+
 ## Available implementation
 
 The retained originals from chapter 100 now have direct daemon commands and personal-gateway workflow queries, shared client validators and direct/gateway phone readers. The readers return a complete verified resource set for the upcoming native resource-document loader. The current document screen continues using its existing snapshot preview; the resource loader and screen integration remain open.
@@ -54,7 +56,7 @@ Run `packages/waku-client/src/html-resources.test.ts`, `apps/mobile/src/lib/html
 
 ## Remaining implementation
 
-- [ ] Create and connect the scoped native resource-document host for iOS/Android/web, preserving separate SVG/CSS document identities and existing script/file restrictions.
+- [x] Create and connect scoped resource-host source implementations for iOS/Android/web, preserving separate SVG/CSS document identities and script/file restrictions; see chapter 102 for native build and browser/device gates.
 - [ ] Fence host requests and cached data on owner/route/grant changes, foreground loss, expiry and unmount.
 - [ ] Verify actual native external SVG use/paint/path, dynamic names/cascade, fonts and source sizing when browser/device review is requested.
 - [ ] Include retained originals in combined storage presentation.

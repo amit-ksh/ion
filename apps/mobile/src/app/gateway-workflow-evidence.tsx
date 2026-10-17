@@ -1,3 +1,5 @@
+import { prepareHtmlResourceDocument } from "@/lib/html-resource-document";
+import { readGatewayHtmlResources } from "@/lib/html-resource-readers";
 import {
   isTextDocumentFormat,
   MAX_DOCUMENT_TEXT_BYTES,
@@ -78,6 +80,7 @@ export default function GatewayWorkflowEvidenceScreen() {
       sourceRows: DocumentPreviewRow[];
       readingPreview: DocumentReadingPreview;
       rendered: RenderedHtml | null;
+      current?: () => boolean;
       renderError: string | null;
       image: ArtifactImage | null;
       scope: string;
@@ -288,9 +291,38 @@ export default function GatewayWorkflowEvidenceScreen() {
             "Reading is unavailable for this document format. Export the verified original.",
           );
         const text = await prepareDocumentText(bytes, current);
+        let resources:
+            Awaited<ReturnType<typeof prepareHtmlResourceDocument>> | undefined,
+          resourceError: string | null = null;
+        try {
+          const resourceSet =
+            record.format === "html"
+              ? await readGatewayHtmlResources(
+                  credential,
+                  state.ownerId,
+                  params.run,
+                  record,
+                  bytes,
+                  current,
+                  Crypto.randomUUID,
+                  pdfDigest,
+                )
+              : null;
+          resources = resourceSet
+            ? await prepareHtmlResourceDocument(resourceSet, current)
+            : undefined;
+        } catch (cause) {
+          if (!current()) throw cause;
+          resourceError =
+            "Linked document resources unavailable. Use Reading view, Source or export the original.";
+        }
         const htmlViews = ["html", "htm", "svg"].includes(record.format)
-          ? await prepareHtmlViews(text, current, record.format)
+          ? await prepareHtmlViews(text, current, record.format, resources)
           : null;
+        if (htmlViews && resourceError) {
+          htmlViews.rendered = null;
+          htmlViews.renderError = resourceError;
+        }
         const textViews = !htmlViews
           ? await prepareTextDocumentViews(record.format, text, current)
           : null;
@@ -307,6 +339,7 @@ export default function GatewayWorkflowEvidenceScreen() {
           sourceRows,
           readingPreview,
           rendered: htmlViews?.rendered ?? null,
+          current,
           renderError: htmlViews?.renderError ?? null,
           image: null,
           scope: started,
@@ -469,6 +502,7 @@ export default function GatewayWorkflowEvidenceScreen() {
                 <ArtifactHtmlPreview
                   key={scope}
                   document={activePreview.rendered}
+                  current={activePreview.current}
                   name={activePreview.name}
                 />
               )}

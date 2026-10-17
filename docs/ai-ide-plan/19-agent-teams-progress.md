@@ -1,5 +1,9 @@
 # Agent teams: implementation progress and review checklist
 
+## 2026-10-17 — Scoped HTML resource hosts
+
+Direct/gateway Rendered previews now use verified, separate retained documents through native read-only loopback origins and the dedicated browser worker. The complete phone HTML/shared source matrix passes 94 cases with 3,074 assertions; the production Java origin passes 46 real HTTP/lifecycle assertions. Native autolinking and phone types pass. Android/Apple builds, actual WebView/browser fidelity and combined storage presentation remain open. Unstarted harness adapters stay deferred. [Implementation and later owner review](102-scoped-html-resource-hosts.md).
+
 ## Current scope correction (2026-10-16)
 
 The user deferred integration paths whose implementation has not started: **Amp bounded Teams execution, Cursor bounded Teams execution, and Fx ordinary-task Teams invocation**. Their research remains available for a later request. They are not current release blockers and are not implemented capabilities. Any other unstarted harness adapter also stays out of scope until the user explicitly reopens it.
