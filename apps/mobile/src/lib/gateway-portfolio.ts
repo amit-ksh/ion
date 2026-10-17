@@ -64,8 +64,17 @@ export async function loadGatewayPortfolio(
   const allowed = () => {
     if (pairing.expiresAt <= Date.now())
       throw new Error("History read grant expired; pair this phone again");
+    if (grant && !pairing.grants.includes(grant))
+      throw new Error("History read grant revoked; pair this phone again");
     if (!current()) throw new Error("History request scope changed");
   };
+  const transfer = [
+    "workflowDocument",
+    "workflowPdfPage",
+    "workflowHtmlManifest",
+    "workflowHtmlSource",
+  ].includes(query.kind);
+  let readmissions = 0;
   const maxPolls = api.maxPolls ?? 60;
   if (!Number.isSafeInteger(maxPolls) || maxPolls < 1 || maxPolls > 240)
     throw new Error("Invalid history poll bound");
@@ -81,6 +90,15 @@ export async function loadGatewayPortfolio(
   }
   for (let poll = 0; poll < maxPolls && Date.now() < deadline; poll++) {
     allowed();
+    if (job === null && transfer) {
+      if (readmissions >= 2)
+        throw new Error(
+          "Document transfer receipt was evicted repeatedly; refresh to try again",
+        );
+      readmissions++;
+      job = await api.submit(pairing, input);
+      allowed();
+    }
     if (job !== null) validatePortfolioJob(job, pairing.id, input);
     if (job?.status === "complete" && job.result) return job.result;
     if (job?.status === "rejected" || job?.status === "expired")

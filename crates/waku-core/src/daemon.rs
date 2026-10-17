@@ -949,6 +949,17 @@ impl Backend for WakuBackend {
             Command::ListArtifactLibrary { query } => Ok(ResponsePayload::ArtifactLibrary {
                 page: self.control.list_artifacts(&query)?,
             }),
+            Command::ReadArtifactHtmlManifest { query } => {
+                Ok(ResponsePayload::ArtifactHtmlManifest {
+                    result: self.teams.read_artifact_html_manifest(&query)?,
+                })
+            }
+            Command::ReadArtifactHtmlSource { query } => Ok(ResponsePayload::ArtifactHtmlSource {
+                result: self.teams.read_artifact_html_source(&query)?,
+            }),
+            Command::ReadWorkflowHtml { query } => Ok(ResponsePayload::WorkflowHtml {
+                result: self.teams.read_workflow_html(&query)?,
+            }),
             Command::ReadArtifactDocument { query } => Ok(ResponsePayload::ArtifactDocument {
                 document: self.control.read_artifact_document(&query)?,
             }),
@@ -2762,6 +2773,9 @@ fn handle_driver_command(
         | Command::ListArtifactLibrary { .. }
         | Command::ReadWorkflowPdfPage { .. }
         | Command::RenderArtifactPdfPage { .. }
+        | Command::ReadArtifactHtmlManifest { .. }
+        | Command::ReadArtifactHtmlSource { .. }
+        | Command::ReadWorkflowHtml { .. }
         | Command::ReadArtifactDocument { .. }
         | Command::ReadWorkspaceArtifact { .. }
         | Command::SaveTaskState { .. }

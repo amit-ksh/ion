@@ -1,4 +1,12 @@
 import {
+  isGatewayHtml,
+  validateGatewayHtmlQuery,
+  validateGatewayHtmlResult,
+  type GatewayHtmlQuery,
+  type GatewayHtmlResult,
+} from "./gateway-html";
+export * from "./gateway-html";
+import {
   validateGatewayPdfQuery,
   validateGatewayPdfResult,
   type GatewayPdfQuery,
@@ -50,6 +58,7 @@ export interface GatewayCloudBudget {
   requests: number;
 }
 export type PortfolioQuery =
+  | GatewayHtmlQuery
   | GatewayPdfQuery
   | WorkflowHistoryQuery
   | GatewayBillingQuery
@@ -59,6 +68,7 @@ export type PortfolioQuery =
   | { kind: "usage"; query: UsageLedgerQuery }
   | { kind: "projects"; query: { after: string | null; limit: number } };
 export type PortfolioResult =
+  | GatewayHtmlResult
   | GatewayPdfResult
   | WorkflowHistoryResult
   | GatewayBillingResult
@@ -161,6 +171,10 @@ const bytes = (v: unknown) => portfolioUtf8Bytes(JSON.stringify(v));
 export function validatePortfolioQuery(
   value: unknown,
 ): asserts value is PortfolioQuery {
+  if (obj(value) && isGatewayHtml(value.kind)) {
+    validateGatewayHtmlQuery(value);
+    return;
+  }
   if (obj(value) && value.kind === "workflowPdfPage") {
     validateGatewayPdfQuery(value);
     return;
@@ -246,6 +260,13 @@ export function validatePortfolioResult(
     bytes(value) > 60_000
   )
     throw new Error("Invalid portfolio result");
+  if (
+    request.kind === "workflowHtmlManifest" ||
+    request.kind === "workflowHtmlSource"
+  ) {
+    validateGatewayHtmlResult(value, request);
+    return;
+  }
   if (request.kind === "workflowPdfPage") {
     validateGatewayPdfResult(value, request);
     return;
@@ -559,7 +580,8 @@ export function portfolioReadGrant(
         ? "automationRead"
         : query.kind === "workflowEvidence" ||
             query.kind === "workflowDocument" ||
-            query.kind === "workflowPdfPage"
+            query.kind === "workflowPdfPage" ||
+            isGatewayHtml(query.kind)
           ? "evidenceRead"
           : null;
 }

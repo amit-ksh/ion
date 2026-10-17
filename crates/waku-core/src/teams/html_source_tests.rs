@@ -341,3 +341,233 @@ fn html_sources_receipt_removal_cascades_copies_and_refuses_remaining_payload() 
     assert!(f.f.definitions.read_document(artifact.id).is_err());
     assert!(f.f.store.read_html_bundle_sources(&artifact).is_err());
 }
+
+fn resource_transfer_fixture() -> serde_json::Value {
+    use waku_protocol::{artifact_library::*, html_resources::*};
+    let mut f = SourcesFixture::new();
+    let entry = "経緯🚀.html";
+    std::fs::rename(f.f.dir.join("index.html"), f.f.dir.join(entry)).unwrap();
+    f.args.path = entry.into();
+    f.originals[0].0 = entry;
+    let css = format!(
+        "@import 'empty.css';.page{{color:green}}/*{}*/",
+        "x".repeat(50_000)
+    );
+    std::fs::write(f.f.dir.join("theme.css"), &css).unwrap();
+    f.args
+        .resources
+        .iter_mut()
+        .find(|r| r.path == "theme.css")
+        .unwrap()
+        .sha256 = format!("{:x}", Sha256::digest(css.as_bytes()));
+    std::fs::write(f.f.dir.join("empty.css"), b"").unwrap();
+    let inspected =
+        f.f.store
+            .inspect_file_document(&f.lease, &f.f.dir, "empty.css", 102)
+            .unwrap();
+    assert_eq!(inspected["bytes"], 0);
+    assert_eq!(inspected["sha256"], format!("{:x}", Sha256::digest(b"")));
+    std::fs::write(f.f.dir.join("empty.woff2"), b"").unwrap();
+    assert!(
+        f.f.store
+            .inspect_file_document(&f.lease, &f.f.dir, "empty.woff2", 102)
+            .is_err()
+    );
+    std::fs::remove_file(f.f.dir.join("empty.woff2")).unwrap();
+    f.args.resources.push(
+        serde_json::from_value(
+            serde_json::json!({"path":"empty.css","sha256":format!("{:x}",Sha256::digest(b""))}),
+        )
+        .unwrap(),
+    );
+    let artifact = f.publish();
+    let expected =
+        f.f.definitions
+            .list_artifacts(&ArtifactLibraryQuery {
+                project_id: None,
+                task_id: None,
+                format: None,
+                after: None,
+                limit: 32,
+            })
+            .unwrap()
+            .items
+            .into_iter()
+            .find(|a| a.id == artifact.id)
+            .unwrap();
+    let original = f.f.definitions.read_document(artifact.id).unwrap();
+    let manifest =
+        f.f.store
+            .read_artifact_html_manifest(&ArtifactDocumentQuery {
+                expected: expected.clone(),
+            })
+            .unwrap()
+            .manifest
+            .unwrap();
+    let (root, total) = commitment(&manifest.entry_path, &manifest.sources).unwrap();
+    assert_eq!(root, manifest.sha256);
+    assert_eq!(total, manifest.total_bytes);
+    assert!(original.starts_with(anchor(&root).as_bytes()));
+    assert_eq!(manifest.entry_path, entry);
+    for path in std::iter::once(&f.args.path).chain(f.args.resources.iter().map(|r| &r.path)) {
+        std::fs::remove_file(f.f.dir.join(path)).unwrap();
+    }
+    let mut chunks = Vec::new();
+    for source in &manifest.sources {
+        let mut offset = 0;
+        let mut body = Vec::new();
+        while offset < source.bytes {
+            let query = HtmlSourceQuery {
+                manifest_sha256: root.clone(),
+                source_index: source.index,
+                source_sha256: source.sha256.clone(),
+                offset,
+                limit: CHUNK_BYTES,
+            };
+            let reply =
+                f.f.store
+                    .read_artifact_html_source(&ArtifactHtmlSourceQuery {
+                        expected: expected.clone(),
+                        source: query,
+                    })
+                    .unwrap();
+            assert_eq!(reply.document, expected);
+            assert!(reply.chunk.data.len() <= usize::from(CHUNK_BYTES));
+            body.extend(&reply.chunk.data);
+            offset += reply.chunk.data.len() as u32;
+            assert_eq!(
+                reply.chunk.next_offset,
+                (offset < source.bytes).then_some(offset)
+            );
+            chunks.push(reply.chunk);
+        }
+        assert_eq!(format!("{:x}", Sha256::digest(&body)), source.sha256);
+    }
+    serde_json::json!({"expected":expected,"original":STANDARD.encode(&original),"manifest":manifest,"chunks":chunks})
+}
+#[test]
+fn html_resources_direct_transfer_retains_publication_commitment_unicode_and_chunk_cursors() {
+    resource_transfer_fixture();
+}
+#[test]
+#[ignore = "Exports actual HTML resource RPC shapes to ION_HTML_RESOURCES_FIXTURE"]
+fn native_html_resources_phone_fixture() {
+    std::fs::write(
+        std::env::var_os("ION_HTML_RESOURCES_FIXTURE").expect("Set ION_HTML_RESOURCES_FIXTURE"),
+        serde_json::to_vec(&resource_transfer_fixture()).unwrap(),
+    )
+    .unwrap();
+}
+#[test]
+fn html_resources_transfer_refuses_selection_receipt_anchor_scope_and_cursor_changes() {
+    use waku_protocol::html_resources::*;
+    let f = SourcesFixture::new();
+    let artifact = f.publish();
+    let manifest =
+        f.f.store
+            .html_resource_manifest(&artifact)
+            .unwrap()
+            .unwrap();
+    let query = HtmlSourceQuery {
+        manifest_sha256: manifest.sha256.clone(),
+        source_index: 0,
+        source_sha256: manifest.sources[0].sha256.clone(),
+        offset: 0,
+        limit: CHUNK_BYTES,
+    };
+    assert!(f.f.store.html_resource_chunk(&artifact, &query).is_ok());
+    for value in [
+        serde_json::json!({"manifestSha256":"0".repeat(64)}),
+        serde_json::json!({"sourceSha256":"0".repeat(64)}),
+        serde_json::json!({"sourceIndex":32}),
+        serde_json::json!({"offset":1}),
+        serde_json::json!({"offset":16384}),
+        serde_json::json!({"limit":1}),
+    ] {
+        let mut changed = serde_json::to_value(&query).unwrap();
+        for (k, v) in value.as_object().unwrap() {
+            changed[k] = v.clone();
+        }
+        let changed: HtmlSourceQuery = serde_json::from_value(changed).unwrap();
+        assert!(f.f.store.html_resource_chunk(&artifact, &changed).is_err());
+    }
+    let mut changed = artifact.clone();
+    changed.name = "Other.html".into();
+    assert!(f.f.store.html_resource_manifest(&changed).is_err());
+    let db = f.f.store.connect().unwrap();
+    db.execute("UPDATE ion_team_document_receipts SET content=zeroblob(length(content)) WHERE artifact_id=?",[artifact.id.to_string()]).unwrap();
+    assert!(f.f.store.html_resource_manifest(&artifact).is_err());
+    assert!(f.f.store.html_resource_chunk(&artifact, &query).is_err());
+}
+#[test]
+fn html_resources_uncommitted_v1_archives_stay_local_and_cleanup_fences_new_chunks() {
+    use waku_protocol::{artifact_retention::ArtifactCleanupRequest, html_resources::*};
+    let f = SourcesFixture::new();
+    let artifact = f.publish();
+    let db = f.f.store.connect().unwrap();
+    let v1 = format!(
+        "{:x}",
+        Sha256::digest(
+            serde_json::to_vec(&("ion-html-source-archive-v1", &artifact, &f.args)).unwrap()
+        )
+    );
+    db.execute(
+        "UPDATE ion_team_html_bundles SET signature=? WHERE artifact_id=?",
+        params![v1, artifact.id.to_string()],
+    )
+    .unwrap();
+    assert!(
+        f.f.store
+            .read_html_bundle_sources(&artifact)
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        f.f.store
+            .html_resource_manifest(&artifact)
+            .unwrap()
+            .is_none()
+    );
+    let v2 = format!(
+        "{:x}",
+        Sha256::digest(
+            serde_json::to_vec(&("ion-html-source-archive-v2", &artifact, &f.args)).unwrap()
+        )
+    );
+    db.execute(
+        "UPDATE ion_team_html_bundles SET signature=? WHERE artifact_id=?",
+        params![v2, artifact.id.to_string()],
+    )
+    .unwrap();
+    let manifest =
+        f.f.store
+            .html_resource_manifest(&artifact)
+            .unwrap()
+            .unwrap();
+    let query = HtmlSourceQuery {
+        manifest_sha256: manifest.sha256,
+        source_index: 0,
+        source_sha256: manifest.sources[0].sha256.clone(),
+        offset: 0,
+        limit: CHUNK_BYTES,
+    };
+    let run_id = artifact.evidence.as_ref().unwrap().producer.run_id.unwrap();
+    let run = f.f.store.snapshot(run_id).unwrap();
+    f.f.store.stop(run_id, run.revision, 103).unwrap();
+    f.f.store
+        .report(&f.lease, AssignmentOutcome::Canceled, 104)
+        .unwrap();
+    f.f.definitions
+        .cleanup_artifact(
+            &ArtifactCleanupRequest {
+                request_id: Uuid::new_v4(),
+                expected: artifact.clone(),
+            },
+            &HashSet::new(),
+            &HashSet::new(),
+            105,
+        )
+        .unwrap();
+    assert!(f.f.store.html_resource_manifest(&artifact).is_err());
+    assert!(f.f.store.html_resource_chunk(&artifact, &query).is_err());
+}

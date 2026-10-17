@@ -39,6 +39,7 @@ pub mod computer_use;
 pub mod distribution;
 mod driver_wire;
 pub mod git;
+pub mod html_resources;
 pub mod i18n;
 pub mod identity;
 pub mod inbox;

@@ -67,7 +67,7 @@ export class DurablePortfolioRelay {
       "CREATE INDEX IF NOT EXISTS relay_portfolio_queue ON relay_portfolio_queries(publisher_id,status,created_at,id)",
     );
     this.db.run(
-      "CREATE INDEX IF NOT EXISTS relay_pdf_completed ON relay_portfolio_queries(publisher_id,updated_at DESC,id DESC) WHERE status='complete' AND json_extract(query,'$.kind')='workflowPdfPage'",
+      "CREATE INDEX IF NOT EXISTS relay_document_completed ON relay_portfolio_queries(publisher_id,updated_at DESC,id DESC) WHERE status='complete' AND json_extract(query,'$.kind') IN ('workflowPdfPage','workflowDocument','workflowHtmlManifest','workflowHtmlSource')",
     );
     this.db.run(
       "CREATE INDEX IF NOT EXISTS relay_portfolio_device_queue ON relay_portfolio_queries(device_id,status)",
@@ -180,17 +180,15 @@ export class DurablePortfolioRelay {
             createHash("sha256").update(canonical(input.query)).digest("hex"))
       )
         throw new Error("Portfolio request identity changed");
-      // Derived PDF pages use up to 384 bounded chunks; keeping every completed
-      // image receipt for ten minutes would fill the general 512-row catalogue
-      // after one page. Retain the most recent 64 PDF completions (eight whole
-      // phone windows) per owner. Pending reads and other history remain durable.
-      // Expired image receipts are read-only: a repeated exact chunk can be
-      // submitted again against the same immutable owner transfer, never effects.
-      // Hash before removing the large response; rows retain no document content.
+      // Compact completed document-transfer history to 64 before admission so
+      // a full original plus resources cannot exhaust the 512-row catalogue.
+      // Up to 64 already queued reads may complete before the next compaction.
+      // Nonce/query hashes preserve exact read identity after body eviction;
+      // pending reads and unrelated portfolio history stay durable.
       for (const row of this.db
         .query<{ device_id: string; nonce: string; query: string }, [string]>(
           `SELECT device_id,nonce,query FROM relay_portfolio_queries
-        WHERE publisher_id=?1 AND status='complete' AND json_extract(query,'$.kind')='workflowPdfPage'
+        WHERE publisher_id=?1 AND status='complete' AND json_extract(query,'$.kind') IN ('workflowPdfPage','workflowDocument','workflowHtmlManifest','workflowHtmlSource')
         ORDER BY updated_at DESC,id DESC LIMIT -1 OFFSET 64`,
         )
         .all(input.publisherId)) {
@@ -210,7 +208,7 @@ export class DurablePortfolioRelay {
       this.db.run(
         `DELETE FROM relay_portfolio_queries WHERE id IN (
         SELECT id FROM relay_portfolio_queries WHERE publisher_id=?1 AND status='complete'
-          AND json_extract(query,'$.kind')='workflowPdfPage'
+          AND json_extract(query,'$.kind') IN ('workflowPdfPage','workflowDocument','workflowHtmlManifest','workflowHtmlSource')
         ORDER BY updated_at DESC,id DESC LIMIT -1 OFFSET 64
       )`,
         [input.publisherId],

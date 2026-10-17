@@ -46,6 +46,12 @@ pub enum PortfolioQuery {
     WorkflowEvidence {
         query: history::WorkflowEvidenceQuery,
     },
+    WorkflowHtmlManifest {
+        query: crate::html_resources::WorkflowHtmlManifestQuery,
+    },
+    WorkflowHtmlSource {
+        query: crate::html_resources::WorkflowHtmlSourceQuery,
+    },
     WorkflowDocument {
         query: history::WorkflowDocumentQuery,
     },
@@ -94,6 +100,16 @@ impl PortfolioQuery {
             Self::WorkflowPdfPage { query } => {
                 query.validate()?;
                 return Ok(());
+            }
+            Self::WorkflowHtmlManifest { query } => return query.validate(),
+            Self::WorkflowHtmlSource { query } => {
+                query.source.validate()?;
+                return crate::html_resources::WorkflowHtmlManifestQuery {
+                    run_id: query.run_id,
+                    artifact_id: query.artifact_id,
+                    sha256: query.sha256.clone(),
+                }
+                .validate();
             }
             Self::WorkflowDocument { query } => {
                 ensure!(

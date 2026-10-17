@@ -388,3 +388,126 @@ test("PDF transport WAL retains FULL durability and immutable receipts across cl
     relay.close();
   }
 });
+
+test("a maximum HTML original and resource set cannot exhaust the relay catalogue", () => {
+  const f = fixture();
+  let relay = f.relay;
+  try {
+    const runId = randomUUID(),
+      artifactId = randomUUID();
+    const document = {
+      id: artifactId,
+      name: "Report.html",
+      format: "html",
+      projectId: randomUUID(),
+      taskId: null,
+      stage: 0,
+      teamRunId: randomUUID(),
+      assignmentId: randomUUID(),
+      bytes: 16 * 1024 * 1024,
+      sha256: "a".repeat(64),
+      createdAt: 100,
+    };
+    let original: any = null;
+    // 1024 original chunks plus 576 retained-source chunks under one live lease.
+    for (let index = 0; index < 1600; index++) {
+      const source = index >= 1024,
+        offset = (source ? index - 1024 : index) * 16384;
+      const query: PortfolioQuery = source
+        ? {
+            kind: "workflowHtmlSource",
+            query: {
+              runId,
+              artifactId,
+              sha256: document.sha256,
+              source: {
+                manifestSha256: "b".repeat(64),
+                sourceIndex: 1,
+                sourceSha256: "c".repeat(64),
+                offset: offset % (2 * 1024 * 1024),
+                limit: 16384,
+              },
+            },
+          }
+        : {
+            kind: "workflowDocument",
+            query: {
+              runId,
+              artifactId,
+              sha256: document.sha256,
+              offset,
+              limit: 16384,
+            },
+          };
+      const input = {
+        publisherId: publisher,
+        idempotencyKey: randomUUID(),
+        query,
+      };
+      if (!original) original = input;
+      f.time(100000 + index);
+      relay.publish(publisher);
+      const job = relay.enqueue(phone, input);
+      const result: PortfolioResult = source
+        ? {
+            kind: "workflowHtmlSource",
+            page: {
+              runId,
+              document,
+              chunk: {
+                artifactId,
+                artifactSha256: document.sha256,
+                manifestSha256: "b".repeat(64),
+                sourceIndex: 1,
+                sourceSha256: "c".repeat(64),
+                offset: offset % (2 * 1024 * 1024),
+                nextOffset:
+                  (offset % (2 * 1024 * 1024)) + 16384 < 2 * 1024 * 1024
+                    ? (offset % (2 * 1024 * 1024)) + 16384
+                    : null,
+                data: Buffer.alloc(16384).toString("base64"),
+              },
+            },
+            pageTruncated: false,
+            servedAt: 100000 + index,
+          }
+        : {
+            kind: "workflowDocument",
+            page: {
+              runId,
+              document,
+              offset,
+              nextOffset:
+                offset + 16384 < document.bytes ? offset + 16384 : null,
+              data: Buffer.alloc(16384).toString("base64"),
+            },
+            pageTruncated: false,
+            servedAt: 100000 + index,
+          };
+      relay.complete(publisher, job.id, result);
+    }
+    const db = new (require("bun:sqlite").Database)(f.path);
+    expect(
+      db.query("SELECT count(*) AS n FROM relay_portfolio_queries").get().n,
+    ).toBeLessThanOrEqual(65);
+    expect(
+      db.query("SELECT count(*) AS n FROM relay_pdf_tombstones").get().n,
+    ).toBeLessThanOrEqual(1536);
+    db.close();
+    relay.close();
+    relay = new DurablePortfolioRelay(f.path, () => 102000);
+    relay.publish(publisher);
+    expect(() =>
+      relay.enqueue(phone, {
+        ...original,
+        query: {
+          ...original.query,
+          query: { ...original.query.query, sha256: "d".repeat(64) },
+        },
+      }),
+    ).toThrow("identity changed");
+    expect(relay.enqueue(phone, original).status).toBe("queued");
+  } finally {
+    relay.close();
+  }
+}, 30000);

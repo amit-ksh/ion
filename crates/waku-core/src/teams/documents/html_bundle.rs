@@ -17,6 +17,7 @@ use std::{
 
 mod sources;
 mod svg;
+mod transfer;
 pub use sources::{HtmlBundleSource, HtmlBundleSources};
 
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
@@ -95,7 +96,8 @@ pub(super) fn verify(
             && artifact.format == "html"
             && artifact.name == args.name
             && (seal(artifact, &args)? == signature
-                || sources::seal(artifact, &args)? == signature)
+                || sources::seal(artifact, &args)? == signature
+                || sources::v1_seal(artifact, &args)? == signature)
             && artifact.evidence.as_ref().is_some_and(
                 |e| e.matches(bytes) && e.producer.origin == ArtifactOrigin::TeamAssignment
             ),
@@ -175,7 +177,7 @@ impl TeamCoordinator {
                 resource.path != args.path && !resources.contains_key(&resource.path),
                 "Duplicate bundle resource path"
             );
-            let bytes = files::read(root, &resource.path)?;
+            let bytes = files::read_resource(root, &resource.path)?;
             total = total
                 .checked_add(bytes.len())
                 .context("Resource size overflow")?;
@@ -194,7 +196,11 @@ impl TeamCoordinator {
             visiting: HashSet::new(),
             used: HashSet::new(),
         };
-        let bytes = bundle.html(source, &args.path)?.into_bytes();
+        let descriptors = sources::descriptors(args, source.as_bytes(), &bundle.resources)?;
+        let (commitment, _) = waku_protocol::html_resources::commitment(&args.path, &descriptors)?;
+        let mut portable = waku_protocol::html_resources::anchor(&commitment);
+        push(&mut portable, &bundle.html(source, &args.path)?)?;
+        let bytes = portable.into_bytes();
         ensure!(
             bundle.used.len() == args.resources.len(),
             "Bundle contains unused resources; list only referenced local files"

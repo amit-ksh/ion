@@ -2,6 +2,8 @@
 
 Updated 2026-10-17. Implementation branch: `codex/ion-agent-teams`.
 
+Subsequent [publication-bound resource transport](101-html-resource-transport.md) adds a commitment to new bundle originals and direct/gateway readers. The byte-identical export evidence below describes the chapter 100 checkpoint; new publication bytes now include the commitment, while exact prior-request replay stays unchanged.
+
 ## Purpose and current scope
 
 A resource-preserving renderer needs the exact source documents, stylesheet bases and per-file identities after workspace files have changed or disappeared. The existing portable HTML is an assembled snapshot with imported SVG definitions rewritten into one document. Its private CSS transformations cannot implement the full native variable/cascade semantics of independent SVG documents.

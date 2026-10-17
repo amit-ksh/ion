@@ -94,6 +94,14 @@ fn read(
             };
             Ok(result)
         }
+        PortfolioQuery::WorkflowHtmlManifest { query } => read_html(
+            client,
+            waku_protocol::html_resources::WorkflowHtmlQuery::WorkflowHtmlManifest { query },
+        ),
+        PortfolioQuery::WorkflowHtmlSource { query } => read_html(
+            client,
+            waku_protocol::html_resources::WorkflowHtmlQuery::WorkflowHtmlSource { query },
+        ),
         PortfolioQuery::WorkflowDocument { query } => {
             let run = automation_run(client, query.run_id)?;
             let (teams, records) = evidence_sources(client, &run)?;
@@ -264,4 +272,19 @@ fn evidence_sources(
         bail!("Evidence catalogue unavailable");
     };
     Ok((teams, snapshot))
+}
+
+fn read_html(
+    client: &DaemonClient,
+    query: waku_protocol::html_resources::WorkflowHtmlQuery,
+) -> Result<serde_json::Value> {
+    let ResponsePayload::WorkflowHtml { result } = client.request(
+        Uuid::nil(),
+        Uuid::nil(),
+        Command::ReadWorkflowHtml { query },
+    )?
+    else {
+        bail!("Invalid workflow HTML response")
+    };
+    Ok(result)
 }

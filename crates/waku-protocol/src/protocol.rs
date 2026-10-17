@@ -386,6 +386,15 @@ pub enum Command {
     ListArtifactLibrary {
         query: crate::artifact_library::ArtifactLibraryQuery,
     },
+    ReadArtifactHtmlManifest {
+        query: crate::artifact_library::ArtifactDocumentQuery,
+    },
+    ReadArtifactHtmlSource {
+        query: crate::artifact_library::ArtifactHtmlSourceQuery,
+    },
+    ReadWorkflowHtml {
+        query: crate::html_resources::WorkflowHtmlQuery,
+    },
     ReadArtifactDocument {
         query: crate::artifact_library::ArtifactDocumentQuery,
     },
@@ -642,6 +651,16 @@ pub enum ResponsePayload {
     },
     ArtifactLibrary {
         page: crate::artifact_library::ArtifactLibraryPage,
+    },
+    ArtifactHtmlManifest {
+        result: crate::artifact_library::ArtifactHtmlManifest,
+    },
+    ArtifactHtmlSource {
+        result: crate::artifact_library::ArtifactHtmlSource,
+    },
+    WorkflowHtml {
+        #[ts(type = "unknown")]
+        result: serde_json::Value,
     },
     ArtifactDocument {
         document: crate::artifact_library::ArtifactDocument,

@@ -4,6 +4,8 @@ Updated 2026-10-15. Implementation: `codex/ion-agent-teams`.
 
 Subsequent [retained resource originals](100-html-resource-originals.md) add exact versioned HTML/resource history and atomic parent-artifact cleanup. The portable export remains byte-identical. Source transport and native resource-document loading remain implementation work.
 
+[Publication-bound source transport](101-html-resource-transport.md) now commits retained-original metadata in new bundles and verifies direct/gateway source reads. The native resource-document loader remains open.
+
 ## Publication flow
 
 A team agent with workspace read access uses `inspect_file_document` for its HTML source and each CSS, image or font file. It then calls `save_html_bundle` with the source path/hash, output filename, summary and explicit resource path/hash list. The tool publishes a new HTML artifact with embedded resource bytes and returns its artifact ID for result review.

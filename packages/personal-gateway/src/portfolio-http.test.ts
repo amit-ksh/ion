@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -1411,3 +1411,130 @@ test("PDF page transfers require evidence grants, exact publisher/source/chunk a
     await f.gateway.close();
   }
 });
+
+test.skipIf(!process.env.ION_HTML_RESOURCES_FIXTURE)(
+  "HTML source HTTP queries require evidenceRead and revoke pending resource replies",
+  async () => {
+    const native = JSON.parse(
+      readFileSync(process.env.ION_HTML_RESOURCES_FIXTURE!, "utf8"),
+    );
+    const f = setup();
+    try {
+      const publisher = await f.pair(["publish"]),
+        reader = await f.pair(["evidenceRead"]),
+        blind = await f.pair(["automationRead"]);
+      await f.call("/v1/device/portfolio", "PUT", publisher, { version: 1 });
+      const runId = randomUUID();
+      const document = {
+        id: native.expected.id,
+        name: native.expected.name,
+        format: "html",
+        projectId: native.expected.projectId,
+        taskId: native.expected.taskId,
+        stage: 0,
+        teamRunId: randomUUID(),
+        assignmentId: randomUUID(),
+        bytes: native.expected.bytes,
+        sha256: native.expected.sha256,
+        createdAt: native.expected.createdAt,
+      };
+      const selection = {
+        runId,
+        artifactId: document.id,
+        sha256: document.sha256,
+      };
+      const input = {
+        publisherId: publisher.id,
+        idempotencyKey: randomUUID(),
+        query: { kind: "workflowHtmlManifest", query: selection },
+      };
+      expect([401, 403]).toContain(
+        (await f.call("/v1/device/portfolio/queries", "POST", blind, input))
+          .status,
+      );
+      const queued = await f.call(
+        "/v1/device/portfolio/queries",
+        "POST",
+        reader,
+        input,
+      );
+      expect(queued.status).toBe(201);
+      const job = (await queued.json()) as { id: string };
+      const result = {
+        kind: "workflowHtmlManifest",
+        page: { runId, document, manifest: native.manifest },
+        pageTruncated: false,
+        servedAt: Date.now(),
+      };
+      expect(
+        (
+          await f.call(
+            `/v1/device/portfolio/queries/${job.id}/complete`,
+            "POST",
+            publisher,
+            { result },
+          )
+        ).status,
+      ).toBe(200);
+      const original = native.chunks[0];
+      const source = {
+        manifestSha256: original.manifestSha256,
+        sourceIndex: original.sourceIndex,
+        sourceSha256: original.sourceSha256,
+        offset: original.offset,
+        limit: 16384,
+      };
+      const chunkInput = {
+        publisherId: publisher.id,
+        idempotencyKey: randomUUID(),
+        query: { kind: "workflowHtmlSource", query: { ...selection, source } },
+      };
+      const chunkJob = (await (
+        await f.call("/v1/device/portfolio/queries", "POST", reader, chunkInput)
+      ).json()) as { id: string };
+      const chunkResult = {
+        kind: "workflowHtmlSource",
+        page: {
+          runId,
+          document,
+          chunk: { ...original, sourceSha256: "0".repeat(64) },
+        },
+        pageTruncated: false,
+        servedAt: Date.now(),
+      };
+      expect(
+        (
+          await f.call(
+            `/v1/device/portfolio/queries/${chunkJob.id}/complete`,
+            "POST",
+            publisher,
+            { result: chunkResult },
+          )
+        ).status,
+      ).toBe(400);
+      await f.call(
+        `/v1/owner/devices/${reader.id}/revoke`,
+        "POST",
+        f.owner,
+        {},
+      );
+      const response = (await (
+        await f.call(
+          `/v1/device/portfolio/queries/${chunkJob.id}/complete`,
+          "POST",
+          publisher,
+          {
+            result: {
+              ...chunkResult,
+              page: { ...chunkResult.page, chunk: original },
+            },
+          },
+        )
+      ).json()) as { status: string; result: unknown };
+      expect(response.status).toBe("rejected");
+      expect(response.result).toBeNull();
+    } finally {
+      await f.gateway.close();
+    }
+  },
+);

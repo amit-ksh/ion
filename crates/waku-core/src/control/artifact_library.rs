@@ -340,6 +340,18 @@ impl ControlStore {
             png,
         })
     }
+    pub(crate) fn selected_html_artifact(
+        &self,
+        expected: &ArtifactLibraryItem,
+    ) -> Result<Artifact> {
+        let db = self.connect()?;
+        let artifact = stored(&db, expected.id)?;
+        ensure!(
+            item(&artifact)? == *expected && expected.format == "html",
+            "HTML publication selection changed"
+        );
+        Ok(artifact)
+    }
     pub fn read_artifact_document(
         &self,
         query: &ArtifactDocumentQuery,

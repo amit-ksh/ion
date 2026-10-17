@@ -14,6 +14,18 @@ const FORMATS: &[&str] = &[
 ];
 
 pub(super) fn read(root: &Path, relative: &str) -> Result<Vec<u8>> {
+    read_bytes(root, relative, false)
+}
+/// Empty stylesheets are valid pinned resources and can be inspected before
+/// bundling. Keep the regular-file, no-link, private-path and size fences shared.
+pub(super) fn read_resource(root: &Path, relative: &str) -> Result<Vec<u8>> {
+    read_bytes(
+        root,
+        relative,
+        relative.to_ascii_lowercase().ends_with(".css"),
+    )
+}
+fn read_bytes(root: &Path, relative: &str, allow_empty: bool) -> Result<Vec<u8>> {
     ensure!(relative.len() <= 512, "Publication path exceeds its bound");
     let root = fs::canonicalize(root)?;
     let path = workspace::safe_edit_path(&root, relative)?;
@@ -100,7 +112,9 @@ pub(super) fn read(root: &Path, relative: &str) -> Result<Vec<u8>> {
     let file = fs::File::open(&path)?;
     let metadata = file.metadata()?;
     ensure!(
-        metadata.is_file() && metadata.len() > 0 && metadata.len() <= MAX_BYTES as u64,
+        metadata.is_file()
+            && (allow_empty || metadata.len() > 0)
+            && metadata.len() <= MAX_BYTES as u64,
         "Publish a regular document up to 16 MiB"
     );
     #[cfg(windows)]
@@ -114,7 +128,9 @@ pub(super) fn read(root: &Path, relative: &str) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     file.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes)?;
     ensure!(
-        !bytes.is_empty() && bytes.len() <= MAX_BYTES && bytes.len() as u64 == metadata.len(),
+        (allow_empty || !bytes.is_empty())
+            && bytes.len() <= MAX_BYTES
+            && bytes.len() as u64 == metadata.len(),
         "Publication file size changed"
     );
     ensure!(
@@ -231,7 +247,7 @@ impl TeamCoordinator {
                 .workspace_read,
             "Workspace read access denied"
         );
-        let bytes = read(root, relative)?;
+        let bytes = read_resource(root, relative)?;
         Ok(
             serde_json::json!({"path":relative,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes))}),
         )

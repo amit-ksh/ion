@@ -694,3 +694,98 @@ fn registered_owner_remote_inventory_read_has_no_effect_and_rejects_foreign_curs
     assert_eq!(f.engine.control.load().unwrap().revision, before_revision);
     assert_eq!(f.engine.tasks.lock().sessions.len(), before_tasks);
 }
+
+#[test]
+fn html_resources_owner_routes_require_accepted_membership_and_matching_source_publication() {
+    use crate::teams::{AssignmentOutcome, DispatchHost};
+    use sha2::{Digest, Sha256};
+    use waku_protocol::teams::AssignmentResult;
+    let f = Fixture::new();
+    let now = crate::model::unix_time();
+    let id = Uuid::new_v4();
+    let revision = f.engine.control.load().unwrap().revision;
+    f.engine
+        .teams
+        .start_automation(id, f.workflow, revision, now)
+        .unwrap();
+    f.engine
+        .teams
+        .tick_automations(&HashSet::from([f.project]), now)
+        .unwrap();
+    let waiting = f.engine.teams.automation_run(id).unwrap();
+    f.engine
+        .teams
+        .resolve_automation_gate(id, waiting.revision, 0, true, now)
+        .unwrap();
+    f.engine
+        .teams
+        .tick_automations(&HashSet::from([f.project]), now)
+        .unwrap();
+    let run = f.engine.teams.automation_run(id).unwrap();
+    let stage = &run.stages[0];
+    f.engine
+        .teams
+        .materialize_run(
+            stage.team_run_id,
+            &f.engine.task_store,
+            &mut f.engine.tasks.lock(),
+            now,
+        )
+        .unwrap();
+    let team = f.engine.teams.snapshot(stage.team_run_id).unwrap();
+    let lease = f
+        .engine
+        .teams
+        .claim(team.id, team.work[0].id, DispatchHost::Local, now, 60)
+        .unwrap()
+        .lease;
+    let source = "<math><mfrac><mi>x</mi><mi>y</mi></mfrac></math>";
+    std::fs::write(f.dir.join("index.html"), source).unwrap();
+    let args=serde_json::from_value(serde_json::json!({"path":"index.html","sha256":format!("{:x}",Sha256::digest(source.as_bytes())),"name":"Equation.html","summary":"Equation report","resources":[]})).unwrap();
+    let artifact = f
+        .engine
+        .teams
+        .publish_html_bundle(&lease, Uuid::new_v4(), &f.dir, &args, now)
+        .unwrap();
+    let sha = artifact.evidence.as_ref().unwrap().sha256.clone();
+    let selection = serde_json::json!({"runId":id,"artifactId":artifact.id,"sha256":sha});
+    let request = serde_json::json!({"kind":"workflowHtmlManifest","query":selection});
+    assert!(super::portfolio::read(&f.engine, request.clone()).is_err());
+    f.engine
+        .teams
+        .report(
+            &lease,
+            AssignmentOutcome::Completed(AssignmentResult {
+                summary: "Accepted equation".into(),
+                artifact_ids: vec![artifact.id],
+                checks: vec![],
+                executed_checks: vec![],
+            }),
+            now,
+        )
+        .unwrap();
+    let response = super::portfolio::read(&f.engine, request.clone()).unwrap();
+    assert_eq!(response["page"]["manifest"]["artifactSha256"], sha);
+    assert!(!response.to_string().contains("Private profile"));
+    assert!(
+        !response
+            .to_string()
+            .contains(&f.dir.to_string_lossy().to_string())
+    );
+    let manifest = &response["page"]["manifest"];
+    let source = serde_json::json!({"manifestSha256":manifest["sha256"],"sourceIndex":0,"sourceSha256":manifest["sources"][0]["sha256"],"offset":0,"limit":16384});
+    let mut query = selection.clone();
+    query["source"] = source;
+    let result = super::portfolio::read(
+        &f.engine,
+        serde_json::json!({"kind":"workflowHtmlSource","query":query}),
+    )
+    .unwrap();
+    assert_eq!(result["page"]["chunk"]["artifactSha256"], sha);
+    let mut wrong = request.clone();
+    wrong["query"]["sha256"] = "0".repeat(64).into();
+    assert!(super::portfolio::read(&f.engine, wrong).is_err());
+    let mut wrong = request;
+    wrong["query"]["runId"] = Uuid::new_v4().to_string().into();
+    assert!(super::portfolio::read(&f.engine, wrong).is_err());
+}

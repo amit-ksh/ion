@@ -421,3 +421,136 @@ test("faster PDF polling extends the bounded poll count while preserving exact r
       }),
     ).rejects.toThrow(/poll bound/);
 });
+
+function htmlTransferFixture() {
+  const livePairing: GatewayPairing = {
+    ...pairing,
+    grants: ["evidenceRead"],
+    expiresAt: Date.now() + 120000,
+  };
+  const runId = randomUUID(),
+    artifactId = randomUUID();
+  const selection: PortfolioQuery = {
+    kind: "workflowHtmlManifest",
+    query: { runId, artifactId, sha256: "a".repeat(64) },
+  };
+  const response: PortfolioResult = {
+    kind: "workflowHtmlManifest",
+    page: {
+      runId,
+      document: {
+        id: artifactId,
+        name: "Report.html",
+        format: "html",
+        projectId: randomUUID(),
+        taskId: null,
+        stage: 0,
+        teamRunId: randomUUID(),
+        assignmentId: randomUUID(),
+        bytes: 1,
+        sha256: "a".repeat(64),
+        createdAt: 100,
+      },
+      manifest: null,
+    },
+    pageTruncated: false,
+    servedAt: Date.now(),
+  };
+  const input: PortfolioSubmission = {
+    publisherId,
+    idempotencyKey: nonce,
+    query: selection,
+  };
+  const job: PortfolioJob = {
+    ...input,
+    id: randomUUID(),
+    deviceId: livePairing.id,
+    status: "queued",
+    result: null,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    expiresAt: Date.now() + 120000,
+  };
+  return { livePairing, selection, response, input, job };
+}
+test("evicted transfer replies are readmitted with the exact nonce and query", async () => {
+  const f = htmlTransferFixture(),
+    sent: PortfolioSubmission[] = [];
+  const value = await loadGatewayPortfolio(
+    f.livePairing,
+    publisherId,
+    f.selection,
+    nonce,
+    () => true,
+    {
+      submit: async (_, input) => {
+        sent.push(structuredClone(input));
+        return sent.length === 1
+          ? f.job
+          : {
+              ...f.job,
+              id: randomUUID(),
+              status: "complete",
+              result: f.response,
+            };
+      },
+      read: async () => null,
+      wait: async () => {},
+    },
+  );
+  expect(value).toEqual(f.response);
+  expect(sent).toHaveLength(2);
+  expect(sent[0]).toEqual(sent[1]);
+});
+test("transfer readmission is bounded after repeated receipt eviction", async () => {
+  const f = htmlTransferFixture();
+  let submits = 0;
+  await expect(
+    loadGatewayPortfolio(
+      f.livePairing,
+      publisherId,
+      f.selection,
+      nonce,
+      () => true,
+      {
+        maxPolls: 10,
+        submit: async () => {
+          submits++;
+          return f.job;
+        },
+        read: async () => null,
+        wait: async () => {},
+      },
+    ),
+  ).rejects.toThrow("evicted repeatedly");
+  expect(submits).toBe(3);
+});
+test("scope loss and read-grant revocation prevent transfer readmission", async () => {
+  for (const kind of ["scope", "grant"]) {
+    const f = htmlTransferFixture();
+    let live = true,
+      submits = 0;
+    await expect(
+      loadGatewayPortfolio(
+        f.livePairing,
+        publisherId,
+        f.selection,
+        nonce,
+        () => live,
+        {
+          submit: async () => {
+            submits++;
+            return f.job;
+          },
+          read: async () => {
+            if (kind === "scope") live = false;
+            else f.livePairing.grants = [];
+            return null;
+          },
+          wait: async () => {},
+        },
+      ),
+    ).rejects.toThrow(/scope changed|revoked/);
+    expect(submits).toBe(1);
+  }
+});

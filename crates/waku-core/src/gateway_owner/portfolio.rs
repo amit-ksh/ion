@@ -81,6 +81,12 @@ pub(super) fn read(engine: &OwnerEngine, value: serde_json::Value) -> Result<ser
             )
         }
         PortfolioQuery::WorkflowPdfPage { query } => engine.teams.read_workflow_pdf_page(&query),
+        PortfolioQuery::WorkflowHtmlManifest { query } => engine.teams.read_workflow_html(
+            &waku_protocol::html_resources::WorkflowHtmlQuery::WorkflowHtmlManifest { query },
+        ),
+        PortfolioQuery::WorkflowHtmlSource { query } => engine.teams.read_workflow_html(
+            &waku_protocol::html_resources::WorkflowHtmlQuery::WorkflowHtmlSource { query },
+        ),
         PortfolioQuery::WorkflowDocument { query } => {
             let run = engine.teams.automation_run(query.run_id)?;
             let teams = run

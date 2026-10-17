@@ -116,3 +116,22 @@ mod pdf_tests {
         assert!(serde_json::from_value::<ArtifactPdfPage>(value).is_err());
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ArtifactHtmlSourceQuery {
+    pub expected: ArtifactLibraryItem,
+    pub source: crate::html_resources::HtmlSourceQuery,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ArtifactHtmlManifest {
+    pub document: ArtifactLibraryItem,
+    pub manifest: Option<crate::html_resources::HtmlResourceManifest>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ArtifactHtmlSource {
+    pub document: ArtifactLibraryItem,
+    pub chunk: crate::html_resources::HtmlSourceChunk,
+}

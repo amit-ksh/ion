@@ -289,3 +289,5 @@ Live Nebius speech deployment and native phone acceptance remain open. The 2026-
 - [Phone equation rendering](99-phone-mathml-rendering.md): native presentation MathML, static annotations/actions, namespace-reparse controls and publication-to-phone review.
 
 - [Retained HTML resource originals](100-html-resource-originals.md): exact versioned source history, bounded reads, atomic cleanup, 200 native/export/phone checks and remaining resource loading work.
+
+- [Publication-bound HTML resource transport](101-html-resource-transport.md): committed resource manifests, direct/gateway readers, bounded chunks/receipt recovery, 270 regression/export checks and the remaining native loader.

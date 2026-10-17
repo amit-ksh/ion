@@ -19,12 +19,44 @@ pub struct HtmlBundleSources {
     /// Original HTML first; explicit resources retain publication argument order.
     pub sources: Vec<HtmlBundleSource>,
 }
-pub(super) fn seal(artifact: &Artifact, args: &Args) -> Result<String> {
+pub(super) fn v1_seal(artifact: &Artifact, args: &Args) -> Result<String> {
     Ok(hash(&serde_json::to_vec(&(
         "ion-html-source-archive-v1",
         artifact,
         args,
     ))?))
+}
+pub(super) fn seal(artifact: &Artifact, args: &Args) -> Result<String> {
+    Ok(hash(&serde_json::to_vec(&(
+        "ion-html-source-archive-v2",
+        artifact,
+        args,
+    ))?))
+}
+pub(super) fn descriptors(
+    args: &Args,
+    source: &[u8],
+    resources: &HashMap<String, (&'static str, Vec<u8>)>,
+) -> Result<Vec<waku_protocol::html_resources::HtmlSourceDescriptor>> {
+    use waku_protocol::html_resources::HtmlSourceDescriptor;
+    let mut result = vec![HtmlSourceDescriptor {
+        index: 0,
+        path: args.path.clone(),
+        media_type: "text/html".into(),
+        bytes: source.len().try_into()?,
+        sha256: args.sha256.clone(),
+    }];
+    for (i, r) in args.resources.iter().enumerate() {
+        let (media, body) = resources.get(&r.path).context("HTML source disappeared")?;
+        result.push(HtmlSourceDescriptor {
+            index: (i + 1).try_into()?,
+            path: r.path.clone(),
+            media_type: (*media).into(),
+            bytes: body.len().try_into()?,
+            sha256: r.sha256.clone(),
+        });
+    }
+    Ok(result)
 }
 pub(super) fn save(
     db: &Connection,
@@ -109,7 +141,7 @@ impl TeamCoordinator {
             return Ok(None);
         }
         ensure!(
-            seal(&artifact, &args)? == signature,
+            (seal(&artifact, &args)? == signature || v1_seal(&artifact, &args)? == signature),
             "HTML source receipt changed"
         );
         let (version, count, total): (u32, u32, u64) = tx.query_row("SELECT version,source_count,byte_count FROM ion_team_html_source_archives WHERE artifact_id=?", [artifact.id.to_string()], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).context("HTML source archive is unavailable")?;
