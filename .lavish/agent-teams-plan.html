@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ion · Agent teams implementation</title>
+<style>
+:root{color-scheme:light;--bg:#f2f7ec;--surface:rgba(252,254,248,.94);--inset:#fff;--text:#172416;--secondary:#40513d;--line:#b7c9ac;--accent:#245a12;--raised:#e5f0d8;--button:#b8f34c}
+html[data-theme=dark]{color-scheme:dark;--bg:#142014;--surface:rgba(23,34,22,.96);--inset:#1f301d;--text:#f3f8ed;--secondary:#cddbc5;--line:#5a7050;--accent:#bdf665;--raised:#2b3e27}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;color:var(--text);background:radial-gradient(ellipse at 85% 0%,rgba(171,232,87,.2),transparent 50%),var(--bg);font:15px/1.65 "Segoe UI",system-ui,sans-serif}p,li,summary,h1,h2,h3{overflow-wrap:anywhere}header{border-bottom:1px solid var(--line);background:var(--surface);padding:14px 5%;display:flex;align-items:center;gap:14px}header strong{font-size:24px;letter-spacing:-1px}header span{flex:1;color:var(--secondary)}button{font:inherit;cursor:pointer;color:var(--text);background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:7px 13px;min-height:40px}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}main{max-width:1140px;padding:36px 24px 70px;margin:auto}h1{font-size:clamp(28px,4vw,42px);line-height:1.14;letter-spacing:-1px;margin:9px 0 18px;max-width:800px}h2{font-size:24px;line-height:1.25;margin:0 0 14px}h3{font-size:17px;margin:0 0 8px}p{margin:9px 0;color:var(--secondary)}a{color:var(--accent)}section{margin-top:28px}article,.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;min-width:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.eyebrow{font-size:12px;font-weight:650;letter-spacing:.05em;color:var(--accent);text-transform:uppercase}.tag{display:inline-block;border:1px solid var(--line);background:var(--raised);border-radius:6px;padding:3px 8px;font-size:12px}.flow{min-height:120px;overflow:auto;background:var(--inset);border-radius:9px;padding:14px}.flow svg{max-width:100%;height:auto}.flow pre{margin:0;white-space:pre-wrap}ol,ul{padding-left:24px;margin:12px 0}li{padding:4px 0;color:var(--secondary)}li strong{color:var(--text)}details{border-top:1px solid var(--line);padding:14px 0}summary{font-weight:650;cursor:pointer;min-height:32px}.callout{border-left:4px solid var(--accent);padding:10px 16px;background:var(--raised);border-radius:0 8px 8px 0}.mono{font-family:Consolas,monospace;font-size:13px;overflow-wrap:anywhere}.stage-buttons{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.stage-buttons button[aria-pressed=true]{background:var(--button);color:#172416;border-color:#729542}.step-content{min-height:145px}.footer{font-size:13px;margin-top:24px;color:var(--secondary)}@media(max-width:720px){.grid{grid-template-columns:1fr}main{padding:26px 16px 48px}article,.panel{padding:19px}header{padding:12px 16px}header span{font-size:12px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header><strong>ion</strong><span>Teams · Implementation proposal · 5 October 2026</span><button id="theme" aria-label="Switch color theme">Dark theme</button></header>
+<main>
+<div class="eyebrow">Next sprint · Plan for review</div>
+<h1>A team that delegates work, runs it, and brings the result back.</h1>
+<p>Multiple teams, configurable reporting lines, distinct agent instructions and harnesses, and decisions that return to you when needed.</p>
+<div class="callout"><strong>Status:</strong> saved profiles and team definitions exist. General team execution is proposed here. This page does not change the app or demonstrate a live run.</div>
+
+<section class="grid" aria-label="Current and proposed behavior">
+<article><span class="tag">Current implementation</span><h3 style="margin-top:14px">One prepared task prompt</h3><p>Team creation saves the hierarchy. Starting from a team places all member instructions in one task prompt. Nebius has a separate, limited researcher/reviewer delegate.</p></article>
+<article><span class="tag">Next implementation</span><h3 style="margin-top:14px">Real assignments for each agent</h3><p>The daemon creates distinct child tasks, enforces delegation and access, dispatches the selected harness, and records outputs, reviews, decisions and recovery.</p></article>
+</section>
+
+<section class="panel"><h2>Who delegates to whom?</h2><p>A member delegates to direct reports. Reporting lines govern authority; assignment dependencies govern when work can begin. Role names below are examples.</p>
+<div class="flow"><pre class="mermaid">flowchart TD
+  User["You · outcome, access, budget"] --> Lead["Team lead · plan and final result"]
+  Lead --> Research["Researcher · evidence"]
+  Lead --> Manager["Engineering manager · implementation"]
+  Manager --> Engineer["Engineer · patch and checks"]
+  Manager --> Reviewer["Reviewer · findings and acceptance"]
+</pre></div>
+<p>Each agent, including the lead, has its own harness and model choice. For example: Nebius lead, Codex engineer, Claude reviewer. Environment is a separate Local / Nebius sandbox choice. An agent may belong to several teams; each task pins the selected team's hierarchy and instructions.</p></section>
+
+<section class="panel"><h2>Walk through a team task</h2><p>Example: “Fix the login bug and give me the patch and a test report.” Select a step to inspect the proposed behavior.</p>
+<div class="stage-buttons" id="steps" aria-label="Team task stages">
+<button data-step="0" aria-pressed="true">1. Start</button><button data-step="1" aria-pressed="false">2. Delegate</button><button data-step="2" aria-pressed="false">3. Run</button><button data-step="3" aria-pressed="false">4. Review</button><button data-step="4" aria-pressed="false">5. Deliver</button>
+</div><div id="step-content" class="step-content" aria-live="polite"><h3>Choose a team and project</h3><p>Set the outcome, allowed resources, permitted execution targets and budget. The run records immutable team and agent versions. The lead plans and delegates automatically within those limits.</p></div></section>
+
+<section class="grid">
+<article><h2>Teams UI</h2><ul><li><strong>Team selector:</strong> switch between multiple teams.</li><li><strong>Hierarchy and roster:</strong> the same reporting lines in chart and keyboard-operable list.</li><li><strong>Agent drawer:</strong> expertise, instructions, harness/model, access and limits. Environment has two choices: Local or Nebius sandbox. Nebius shows local fallback enabled.</li><li><strong>Live assignments:</strong> current task, status, actual environment, fallback reason, result and blocker.</li><li><strong>Task links:</strong> open the actual transcript, patch or document.</li></ul></article>
+<article><h2>Your attention</h2><ul><li><strong>Decisions:</strong> scope changes, consequential effects and unresolved questions.</li><li><strong>Inbox:</strong> completion, failure, blockers and produced documents.</li><li><strong>Dashboard:</strong> live agents and tasks from the same run records.</li><li><strong>Stop team:</strong> stop new dispatch and request cancellation of descendants.</li><li><strong>Artifacts and Usage:</strong> producer history and measured consumption.</li></ul></article>
+</section>
+
+<section class="panel"><h2>How it fits the app</h2><div class="flow"><pre class="mermaid">flowchart TD
+  UI["Native desktop / phone · snapshots and controls"] --> Teams["Owner daemon · Teams module"]
+  Teams --> Store["Durable graph · revisions, grants, decisions, attempts"]
+  Teams --> Queue["Claimed work · dependency and budget checks"]
+  Queue --> Local["Local harness adapters"]
+  Queue --> Cloud["Registered cloud / sandbox adapters · later increment"]
+  Local --> Result["Documents, patches, checks and handoffs"]
+  Cloud --> Result
+  Result --> Teams
+</pre></div>
+<details><summary>Durability and migration</summary><p>Keep current definitions and solo tasks. Add immutable revisions and indexed run records beside the existing store. Use a durable outbox and preallocated task UUID when creating children across the separate task and control databases. Restart reconciliation must not create duplicate work or replay uncertain external effects.</p></details>
+<details><summary>Harness integration and enforcement</summary><p>Each agent has separate Harness, Model and Environment controls. Teams may mix Claude Code, Codex, OpenCode, Nebius and the other existing harness choices. Starting with native Nebius validates the coordinator; subsequent adapters enable mixed-harness execution.</p><p>Each adapter reports the capabilities it actually supports. Installation, authentication and team readiness are checked on the chosen host. A missing permission or isolation capability blocks that configuration. A prompt or Git worktree alone cannot enforce machine access. Local fallback preserves the selected harness/model; a missing local installation becomes a setup blocker rather than a silent substitution.</p></details>
+<details><summary>Resource grants and handoffs</summary><p>Access is the intersection of profile, team, project, parent assignment and task authorization. Children cannot broaden it. Give each child its assignment and bounded relevant context; keep credentials in the vault or connector. Connected accounts require exact app/action grants before execution.</p></details>
+<details><summary>Parallel coding and selected environment</summary><p>Begin with parallel readers and serialized writers. Then use isolated worktrees, explicit base snapshots and an integration workspace for patches. Each agent uses the Local or Nebius sandbox environment selected at creation; there is no automatic environment mode. Sandbox failures fall back locally when tools, inputs, resources and grants are compatible. Interrupted remote jobs must be reconciled before retry to avoid duplicate effects. The current ConTree command adapter is not yet a full remote agent host.</p></details>
+</section>
+
+<section class="panel"><h2>Implementation checkpoints</h2><ol><li><strong>Durable foundation:</strong> revisions, work graph, grants, attempts, claims and child-task outbox.</li><li><strong>Native delegation:</strong> lead → manager → specialist; bounded handoffs, reviews, results, stop and restart.</li><li><strong>Visible activity:</strong> hierarchy/roster, task links, decisions and consistent counts; cached native rendering.</li><li><strong>Mixed harnesses:</strong> validated external adapters and isolated patch integration.</li><li><strong>Cloud targets:</strong> selected sandbox execution, transfers, lifecycle confirmation and safe local fallback.</li></ol><p>First release check: a three-level local team produces a document, opens a real user decision, and recovers without duplicated child work. Live provider and visual review remain separate acceptance checks.</p></section>
+
+<section class="panel"><h2>Your confirmed defaults</h2><h3>Autonomy</h3><p>The lead plans, delegates and reviews automatically inside configured access and budget. Ordinary assignments do not need separate approval. Scope expansion and consequential effects follow the user decision policy.</p><h3 style="margin-top:18px">Choose harness for each agent</h3><p>Every agent, including the lead, selects its own harness and supported model. Harness choice and execution environment are separate. Mixed-harness teams are supported by the planned coordinator.</p><h3 style="margin-top:18px">Choose environment when creating the agent</h3><p><strong>Local</strong> runs the agent on your machine. <strong>Nebius sandbox</strong> runs it on the configured sandbox and falls back locally if sandbox execution fails. There is no Auto environment option; workload classification does not change your selection.</p><p>Fallback preserves the harness, model and grants, and checks local tools, inputs and hardware. An interrupted remote job must be confirmed stopped or reconciled before local retry. Show Local (fallback) and the reason in task activity. Deployments and publishing still follow the approval policy.</p></section>
+<p class="footer">Visual style follows ion's existing light/dark green theme from the workspace prototype. Detailed implementation notes: <span class="mono">docs/ai-ide-plan/18-agent-teams-implementation.md</span>. No screenshots or visual app test were performed.</p>
+</main>
+<script>
+const stages=[
+['Choose a team and project','Set the outcome, allowed resources, permitted execution targets and budget. The run records immutable team and agent versions. The lead plans and delegates automatically within those limits.'],
+['The lead creates assignments','Research goes to a researcher. The engineering manager delegates implementation and review to direct reports. The daemon validates reporting lines, dependencies, grants, quotas and host readiness.'],
+['Agents run through their own harness','Every assignment is a real task with its own transcript and status. Begin with parallel readers and serialized writers; isolated coding and cloud dispatch follow as validated increments. Missing access or authentication produces a visible blocker.'],
+['Review results and resolve blockers','A reviewer checks required evidence and outputs. Findings create bounded rework. Changed scope, important effects and questions appear in Decisions. A child result returns to its parent without copying every transcript into every agent.'],
+['Receive the final result','The lead assembles the patch, checks and document. Completion requires the configured acceptance evidence. Artifacts retain producer links; Inbox records completion. Publishing follows the task approval policy.']
+];
+document.getElementById('steps').addEventListener('click',event=>{const button=event.target.closest('button[data-step]');if(!button)return;document.querySelectorAll('[data-step]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));const content=document.getElementById('step-content');content.replaceChildren();const heading=document.createElement('h3'),text=document.createElement('p');[heading.textContent,text.textContent]=stages[Number(button.dataset.step)];content.append(heading,text)});
+document.getElementById('theme').addEventListener('click',event=>{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';event.currentTarget.textContent=dark?'Light theme':'Dark theme'});
+</script>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs";
+const darkQuery=window.matchMedia('(prefers-color-scheme: dark)');
+const paint=document.createElement('canvas').getContext('2d');
+function toRgba(color){paint.clearRect(0,0,1,1);paint.fillStyle='#000';paint.fillStyle=color;paint.fillRect(0,0,1,1);return paint.getImageData(0,0,1,1).data}
+function composite(f,b){const fa=f[3]/255,ba=b[3]/255,a=fa+ba*(1-fa);if(!a)return[0,0,0,0];return[(f[0]*fa+b[0]*ba*(1-fa))/a,(f[1]*fa+b[1]*ba*(1-fa))/a,(f[2]*fa+b[2]*ba*(1-fa))/a,a*255]}
+function pageIsDark(){const[r,g,b,a]=composite(toRgba(getComputedStyle(document.body).backgroundColor),toRgba(getComputedStyle(document.documentElement).backgroundColor));return a?(0.2126*r+0.7152*g+0.0722*b)/255<.5:darkQuery.matches}
+const diagrams=[...document.querySelectorAll('.mermaid')].map(el=>({el,src:el.textContent}));let applied,rendering=false,queued=false;
+function queueRender(){queued=true;if(!rendering)void render()}
+async function render(){rendering=true;try{while(queued){queued=false;const theme=pageIsDark()?'dark':'default';if(theme===applied)continue;mermaid.initialize({startOnLoad:false,theme,securityLevel:'strict'});for(const{el,src}of diagrams){el.removeAttribute('data-processed');el.textContent=src}try{await mermaid.run({nodes:diagrams.map(d=>d.el)})}catch(error){console.error('Diagram render failed',error);return}applied=theme}}finally{rendering=false;if(queued)queueRender()}}
+if(document.readyState==='complete')queueRender();else window.addEventListener('load',queueRender,{once:true});
+const observer=new MutationObserver(queueRender);for(const el of[document.documentElement,document.body])observer.observe(el,{attributes:true,attributeFilter:['data-theme','class','style']});document.addEventListener('change',queueRender,true);document.addEventListener('transitionend',({propertyName})=>{if(propertyName==='background-color')queueRender()},true);darkQuery.addEventListener('change',queueRender);
+</script>
+</body>
+</html>

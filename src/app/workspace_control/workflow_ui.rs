@@ -369,7 +369,7 @@ impl Waku {
         .into_any_element()
     }
     pub(super) fn render_workflow_route(&self, index: usize, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let r = &self.control_ui.stages[index].5;
         let mode = r.mode;
         let count = self.control_ui.stages.len();

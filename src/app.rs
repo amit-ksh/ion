@@ -2847,6 +2847,15 @@ impl Waku {
                 },
             )
             .detach();
+            cx.subscribe(
+                &control_ui.artifact_search(),
+                |_: &mut Self, _, event: &InputEvent, cx| {
+                    if matches!(event, InputEvent::Edited) {
+                        cx.notify();
+                    }
+                },
+            )
+            .detach();
             Self {
                 daemon,
                 _gateway_bridge: gateway_bridge,

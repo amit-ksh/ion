@@ -1,4 +1,4 @@
-//! Desktop ownership of the Waku daemon process.
+//! Desktop ownership of the Ion daemon process.
 
 use std::path::PathBuf;
 
@@ -68,7 +68,7 @@ fn daemon_executable_path() -> anyhow::Result<PathBuf> {
         return Ok(path.into());
     }
     let executable = format!("waku-daemon{}", std::env::consts::EXE_SUFFIX);
-    let current = std::env::current_exe().context("could not locate the Waku executable")?;
+    let current = std::env::current_exe().context("could not locate the Ion executable")?;
 
     // Development keeps the daemon beside Cargo's debug artifacts rather than
     // inside Waku Debug.app. The supervisor watches this file and swaps only

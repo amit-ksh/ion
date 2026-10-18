@@ -348,7 +348,7 @@ impl Waku {
     }
     pub(super) fn render_team_recovery_header(&self, cx: &mut Context<Self>) -> Div {
         let r = self.control_ui.recovery.review.as_ref().unwrap();
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let mut actions = div()
             .flex()
             .flex_wrap()
@@ -507,7 +507,7 @@ impl Waku {
         row: Arc<RemoteRow>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let mut body = div()
             .id(SharedString::from(format!("recovery-remote-{}", row.key)))
             .py(px(14.0))
@@ -561,7 +561,7 @@ impl Waku {
         row: Arc<FileRow>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let effect = &row.effect;
         let id = effect.id;
         let mut actions = div().flex().flex_wrap().gap(px(8.0));
@@ -642,7 +642,7 @@ impl Waku {
         row: Arc<AppRow>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let id = row.id;
         let mut body=div().id(SharedString::from(format!("recovery-app-{id}"))).py(px(14.0)).border_b_1().border_color(theme.border).flex().flex_col().gap(px(9.0))
             .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).child(row.title.clone()))

@@ -91,7 +91,7 @@ impl Waku {
         let Some(request) = ui.request else {
             return;
         };
-        if ui.busy || self.control_ui.page != Some(Page::Usage) {
+        if ui.busy || self.settings_page != Some(SettingsPage::Usage) {
             return;
         }
         ui.generation += 1;
@@ -130,7 +130,7 @@ impl Waku {
                 let ui = &mut this.control_ui.collector;
                 if ui.request != Some(request)
                     || ui.generation != generation
-                    || this.control_ui.page != Some(Page::Usage)
+                    || this.settings_page != Some(SettingsPage::Usage)
                 {
                     return;
                 }
@@ -189,7 +189,7 @@ impl Waku {
         let theme = Theme::current(cx);
         let rows = ui.rows.clone();
         let weak = cx.entity().downgrade();
-        let mut header=div().flex().flex_col().gap(px(12.0)).p(px(20.0))
+        let mut header=div().flex().flex_col().gap(px(12.0)).p_0()
             .child(div().flex().gap(px(8.0))
                 .child(self.control_button("collector-back","Remote executions",cx,|this,_,cx|{this.control_ui.collector.close();cx.notify();}))
                 .child(self.control_button("collector-refresh","",cx,|this,_,cx|this.refresh_gpu_collector(cx)).tooltip(Tooltip::text("Refresh retained collector storage")).child(icon("icons/rotate-cw.svg",16.0,theme.text_secondary))))

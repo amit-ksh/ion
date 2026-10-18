@@ -255,6 +255,7 @@ pub(crate) fn start_local_with_workspace(
     events: DriverEventSender,
     workspace: Option<WorkspaceContext>,
 ) -> anyhow::Result<DriverHandle> {
+    crate::command_env::validate_working_directory(&options.cwd)?;
     // Computer Use is experimental, so release builds never start its helper
     // whatever a client, a migrated state file, or an environment variable
     // asks for. Every driver reads the clamped flag, which also means only

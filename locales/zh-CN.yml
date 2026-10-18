@@ -98,7 +98,7 @@ daemon.port_description: 启用暴露后，ion 会在所有网络接口的此端
 daemon.port_placeholder: "34123"
 daemon.allowed_origins: 允许的浏览器来源
 daemon.allowed_origins_description: 可打开 WebSocket 的确切 http:// 或 https:// 来源。
-daemon.allowed_origins_placeholder: https://waku.example.com, http://localhost:3001
+daemon.allowed_origins_placeholder: https://ion.example.com, http://localhost:3001
 daemon.apply: 应用
 daemon.restarting: 正在重启…
 daemon.credentials_title: 连接信息
@@ -487,7 +487,7 @@ command_scope.project: 项目
 command_scope.user: 用户
 command_scope.skill: 技能
 command_scope.builtin: 内置
-command_scope.waku: waku
+command_scope.waku: ion
 skills.search: 搜索技能…
 skills.count_one: 1 个技能
 skills.count_many: "%{count} 个技能"

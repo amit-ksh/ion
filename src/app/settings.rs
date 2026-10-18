@@ -818,13 +818,14 @@ impl Waku {
             .tab_index(0)
             .tab_stop(true)
             .focus_visible(|style| style.border_color(theme.accent))
-            .h(px(30.0))
+            .h(px(34.0))
             .px(px(12.0))
             .rounded(px(7.0))
             .border_1()
             .border_color(theme.border_strong)
             .flex()
             .items_center()
+            .gap(px(7.0))
             .text_size(sp(12.5))
             .text_color(theme.text)
             .hover(|element| element.bg(theme.overlay))
@@ -833,6 +834,15 @@ impl Waku {
             } else {
                 1.0
             })
+            .child(icon(
+                match action {
+                    CredentialAction::Set => "icons/check.svg",
+                    CredentialAction::Test => "icons/rotate-cw.svg",
+                    CredentialAction::Delete => "icons/trash.svg",
+                },
+                14.0,
+                theme.text_secondary,
+            ))
             .child(label)
             .on_click(
                 cx.listener(move |this, _, _, cx| this.run_credential_action(kind, action, cx)),
@@ -1370,12 +1380,6 @@ impl Waku {
             .bg(theme.sidebar)
             .child(self.render_settings_sidebar_titlebar(window, cx))
             .child(
-                div()
-                    .px(px(12.0))
-                    .pb(px(8.0))
-                    .children(self.render_setup_indicator(cx)),
-            )
-            .child(
                 div().px(px(12.0)).child(
                     div()
                         .id("settings-back")
@@ -1504,13 +1508,20 @@ impl Waku {
                 .border_l_1()
                 .border_color(theme.sidebar_border)
                 .bg(theme.surface)
-                .children(right_window_controls.map(|controls| {
-                    self.render_settings_drag_region("settings-skills-titlebar", cx)
+                .child({
+                    div()
+                        .h(px(48.0))
+                        .flex_none()
                         .flex()
                         .items_center()
                         .justify_end()
-                        .child(controls)
-                }))
+                        .child(
+                            self.render_settings_drag_region("settings-skills-titlebar", cx)
+                                .flex_1(),
+                        )
+                        .children(self.render_setup_indicator(cx))
+                        .children(right_window_controls)
+                })
                 .child(
                     div()
                         .flex_1()
@@ -1521,11 +1532,7 @@ impl Waku {
         // The Monthly and Projects list views own their own scrolling, so
         // their pages fill the viewport instead of riding the shared scroll
         // container.
-        let fills_viewport = page == SettingsPage::Usage
-            && matches!(
-                self.usage_view,
-                UsageViewMode::Monthly | UsageViewMode::Projects
-            );
+        let fills_viewport = page == SettingsPage::Usage && self.usage_settings_fills_viewport();
         // The titlebar strip is transparent; once content slides under it, a
         // hairline marks the boundary so the clip edge reads as a header
         // rather than a glitch.
@@ -1592,10 +1599,17 @@ impl Waku {
             .border_color(theme.sidebar_border)
             .bg(theme.surface)
             .child(
-                self.render_settings_drag_region("settings-content-titlebar", cx)
+                div()
+                    .h(px(48.0))
+                    .flex_none()
                     .flex()
                     .items_center()
                     .justify_end()
+                    .child(
+                        self.render_settings_drag_region("settings-content-titlebar", cx)
+                            .flex_1(),
+                    )
+                    .children(self.render_setup_indicator(cx))
                     .children(right_window_controls)
                     .when(content_scrolled, |element| {
                         element.border_b_1().border_color(theme.border)
@@ -2879,6 +2893,9 @@ impl Waku {
                 div()
                     .truncate()
                     .child(SharedString::from(parts.join("  ·  ")))
+                    .into_any_element()
+            } else if kind == ProviderKind::Codex {
+                div().child("OpenAI Codex CLI not detected. Choose a binary whose --version reports codex-cli.")
                     .into_any_element()
             } else {
                 div()

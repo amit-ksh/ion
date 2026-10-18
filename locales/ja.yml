@@ -102,7 +102,7 @@ daemon.port_description: 公開中は、すべてのネットワークインタ�
 daemon.port_placeholder: "34123"
 daemon.allowed_origins: 許可するブラウザオリジン
 daemon.allowed_origins_description: WebSocket を開ける正確な http:// または https:// オリジンです。
-daemon.allowed_origins_placeholder: https://waku.example.com, http://localhost:3001
+daemon.allowed_origins_placeholder: https://ion.example.com, http://localhost:3001
 daemon.apply: 適用
 daemon.restarting: 再起動中…
 daemon.credentials_title: 接続情報
@@ -514,7 +514,7 @@ command_scope.project: プロジェクト
 command_scope.user: ユーザー
 command_scope.skill: スキル
 command_scope.builtin: 組み込み
-command_scope.waku: waku
+command_scope.waku: ion
 
 skills.search: スキルを検索…
 skills.count_one: 1 個のスキル

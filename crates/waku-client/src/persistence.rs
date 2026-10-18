@@ -139,7 +139,7 @@ impl ComposerDraftStore {
                 Ok(drafts)
             }
             _ => Err(io::Error::other(
-                "Waku daemon returned an invalid composer-drafts response",
+                "Ion daemon returned an invalid composer-drafts response",
             )),
         }
     }
@@ -173,7 +173,7 @@ impl ComposerDraftStore {
                 Ok(())
             }
             _ => Err(io::Error::other(
-                "Waku daemon returned an invalid composer-drafts save response",
+                "Ion daemon returned an invalid composer-drafts save response",
             )),
         }
     }
@@ -922,7 +922,7 @@ impl StateStore {
         {
             ResponsePayload::SessionMessageMatches { matches } => Ok(matches),
             _ => Err(io::Error::other(
-                "Waku daemon returned an invalid message-search response",
+                "Ion daemon returned an invalid message-search response",
             )),
         }
     }
@@ -944,7 +944,7 @@ impl StateStore {
         {
             ResponsePayload::ProviderSessions { sessions } => Ok(sessions),
             _ => Err(io::Error::other(
-                "Waku daemon returned an invalid provider-session response",
+                "Ion daemon returned an invalid provider-session response",
             )),
         }
     }
@@ -966,7 +966,7 @@ impl StateStore {
         {
             ResponsePayload::ProviderSessionHistory { history } => Ok(history),
             _ => Err(io::Error::other(
-                "Waku daemon returned an invalid provider-session history response",
+                "Ion daemon returned an invalid provider-session history response",
             )),
         }
     }
@@ -1021,7 +1021,7 @@ impl StateStore {
             }
             _ => {
                 return Err(io::Error::other(
-                    "Waku daemon returned an invalid task-state response",
+                    "Ion daemon returned an invalid task-state response",
                 ));
             }
         };
@@ -1153,7 +1153,7 @@ pub fn hydrate_session(
     {
         ResponsePayload::Session { session } => Ok(session),
         _ => Err(io::Error::other(
-            "Waku daemon returned an invalid session-hydration response",
+            "Ion daemon returned an invalid session-hydration response",
         )),
     }
 }

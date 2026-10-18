@@ -350,7 +350,7 @@ impl Waku {
     pub(super) fn render_document_preview(&self, cx: &mut Context<Self>) -> AnyElement {
         let ui = &self.control_ui.preview;
         let artifact = ui.artifact.as_ref().expect("preview selected");
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let record = ControlRecord::Artifact(artifact.clone());
         let refresh = artifact.clone();
         let mut body = div()
@@ -361,7 +361,7 @@ impl Waku {
             .flex()
             .flex_col()
             .gap(px(12.0))
-            .p(px(24.0))
+            .p(px(28.0))
             .on_key_down(cx.listener(|this, event, _, cx| this.document_preview_key(event, cx)))
             .child(
                 div()
@@ -657,7 +657,7 @@ impl Waku {
         cx.notify();
     }
     fn render_pdf_document(&self, body: Div, pdf: &PdfUi, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let page = pdf.raster.page;
         let pages = pdf.raster.pages;
         let zoom = pdf.zoom;

@@ -51,6 +51,15 @@ fn index(step: Step) -> usize {
         Step::Gateway => 4,
     }
 }
+fn step_icon(step: Step) -> &'static str {
+    match step {
+        Step::Welcome => "icons/ion.svg",
+        Step::Models => "icons/bot.svg",
+        Step::Apps => "icons/package.svg",
+        Step::Speech => "icons/mic.svg",
+        Step::Gateway => "icons/server.svg",
+    }
+}
 impl Waku {
     pub(super) fn initialize_onboarding(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.onboarding_ui.open {
@@ -191,15 +200,16 @@ impl Waku {
                 .track_focus(&self.onboarding_ui.indicator_focus)
                 .tab_index(0)
                 .tab_stop(true)
-                .h(px(34.0))
+                .h(px(28.0))
+                .flex_none()
                 .px(px(10.0))
                 .rounded(px(7.0))
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .text_size(sp(13.0))
+                .text_size(sp(12.5))
                 .text_color(theme.text)
-                .bg(theme.sidebar_item_background)
+                .bg(theme.overlay)
                 .hover(|s| s.bg(theme.overlay_strong))
                 .focus_visible(|s| s.border_1().border_color(theme.accent))
                 .child(icon("icons/settings.svg", 15.0, theme.accent))
@@ -207,6 +217,7 @@ impl Waku {
                 .tooltip(Tooltip::text(
                     "Add missing connection details. Every setup step is optional.",
                 ))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(cx.listener(|this, _, window, cx| this.open_onboarding(window, cx)))
                 .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                     if !event.keystroke.modifiers.modified()
@@ -238,13 +249,20 @@ impl Waku {
         let mut form = div()
             .flex()
             .flex_col()
-            .gap(px(12.0))
-            .child(div().text_size(sp(14.0)).child(label))
+            .gap(px(10.0))
+            .child(
+                div()
+                    .text_size(sp(13.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(label),
+            )
             .child(
                 TextField::new(
                     SharedString::from(format!("setup-credential-{}", kind.account())),
                     self.credential_inputs[&kind].clone(),
                 )
+                .comfortable()
+                .icon("icons/lock.svg", 16.0)
                 .w_full(),
             )
             .child(
@@ -252,8 +270,13 @@ impl Waku {
                     .flex()
                     .flex_wrap()
                     .gap(px(8.0))
-                    .child(self.credential_button(kind, CredentialAction::Set, "Save", cx))
-                    .child(self.credential_button(kind, CredentialAction::Test, "Test", cx)),
+                    .child(self.credential_button(kind, CredentialAction::Set, "Save key", cx))
+                    .child(self.credential_button(
+                        kind,
+                        CredentialAction::Test,
+                        "Test connection",
+                        cx,
+                    )),
             )
             .child(
                 div()
@@ -270,6 +293,33 @@ impl Waku {
             );
         }
         form
+    }
+    fn setup_field(
+        &self,
+        label: &'static str,
+        id: &'static str,
+        input: Entity<TextInput>,
+        image: &'static str,
+        cx: &App,
+    ) -> Div {
+        let theme = Theme::current(cx);
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .child(
+                div()
+                    .text_size(sp(13.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme.text)
+                    .child(label),
+            )
+            .child(
+                TextField::new(id, input)
+                    .comfortable()
+                    .icon(image, 16.0)
+                    .w_full(),
+            )
     }
     fn setup_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         if event.keystroke.modifiers.modified() {
@@ -353,20 +403,28 @@ impl Waku {
             ));
         let mut form = div()
             .w_full()
-            .max_w(px(760.0))
+            .max_w(px(680.0))
+            .flex_none()
             .flex()
             .flex_col()
-            .gap(px(24.0))
+            .gap(px(20.0))
+            .p(px(28.0))
+            .rounded(px(13.0))
+            .bg(theme.raised)
             .child(
                 div()
-                    .text_size(sp(28.0))
+                    .flex()
+                    .items_center()
+                    .gap(px(12.0))
+                    .text_size(sp(24.0))
                     .font_weight(FontWeight::SEMIBOLD)
+                    .child(icon(step_icon(step), 24.0, theme.accent))
                     .child(title(step)),
             );
         if step != Step::Welcome {
             let mut navigation = div().flex().flex_wrap().gap(px(8.0));
             for next in Step::ALL.into_iter().filter(|s| *s != Step::Welcome) {
-                let label = format!("{} {}", index(next), title(next));
+                let label = title(next);
                 navigation = navigation.child(
                     self.control_button(
                         format!("setup-step-{}", index(next)),
@@ -374,6 +432,26 @@ impl Waku {
                         cx,
                         move |this, window, cx| this.set_setup_step(next, window, cx),
                     )
+                    .h(px(36.0))
+                    .text_size(sp(12.0))
+                    .child(icon(
+                        if !self.setup_needs_attention(next) {
+                            "icons/check.svg"
+                        } else {
+                            step_icon(next)
+                        },
+                        14.0,
+                        if next == step {
+                            theme.accent
+                        } else {
+                            theme.text_secondary
+                        },
+                    ))
+                    .bg(if next == step {
+                        theme.overlay_strong
+                    } else {
+                        gpui::transparent_black()
+                    })
                     .border_color(if next == step {
                         theme.accent
                     } else {
@@ -398,7 +476,7 @@ impl Waku {
                         "App access for your tasks and agent teams",
                     ),
                     (
-                        "icons/file-types/audio.svg",
+                        "icons/mic.svg",
                         "Speech",
                         "A shared speech endpoint for desktop and phone",
                     ),
@@ -442,9 +520,8 @@ impl Waku {
                     .child(self.control_button("setup-connect-apps","Connect apps",cx,|this,window,cx|this.setup_apps(window,cx)));
             }
             Step::Speech => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Add your shared speech service to use the same recognizer on desktop and phone. You can configure local dictation later in Settings."))
-                    .child(div().text_size(sp(14.0)).child("Speech service URL"))
-                    .child(TextField::new("setup-speech-url",self.speech_url_input.clone()).w_full())
+                form=form.child(div().text_size(sp(14.0)).line_height(sp(21.0)).text_color(theme.text_secondary).child("Use local dictation on this computer, or connect a speech service shared with your phone."))
+                    .child(self.setup_field("Speech service URL", "setup-speech-url", self.speech_url_input.clone(), "icons/server.svg", cx))
                     .child(self.setup_credential_form(Kind::SpeechService,"Speech service token",cx))
                     .child(self.control_button("setup-local-speech","Speech settings",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)));
                 if let Some(status) = &self.speech_runtime_status {
@@ -457,11 +534,9 @@ impl Waku {
                 }
             }
             Step::Gateway => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Pair this desktop with your personal gateway. Use its HTTPS URL and a one-use invite created in the gateway owner console. Phone pairing and remote access are managed there."))
-                    .child(div().text_size(sp(14.0)).child("Gateway URL"))
-                    .child(TextField::new("setup-gateway-url",self.gateway_url_input.clone()).w_full())
-                    .child(div().text_size(sp(14.0)).child("One-use pairing invite"))
-                    .child(TextField::new("setup-gateway-invite",self.gateway_invite_input.clone()).w_full())
+                form=form.child(div().text_size(sp(14.0)).line_height(sp(21.0)).text_color(theme.text_secondary).child("Connect your phone and access your workspace remotely. Enter your gateway's HTTPS URL and a one-use invite from its owner console."))
+                    .child(self.setup_field("Gateway URL", "setup-gateway-url", self.gateway_url_input.clone(), "icons/server.svg", cx))
+                    .child(self.setup_field("One-use pairing invite", "setup-gateway-invite", self.gateway_invite_input.clone(), "icons/lock.svg", cx))
                     .child(div().flex().flex_wrap().gap(px(8.0))
                         .child(self.gateway_button(GatewayAction::Pair,"Pair gateway",cx))
                         .child(self.credential_button(Kind::GatewayPairingToken,CredentialAction::Test,"Test pairing",cx)))
@@ -476,7 +551,15 @@ impl Waku {
                 }
             }
         }
-        let mut actions = div().flex().flex_wrap().gap(px(10.0));
+        let mut actions = div()
+            .pt(px(20.0))
+            .mt(px(4.0))
+            .border_t_1()
+            .border_color(theme.border)
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(px(10.0));
         if let Some(previous) = step.previous() {
             actions = actions.child(self.control_button(
                 "setup-back",
@@ -498,9 +581,12 @@ impl Waku {
                 cx,
                 |this, window, cx| this.next_setup_step(window, cx),
             )
-            .border_color(theme.accent),
+            .h(px(38.0))
+            .border_color(theme.accent)
+            .bg(theme.overlay_strong)
+            .child(icon("icons/arrow-right.svg", 14.0, theme.accent)),
         );
-        if step != Step::Welcome {
+        if step != Step::Welcome && step != Step::Gateway {
             actions = actions.child(self.control_button(
                 "setup-skip-step",
                 "Skip this step",
@@ -514,7 +600,7 @@ impl Waku {
             cx,
             |this, window, cx| this.leave_setup(window, cx),
         ));
-        form=form.child(actions).child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child("Keys are saved through your OS credential vault. Missing details remain available from Finish setup."));
+        form=form.child(actions).child(div().flex().items_start().gap(px(8.0)).text_size(sp(12.0)).line_height(sp(18.0)).text_color(theme.text_secondary).child(icon("icons/lock.svg", 14.0, theme.text_secondary)).child("Keys stay in your OS credential vault. You can finish skipped steps from the top bar."));
         div()
             .id("ion-onboarding")
             .track_focus(&self.onboarding_ui.focus)
@@ -534,11 +620,7 @@ impl Waku {
                     .when(!(tiling.bottom || tiling.left), |r| r.rounded_bl(radius))
                     .when(!(tiling.bottom || tiling.right), |r| r.rounded_br(radius))
             })
-            .bg(linear_gradient(
-                130.0,
-                linear_color_stop(theme.surface, 0.0),
-                linear_color_stop(theme.raised, 1.0),
-            ))
+            .bg(theme.surface)
             .on_key_down(cx.listener(|this, event, window, cx| this.setup_key(event, window, cx)))
             .child(header)
             .child(

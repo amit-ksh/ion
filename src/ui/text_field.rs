@@ -22,6 +22,7 @@ pub struct TextField {
     base: Stateful<Div>,
     input: gpui::Entity<TextInput>,
     icon: Option<(&'static str, f32)>,
+    comfortable: bool,
 }
 
 impl TextField {
@@ -30,12 +31,20 @@ impl TextField {
             base: div().id(id),
             input,
             icon: None,
+            comfortable: false,
         }
     }
 
     /// Leading icon, tinted tertiary like the address bar's lock.
     pub fn icon(mut self, path: &'static str, size: f32) -> Self {
         self.icon = Some((path, size));
+        self
+    }
+
+    /// A form-sized field; compact address bars and inline editors keep their
+    /// existing dimensions.
+    pub fn comfortable(mut self) -> Self {
+        self.comfortable = true;
         self
     }
 }
@@ -63,9 +72,10 @@ impl RenderOnce for TextField {
         let theme = Theme::current(cx);
         let focused = self.input.read(cx).is_visually_focused(window);
         self.base
-            .h(px(28.0))
-            .px(px(8.0))
-            .rounded(px(6.0))
+            .h(px(if self.comfortable { 42.0 } else { 28.0 }))
+            .when(self.comfortable, |field| field.flex_none())
+            .px(px(if self.comfortable { 12.0 } else { 8.0 }))
+            .rounded(px(if self.comfortable { 8.0 } else { 6.0 }))
             .border_1()
             .border_color(if focused {
                 theme.accent
@@ -76,8 +86,8 @@ impl RenderOnce for TextField {
             .flex()
             .items_center()
             .gap(px(6.0))
-            .text_size(sp(12.5))
-            .line_height(sp(16.0))
+            .text_size(sp(if self.comfortable { 14.0 } else { 12.5 }))
+            .line_height(sp(if self.comfortable { 22.0 } else { 16.0 }))
             .when_some(self.icon, |element, (path, size)| {
                 element.child(icon(path, size, theme.text_tertiary))
             })

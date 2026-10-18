@@ -357,18 +357,22 @@ impl Render for Waku {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .bg(linear_gradient(
-                        130.0,
-                        linear_color_stop(theme.surface, 0.0),
-                        linear_color_stop(theme.raised, 1.0),
-                    ))
+                    .bg(if self.control_ui.page.is_some() {
+                        Theme::workspace(cx).surface
+                    } else {
+                        theme.surface
+                    })
+                    .when(self.control_ui.page.is_none(), |element| {
+                        element.bg(linear_gradient(
+                            130.0,
+                            linear_color_stop(theme.surface, 0.0),
+                            linear_color_stop(theme.raised, 1.0),
+                        ))
+                    })
                     .when(panels.sidebar > 0.0, |element| {
                         element.border_l_1().border_color(theme.sidebar_border)
                     })
                     .child(self.render_header(window, cx))
-                    .when_some(self.control_ui.page, |element, page| {
-                        element.child(self.render_workspace_header(page, cx))
-                    })
                     .child(if let Some(page) = self.control_ui.page {
                         self.render_workspace_page(page, window, cx)
                     } else if empty {

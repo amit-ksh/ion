@@ -828,7 +828,7 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         use waku_client::teams::TeamDecisionStatus;
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let id = decision.id;
         let project = self
             .state
@@ -912,9 +912,8 @@ impl Waku {
             .child(actions)
             .into_any_element()
     }
-    pub(super) fn render_team_activity_header(&self, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
-        let mut header = div().flex().flex_col().gap(px(12.0));
+    pub(super) fn render_team_view_tabs(&self, cx: &mut Context<Self>) -> Div {
+        let theme = Theme::workspace(cx);
         let mut tabs = div().flex().items_center().gap(px(8.0));
         for (id, label, runs) in [
             ("teams-definitions", "Teams", false),
@@ -940,6 +939,12 @@ impl Waku {
                 }),
             );
         }
+        tabs
+    }
+    pub(super) fn render_team_activity_header(&self, cx: &mut Context<Self>) -> Div {
+        let theme = Theme::workspace(cx);
+        let mut header = div().flex().flex_col().gap(px(12.0));
+        let mut tabs = div().flex().flex_wrap().items_center().gap(px(8.0));
         if self.control_ui.runs_tab && self.control_ui.selected_run.is_none() {
             if self.control_ui.runs_team.is_some() {
                 tabs = tabs.child(self.control_button(
@@ -1120,7 +1125,7 @@ impl Waku {
         run: Rc<TeamRunSummary>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let id = run.id;
         div().id(SharedString::from(format!("team-run-{id}"))).min_h(px(76.0)).py(px(14.0)).border_b_1().border_color(theme.border)
             .flex().items_center().gap(px(16.0)).child(icon("icons/fork.svg",18.0,theme.accent))
@@ -1134,7 +1139,7 @@ impl Waku {
         row: Rc<AssignmentRow>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let task = row.task_id;
         let mut body = div()
             .id(SharedString::from(format!("team-work-{}", row.id)))

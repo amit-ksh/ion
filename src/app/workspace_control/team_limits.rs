@@ -145,7 +145,7 @@ impl Waku {
         Ok(limits)
     }
     pub(super) fn render_team_limit_inputs(&self, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let mut form = div().flex().flex_col().gap(px(10.0)).child(
             div()
                 .text_size(sp(14.0))

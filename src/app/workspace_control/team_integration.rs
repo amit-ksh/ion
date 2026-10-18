@@ -204,7 +204,7 @@ impl Waku {
     }
     pub(super) fn render_team_integration_header(&self, cx: &mut Context<Self>) -> Div {
         let review = self.control_ui.integration.as_ref().unwrap();
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let id = review.id;
         let revision = review.revision;
         let status = match review.status {
@@ -355,7 +355,7 @@ impl Waku {
         row: Arc<SourceChangeRow>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let change = &row.change;
         let expanded = self.control_ui.integration_expanded.contains(&index);
         let operation = if change.directory {
@@ -421,7 +421,7 @@ impl Waku {
         line: Arc<crate::review_diff::Line>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         if matches!(
             line.kind,
             crate::review_diff::LineKind::Context

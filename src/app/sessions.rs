@@ -310,6 +310,21 @@ impl Waku {
     }
 
     pub(super) fn remove_session(&mut self, session_id: Uuid, cx: &mut Context<Self>) {
+        self.remove_session_inner(session_id, true, cx);
+    }
+
+    fn remove_session_inner(&mut self, session_id: Uuid, persist: bool, cx: &mut Context<Self>) {
+        if self
+            .state
+            .sessions
+            .iter()
+            .any(|session| session.id == session_id && session.is_busy())
+            || self.submission_preparations.contains(&session_id)
+        {
+            self.show_toast("Stop this chat's running task before removing it.");
+            cx.notify();
+            return;
+        }
         if self.response_fork_preparations.contains_key(&session_id) {
             self.show_toast(tr!("session.response_fork_in_progress"));
             cx.notify();
@@ -403,7 +418,7 @@ impl Waku {
             } else {
                 self.create_session_for(project_id, self.state.last_provider, cx);
             }
-        } else {
+        } else if persist {
             self.save();
             cx.notify();
         }
@@ -411,10 +426,121 @@ impl Waku {
         // Only now is the row gone, so the sweep can see which blobs are
         // genuinely unreferenced. It reads the database and walks the blob
         // directory, so it stays off the UI thread.
-        let sweep = self.store.blob_sweep();
-        cx.background_executor()
-            .spawn(async move { sweep() })
-            .detach();
+        if persist {
+            let sweep = self.store.blob_sweep();
+            cx.background_executor()
+                .spawn(async move { sweep() })
+                .detach();
+        }
+    }
+
+    pub(super) fn request_remove_session(
+        &mut self,
+        id: Uuid,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let response = window.prompt(
+            gpui::PromptLevel::Warning,
+            "Remove this chat?",
+            Some("This removes the chat history from Ion. Files in the project folder are kept."),
+            &[
+                gpui::PromptButton::cancel("Cancel"),
+                gpui::PromptButton::new("Remove chat"),
+            ],
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            if response.await == Ok(1) {
+                let _ = this.update(cx, |this, cx| this.remove_session(id, cx));
+            }
+        })
+        .detach();
+    }
+
+    pub(super) fn request_remove_project(
+        &mut self,
+        id: Uuid,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(project) = self.state.projects.iter().find(|project| project.id == id) else {
+            return;
+        };
+        let count = self
+            .state
+            .sessions
+            .iter()
+            .filter(|session| session.project_id == id)
+            .count();
+        let message = format!("Remove {} from Ion?", project.display_name());
+        let detail = format!(
+            "This removes the project and its {count} chats from Ion. The project folder and its files stay on disk."
+        );
+        let response = window.prompt(
+            gpui::PromptLevel::Warning,
+            &message,
+            Some(&detail),
+            &[
+                gpui::PromptButton::cancel("Cancel"),
+                gpui::PromptButton::new("Remove project"),
+            ],
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            if response.await != Ok(1) {
+                return;
+            }
+            let _ = this.update(cx, |this, cx| {
+                let sessions = this
+                    .state
+                    .sessions
+                    .iter()
+                    .filter(|session| session.project_id == id)
+                    .map(|session| session.id)
+                    .collect::<Vec<_>>();
+                if this
+                    .state
+                    .sessions
+                    .iter()
+                    .any(|session| session.project_id == id && session.is_busy())
+                    || sessions.iter().any(|id| {
+                        this.response_fork_preparations.contains_key(id)
+                            || this.submission_preparations.contains(id)
+                    })
+                {
+                    this.show_toast("Stop the project's running tasks before removing it.");
+                    cx.notify();
+                    return;
+                }
+                // Clear selection first so removing the final chat cannot create
+                // a replacement draft in the project being removed.
+                if this.state.sessions.iter().any(|session| {
+                    session.project_id == id && Some(session.id) == this.state.selected_session
+                }) {
+                    this.state.selected_session = None;
+                }
+                if this.state.selected_project == Some(id) {
+                    this.state.selected_project = None;
+                }
+                for session in sessions {
+                    this.remove_session_inner(session, false, cx);
+                }
+                this.remove_composer_draft(
+                    crate::persistence::ComposerDraftKey::NewSession(id),
+                    cx,
+                );
+                this.state.projects.retain(|project| project.id != id);
+                this.sidebar_rows_fingerprint.set(None);
+                this.save();
+                let sweep = this.store.blob_sweep();
+                cx.background_executor()
+                    .spawn(async move { sweep() })
+                    .detach();
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     pub(super) fn new_session_action(

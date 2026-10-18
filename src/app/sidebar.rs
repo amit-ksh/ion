@@ -1108,12 +1108,6 @@ impl Waku {
                     .child(self.render_sidebar_new_session(cx))
                     .child(self.render_sidebar_search(cx)),
             )
-            .child(
-                div()
-                    .px(px(10.0))
-                    .pb(px(6.0))
-                    .children(self.render_setup_indicator(cx)),
-            )
             .child(self.render_workspace_nav(cx))
             .child(
                 div()
@@ -1545,6 +1539,36 @@ impl Waku {
                     .child(div().flex_1()),
             )
             .when_some(compose, |element, compose| element.child(compose))
+            .when_some(
+                match group {
+                    SidebarGroup::Project(id) => Some(id),
+                    _ => None,
+                },
+                |element, id| {
+                    element.child(
+                        self.control_button(
+                            format!("sidebar-remove-project-{id}"),
+                            "",
+                            cx,
+                            move |this, window, cx| {
+                                cx.stop_propagation();
+                                this.request_remove_project(id, window, cx);
+                            },
+                        )
+                        .size(px(24.0))
+                        .p_0()
+                        .border_0()
+                        .justify_center()
+                        .tooltip(Tooltip::text("Remove project from Ion"))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(icon(
+                            "icons/trash.svg",
+                            13.0,
+                            theme.text_secondary,
+                        )),
+                    )
+                },
+            )
             .when(first, |element| {
                 element.child(self.render_sidebar_header_actions(cx))
             })
@@ -1787,6 +1811,7 @@ impl Waku {
                 .session_mut(session_id)
                 .is_some_and(|session| session.set_title(&title))
         {
+            self.control_ui.invalidate_artifact_labels();
             self.save();
         }
         cx.notify();
@@ -1953,6 +1978,30 @@ impl Waku {
                             12.0,
                             status_color(&theme, session.status),
                         ))
+                    })
+                    .when(!renaming, |element| {
+                        element.child(
+                            self.control_button(
+                                format!("sidebar-remove-chat-{session_id}"),
+                                "",
+                                cx,
+                                move |this, window, cx| {
+                                    cx.stop_propagation();
+                                    this.request_remove_session(session_id, window, cx);
+                                },
+                            )
+                            .size(px(24.0))
+                            .p_0()
+                            .border_0()
+                            .justify_center()
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .tooltip(Tooltip::text("Remove chat"))
+                            .child(icon(
+                                "icons/trash.svg",
+                                13.0,
+                                theme.text_secondary,
+                            )),
+                        )
                     }),
             )
             .child(
@@ -2036,9 +2085,10 @@ impl Waku {
                             });
                         }),
                         MenuItem::Separator,
-                        MenuItem::new(tr!("common.remove"), move |_, cx| {
-                            let _ = remove_waku
-                                .update(cx, |waku, cx| waku.remove_session(session_id, cx));
+                        MenuItem::new(tr!("common.remove"), move |window, cx| {
+                            let _ = remove_waku.update(cx, |waku, cx| {
+                                waku.request_remove_session(session_id, window, cx)
+                            });
                         }),
                     ]
                 },
@@ -2072,16 +2122,18 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let theme = Theme::current(cx);
-        let session = self.selected_session();
-        let title = self
-            .control_ui
-            .page
-            .map(|page| page.label().to_owned())
-            .unwrap_or_else(|| {
-                session
-                    .map(localized_session_title)
-                    .unwrap_or_else(|| tr!("session.new_task"))
-            });
+        let session = self
+            .selected_session()
+            .filter(|_| self.control_ui.page.is_none());
+        // Workspace pages own their content heading. Keep the native titlebar
+        // for window controls and setup without repeating that heading.
+        let title = if self.control_ui.page.is_some() {
+            String::new()
+        } else {
+            session
+                .map(localized_session_title)
+                .unwrap_or_else(|| tr!("session.new_task"))
+        };
         let agent_preset_label = session
             .filter(|session| session.provider == ProviderKind::DeepSeek && session.has_started())
             .and_then(|session| self.agent_preset_label_for_session(session));
@@ -2207,10 +2259,10 @@ impl Waku {
                     cx,
                 ),
             )
-            .when(self.sidebar_rendered_width <= 0.5, |header| {
-                header.children(self.render_setup_indicator(cx))
+            .children(self.render_setup_indicator(cx))
+            .when(self.control_ui.page.is_none(), |element| {
+                element.child(self.render_background_work_summary(cx))
             })
-            .child(self.render_background_work_summary(cx))
             .when(!self.right_panel_visible, |element| {
                 element
                     .when(self.fps_counter_visible, |element| {

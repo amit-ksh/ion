@@ -828,7 +828,7 @@ pub struct RpcError {
 impl From<anyhow::Error> for RpcError {
     fn from(error: anyhow::Error) -> Self {
         Self {
-            message: error.to_string(),
+            message: format!("{error:#}"),
         }
     }
 }
@@ -858,6 +858,18 @@ pub(crate) mod base64_bytes {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rpc_error_keeps_the_underlying_launch_failure() {
+        let error = anyhow::Error::new(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Working folder is unavailable",
+        ))
+        .context("failed to start claude in streaming-input mode");
+        let wire = RpcError::from(error);
+        assert!(wire.message.contains("streaming-input mode"));
+        assert!(wire.message.contains("Working folder is unavailable"));
+    }
 
     #[test]
     fn binary_payloads_use_base64_json_strings() {

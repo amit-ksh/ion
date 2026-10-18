@@ -6,6 +6,7 @@ use waku_client::teams::{
     AgentAccess, AgentExecution, AssignmentStatus, ExecutionEnvironment, TeamRunSnapshot,
     TeamRunStatus, TeamRunSummary,
 };
+mod artifacts_ui;
 mod automation_ui;
 mod billing_ui;
 mod budget_ui;
@@ -14,7 +15,6 @@ mod document_preview;
 mod inbox;
 mod remote_ui;
 mod resource_ui;
-mod retention_ui;
 mod routine_ui;
 mod team_activity;
 mod team_apps;
@@ -65,7 +65,6 @@ pub(super) enum Page {
     Artifacts,
     Apps,
     Harnesses,
-    Usage,
 }
 impl Page {
     pub fn label(self) -> &'static str {
@@ -81,7 +80,6 @@ impl Page {
             Self::Artifacts => "Artifacts",
             Self::Apps => "Apps",
             Self::Harnesses => "Harnesses",
-            Self::Usage => "Usage",
         }
     }
     pub fn icon(self) -> &'static str {
@@ -97,7 +95,6 @@ impl Page {
             Self::Artifacts => "icons/file.svg",
             Self::Apps => "icons/package.svg",
             Self::Harnesses => "icons/bot.svg",
-            Self::Usage => "icons/chart-column.svg",
         }
     }
 }
@@ -109,10 +106,10 @@ enum FormKind {
     Routine,
 }
 pub(super) struct ControlUi {
+    artifacts: artifacts_ui::ArtifactsUi,
     billing: billing_ui::BillingUi,
     remote: remote_ui::RemoteUi,
     resources: resource_ui::ResourceUi,
-    retention: retention_ui::RetentionUi,
     collector: collector_ui::CollectorUi,
     preview: document_preview::DocumentPreview,
     pub page: Option<Page>,
@@ -225,7 +222,6 @@ pub(super) struct ControlUi {
 enum Row {
     Inbox(Rc<inbox::InboxRow>),
     InboxEvent(Rc<waku_client::inbox::InboxEntry>),
-    Usage(Rc<usage_ui::UsageRow>),
     Task(Uuid),
     Project(Uuid),
     Record(ControlRecord),
@@ -305,13 +301,13 @@ struct Notice {
 impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
         Self {
+            artifacts: artifacts_ui::ArtifactsUi::new(window, cx),
             billing: billing_ui::BillingUi::new(window, cx),
             remote: remote_ui::RemoteUi::new(cx),
             resources: resource_ui::ResourceUi::new(cx),
-            retention: retention_ui::RetentionUi::new(cx),
             collector: collector_ui::CollectorUi::new(cx),
             preview: document_preview::DocumentPreview::new(cx),
-            page: Some(Page::Dashboard),
+            page: None,
             snapshot: ControlSnapshot::default(),
             snapshot_loaded: false,
             team_index: Rc::new(Vec::new()),
@@ -898,7 +894,11 @@ impl Waku {
         cx: &mut Context<Self>,
         action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
     ) -> Stateful<Div> {
-        let theme = Theme::current(cx);
+        let theme = if self.control_ui.page.is_some() && self.settings_page.is_none() {
+            Theme::workspace(cx)
+        } else {
+            Theme::current(cx)
+        };
         let action = Rc::new(action);
         let click = action.clone();
         div()
@@ -930,7 +930,6 @@ impl Waku {
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.control_ui.remote.close();
         self.control_ui.resources.close();
-        self.control_ui.retention.close();
         self.control_ui.collector.close();
         self.settings_page = None;
         self.control_ui.preview.clear(cx);
@@ -982,11 +981,6 @@ impl Waku {
         self.refresh_workspace_control(cx);
         if page == Page::Apps {
             self.refresh_composio_apps(cx);
-        }
-        if page == Page::Usage {
-            self.refresh_cloud_budgets(cx);
-            self.reset_usage_ledger(cx);
-            self.start_usage_poll(cx);
         }
         if page == Page::Harnesses {
             self.refresh_provider_detection(None);
@@ -1480,8 +1474,6 @@ impl Waku {
             .flex_col()
             .gap(px(1.0));
         for (index, page) in [
-            Page::Dashboard,
-            Page::Inbox,
             Page::Decisions,
             Page::Tasks,
             Page::Projects,
@@ -1491,12 +1483,11 @@ impl Waku {
             Page::Artifacts,
             Page::Apps,
             Page::Harnesses,
-            Page::Usage,
         ]
         .into_iter()
         .enumerate()
         {
-            if index == 3 || index == 9 {
+            if index == 0 || index == 7 {
                 nav = nav.child(
                     div()
                         .mt(px(10.0))
@@ -1504,7 +1495,7 @@ impl Waku {
                         .px(px(8.0))
                         .text_size(sp(10.5))
                         .text_color(theme.text_tertiary)
-                        .child(if index == 3 { "WORK" } else { "WORKSPACE" }),
+                        .child(if index == 0 { "WORK" } else { "WORKSPACE" }),
                 );
             }
             let selected = self.control_ui.page == Some(page);
@@ -1559,14 +1550,22 @@ impl Waku {
         nav
     }
     pub(super) fn render_workspace_header(&self, page: Page, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
-        let mut actions = div().flex().items_center().gap(px(8.0));
+        let theme = Theme::workspace(cx);
+        let mut actions = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .justify_end()
+            .max_w(gpui::relative(1.0))
+            .gap(px(8.0));
+        if page == Page::Teams {
+            actions = actions.child(self.render_team_view_tabs(cx));
+        }
         let busy =
             self.control_ui.busy || self.control_ui.apps_busy || self.control_ui.activity_busy;
         actions = actions.child(
             self.control_button("workspace-refresh", "", cx, |this, _, cx| {
                 this.refresh_workspace_control(cx);
-                this.refresh_usage_ledger(cx);
                 if this.control_ui.page == Some(Page::Apps) {
                     this.refresh_composio_apps(cx);
                 }
@@ -1586,29 +1585,40 @@ impl Waku {
             _ => None,
         };
         if matches!(page, Page::Workflows | Page::Routines) {
-            actions = actions.child(self.control_button(
-                "automation-definitions",
-                "Definitions",
-                cx,
-                |this, _, cx| {
-                    this.control_ui.automation_history = false;
-                    this.control_ui.automation_selected = None;
-                    this.control_ui.activity_revision += 1;
-                    cx.notify();
-                },
-            ));
-            actions =
-                actions.child(
-                    self.control_button("automation-runs", "Runs", cx, |this, _, cx| {
-                        this.control_ui.automation_history = true;
+            actions = actions.child(
+                self.control_button(
+                    "automation-definitions",
+                    "Definitions",
+                    cx,
+                    |this, _, cx| {
+                        this.control_ui.automation_history = false;
                         this.control_ui.automation_selected = None;
-                        this.control_ui.automation_definition = None;
-                        this.control_ui.automation_after = None;
-                        this.control_ui.automation_previous.clear();
-                        this.refresh_team_activity(true, cx);
+                        this.control_ui.activity_revision += 1;
                         cx.notify();
-                    }),
-                );
+                    },
+                )
+                .bg(if !self.control_ui.automation_history {
+                    theme.overlay_strong
+                } else {
+                    gpui::transparent_black()
+                }),
+            );
+            actions = actions.child(
+                self.control_button("automation-runs", "Runs", cx, |this, _, cx| {
+                    this.control_ui.automation_history = true;
+                    this.control_ui.automation_selected = None;
+                    this.control_ui.automation_definition = None;
+                    this.control_ui.automation_after = None;
+                    this.control_ui.automation_previous.clear();
+                    this.refresh_team_activity(true, cx);
+                    cx.notify();
+                })
+                .bg(if self.control_ui.automation_history {
+                    theme.overlay_strong
+                } else {
+                    gpui::transparent_black()
+                }),
+            );
         }
         if let Some((kind, label)) = form {
             actions = actions.child(self.control_button(
@@ -1626,26 +1636,46 @@ impl Waku {
                 |this, _, cx| this.begin_control_form(FormKind::Agent, cx),
             ));
         }
+        if page == Page::Projects {
+            actions = actions.child(
+                self.control_button(
+                    "workspace-open-project",
+                    "Open folder",
+                    cx,
+                    |this, _, cx| this.add_project(cx),
+                )
+                .child(icon("icons/folder.svg", 14.0, theme.text_secondary)),
+            );
+        }
         div()
-            .h(px(48.0))
+            .w_full()
             .flex_none()
-            .px(px(24.0))
+            .pb(px(16.0))
             .border_b_1()
             .border_color(theme.border)
             .flex()
+            .flex_wrap()
             .items_center()
-            .justify_end()
+            .gap(px(20.0))
+            .text_color(theme.text)
+            .child(
+                div().flex_1().min_w(px(140.0)).flex().flex_col().child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.0))
+                        .child(icon(page.icon(), 18.0, theme.accent))
+                        .child(
+                            div()
+                                .text_size(sp(20.0))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(page.label()),
+                        ),
+                ),
+            )
             .child(actions)
     }
     fn control_rows(&self, page: Page, cx: &App) -> Vec<Row> {
-        if page == Page::Usage {
-            let rows = self.usage_rows();
-            return if rows.is_empty() {
-                vec![Row::Empty("No usage matches these filters")]
-            } else {
-                rows
-            };
-        }
         if page == Page::Inbox {
             let mut rows = self.inbox_history_rows();
             if rows.is_empty() {
@@ -1882,27 +1912,12 @@ impl Waku {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         if self.control_ui.preview.artifact.is_some() {
             return self.render_document_preview(cx);
         }
-        if page == Page::Artifacts && self.control_ui.retention.open {
-            return self.render_artifact_retention(cx);
-        }
-        if page == Page::Usage && self.control_ui.collector.request.is_some() {
-            return self.render_gpu_collector(cx);
-        }
-        if page == Page::Usage && self.control_ui.resources.open {
-            return self.render_command_resources(cx);
-        }
-        if page == Page::Usage && self.control_ui.remote.open {
-            return self.render_remote_executions(cx);
-        }
-        if page == Page::Usage && self.control_ui.billing.open {
-            return self.render_cloud_billing(cx);
-        }
-        if page == Page::Usage && self.control_ui.budgets.open {
-            return self.render_cloud_budgets(cx);
+        if page == Page::Artifacts {
+            return self.render_artifacts_page(window, cx);
         }
         if page == Page::Harnesses {
             return div()
@@ -1910,9 +1925,16 @@ impl Waku {
                 .flex_1()
                 .min_h_0()
                 .overflow_y_scroll()
-                .p(px(28.0))
-                .child(self.render_providers_settings(cx))
-                .child(self.render_models_speech_settings(cx))
+                .px(px(28.0))
+                .py(px(16.0))
+                .child(
+                    div()
+                        .w_full()
+                        .max_w(px(1280.0))
+                        .mx_auto()
+                        .child(self.render_providers_settings(cx))
+                        .child(self.render_models_speech_settings(cx)),
+                )
                 .into_any_element();
         }
         if let Some(stages) = self.control_ui.pending_stages.take() {
@@ -1941,6 +1963,7 @@ impl Waku {
         use std::hash::{Hash, Hasher};
         let mut key = std::collections::hash_map::DefaultHasher::new();
         page.hash(&mut key);
+        self.state.projects.len().hash(&mut key);
         self.control_ui.snapshot.revision.hash(&mut key);
         self.control_ui.activity_revision.hash(&mut key);
         self.control_ui.runs_tab.hash(&mut key);
@@ -2000,19 +2023,11 @@ impl Waku {
             .min_h_0()
             .flex()
             .flex_col()
-            .gap(px(14.0))
-            .p(px(24.0));
-        if page == Page::Artifacts {
-            content = content.child(self.control_button(
-                "artifact-storage",
-                "Manage storage",
-                cx,
-                |this, _, cx| this.open_artifact_retention(cx),
-            ));
-        }
-        if page == Page::Usage {
-            content = content.child(self.usage_toolbar(cx));
-        }
+            .w_full()
+            .max_w(px(1280.0))
+            .mx_auto()
+            .gap(px(16.0))
+            .child(self.render_workspace_header(page, cx));
         if page == Page::Inbox {
             content = content.child(self.render_inbox_toolbar(cx));
             if let Some(error) = &self.control_ui.inbox.error {
@@ -2048,7 +2063,7 @@ impl Waku {
                     .child(error.clone()),
             );
         }
-        if page == Page::Teams {
+        if page == Page::Teams && self.control_ui.runs_tab {
             content = content.child(self.render_team_activity_header(cx));
         }
         if matches!(page, Page::Workflows | Page::Routines) && self.control_ui.automation_history {
@@ -2180,44 +2195,80 @@ impl Waku {
         if matches!(page, Page::Inbox | Page::Dashboard) {
             content = content.child(self.render_team_collection_pages(cx));
         }
-        let collection = div()
-            .id("workspace-records")
-            .flex_1()
-            .min_h_0()
-            .relative()
-            .child(
-                list(self.control_ui.list.clone(), move |index, _, cx| {
-                    weak.upgrade()
-                        .map(|entity| {
-                            entity.update(cx, |this, cx| {
-                                this.render_control_row(rows[index].clone(), index, cx)
+        let collection = if rows.len() == 1 && matches!(rows[0], Row::Empty(_)) {
+            let Row::Empty(message) = rows[0] else {
+                unreachable!()
+            };
+            div()
+                .w_full()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .pb(px(64.0))
+                .gap(px(12.0))
+                .text_size(sp(14.0))
+                .text_color(theme.text_secondary)
+                .child(icon(page.icon(), 28.0, theme.text_tertiary))
+                .child(message)
+                .into_any_element()
+        } else {
+            div()
+                .id("workspace-records")
+                .w_full()
+                .flex_1()
+                .min_h_0()
+                .relative()
+                .child(
+                    list(self.control_ui.list.clone(), move |index, _, cx| {
+                        weak.upgrade()
+                            .map(|entity| {
+                                entity.update(cx, |this, cx| {
+                                    this.render_control_row(rows[index].clone(), index, cx)
+                                })
                             })
-                        })
-                        .unwrap_or_else(|| div().into_any_element())
-                })
-                .size_full(),
-            )
-            .child(scrollbar::vertical(
-                &self.control_ui.list,
-                &self.control_ui.scrollbar,
-            ));
+                            .unwrap_or_else(|| div().into_any_element())
+                    })
+                    .size_full(),
+                )
+                .child(scrollbar::vertical(
+                    &self.control_ui.list,
+                    &self.control_ui.scrollbar,
+                ))
+                .into_any_element()
+        };
         if self.control_ui.form.is_some() {
+            let show_collection = f32::from(window.viewport_size().width)
+                - self.sidebar_rendered_width
+                - self.right_panel_rendered_width
+                >= 900.0;
             content = content.child(
                 div()
                     .flex_1()
                     .min_h_0()
                     .flex()
                     .gap(px(24.0))
-                    .child(div().flex_1().min_w_0().child(collection))
+                    .when(show_collection, |row| {
+                        row.child(div().flex_1().min_w_0().child(collection))
+                    })
                     .child(self.render_control_form(window, cx)),
             );
         } else {
             content = content.child(collection);
         }
-        content.into_any_element()
+        div()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .px(px(28.0))
+            .py(px(16.0))
+            .child(content)
+            .into_any_element()
     }
     fn render_control_row(&self, row: Row, index: usize, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let mut body = div()
             .min_h(px(68.0))
             .py(px(12.0))
@@ -2230,7 +2281,6 @@ impl Waku {
         let (title, detail, icon_path) = match row {
             Row::Inbox(row) => return self.render_inbox_row(row, index, cx),
             Row::InboxEvent(entry) => return self.render_inbox_history_row(entry, cx),
-            Row::Usage(entry) => return self.render_usage_row(entry, cx),
             Row::Automation(run) => return self.render_automation_row(run, None, cx),
             Row::AutomationStage(run, index) => {
                 return self.render_automation_row(run, Some(index), cx);
@@ -2463,9 +2513,19 @@ impl Waku {
             }
             Row::Empty(message) => {
                 return div()
-                    .p(px(28.0))
+                    .py(px(40.0))
+                    .px(px(20.0))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(12.0))
                     .text_size(sp(14.0))
                     .text_color(theme.text_secondary)
+                    .child(icon(
+                        self.control_ui.page.unwrap_or(Page::Dashboard).icon(),
+                        28.0,
+                        theme.text_tertiary,
+                    ))
                     .child(message)
                     .into_any_element();
             }
@@ -2491,6 +2551,19 @@ impl Waku {
                     SessionStatus::Background => "Background",
                     SessionStatus::Failed => "Failed",
                 };
+                actions = actions.child(
+                    self.control_button(
+                        format!("remove-task-{id}"),
+                        "",
+                        cx,
+                        move |this, window, cx| this.request_remove_session(id, window, cx),
+                    )
+                    .size(px(32.0))
+                    .p_0()
+                    .justify_center()
+                    .tooltip(Tooltip::text("Remove chat"))
+                    .child(icon("icons/trash.svg", 14.0, theme.text_secondary)),
+                );
                 (
                     session.title.clone(),
                     format!("{} · {}", session.provider.display_name(), status),
@@ -2510,6 +2583,15 @@ impl Waku {
                         this.select_project(id, cx);
                     },
                 ));
+                actions = actions.child(
+                    self.control_button(
+                        format!("remove-project-{id}"),
+                        "Remove",
+                        cx,
+                        move |this, window, cx| this.request_remove_project(id, window, cx),
+                    )
+                    .child(icon("icons/trash.svg", 14.0, theme.text_secondary)),
+                );
                 (
                     project.name.clone(),
                     project.path.display().to_string(),
@@ -2721,7 +2803,17 @@ impl Waku {
             }
         };
         body = body
-            .child(icon(icon_path, 18.0, theme.accent))
+            .child(
+                div()
+                    .size(px(32.0))
+                    .flex_none()
+                    .rounded(px(7.0))
+                    .bg(theme.overlay)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon(icon_path, 18.0, theme.text_secondary)),
+            )
             .child(
                 div()
                     .flex_1()
@@ -2751,12 +2843,25 @@ impl Waku {
             .child(body)
             .into_any_element()
     }
-    fn render_control_form(&self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::current(cx);
+    fn render_control_form(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::workspace(cx);
         let kind = self.control_ui.form.unwrap();
         let mut form = div()
             .id("workspace-definition-editor")
-            .w(px(420.0))
+            .when(
+                f32::from(window.viewport_size().width)
+                    - self.sidebar_rendered_width
+                    - self.right_panel_rendered_width
+                    < 900.0,
+                |form| form.w_full(),
+            )
+            .when(
+                f32::from(window.viewport_size().width)
+                    - self.sidebar_rendered_width
+                    - self.right_panel_rendered_width
+                    >= 900.0,
+                |form| form.w(px(420.0)),
+            )
             .min_w(px(280.0))
             .h_full()
             .overflow_y_scroll()
@@ -3226,5 +3331,5 @@ fn control_field(
         .flex_col()
         .gap(px(6.0))
         .child(div().text_size(sp(12.5)).child(label))
-        .child(TextField::new(id.into(), input))
+        .child(TextField::new(id.into(), input).comfortable().w_full())
 }

@@ -58,7 +58,7 @@ fn attach_driver(
         supports_steer,
     } = response
     else {
-        anyhow::bail!("Waku daemon returned an invalid runtime attachment response");
+        anyhow::bail!("Ion daemon returned an invalid runtime attachment response");
     };
     let Some(runtime_id) = runtime_id else {
         return Ok(if session.team_assignment.is_some() {
@@ -97,7 +97,7 @@ fn load_remote_task_state(
         ..
     } = response
     else {
-        anyhow::bail!("Waku daemon returned an invalid task-state response");
+        anyhow::bail!("Ion daemon returned an invalid task-state response");
     };
     for session in &mut sessions {
         session.detail_loaded = false;

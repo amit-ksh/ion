@@ -94,7 +94,7 @@ impl Waku {
     }
     fn refresh_command_resources(&mut self, cx: &mut Context<Self>) {
         let ui = &mut self.control_ui.resources;
-        if !ui.open || ui.busy || self.control_ui.page != Some(Page::Usage) {
+        if !ui.open || ui.busy || self.settings_page != Some(SettingsPage::Usage) {
             return;
         }
         ui.clear();
@@ -113,7 +113,7 @@ impl Waku {
             }).await}).await;
             let _=this.update(cx,|this,cx| {
                 let ui=&mut this.control_ui.resources;
-                if !ui.open || ui.generation!=generation || ui.project!=project || this.control_ui.page!=Some(Page::Usage){return;}
+                if !ui.open || ui.generation!=generation || ui.project!=project || this.settings_page!=Some(SettingsPage::Usage){return;}
                 ui.busy=false;match result {Ok((rows,note))=>{ui.rows=Rc::new(rows);ui.note=Some(note);},Err(e)=>ui.error=Some(format!("Could not load command resources: {e}. Refresh to retry."))};cx.notify();
             });
         }).detach();
@@ -242,7 +242,7 @@ impl Waku {
             .flex()
             .flex_col()
             .gap(px(12.0))
-            .p(px(20.0));
+            .p_0();
         body=body.child(div().text_size(sp(18.0)).font_weight(FontWeight::SEMIBOLD).child("Command resources"))
             .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child("Approval limits apply to command allocations across runs. Compute stays held until a verified original result; storage remains held after command completion."));
         if ui.busy {

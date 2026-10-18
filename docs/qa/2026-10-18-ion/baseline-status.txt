@@ -1,0 +1,59 @@
+ M Cargo.lock
+ M Cargo.toml
+ M crates/waku-client/src/client.rs
+ M crates/waku-client/src/computer_use.rs
+ M crates/waku-client/src/persistence.rs
+ M crates/waku-client/src/process.rs
+ M crates/waku-client/src/workspace_client.rs
+ M crates/waku-core/src/codex_session.rs
+ M crates/waku-core/src/command_env.rs
+ M crates/waku-core/src/driver/mod.rs
+ M crates/waku-core/src/model.rs
+ M crates/waku-protocol/src/protocol.rs
+ M locales/app.yml
+ M locales/ja.yml
+ M locales/zh-CN.yml
+ M resources/windows/waku.iss
+ M src/app.rs
+ M src/app/composer.rs
+ M src/app/onboarding.rs
+ M src/app/render.rs
+ M src/app/runtime.rs
+ M src/app/sessions.rs
+ M src/app/settings.rs
+ M src/app/sidebar.rs
+ M src/app/usage_page.rs
+ M src/app/workspace_control.rs
+ M src/app/workspace_control/automation_ui.rs
+ M src/app/workspace_control/billing_ui.rs
+ M src/app/workspace_control/budget_ui.rs
+ M src/app/workspace_control/collector_ui.rs
+ M src/app/workspace_control/document_preview.rs
+ M src/app/workspace_control/inbox.rs
+ M src/app/workspace_control/remote_ui.rs
+ M src/app/workspace_control/resource_ui.rs
+ D src/app/workspace_control/retention_ui.rs
+ M src/app/workspace_control/routine_ui.rs
+ M src/app/workspace_control/team_activity.rs
+ M src/app/workspace_control/team_apps.rs
+ M src/app/workspace_control/team_integration.rs
+ M src/app/workspace_control/team_limits.rs
+ M src/app/workspace_control/team_recovery.rs
+ M src/app/workspace_control/usage_ui.rs
+ M src/app/workspace_control/workflow_ui.rs
+ M src/assets.rs
+ M src/daemon.rs
+ M src/lib.rs
+ M src/theme.rs
+ M src/ui/text_field.rs
+?? .agents/
+?? .lavish/
+?? assets/icons/mic.svg
+?? crates/waku-core/src/command_env/
+?? crates/waku-core/src/model/
+?? docs/ai-ide-plan/104-windows-harness-launch-and-workspace-ui.md
+?? docs/ai-ide-plan/105-neutral-workspace-and-artifact-library.md
+?? docs/ai-ide-plan/106-workspace-layout-and-settings-usage.md
+?? docs/video/
+?? skills-lock.json
+?? src/app/workspace_control/artifacts_ui.rs

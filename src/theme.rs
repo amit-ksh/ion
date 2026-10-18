@@ -91,6 +91,29 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// Neutral workspace surfaces do not change the chat, sidebar or settings palette.
+    pub fn workspace(cx: &App) -> Self {
+        let mut theme = Self::current(cx);
+        if theme.is_dark {
+            theme.surface = rgb(0x191A1C).into();
+            theme.raised = rgb(0x222326).into();
+            theme.inset = rgb(0x151618).into();
+            theme.text = rgb(0xF0F0F2).into();
+            theme.text_secondary = rgb(0xBFC0C5).into();
+            theme.text_tertiary = rgb(0xABADB4).into();
+            theme.text_ghost = rgb(0x9799A1).into();
+        } else {
+            theme.surface = rgb(0xF7F7F8).into();
+            theme.raised = rgb(0xFFFFFF).into();
+            theme.inset = rgb(0xEEEEF0).into();
+            theme.text = rgb(0x202126).into();
+            theme.text_secondary = rgb(0x55575F).into();
+            theme.text_tertiary = rgb(0x62646D).into();
+            theme.text_ghost = rgb(0x676973).into();
+        }
+        theme
+    }
+
     pub fn current(cx: &App) -> Self {
         if cx.has_global::<ActiveWakuTheme>() {
             cx.global::<ActiveWakuTheme>().0

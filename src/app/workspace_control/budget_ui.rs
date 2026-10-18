@@ -49,7 +49,7 @@ impl BudgetUi {
 }
 impl Waku {
     pub(super) fn refresh_cloud_budgets(&mut self, cx: &mut Context<Self>) {
-        if self.control_ui.page != Some(Page::Usage) || self.control_ui.budgets.busy {
+        if self.settings_page != Some(SettingsPage::Usage) || self.control_ui.budgets.busy {
             return;
         }
         let ui = &mut self.control_ui.budgets;
@@ -177,7 +177,7 @@ impl Waku {
         if !self.control_ui.budgets.editing
             || !self.control_ui.budgets.open
             || self.control_ui.busy
-            || self.control_ui.page != Some(Page::Usage)
+            || self.settings_page != Some(SettingsPage::Usage)
         {
             return;
         }
@@ -227,7 +227,7 @@ impl Waku {
     pub(super) fn render_cloud_budgets(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::current(cx);
         let ui = &self.control_ui.budgets;
-        let mut body=div().track_focus(&self.control_ui.focus).tab_group().flex_1().min_h_0().flex().flex_col().gap(px(14.0)).p(px(24.0))
+        let mut body=div().track_focus(&self.control_ui.focus).tab_group().flex_1().min_h_0().flex().flex_col().gap(px(14.0)).p_0()
    .child(div().flex().gap(px(8.0))
     .child(self.control_button("budget-usage","Usage",cx,|this,_,cx|{this.control_ui.budgets.open=false;cx.notify();}))
     .child(self.control_button("budget-new","New GPU budget",cx,|this,_,cx|this.begin_cloud_budget(None,cx)))

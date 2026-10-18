@@ -544,7 +544,7 @@ impl Waku {
             .flex()
             .flex_col()
             .gap(px(12.0))
-            .p(px(24.0))
+            .p_0()
             .child(
                 div()
                     .flex()

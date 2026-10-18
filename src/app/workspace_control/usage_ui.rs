@@ -2,6 +2,9 @@
 use super::*;
 use waku_client::usage_ledger::*;
 pub(super) struct UsageUi {
+    history: bool,
+    list: ListState,
+    scrollbar: Rc<ScrollbarState>,
     page: Option<Rc<UsageLedgerPage>>,
     rows: Rc<Vec<Rc<UsageRow>>>,
     busy: bool,
@@ -9,17 +12,11 @@ pub(super) struct UsageUi {
     polling: bool,
     error: Option<String>,
     project: Option<Uuid>,
-    task: Option<Uuid>,
-    agent: Option<Uuid>,
     provider: Option<ProviderKind>,
-    environment: Option<ExecutionEnvironment>,
-    kind: Option<UsageLedgerKind>,
-    model: String,
     since: Option<u64>,
     range: &'static str,
     after: Option<u64>,
     previous: Vec<Option<u64>>,
-    model_input: Entity<TextInput>,
 }
 pub(super) struct UsageRow {
     entry: UsageLedgerEntry,
@@ -29,8 +26,11 @@ pub(super) struct UsageRow {
     cost: String,
 }
 impl UsageUi {
-    pub(super) fn new(window: &mut Window, cx: &mut App) -> Self {
+    pub(super) fn new(_window: &mut Window, _cx: &mut App) -> Self {
         Self {
+            history: false,
+            list: ListState::new(0, ListAlignment::Top, px(128.0)),
+            scrollbar: ScrollbarState::new(),
             page: None,
             rows: Rc::new(vec![]),
             busy: false,
@@ -38,28 +38,22 @@ impl UsageUi {
             polling: false,
             error: None,
             project: None,
-            task: None,
-            agent: None,
             provider: None,
-            environment: None,
-            kind: None,
-            model: String::new(),
             since: None,
             range: "All time",
             after: None,
             previous: vec![],
-            model_input: cx.new(|cx| TextInput::new(window, cx).placeholder("All models")),
         }
     }
     fn query(&self) -> UsageLedgerQuery {
         UsageLedgerQuery {
             project_id: self.project,
-            task_id: self.task,
-            agent_id: self.agent,
+            task_id: None,
+            agent_id: None,
             provider: self.provider,
-            environment: self.environment,
-            kind: self.kind,
-            model: (!self.model.is_empty()).then(|| self.model.clone()),
+            environment: None,
+            kind: None,
+            model: None,
             since: self.since,
             after: self.after,
             limit: 32,
@@ -144,16 +138,6 @@ impl UsageRow {
         }
     }
 }
-#[derive(Clone, Copy)]
-enum Filter {
-    Project(Option<Uuid>),
-    Task(Option<Uuid>),
-    Agent(Option<Uuid>),
-    Provider(Option<ProviderKind>),
-    Environment(Option<ExecutionEnvironment>),
-    Kind(Option<UsageLedgerKind>),
-    Range(Option<u64>, &'static str),
-}
 impl Waku {
     pub(super) fn reset_usage_ledger(&mut self, cx: &mut Context<Self>) {
         let ui = &mut self.control_ui.usage;
@@ -161,6 +145,7 @@ impl Waku {
         ui.previous.clear();
         ui.page = None;
         ui.rows = Rc::new(vec![]);
+        ui.list.reset(0);
         ui.busy = false;
         ui.generation += 1;
         self.control_ui.activity_revision += 1;
@@ -177,12 +162,16 @@ impl Waku {
                 smol::Timer::after(Duration::from_secs(15)).await;
                 let keep = this
                     .update(cx, |this, cx| {
-                        if this.control_ui.page != Some(Page::Usage) {
+                        if this.settings_page != Some(SettingsPage::Usage) {
                             this.control_ui.usage.polling = false;
                             return false;
                         }
-                        this.refresh_cloud_budgets(cx);
-                        this.refresh_usage_ledger(cx);
+                        if this.control_ui.budgets.open {
+                            this.refresh_cloud_budgets(cx);
+                        }
+                        if !this.control_ui.usage.history && !this.usage_resource_open() {
+                            this.refresh_usage_ledger(cx);
+                        }
                         true
                     })
                     .unwrap_or(false);
@@ -194,7 +183,7 @@ impl Waku {
         .detach();
     }
     pub(super) fn refresh_usage_ledger(&mut self, cx: &mut Context<Self>) {
-        if self.control_ui.page != Some(Page::Usage) || self.control_ui.usage.busy {
+        if self.settings_page != Some(SettingsPage::Usage) || self.control_ui.usage.busy {
             return;
         }
         let query = self.control_ui.usage.query();
@@ -240,6 +229,10 @@ impl Waku {
                                 .collect(),
                         );
                         this.control_ui.usage.page = Some(Rc::new(page));
+                        this.control_ui
+                            .usage
+                            .list
+                            .reset(this.control_ui.usage.rows.len());
                         this.control_ui.usage.error = None;
                         this.control_ui.activity_revision += 1;
                     }
@@ -253,119 +246,154 @@ impl Waku {
         })
         .detach();
     }
-    pub(super) fn usage_rows(&self) -> Vec<Row> {
-        self.control_ui
-            .usage
-            .rows
-            .iter()
-            .cloned()
-            .map(Row::Usage)
-            .collect()
+
+    pub(in crate::app) fn open_usage_settings(&mut self, cx: &mut Context<Self>) {
+        if self.control_ui.usage.history {
+            self.ensure_usage_history(false, cx);
+        }
+        self.refresh_usage_ledger(cx);
+        self.start_usage_poll(cx);
     }
-    pub(super) fn usage_toolbar(&self, cx: &mut Context<Self>) -> Div {
+
+    pub(in crate::app) fn usage_settings_fills_viewport(&self) -> bool {
+        self.usage_resource_open()
+            || !self.control_ui.usage.history
+            || self.usage_view != UsageViewMode::Daily
+    }
+
+    fn usage_resource_open(&self) -> bool {
+        self.control_ui.collector.request.is_some()
+            || self.control_ui.resources.open
+            || self.control_ui.remote.open
+            || self.control_ui.billing.open
+            || self.control_ui.budgets.open
+    }
+
+    fn close_usage_resources(&mut self) {
+        self.control_ui.remote.close();
+        self.control_ui.resources.close();
+        self.control_ui.collector.close();
+        self.control_ui.billing.close();
+        self.control_ui.budgets.open = false;
+    }
+
+    pub(in crate::app) fn render_usage_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::current(cx);
-        let ui = &self.control_ui.usage;
-        let mut bar = div()
-            .flex()
-            .flex_col()
-            .gap(px(12.0))
-            .child(
-                self.control_button("usage-gpu-budgets", "GPU budgets", cx, |this, _, cx| {
-                    this.control_ui.budgets.open = true;
-                    this.refresh_cloud_budgets(cx);
-                    cx.notify();
-                }),
+        let mut tabs = div().flex().flex_wrap().items_center().gap(px(8.0));
+        for (history, label) in [(false, "Ion activity"), (true, "CLI history")] {
+            tabs = tabs.child(
+                self.control_button(
+                    format!("settings-usage-source-{history}"),
+                    label,
+                    cx,
+                    move |this, _, cx| {
+                        this.close_usage_resources();
+                        this.control_ui.usage.history = history;
+                        this.settings_scroll.set_offset(gpui::Point::default());
+                        this.open_usage_settings(cx);
+                        cx.notify();
+                    },
+                )
+                .bg(
+                    if self.control_ui.usage.history == history && !self.usage_resource_open() {
+                        theme.overlay_strong
+                    } else {
+                        gpui::transparent_black()
+                    },
+                ),
             );
-        bar = bar.child(self.control_button(
-            "usage-remote-executions",
-            "Remote executions",
-            cx,
-            |this, _, cx| this.open_remote_executions(cx),
-        ));
-        bar = bar.child(self.control_button(
-            "usage-cloud-billing",
-            "Cloud billing",
-            cx,
-            |this, _, cx| {
-                this.control_ui.billing.open = true;
-                this.refresh_cloud_billing(cx);
-                cx.notify();
+        }
+        let weak = cx.entity().downgrade();
+        let menu = self.menu_handle("usage-resource-menu", cx);
+        tabs = tabs.child(div().flex_1()).child(dropdown_menu(
+            self.control_button("usage-resources", "Resources", cx, |_, _, _| {})
+                .child(icon("icons/chevron-down.svg", 12.0, theme.text_secondary)),
+            "usage-resource-menu",
+            &menu,
+            MenuAlign::BelowRight,
+            move |_| {
+                [
+                    "GPU budgets",
+                    "Remote executions",
+                    "Cloud billing",
+                    "Command resources",
+                ]
+                .into_iter()
+                .enumerate()
+                .map(|(index, label)| {
+                    let weak = weak.clone();
+                    MenuItem::new(label, move |_, cx| {
+                        let _ = weak.update(cx, |this, cx| {
+                            this.close_usage_resources();
+                            match index {
+                                0 => {
+                                    this.control_ui.budgets.open = true;
+                                    this.refresh_cloud_budgets(cx);
+                                }
+                                1 => this.open_remote_executions(cx),
+                                2 => {
+                                    this.control_ui.billing.open = true;
+                                    this.refresh_cloud_billing(cx);
+                                }
+                                _ => this.open_command_resources(cx),
+                            }
+                            cx.notify();
+                        });
+                    })
+                })
+                .collect()
             },
         ));
-        bar = bar.child(self.control_button(
-            "usage-command-resources",
-            "Command resources",
-            cx,
-            |this, _, cx| this.open_command_resources(cx),
-        ));
-        let mut filters = div().flex().flex_wrap().gap(px(8.0));
-        let project = ui
-            .project
-            .and_then(|id| self.state.projects.iter().find(|p| p.id == id))
-            .map(|p| p.name.clone())
-            .unwrap_or_else(|| {
-                if ui.project.is_some() {
-                    "Selected project".into()
-                } else {
-                    "All projects".into()
-                }
-            });
-        let agent = ui
-            .agent
-            .and_then(|id| {
-                self.control_ui
-                    .snapshot
-                    .records
-                    .iter()
-                    .find_map(|r| match r {
-                        ControlRecord::Agent(a) if a.id == id => Some(a.name.clone()),
-                        _ => None,
-                    })
+        let content = if self.control_ui.collector.request.is_some() {
+            self.render_gpu_collector(cx)
+        } else if self.control_ui.resources.open {
+            self.render_command_resources(cx)
+        } else if self.control_ui.remote.open {
+            self.render_remote_executions(cx)
+        } else if self.control_ui.billing.open {
+            self.render_cloud_billing(cx)
+        } else if self.control_ui.budgets.open {
+            self.render_cloud_budgets(cx)
+        } else if self.control_ui.usage.history {
+            self.render_usage_history_settings(cx)
+        } else {
+            self.render_harness_activity(cx)
+        };
+        div()
+            .track_focus(&self.control_ui.focus)
+            .tab_group()
+            .mt(px(16.0))
+            .when(self.usage_settings_fills_viewport(), |e| {
+                e.flex_1().min_h_0()
             })
-            .unwrap_or_else(|| {
-                if ui.agent.is_some() {
-                    "Selected agent".into()
-                } else {
-                    "All agents".into()
-                }
-            });
-        let labels = [
-            project,
-            if ui.task.is_some() {
-                "Selected task"
-            } else {
-                "All tasks"
-            }
-            .into(),
-            agent,
-            ui.provider
-                .map(|p| p.display_name())
-                .unwrap_or("All harnesses")
-                .into(),
-            ui.environment
-                .map(|e| {
-                    if e == ExecutionEnvironment::Local {
-                        "Local"
-                    } else {
-                        "Nebius"
-                    }
-                })
-                .unwrap_or("All environments")
-                .into(),
-            ui.kind
-                .map(|k| match k {
-                    UsageLedgerKind::ModelCall => "Team model calls",
-                    UsageLedgerKind::SoloModelCall => "Task model calls",
-                    UsageLedgerKind::RemoteCommand => "Remote commands",
-                    UsageLedgerKind::GpuJob => "GPU jobs",
-                })
-                .unwrap_or("All usage")
-                .into(),
-            ui.range.into(),
-        ];
-        for (index, label) in labels.into_iter().enumerate() {
+            .flex()
+            .flex_col()
+            .gap(px(16.0))
+            .child(tabs)
+            .child(content)
+            .into_any_element()
+    }
+
+    fn render_harness_activity(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::current(cx);
+        let ui = &self.control_ui.usage;
+        let mut filters = div().flex().flex_wrap().items_center().gap(px(8.0));
+        for which in 0..3 {
+            let label = match which {
+                0 => ui
+                    .project
+                    .and_then(|id| self.state.projects.iter().find(|p| p.id == id))
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| "All projects".into()),
+                1 => ui
+                    .provider
+                    .map(|p| p.display_name())
+                    .unwrap_or("All harnesses")
+                    .into(),
+                _ => ui.range.into(),
+            };
+            let id = format!("settings-usage-filter-{which}");
             let weak = cx.entity().downgrade();
-            let id = format!("usage-filter-{index}");
             let menu = self.menu_handle(id.clone(), cx);
             filters = filters.child(dropdown_menu(
                 self.control_button(id.clone(), label, cx, |_, _, _| {})
@@ -379,218 +407,134 @@ impl Waku {
                     };
                     let this = entity.read(cx);
                     let ui = &this.control_ui.usage;
-                    let mut options: Vec<(String, Filter, bool)> = vec![];
-                    match index {
+                    let mut options: Vec<(String, Option<String>, bool)> = vec![];
+                    match which {
                         0 => {
-                            options.push((
-                                "All projects".into(),
-                                Filter::Project(None),
-                                ui.project.is_none(),
-                            ));
+                            options.push(("All projects".into(), None, ui.project.is_none()));
                             options.extend(this.state.projects.iter().map(|p| {
                                 (
                                     p.name.clone(),
-                                    Filter::Project(Some(p.id)),
+                                    Some(p.id.to_string()),
                                     ui.project == Some(p.id),
                                 )
                             }));
                         }
                         1 => {
-                            options.push((
-                                "All tasks".into(),
-                                Filter::Task(None),
-                                ui.task.is_none(),
-                            ));
-                            options.extend(
-                                this.state
-                                    .sessions
-                                    .iter()
-                                    .filter(|s| ui.project.is_none_or(|p| p == s.project_id))
-                                    .map(|s| {
-                                        (
-                                            s.display_title().into(),
-                                            Filter::Task(Some(s.id)),
-                                            ui.task == Some(s.id),
-                                        )
-                                    }),
-                            );
-                        }
-                        2 => {
-                            options.push((
-                                "All agents".into(),
-                                Filter::Agent(None),
-                                ui.agent.is_none(),
-                            ));
-                            options.extend(this.control_ui.snapshot.records.iter().filter_map(
-                                |r| {
-                                    if let ControlRecord::Agent(a) = r {
-                                        Some((
-                                            a.name.clone(),
-                                            Filter::Agent(Some(a.id)),
-                                            ui.agent == Some(a.id),
-                                        ))
-                                    } else {
-                                        None
-                                    }
-                                },
-                            ));
-                        }
-                        3 => {
-                            options.push((
-                                "All harnesses".into(),
-                                Filter::Provider(None),
-                                ui.provider.is_none(),
-                            ));
+                            options.push(("All harnesses".into(), None, ui.provider.is_none()));
                             options.extend(ProviderKind::ALL.into_iter().map(|p| {
                                 (
                                     p.display_name().into(),
-                                    Filter::Provider(Some(p)),
+                                    Some(p.id().to_owned()),
                                     ui.provider == Some(p),
                                 )
                             }));
                         }
-                        4 => {
-                            options.push((
-                                "All environments".into(),
-                                Filter::Environment(None),
-                                ui.environment.is_none(),
-                            ));
-                            for e in [
-                                ExecutionEnvironment::Local,
-                                ExecutionEnvironment::NebiusSandbox,
-                            ] {
-                                options.push((
-                                    if e == ExecutionEnvironment::Local {
-                                        "Local"
-                                    } else {
-                                        "Nebius"
-                                    }
-                                    .into(),
-                                    Filter::Environment(Some(e)),
-                                    ui.environment == Some(e),
-                                ));
-                            }
-                        }
-                        5 => {
-                            options.push((
-                                "All usage".into(),
-                                Filter::Kind(None),
-                                ui.kind.is_none(),
-                            ));
-                            for (k, name) in [
-                                (UsageLedgerKind::ModelCall, "Team model calls"),
-                                (UsageLedgerKind::SoloModelCall, "Task model calls"),
-                                (UsageLedgerKind::RemoteCommand, "Remote commands"),
-                                (UsageLedgerKind::GpuJob, "GPU jobs"),
-                            ] {
-                                options.push((
-                                    name.into(),
-                                    Filter::Kind(Some(k)),
-                                    ui.kind == Some(k),
-                                ));
-                            }
-                        }
                         _ => {
-                            for (hours, name) in [
+                            for (days, label) in [
                                 (None, "All time"),
-                                (Some(24), "Last 24 hours"),
-                                (Some(168), "Last 7 days"),
-                                (Some(720), "Last 30 days"),
+                                (Some(7), "Last 7 days"),
+                                (Some(30), "Last 30 days"),
+                                (Some(90), "Last 90 days"),
                             ] {
-                                let since = hours
-                                    .map(|h| crate::model::unix_time().saturating_sub(h * 3600));
                                 options.push((
-                                    name.into(),
-                                    Filter::Range(since, name),
-                                    ui.range == name,
+                                    label.into(),
+                                    days.map(|d| d.to_string()),
+                                    ui.range == label,
                                 ));
                             }
                         }
                     }
                     options
                         .into_iter()
-                        .map(|(name, filter, selected)| {
+                        .map(|(label, value, selected)| {
                             let weak = weak.clone();
-                            MenuItem::new(name, move |_, cx| {
+                            MenuItem::new(label.clone(), move |_, cx| {
                                 let _ = weak.update(cx, |this, cx| {
                                     let ui = &mut this.control_ui.usage;
-                                    match filter {
-                                        Filter::Project(v) => {
-                                            ui.project = v;
-                                            ui.task = None;
+                                    match which {
+                                        0 => {
+                                            ui.project = value
+                                                .as_deref()
+                                                .and_then(|v| Uuid::parse_str(v).ok())
                                         }
-                                        Filter::Task(v) => ui.task = v,
-                                        Filter::Agent(v) => ui.agent = v,
-                                        Filter::Provider(v) => ui.provider = v,
-                                        Filter::Environment(v) => ui.environment = v,
-                                        Filter::Kind(v) => ui.kind = v,
-                                        Filter::Range(v, name) => {
-                                            ui.since = v;
-                                            ui.range = name;
+                                        1 => {
+                                            ui.provider = value.as_deref().and_then(|v| {
+                                                ProviderKind::ALL.into_iter().find(|p| p.id() == v)
+                                            })
+                                        }
+                                        _ => {
+                                            ui.since = value
+                                                .as_deref()
+                                                .and_then(|v| v.parse::<u64>().ok())
+                                                .map(|days| {
+                                                    chrono::Utc::now().timestamp().max(0) as u64
+                                                        - days * 86400
+                                                });
+                                            ui.range = match value.as_deref() {
+                                                Some("7") => "Last 7 days",
+                                                Some("30") => "Last 30 days",
+                                                Some("90") => "Last 90 days",
+                                                _ => "All time",
+                                            };
                                         }
                                     }
                                     this.reset_usage_ledger(cx);
                                 });
                             })
                             .selected(selected)
+                            .into()
                         })
                         .collect()
                 },
             ));
         }
-        bar = bar.child(filters).child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(8.0))
-                .child(TextField::new("usage-model", ui.model_input.clone()).w(px(260.0)))
-                .child(self.control_button(
-                    "usage-model-apply",
-                    "Apply model",
-                    cx,
-                    |this, _, cx| {
-                        let model = this
-                            .control_ui
-                            .usage
-                            .model_input
-                            .read(cx)
-                            .content()
-                            .trim()
-                            .to_owned();
-                        if model.len() > 512 {
-                            this.control_ui.usage.error =
-                                Some("Model name exceeds 512 bytes".into());
-                            cx.notify();
-                            return;
-                        }
-                        this.control_ui.usage.model = model;
-                        this.reset_usage_ledger(cx);
-                    },
-                ))
-                .child(self.control_button(
-                    "usage-provider-history",
-                    "Provider history",
-                    cx,
-                    |this, window, cx| {
-                        this.open_settings_action(&OpenSettings, window, cx);
-                        this.open_settings_page(SettingsPage::Usage, cx);
-                    },
-                )),
+        filters = filters.child(div().flex_1()).child(
+            self.control_button("settings-usage-refresh", "", cx, |this, _, cx| {
+                this.refresh_usage_ledger(cx)
+            })
+            .size(px(32.0))
+            .p_0()
+            .justify_center()
+            .border_0()
+            .tooltip(Tooltip::text(if ui.busy {
+                "Refreshing usage"
+            } else {
+                "Refresh usage"
+            }))
+            .child(icon("icons/rotate-cw.svg", 16.0, theme.text_secondary)),
         );
+        let mut body=div().flex_1().min_h_0().flex().flex_col().gap(px(12.0)).child(filters)
+            .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
+                .child("Usage recorded by Ion across tasks and teams. Missing token counts and costs are unavailable."));
         if let Some(page) = &ui.page {
             let s = &page.summary;
-            bar=bar.child(div().text_size(sp(13.0)).text_color(theme.text).child(format!("{} records · {} model requests · {} input / {} output tokens · {} tokens reserved · {} requests awaiting usage",s.records,s.model_calls,s.input_tokens,s.output_tokens,s.reserved_tokens,s.unknown_calls)));
-            let mut costs = s
+            body = body.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(16.0))
+                    .text_size(sp(13.0))
+                    .text_color(theme.text)
+                    .child(format!("{} requests", s.model_calls))
+                    .child(format!(
+                        "{} input / {} output tokens",
+                        s.input_tokens, s.output_tokens
+                    ))
+                    .when(s.unknown_calls > 0, |e| {
+                        e.child(format!("{} requests awaiting usage", s.unknown_calls))
+                    }),
+            );
+            let costs = s
                 .costs
                 .iter()
                 .map(|c| {
                     format!(
-                        "{} {} ({})",
+                        "{} · {} · {}",
                         money(&c.amount),
-                        if c.quality == UsageCostQuality::Estimated {
-                            "estimated"
-                        } else {
+                        if c.quality == UsageCostQuality::Reported {
                             "reported"
+                        } else {
+                            "estimated"
                         },
                         if c.finality == UsageCostFinality::Final {
                             "final"
@@ -600,139 +544,165 @@ impl Waku {
                     )
                 })
                 .collect::<Vec<_>>();
-            costs.push(format!("{} costs unavailable", s.unknown_cost_records));
-            bar = bar.child(
+            body = body.child(
                 div()
                     .text_size(sp(12.5))
                     .text_color(theme.text_secondary)
-                    .child(costs.join(" · ")),
-            );
-            let mut paging = div().flex().gap(px(8.0));
-            if !ui.previous.is_empty() {
-                paging = paging.child(self.control_button(
-                    "usage-previous",
-                    "Previous",
-                    cx,
-                    |this, _, cx| {
-                        if this.control_ui.usage.busy {
-                            return;
-                        }
-                        if let Some(after) = this.control_ui.usage.previous.pop() {
-                            this.control_ui.usage.after = after;
-                            this.refresh_usage_ledger(cx);
-                        }
-                    },
-                ));
-            }
-            if let Some(next) = page.next_cursor {
-                paging = paging.child(self.control_button(
-                    "usage-next",
-                    "Next",
-                    cx,
-                    move |this, _, cx| {
-                        if this.control_ui.usage.busy {
-                            return;
-                        }
-                        this.control_ui
-                            .usage
-                            .previous
-                            .push(this.control_ui.usage.after);
-                        this.control_ui.usage.after = Some(next);
-                        this.refresh_usage_ledger(cx);
-                    },
-                ));
-            }
-            bar = bar.child(paging);
-        }
-        if ui.busy {
-            bar = bar.child(
-                div()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text_secondary)
-                    .child("Updating usage…"),
+                    .child(if costs.is_empty() {
+                        "Cost unavailable".into()
+                    } else {
+                        costs.join(" · ")
+                    })
+                    .when(s.unknown_cost_records > 0, |e| {
+                        e.child(format!(
+                            " · {} records without cost",
+                            s.unknown_cost_records
+                        ))
+                    }),
             );
         }
         if let Some(error) = &ui.error {
-            bar = bar.child(
+            body = body.child(
                 div()
                     .text_size(sp(13.0))
-                    .text_color(theme.text)
+                    .text_color(theme.danger)
                     .child(error.clone()),
             );
         }
-        bar
-    }
-    pub(super) fn render_usage_row(&self, row: Rc<UsageRow>, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::current(cx);
-        let task = row.entry.task_id;
-        let model = row.entry.model.clone();
-        let agent = row.entry.agent_id;
-        let mut actions = div().flex().gap(px(8.0)).child(self.control_button(
-            format!("usage-task-{}", row.entry.sequence),
-            "Open task",
-            cx,
-            move |this, _, cx| this.open_team_activity_task(task, cx),
-        ));
-        if let Some(model) = model {
-            actions = actions.child(self.control_button(
-                format!("usage-model-{}", row.entry.sequence),
-                "Filter model",
+        if ui.rows.is_empty() {
+            body = body.child(
+                div()
+                    .flex_1()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(12.0))
+                    .text_color(theme.text_secondary)
+                    .child(icon("icons/chart-column.svg", 28.0, theme.text_tertiary))
+                    .child(if ui.busy {
+                        "Loading harness activity…"
+                    } else {
+                        "No activity in this selection."
+                    }),
+            );
+        } else {
+            let rows = ui.rows.clone();
+            let weak = cx.entity().downgrade();
+            body = body.child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .relative()
+                    .child(
+                        list(ui.list.clone(), move |index, _, cx| {
+                            weak.upgrade()
+                                .map(|entity| {
+                                    entity.update(cx, |this, cx| {
+                                        this.render_harness_usage_row(rows[index].clone(), cx)
+                                    })
+                                })
+                                .unwrap_or_else(|| div().into_any_element())
+                        })
+                        .size_full(),
+                    )
+                    .child(scrollbar::vertical(&ui.list, &ui.scrollbar)),
+            );
+        }
+        let mut paging = div().flex().gap(px(8.0));
+        if !ui.previous.is_empty() {
+            paging = paging.child(self.control_button(
+                "settings-usage-previous",
+                "Previous",
+                cx,
+                |this, _, cx| {
+                    if this.control_ui.usage.busy {
+                        return;
+                    }
+                    if let Some(after) = this.control_ui.usage.previous.pop() {
+                        this.control_ui.usage.after = after;
+                        this.refresh_usage_ledger(cx);
+                    }
+                },
+            ));
+        }
+        if let Some(next) = ui.page.as_ref().and_then(|p| p.next_cursor) {
+            paging = paging.child(self.control_button(
+                "settings-usage-next",
+                "Next",
                 cx,
                 move |this, _, cx| {
-                    this.control_ui.usage.model = model.clone();
+                    if this.control_ui.usage.busy {
+                        return;
+                    }
                     this.control_ui
                         .usage
-                        .model_input
-                        .update(cx, |input, cx| input.set_content(model.clone(), cx));
-                    this.reset_usage_ledger(cx);
+                        .previous
+                        .push(this.control_ui.usage.after);
+                    this.control_ui.usage.after = Some(next);
+                    this.refresh_usage_ledger(cx);
                 },
             ));
         }
-        if let Some(agent) = agent {
-            actions = actions.child(self.control_button(
-                format!("usage-agent-{}", row.entry.sequence),
-                "Filter agent",
-                cx,
-                move |this, _, cx| {
-                    this.control_ui.usage.agent = Some(agent);
-                    this.reset_usage_ledger(cx);
-                },
-            ));
-        }
+        body.child(paging).into_any_element()
+    }
+
+    fn render_harness_usage_row(&self, row: Rc<UsageRow>, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::current(cx);
+        let task = row.entry.task_id;
+        let provider = row.entry.provider;
         div()
-            .px(px(24.0))
+            .w_full()
             .py(px(14.0))
             .border_b_1()
             .border_color(theme.border)
             .flex()
-            .flex_col()
-            .gap(px(8.0))
+            .gap(px(12.0))
+            .child(match provider {
+                Some(provider) => {
+                    crate::ui::provider_mark(&theme, provider, 20.0, theme.text_secondary)
+                        .into_any_element()
+                }
+                None => icon("icons/server.svg", 20.0, theme.text_secondary).into_any_element(),
+            })
             .child(
                 div()
-                    .text_size(sp(14.0))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme.text)
-                    .child(row.title.clone()),
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .child(
+                        div()
+                            .text_size(sp(13.5))
+                            .font_weight(FontWeight::MEDIUM)
+                            .truncate()
+                            .child(row.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(12.5))
+                            .text_color(theme.text_secondary)
+                            .child(row.detail.clone()),
+                    )
+                    .child(div().text_size(sp(12.5)).child(row.meter.clone()))
+                    .child(
+                        div()
+                            .text_size(sp(12.5))
+                            .text_color(theme.text_secondary)
+                            .child(row.cost.clone()),
+                    ),
             )
-            .child(
-                div()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text_secondary)
-                    .child(row.detail.clone()),
-            )
-            .child(
-                div()
-                    .text_size(sp(13.0))
-                    .text_color(theme.text)
-                    .child(row.meter.clone()),
-            )
-            .child(
-                div()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text_secondary)
-                    .child(row.cost.clone()),
-            )
-            .child(actions)
+            .child(self.control_button(
+                format!("settings-usage-task-{}", row.entry.sequence),
+                "Open task",
+                cx,
+                move |this, _, cx| {
+                    this.settings_page = None;
+                    this.open_team_activity_task(task, cx);
+                },
+            ))
             .into_any_element()
     }
 }

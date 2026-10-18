@@ -47,7 +47,7 @@ impl Waku {
         // from the previous page would land mid-content.
         self.settings_scroll.set_offset(gpui::Point::default());
         if page == SettingsPage::Usage {
-            self.ensure_usage_history(false, cx);
+            self.open_usage_settings(cx);
         }
         if page == SettingsPage::Skills {
             self.ensure_skills_catalog(false, cx);
@@ -159,7 +159,7 @@ impl Waku {
         cx.notify();
     }
 
-    pub(super) fn render_usage_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_usage_history_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::current(cx);
         let pending = self.usage_history_pending_for.is_some();
         let expected = self.effective_usage_window();

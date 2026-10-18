@@ -4,6 +4,8 @@ use std::path::Path;
 
 pub use waku_protocol::model::*;
 
+mod codex_binary;
+
 pub fn provider_probe(provider: ProviderKind, binary_override: Option<&str>) -> ProviderProbe {
     if provider == ProviderKind::Nebius {
         return ProviderProbe {
@@ -14,9 +16,13 @@ pub fn provider_probe(provider: ProviderKind, binary_override: Option<&str>) -> 
             agent_presets: Vec::new(),
         };
     }
-    let path = match binary_override {
-        Some(binary) => crate::command_env::resolve_binary_override(binary),
-        None => crate::command_env::find_executable(provider.command()),
+    let path = if provider == ProviderKind::Codex {
+        codex_binary::resolve(binary_override)
+    } else {
+        match binary_override {
+            Some(binary) => crate::command_env::resolve_binary_override(binary),
+            None => crate::command_env::find_executable(provider.command()),
+        }
     };
     ProviderProbe {
         provider,

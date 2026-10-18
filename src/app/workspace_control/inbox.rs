@@ -232,7 +232,7 @@ impl Waku {
         );
     }
     pub(super) fn render_inbox_toolbar(&self, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let mut bar = div().flex().flex_wrap().items_center().gap(px(8.0));
         for policy_menu in [false, true] {
             let id = if policy_menu {
@@ -333,7 +333,7 @@ impl Waku {
         index: usize,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let state = &row.state;
         let label = if state.archived {
             "Archived"

@@ -166,6 +166,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "loader-circle",
     "lock",
     "lock-open",
+    "mic",
     "package",
     "panel-left",
     "panel-right",
@@ -250,5 +251,21 @@ impl AssetSource for Assets {
             .filter(|(name, _)| name.starts_with(path))
             .map(|(name, _)| SharedString::from(*name))
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn microphone_icon_is_embedded_for_dictation_and_onboarding() {
+        let bytes = Assets
+            .load("icons/mic.svg")
+            .unwrap()
+            .expect("missing mic icon");
+        let svg = std::str::from_utf8(bytes.as_ref()).unwrap();
+        assert!(svg.contains("currentColor"));
+        assert!(svg.contains("<path"));
     }
 }

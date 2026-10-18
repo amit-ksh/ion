@@ -2979,8 +2979,9 @@ impl Waku {
                                 .tab_index(0)
                                 .tab_stop(true)
                                 .focus_visible(|style| style.border_color(theme.accent))
-                                .min_h(px(28.0))
-                                .px(px(9.0))
+                                .size(px(32.0))
+                                .flex_none()
+                                .justify_center()
                                 .rounded(px(7.0))
                                 .border_1()
                                 .border_color(if self.speech_recording {
@@ -2994,18 +2995,28 @@ impl Waku {
                                 .text_color(theme.text)
                                 .tooltip(Tooltip::text(if self.speech_recording {
                                     "Stop recording and finalize transcript"
-                                } else {
-                                    "Use your configured speech service, or local Nemotron 3.5"
-                                }))
-                                .child(if self.speech_recording {
-                                    "Stop dictation"
                                 } else if self.speech_busy && self.speech_stop_tx.is_some() {
-                                    "Finalizing…"
+                                    "Finalizing dictation…"
                                 } else if self.speech_busy {
-                                    "Preparing speech…"
+                                    "Preparing dictation…"
                                 } else {
-                                    "Dictate"
-                                })
+                                    "Dictate with your microphone"
+                                }))
+                                .child(icon(
+                                    if self.speech_recording {
+                                        "icons/stop.svg"
+                                    } else if self.speech_busy {
+                                        "icons/loader-circle.svg"
+                                    } else {
+                                        "icons/mic.svg"
+                                    },
+                                    16.0,
+                                    if self.speech_recording {
+                                        theme.accent
+                                    } else {
+                                        theme.text_secondary
+                                    },
+                                ))
                                 .on_click(
                                     cx.listener(|this, _, _, cx| this.toggle_speech_recording(cx)),
                                 )

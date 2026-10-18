@@ -286,7 +286,7 @@ impl Waku {
         stage: Option<usize>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let id = run.id;
         let revision = run.revision;
         let mut actions = div().flex().items_center().gap(px(8.0));

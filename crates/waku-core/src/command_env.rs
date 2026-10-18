@@ -11,6 +11,10 @@ use std::fs::{self, OpenOptions};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+#[path = "command_env/working_directory.rs"]
+mod working_directory;
+pub use working_directory::validate_working_directory;
+
 #[cfg(unix)]
 use std::ffi::CStr;
 #[cfg(unix)]
@@ -111,6 +115,9 @@ fn detach_console(command: &mut Command) {
 /// provider-side async process reapers. The caller's mask is restored as soon
 /// as the child has been created.
 pub fn spawn(command: &mut Command) -> io::Result<Child> {
+    if let Some(directory) = command.get_current_dir() {
+        validate_working_directory(directory)?;
+    }
     detach_console(command);
     with_sigchld_unblocked(|| command.spawn())
 }
@@ -246,6 +253,17 @@ pub fn find_executable(name: &str) -> Option<PathBuf> {
     executable_search_paths()
         .into_iter()
         .find_map(|directory| resolve_executable_file(&directory.join(name)))
+}
+
+/// All matching launchers in search order, so a different program with the
+/// same name cannot hide a compatible provider later on PATH.
+pub(crate) fn find_executables(name: &str) -> Vec<PathBuf> {
+    let mut seen = HashSet::new();
+    executable_search_paths()
+        .into_iter()
+        .filter_map(|directory| resolve_executable_file(&directory.join(name)))
+        .filter(|path| seen.insert(path.clone()))
+        .collect()
 }
 
 /// On Windows, try the path with each `PATHEXT` suffix first, then accept
@@ -836,7 +854,7 @@ fn os_string_from_bytes(bytes: &[u8]) -> Option<OsString> {
     }
 }
 
-fn wait_for_child(child: &mut Child, timeout: Duration) -> io::Result<ExitStatus> {
+pub(crate) fn wait_for_child(child: &mut Child, timeout: Duration) -> io::Result<ExitStatus> {
     let started_at = Instant::now();
     loop {
         match child.try_wait() {
@@ -903,6 +921,19 @@ impl Drop for ShellEnvironmentCapture {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spawn_reports_an_unavailable_workspace_before_starting_the_provider() {
+        let directory = std::env::temp_dir()
+            .join(format!("ion-launch-missing-{}", std::process::id()))
+            .join("absent");
+        let mut command = command(std::env::current_exe().unwrap());
+        command.current_dir(&directory);
+        let error = spawn(&mut command).unwrap_err();
+        assert!(error.to_string().contains(&directory.display().to_string()));
+        assert!(error.to_string().contains("New Task"));
+        assert!(!directory.exists());
+    }
 
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;

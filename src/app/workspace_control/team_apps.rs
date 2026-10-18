@@ -66,7 +66,7 @@ impl Waku {
         cx.notify();
     }
     pub(super) fn render_agent_app_grants(&self, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let mut panel = div().flex().flex_col().gap(px(10.0)).child(
             div()
                 .text_size(sp(12.5))

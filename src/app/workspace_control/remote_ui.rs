@@ -82,7 +82,7 @@ impl Waku {
     }
     fn refresh_remote_executions(&mut self, cx: &mut Context<Self>) {
         let ui = &mut self.control_ui.remote;
-        if !ui.open || ui.busy || self.control_ui.page != Some(Page::Usage) {
+        if !ui.open || ui.busy || self.settings_page != Some(SettingsPage::Usage) {
             return;
         }
         ui.busy = true;
@@ -115,7 +115,7 @@ impl Waku {
                 if ui.generation != generation
                     || !ui.open
                     || ui.query() != requested
-                    || this.control_ui.page != Some(Page::Usage)
+                    || this.settings_page != Some(SettingsPage::Usage)
                 {
                     return;
                 }
@@ -364,7 +364,7 @@ impl Waku {
                 this.reset_remote_executions(cx);
             },
         ));
-        let mut body=div().track_focus(&self.control_ui.focus).tab_group().flex_1().min_h_0().flex().flex_col().gap(px(12.0)).p(px(24.0)).child(bar)
+        let mut body=div().track_focus(&self.control_ui.focus).tab_group().flex_1().min_h_0().flex().flex_col().gap(px(12.0)).p_0().child(bar)
    .child(div().text_size(sp(18.0)).text_color(theme.text).child("Remote executions"))
    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child("Saved sandbox and GPU records. Open a run to stop work or verify its original operation. Terminal receipts do not settle billing."));
         if ui.busy {

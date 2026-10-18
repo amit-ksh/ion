@@ -323,7 +323,7 @@ impl Waku {
         cx.notify();
     }
     pub(super) fn render_routine_schedule(&self, cx: &mut Context<Self>) -> Div {
-        let theme = Theme::current(cx);
+        let theme = Theme::workspace(cx);
         let r = &self.control_ui.routine;
         let weak = cx.entity().downgrade();
         let selected = r.frequency;
