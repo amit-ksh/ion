@@ -1,0 +1,24 @@
+[
+  {
+    "platform": "windows",
+    "name": "Windows",
+    "format": "EXE installer",
+    "version": "0.1.24",
+    "architecture": "x86_64",
+    "bytes": 33373298,
+    "sha256": "f93bf64cfa4aa6b8e557749bb892bfebb9268eca2f123723cbc20a92fff46c23",
+    "url": null,
+    "notes": "Local build verified on disk. Public hosting is not configured; this version is not a promise that the latest source changes are included."
+  },
+  {
+    "platform": "android",
+    "name": "Android",
+    "format": "APK · Android 7.0+",
+    "version": "1.0.0",
+    "architecture": "arm64-v8a",
+    "bytes": 53387237,
+    "sha256": "caeffe3ab395478d90a3b5d87035561fa6e131d16ccd3dd51eb0c39eabf103a0",
+    "url": null,
+    "notes": "Local test build, signed with a test certificate. Physical-device testing is pending. May predate recent cloud and authentication changes. Connect to your configured desktop daemon or personal gateway."
+  }
+]

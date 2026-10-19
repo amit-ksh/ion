@@ -83,53 +83,19 @@
     --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
 }
 
-/* Monochrome provider logos, tinted by the current text color. */
+/* Monochrome provider logos, tinted by current text color */
 .provider-mark {
   display: inline-block;
   background-color: currentColor;
@@ -139,4 +105,86 @@
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: center;
   -webkit-mask-size: contain;
+}
+
+/* Ion / Nebius palette — strictly light mode with restrained lime-green accents */
+:root {
+  --ion-lime: #c4f25c;
+  --ion-lime-hover: #b4e34a;
+  --ion-lime-tint: #f4fce3;
+  --ion-lime-border: #d9f99d;
+  --ion-ink: #141f0c;
+  --muted-foreground: #4b5563;
+  --ring: #65a30d;
+}
+
+html {
+  scroll-padding-top: 5rem;
+  color-scheme: light;
+}
+
+::selection {
+  background: var(--ion-lime);
+  color: var(--ion-ink);
+}
+
+/* Dot grid background texture inspired by technical IDE landing pages */
+.dot-grid {
+  background-image: radial-gradient(#d1d5db 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+.glow-lime {
+  box-shadow: 0 0 50px -10px rgba(196, 242, 92, 0.45);
+}
+.ion-site :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.ion-site a { text-underline-offset: 4px; }
+.ion-mark {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: currentColor;
+  mask: url('/ion.svg') center / contain no-repeat;
+  -webkit-mask: url('/ion.svg') center / contain no-repeat;
+}
+footer .ion-mark { width: 20px; height: 20px; }
+.nav-link, .text-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.nav-link { padding: 0 8px; }
+.nav-link:hover, .text-link:hover { text-decoration: underline; }
+.ion-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--ion-lime);
+  color: var(--ion-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.ion-button:hover { background: #b4e34a; }
+.ion-button:disabled { background: var(--muted); color: var(--muted-foreground); cursor: not-allowed; border: 1px solid var(--border); }
+.skip-link { position: fixed; top: 12px; left: 12px; transform: translateY(-160%); z-index: 100; padding: 12px 18px; background: var(--ion-lime); color: var(--ion-ink); }
+.skip-link:focus { transform: translateY(0); }
+.work-sequence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+.work-sequence li { min-width: 0; }
+.sequence-icon { display: inline-flex; margin-bottom: 20px; color: var(--foreground); }
+.sequence-icon svg { width: 24px; height: 24px; stroke-width: 1.5; }
+.work-sequence h3 { font-size: 18px; font-weight: 500; }
+.work-sequence p { margin-top: 10px; font-size: 14px; line-height: 1.7; color: var(--muted-foreground); }
+.feature-row { display: grid; grid-template-columns: 1fr 1.45fr; gap: 40px; padding: 28px 0; }
+.nebius-panel { border-top: 3px solid var(--ion-lime); padding-top: 28px; }
+.download-panel { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+@media (max-width: 639px) {
+  .work-sequence { grid-template-columns: 1fr; gap: 28px; }
+  .sequence-icon { margin-bottom: 10px; }
+  .feature-row { grid-template-columns: 1fr; gap: 10px; }
+  .download-panel { padding: 22px; }
 }

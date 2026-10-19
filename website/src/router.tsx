@@ -20,7 +20,7 @@ export function getRouter() {
     defaultPreload: 'intent',
   })
 
-  setupRouterSsrQueryIntegration({ router, queryClient })
+  setupRouterSsrQueryIntegration({ router: router as any, queryClient })
 
   return router
 }

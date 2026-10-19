@@ -9,10 +9,11 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import appCss from '@/styles.css?url'
 
-const SITE_URL = 'https://waku.sh'
-const TITLE = 'Waku — one native app for all your coding agents'
+// Set only when an Ion domain has actually been chosen.
+const SITE_URL = import.meta.env.VITE_ION_SITE_URL?.replace(/\/$/, '')
+const TITLE = 'Ion — a workspace for coding agents, teams and workflows'
 const DESCRIPTION =
-  'A fast, native app for local coding agents. Amp, Claude Code, Codex, Cursor, OpenCode, Grok, and Pi — one timeline, entirely on your machine.'
+  'Bring coding harnesses, hierarchical agent teams, connected apps, workflows and document artifacts together in Ion. Explore Windows and Android release details.'
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -26,40 +27,23 @@ export const Route = createRootRouteWithContext<{
       { property: 'og:title', content: TITLE },
       { property: 'og:description', content: DESCRIPTION },
       { property: 'og:type', content: 'website' },
-      { property: 'og:url', content: SITE_URL },
-      { property: 'og:image', content: `${SITE_URL}/og-icon.png` },
+      ...(SITE_URL ? [
+        { property: 'og:url', content: SITE_URL },
+        { property: 'og:image', content: `${SITE_URL}/og-icon.png` },
+      ] : []),
+      { property: 'og:site_name', content: 'Ion' },
       { name: 'twitter:card', content: 'summary' },
       {
         name: 'theme-color',
-        media: '(prefers-color-scheme: light)',
         content: '#ffffff',
-      },
-      {
-        name: 'theme-color',
-        media: '(prefers-color-scheme: dark)',
-        content: '#1e1e1e',
       },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon.png' },
+      { rel: 'icon', type: 'image/svg+xml', href: '/ion-favicon.svg' },
+      { rel: 'icon', type: 'image/png', href: '/favicon.png' },
       { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
-    ],
-    scripts: [
-      {
-        // Mirror the system color scheme onto <html> before first paint.
-        children: `try{var m=matchMedia('(prefers-color-scheme: dark)'),d=document.documentElement,s=function(){d.classList.toggle('dark',m.matches)};s();m.addEventListener('change',s)}catch(e){}`,
-      },
-      // Analytics, production builds only.
-      ...(import.meta.env.PROD
-        ? [
-            {
-              defer: true,
-              src: 'https://u.egoist.dev/script.js',
-              'data-website-id': '5dc2da71-cd6e-4862-8d60-e1cfb782f54f',
-            },
-          ]
-        : []),
+      ...(SITE_URL ? [{ rel: 'canonical', href: SITE_URL }] : []),
     ],
   }),
   component: RootComponent,
