@@ -90,11 +90,11 @@ export async function loadTaskState(client: WakuClient): Promise<TaskState> {
 export async function transcribePhoneWav(
   client: WakuClient,
   bytes: string,
-  language: 'auto' | 'en-US' | 'hi-IN' = 'auto',
+  language: 'auto' | 'en-US' = 'auto',
 ): Promise<string> {
   const result = expectResponse(
     await client.request({ type: 'transcribeWav', language, bytes }, undefined, undefined, {
-      timeoutMs: 150_000,
+      timeoutMs: 750_000,
     }),
     'transcript',
   );

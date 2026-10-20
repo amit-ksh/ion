@@ -159,7 +159,7 @@ export function Composer({
   onPrefillSignalHandled?: () => void
 }) {
   const { t } = useI18n()
-  const { client, config } = useDaemon()
+  const { client, config, phase } = useDaemon()
   const queryClient = useQueryClient()
   const {
     sendPrompt,
@@ -180,9 +180,9 @@ export function Composer({
   const composerFiles = useComposerFiles(cwd)
   const composerCommands = useComposerCommands(session.provider, cwd)
   const [prompt, setPrompt] = useState(initialComposerDraft?.text ?? '')
-  const [goalDialog, setGoalDialog] = useState<{ prefill: string | null; replace: boolean } | null>(
-    null,
-  )
+  const [goalDialog, setGoalDialog] = useState<{ prefill: string | null
+    replace: boolean } | null>(
+    null)
   const [attachments, setAttachments] = useState<MessageAttachment[]>(
     () => initialComposerDraft?.attachments ?? [],
   )
@@ -192,7 +192,8 @@ export function Composer({
   const [branchPending, setBranchPending] = useState(false)
   const [inputFocused, setInputFocused] = useState(false)
   const [cursor, setCursor] = useState(() => (initialComposerDraft?.text ?? '').length)
-  const [autocompleteSelection, setAutocompleteSelection] = useState({ key: '', index: 0 })
+  const [autocompleteSelection, setAutocompleteSelection] = useState({ key: '', index: 0,
+  })
   const [dismissedAutocomplete, setDismissedAutocomplete] = useState<string | null>(null)
   const [escapeStopArm, setEscapeStopArm] = useState<EscapeStopArm | null>(null)
   const composerInput = useRef<HTMLTextAreaElement>(null)
@@ -203,7 +204,7 @@ export function Composer({
   const draftChange = useRef(onComposerDraftChange)
   draftChange.current = onComposerDraftChange
   const busy = ['connecting', 'working', 'waiting', 'background'].includes(session.status)
-  const legacyReadOnly = session.provider !== 'nebius'
+  const legacyReadOnly = session.provider !== 'nebius' && !session.team_assignment
   const runningTurnId = [...session.turns].reverse().find((turn) => turn.status === 'running')?.id
   const escapeStopTarget = `${session.id}:${runningTurnId ?? ''}`
   const escapeStopArmed = busy && isEscapeStopArmed(escapeStopArm, escapeStopTarget, Date.now())
@@ -214,7 +215,9 @@ export function Composer({
     ?? probe.data?.models.find((model) => model.is_default)
     ?? probe.data?.models[0]
   const hasDraft = Boolean(prompt.trim() || attachments.length)
-  const canSteer = !legacyReadOnly && busy && session.status !== 'connecting' && runtime?.supportsSteer
+  const canSteer = !legacyReadOnly &&
+    !session.team_assignment &&
+    busy && session.status !== 'connecting' && runtime?.supportsSteer
   const workspace = session.workspace ?? { kind: 'local' as const }
   const projectChoices = selectableProjects(projects, project)
   const projectless = isProjectlessProject(project)
@@ -233,18 +236,61 @@ export function Composer({
   const autocompleteKey = autocompleteTrigger
     ? `${autocompleteTrigger.kind}:${autocompleteTrigger.start}:${autocompleteTrigger.end}:${autocompleteTrigger.query}`
     : null
+  const referenceCatalog = useQuery({
+    queryKey: ['daemon', config?.address ?? 'disconnected', 'composer-references'],
+    enabled: Boolean(
+      client &&
+      phase === 'connected' &&
+      autocompleteTrigger &&
+      autocompleteTrigger.kind !== 'command',
+    ),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [controlResult, appsResult] = await Promise.allSettled([
+        client!.request({ type: 'loadWorkspaceControl' }),
+        client!.request({
+          type: 'workspace',
+          operation: { type: 'listComposerApps' },
+        }),
+      ])
+      if (controlResult.status !== 'fulfilled' || controlResult.value.type !== 'workspaceControl')
+        throw new Error('Could not load teams. Reconnect and try again.')
+      const apps =
+        appsResult.status === 'fulfilled' &&
+        appsResult.value.type === 'workspace' &&
+        appsResult.value.result.type === 'composerApps'
+          ? appsResult.value.result.apps
+          : null
+      return {
+        teams: controlResult.value.snapshot.records.filter((item) => item.kind === 'team'),
+        apps: apps ?? [],
+        warning: apps === null ? 'Apps unavailable. Check connections in Apps, then retry.' : null,
+      }
+    },
+  })
   const autocompleteRows = autocompleteTrigger
     ? composerAutocompleteRows(
         autocompleteTrigger,
         availableCommands,
         composerFiles.data ?? [],
+        64,
+        {
+          teams: referenceCatalog.data?.teams ?? [],
+          apps: referenceCatalog.data?.apps ?? [],
+          allowTeams: true,
+          invokeTeams: autocompleteTrigger.start === 0 && !sessionHasStarted(session),
+        },
       )
     : []
   const autocompleteLoading = autocompleteTrigger?.kind === 'command'
     ? composerCommands.isPending || composerCommands.isFetching
-    : autocompleteTrigger?.kind === 'file'
-      ? composerFiles.isPending || composerFiles.isFetching
-      : false
+    : Boolean(
+          autocompleteTrigger &&
+          (referenceCatalog.isFetching ||
+            (autocompleteTrigger.kind === 'file' &&
+              (composerFiles.isPending || composerFiles.isFetching))),
+        )
+
   const autocompleteVisible = Boolean(
     autocompleteKey
       && autocompleteKey !== dismissedAutocomplete
@@ -268,7 +314,7 @@ export function Composer({
       clearEscapeStop()
       return
     }
-    setEscapeStopArm((current) => current?.target === escapeStopTarget ? current : null)
+    setEscapeStopArm((current) => (current?.target === escapeStopTarget ? current : null))
   }, [busy, escapeStopTarget])
 
   useEffect(() => {
@@ -295,9 +341,10 @@ export function Composer({
       if (escapeStopTimer.current !== null) window.clearTimeout(escapeStopTimer.current)
       setEscapeStopArm(press.arm)
       escapeStopTimer.current = window.setTimeout(() => {
-        setEscapeStopArm((current) => sameEscapeStopArm(current, press.arm) ? null : current)
+        setEscapeStopArm((current) => (sameEscapeStopArm(current, press.arm) ? null : current))
         escapeStopTimer.current = null
-      }, Math.max(0, press.arm.expiresAt - Date.now()))
+      }, Math.max(0, press.arm.expiresAt - Date.now()),
+      )
     }
     window.addEventListener('keydown', onEscape)
     return () => window.removeEventListener('keydown', onEscape)
@@ -305,7 +352,8 @@ export function Composer({
 
   useEffect(() => () => {
     if (escapeStopTimer.current !== null) window.clearTimeout(escapeStopTimer.current)
-  }, [])
+  }, [],
+  )
   const autocompleteHighlight = autocompleteSelection.key === autocompleteKey
     ? Math.min(autocompleteSelection.index, Math.max(0, autocompleteRows.length - 1))
     : 0
@@ -367,14 +415,15 @@ export function Composer({
     if (expanded === null) return undefined
     return [
       expanded,
-      submittedAttachments.map((attachment) => `@${attachment.mention}`).join(' '),
-    ].filter(Boolean).join(' ')
+      submittedAttachments.map((attachment) => `@${attachment.mention}`).join(' ')].filter(Boolean).join(' ')
   }
 
   function executeLocalComposerCommand(submittedPrompt = prompt): boolean {
-    return executeResumeCommand(submittedPrompt)
+    return (
+      executeResumeCommand(submittedPrompt)
       || executeFastModeToggle(submittedPrompt)
       || executeGoalCommand(submittedPrompt)
+    )
   }
 
   function clearComposerDraft() {
@@ -422,10 +471,12 @@ export function Composer({
         setGoalDialog({ prefill: null, replace: false })
         break
       case 'pause':
-        dispatchGoal({ kind: 'set', objective: null, status: 'paused', replace: false })
+        dispatchGoal({ kind: 'set', objective: null, status: 'paused', replace: false,
+        })
         break
       case 'resume':
-        dispatchGoal({ kind: 'set', objective: null, status: 'active', replace: false })
+        dispatchGoal({ kind: 'set', objective: null, status: 'active', replace: false,
+        })
         break
       case 'clear':
         dispatchGoal({ kind: 'clear' })
@@ -481,7 +532,7 @@ export function Composer({
     } catch (error) {
       if (cleared && mounted.current) {
         setPrompt((current) => current || submittedPrompt)
-        setAttachments((current) => current.length ? current : submittedAttachments)
+        setAttachments((current) => (current.length ? current : submittedAttachments))
       }
       toast.error(errorMessage(error))
     } finally {
@@ -514,7 +565,7 @@ export function Composer({
     } catch (error) {
       if (cleared && mounted.current) {
         setPrompt((current) => current || submittedPrompt)
-        setAttachments((current) => current.length ? current : submittedAttachments)
+        setAttachments((current) => (current.length ? current : submittedAttachments))
       }
       toast.error(errorMessage(error))
     } finally {
@@ -545,7 +596,8 @@ export function Composer({
       if (!mounted.current) return false
       setAttachments((current) => current.some((attachment) => attachment.mention === imported.mention)
         ? current
-        : [...current, imported])
+        : [...current, imported],
+      )
       return true
     } catch (error) {
       toast.error(errorMessage(error))
@@ -556,7 +608,8 @@ export function Composer({
   }
 
   function savePatch(patch: Partial<AgentSession>) {
-    const next = { ...session, ...patch, updated_at: Math.floor(Date.now() / 1_000) }
+    const next = { ...session, ...patch, updated_at: Math.floor(Date.now() / 1_000),
+    }
     if (config && next.model) {
       const storage = browserComposerPreferenceStorage()
       const preferences = rememberComposerSession(
@@ -672,8 +725,7 @@ export function Composer({
             onSubmit={(answers) => respondUserInput(
               session.id,
               userInput.requestId,
-              answers,
-            )}
+              answers)}
           />
         )}
 
@@ -730,7 +782,8 @@ export function Composer({
                 </Button>
               )}
             </section>
-          ) : <section
+          ) : (
+            <section
             className="rounded-[13px] border bg-card p-2.5 focus-within:border-input"
             onDragOver={(event) => {
               event.preventDefault()
@@ -780,7 +833,9 @@ export function Composer({
             className="mt-2 flex min-w-0 items-center gap-1 pb-px text-[11.5px] leading-[14px]"
             onMouseDown={preserveComposerFocusOnMouseDown}
           >
-            <ModelPicker
+                {!session.team_assignment && (
+                  <>
+                    <ModelPicker
               currentProbe={probe.data}
               openSignal={modelPickerSignal}
               onOpenSignalHandled={onModelPickerSignalHandled}
@@ -788,7 +843,8 @@ export function Composer({
               session={session}
               onChange={(provider, model) => {
                 const preferences = config
-                  ? readComposerPreferences(browserComposerPreferenceStorage(), config.address)
+                  ? readComposerPreferences(browserComposerPreferenceStorage(), config.address,
+                            )
                   : null
                 const remembered = preferences
                   ? rememberedModelTraits(preferences, provider, model.id)
@@ -826,7 +882,9 @@ export function Composer({
               session={session}
               onOpen={() => setGoalDialog({ prefill: null, replace: false })}
             />
-            <div className="flex-1" />
+            </>
+                )}
+                <div className="flex-1" />
             <div className="flex items-center gap-2">
               {busy && (
                 <Button
@@ -837,8 +895,11 @@ export function Composer({
                   onClick={stopTurn}
                 >
                   {escapeStopArmed
-                    ? <span className="text-[10px] font-semibold">Esc</span>
-                    : <WakuIcon className="size-[18px]" name="stopFilled" />}
+                    ? (
+                        <span className="text-[10px] font-semibold">Esc</span>
+                      ) : (
+                        <WakuIcon className="size-[18px]" name="stopFilled" />
+                      )}
                 </Button>
               )}
               <Button
@@ -880,9 +941,27 @@ export function Composer({
               )}
             </div>
             </div>
-          </section>}
+          </section>
+          )}
         </div>
 
+        <p className="px-3 pb-1 text-[11px] text-[var(--text-secondary)]">
+          @ files, teams &amp; apps · @@ AI teams · @@@ apps
+        </p>
+        {referenceCatalog.data?.warning &&
+          autocompleteTrigger &&
+          autocompleteTrigger.kind !== 'command' && (
+            <p role="status" className="px-3 text-xs text-[var(--text-secondary)]">
+              {referenceCatalog.data.warning}
+            </p>
+          )}
+        {referenceCatalog.error &&
+          autocompleteTrigger &&
+          autocompleteTrigger.kind !== 'command' && (
+            <p role="alert" className="px-3 text-xs text-[var(--text-secondary)]">
+              Could not load mentions. Reconnect and type @ again.
+            </p>
+          )}
         {filePickerOpen && (
           <DaemonFilePicker
             root={cwd}
@@ -931,21 +1010,24 @@ export function Composer({
                   id: item.id,
                   label: item.name,
                   selected: item.id === session.project_id,
-                  onSelect: () => savePatch({ project_id: item.id, workspace: { kind: 'local' } }),
+                  onSelect: () => savePatch({ project_id: item.id, workspace: { kind: 'local' },
+                    }),
                 })),
               ...(onAddProject ? [{
                 id: 'new-project',
                 label: t('project.new_project'),
                 icon: 'folderNew' as const,
                 onSelect: onAddProject,
-              }] : []),
+              },
+                  ] : []),
               ...(onProjectless ? [{
                 id: 'projectless',
                 label: t('project.no_project'),
                 icon: 'x' as const,
                 selected: projectless,
                 onSelect: projectless ? () => {} : onProjectless,
-              }] : []),
+              },
+                  ] : []),
             ]}
             label={projectless ? t('project.choose_project') : projectName}
             menuClassName="w-56"
@@ -957,8 +1039,10 @@ export function Composer({
             disabled={busy || sessionHasStarted(session)}
             icon={workspaceLocal ? 'laptop' : 'fork'}
             items={[
-              { id: 'local', section: t('workspace.work_in'), label: t('workspace.local'), icon: 'laptop', selected: workspaceLocal, onSelect: () => savePatch({ workspace: { kind: 'local' } }) },
-              { id: 'newWorktree', section: t('workspace.work_in'), label: t('workspace.new_worktree'), icon: 'fork', disabled: projectless, selected: !workspaceLocal, onSelect: () => savePatch({ workspace: { kind: 'newWorktree' } }) },
+              { id: 'local', section: t('workspace.work_in'), label: t('workspace.local'), icon: 'laptop', selected: workspaceLocal, onSelect: () => savePatch({ workspace: { kind: 'local' } }),
+              },
+              { id: 'newWorktree', section: t('workspace.work_in'), label: t('workspace.new_worktree'), icon: 'fork', disabled: projectless, selected: !workspaceLocal, onSelect: () => savePatch({ workspace: { kind: 'newWorktree' } }),
+              },
             ]}
             label={workspaceLabel}
             returnFocus={composerInput}
@@ -1052,9 +1136,10 @@ function UserInputPanel({
         const custom = customAnswers[item.id]?.trim()
         return {
           questionId: item.id,
-          answers: custom ? [custom] : selections[item.id] ?? [],
+          answers: custom ? [custom] : (selections[item.id] ?? []),
         }
-      }))
+      }),
+      )
     } catch (error) {
       toast.error(errorMessage(error))
       setSubmitting(false)
@@ -1116,7 +1201,8 @@ function UserInputPanel({
         )}
       >
         <WakuIcon
-          className={cn('size-3 shrink-0 text-[var(--text-ghost)]', custom.trim() && 'text-primary')}
+          className={cn('size-3 shrink-0 text-[var(--text-ghost)]', custom.trim() && 'text-primary',
+          )}
           name="pencil"
         />
         <input
@@ -1195,7 +1281,11 @@ function ComposerAutocomplete({
               className="size-full outline-none"
               computeItemKey={(_, row) => row.kind === 'command'
                 ? `command:${row.command.scope}:${row.command.name}`
-                : `file:${row.file.path}`}
+                : row.kind === 'team'
+                ? `team:${row.team.id}`
+                : row.kind === 'app'
+                  ? `app:${row.app.slug}`
+                  : `file:${row.file.path}`}
               data={rows}
               fixedItemHeight={30}
               increaseViewportBy={90}
@@ -1232,8 +1322,11 @@ function AutocompleteRowContents({ row }: { row: ComposerAutocompleteRow }) {
     return (
       <>
         {command.scope === 'Skill'
-          ? <WakuIcon className="size-3 text-[var(--text-tertiary)]" name="sparkle" />
-          : <WakuIcon className="size-3 text-[var(--text-tertiary)]" name="command" />}
+          ? (
+          <WakuIcon className="size-3 text-[var(--text-tertiary)]" name="sparkle" />
+        ) : (
+          <WakuIcon className="size-3 text-[var(--text-tertiary)]" name="command" />
+        )}
         <span className="max-w-[260px] shrink-0 truncate text-[12px] font-medium">
           /{command.name}
         </span>
@@ -1252,6 +1345,21 @@ function AutocompleteRowContents({ row }: { row: ComposerAutocompleteRow }) {
     )
   }
 
+  if (row.kind === 'team' || row.kind === 'app')
+    return (
+      <>
+        <WakuIcon
+          className="size-[13px] text-[var(--text-secondary)]"
+          name={row.kind === 'team' ? 'fork' : 'package'}
+        />
+        <span className="min-w-0 flex-1 truncate text-[12px]">
+          {row.kind === 'team' ? row.team.name : row.app.name}
+        </span>
+        <span className="text-[11px] text-[var(--text-secondary)]">
+          {row.kind === 'team' ? 'Team' : 'Connected app'}
+        </span>
+      </>
+    )
   const trimmedLength = row.file.path.replace(/\/+$/u, '').length
   const nameStart = row.file.path.lastIndexOf('/', Math.max(0, trimmedLength - 1)) + 1
   const name = row.file.path.slice(nameStart)
@@ -1259,8 +1367,11 @@ function AutocompleteRowContents({ row }: { row: ComposerAutocompleteRow }) {
   return (
     <>
       {row.file.is_dir
-        ? <WakuIcon className="size-[13px] text-[var(--text-tertiary)]" name="folder" />
-        : <FileTypeIcon className="size-[13px]" path={row.file.path} />}
+        ? (
+        <WakuIcon className="size-[13px] text-[var(--text-tertiary)]" name="folder" />
+      ) : (
+        <FileTypeIcon className="size-[13px]" path={row.file.path} />
+      )}
       <span className="max-w-[300px] shrink-0 truncate text-[12px]">{name}</span>
       {parent && (
         <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-ghost)]">
@@ -1293,7 +1404,8 @@ function ComposerAttachmentTile({
       .then((value) => active && setSource(value))
       .catch(() => active && setSource(null))
     return () => { active = false }
-  }, [attachment.blob_reference, attachment.is_image, attachment.name, attachment.path, client, config?.address, phase])
+  }, [attachment.blob_reference, attachment.is_image, attachment.name, attachment.path, client, config?.address, phase,
+  ])
 
   const contents = attachment.is_image && source ? (
     <PreviewableImage
@@ -1305,8 +1417,11 @@ function ComposerAttachmentTile({
   ) : (
     <div className="flex size-full flex-col items-center justify-center gap-[5px] px-[5px]">
       {attachment.is_dir
-        ? <WakuIcon className="size-4 text-[var(--text-tertiary)]" name="folder" />
-        : <FileTypeIcon className="size-4" path={attachment.mention || attachment.name} />}
+        ? (
+          <WakuIcon className="size-4 text-[var(--text-tertiary)]" name="folder" />
+        ) : (
+          <FileTypeIcon className="size-4" path={attachment.mention || attachment.name} />
+        )}
       {!attachment.is_image && (
         <span className="w-full truncate text-center text-[8.5px] text-[var(--text-tertiary)]">
           {attachment.name}
@@ -1416,21 +1531,22 @@ function ModelTraitsControl({
   const effort = session.reasoning_effort
     && model.reasoning_efforts.some((option) => option.id === session.reasoning_effort)
     ? session.reasoning_effort
-    : model.default_reasoning_effort ?? model.reasoning_efforts[0]?.id ?? null
+    : (model.default_reasoning_effort ?? model.reasoning_efforts[0]?.id ?? null)
   const effortOption = model.reasoning_efforts.find((option) => option.id === effort)
   const effortLabel = effortOption && modelOptionLabel(effortOption.id, effortOption.label, t)
   const tier = session.service_tier
     && (session.service_tier === 'default' || model.service_tiers.some((option) => option.id === session.service_tier))
     ? session.service_tier
-    : model.default_service_tier ?? 'default'
+    : (model.default_service_tier ?? 'default')
   const tierLabel = tier === 'default'
     ? t('models.standard')
-    : modelOptionLabel(tier, model.service_tiers.find((option) => option.id === tier)?.label ?? tier, t)
+    : modelOptionLabel(tier, model.service_tiers.find((option) => option.id === tier)?.label ?? tier, t,
+        )
   const fast = tier === 'fast' || tierLabel.toLowerCase() === 'fast'
   const contextWindow = session.context_window
     && model.context_windows.some((option) => option.id === session.context_window)
     ? session.context_window
-    : model.default_context_window ?? model.context_windows[0]?.id ?? null
+    : (model.default_context_window ?? model.context_windows[0]?.id ?? null)
   // A non-default window changes cost and capacity, so it reads on the trigger.
   const windowOption = contextWindow && contextWindow !== model.default_context_window
     ? model.context_windows.find((option) => option.id === contextWindow)
@@ -1480,7 +1596,8 @@ function ModelTraitsControl({
       caret={false}
       icon={fast ? 'zap' : undefined}
       items={items}
-      label={windowLabel ? `${effortLabel ?? tierLabel} · ${windowLabel}` : effortLabel ?? tierLabel}
+      label={windowLabel ? `${effortLabel ?? tierLabel} · ${windowLabel}` : (effortLabel ?? tierLabel)
+      }
       menuClassName="w-56"
       returnFocus={returnFocus}
     />
@@ -1532,10 +1649,14 @@ const ACCESS_MODES: Array<{
   descriptionKey: string
   icon: 'lock' | 'pencil' | 'sparkle' | 'lockOpen'
 }> = [
-  { id: 'ask', labelKey: 'mode.supervised', descriptionKey: 'mode.supervised_description', icon: 'lock' },
-  { id: 'autoAcceptEdits', labelKey: 'mode.auto_accept_edits', descriptionKey: 'mode.auto_accept_edits_description', icon: 'pencil' },
-  { id: 'auto', labelKey: 'mode.auto', descriptionKey: 'mode.auto_description', icon: 'sparkle' },
-  { id: 'fullAccess', labelKey: 'mode.full_access', descriptionKey: 'mode.full_access_description', icon: 'lockOpen' },
+  { id: 'ask', labelKey: 'mode.supervised', descriptionKey: 'mode.supervised_description', icon: 'lock',
+  },
+  { id: 'autoAcceptEdits', labelKey: 'mode.auto_accept_edits', descriptionKey: 'mode.auto_accept_edits_description', icon: 'pencil',
+  },
+  { id: 'auto', labelKey: 'mode.auto', descriptionKey: 'mode.auto_description', icon: 'sparkle',
+  },
+  { id: 'fullAccess', labelKey: 'mode.full_access', descriptionKey: 'mode.full_access_description', icon: 'lockOpen',
+  },
 ]
 
 function AccessControl({
@@ -1686,13 +1807,14 @@ function BranchPicker({
   const input = useRef<HTMLInputElement>(null)
   const plannedWorktree = workspace.kind === 'newWorktree'
   const selected = workspace.kind === 'newWorktree'
-    ? workspace.baseBranch ?? snapshot.default_branch ?? snapshot.current ?? snapshot.detached_head
-    : workspace.kind === 'worktree'
-      ? snapshot.current ?? workspace.branch ?? snapshot.detached_head
-      : snapshot.current ?? snapshot.detached_head
+    ? (workspace.baseBranch ?? snapshot.default_branch ?? snapshot.current ?? snapshot.detached_head)
+      : workspace.kind === 'worktree'
+      ? (snapshot.current ?? workspace.branch ?? snapshot.detached_head)
+        : (snapshot.current ?? snapshot.detached_head)
   const normalized = query.trim().toLowerCase()
   const visible = [...snapshot.branches]
-    .filter((branch) => normalized.split(/\s+/).filter(Boolean).every((part) => branch.name.toLowerCase().includes(part)))
+    .filter((branch) => normalized.split(/\s+/).filter(Boolean).every((part) => branch.name.toLowerCase().includes(part)),
+    )
     .sort((left, right) => {
       if (left.name === selected) return -1
       if (right.name === selected) return 1
@@ -1700,7 +1822,8 @@ function BranchPicker({
     })
   const actions = [
     ...visible
-      .filter((branch) => plannedWorktree || !branch.checked_out_elsewhere || branch.name === selected)
+      .filter((branch) => plannedWorktree || !branch.checked_out_elsewhere || branch.name === selected,
+      )
       .map((branch) => ({ kind: 'branch' as const, branch })),
     ...(!plannedWorktree ? [{ kind: 'create' as const }] : []),
   ]
@@ -1744,7 +1867,7 @@ function BranchPicker({
         }}
       >
         <WakuIcon className="size-[11px] text-[var(--text-tertiary)]" name="gitBranch" />
-        <span className="truncate">{pending ? t('branches.switching') : selected ?? t('branches.detached_head')}</span>
+        <span className="truncate">{pending ? t('branches.switching') : (selected ?? t('branches.detached_head'))}</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner
@@ -1757,7 +1880,7 @@ function BranchPicker({
           <Popover.Popup
             aria-label={t('branches.choose')}
             className="waku-popover-surface flex max-h-[390px] w-[360px] flex-col overflow-hidden rounded-[13px] outline-none"
-            finalFocus={(closeType) => closeType === 'keyboard' ? true : returnFocus.current}
+            finalFocus={(closeType) => (closeType === 'keyboard' ? true : returnFocus.current)}
             initialFocus={input}
             role="dialog"
             onKeyDown={(event) => {
@@ -1771,11 +1894,11 @@ function BranchPicker({
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault()
                 if (!actions.length) return
-                setActive((current) => (
+                setActive((current) =>
                   event.key === 'ArrowDown'
                     ? (current + 1) % actions.length
-                    : (current - 1 + actions.length) % actions.length
-                ))
+                    : (current - 1 + actions.length) % actions.length,
+                )
               } else if (event.key === 'Home') {
                 event.preventDefault()
                 setActive(0)
@@ -1833,7 +1956,8 @@ function BranchPicker({
                   )}
                   {visible.map((branch) => {
                     const disabledBranch = branch.checked_out_elsewhere && !plannedWorktree && branch.name !== selected
-                    const actionIndex = actions.findIndex((action) => action.kind === 'branch' && action.branch.name === branch.name)
+                    const actionIndex = actions.findIndex((action) => action.kind === 'branch' && action.branch.name === branch.name,
+                    )
                     return (
                       <button
                         className={cn(
@@ -1850,7 +1974,9 @@ function BranchPicker({
                       >
                         <WakuIcon className="size-3 text-[var(--text-tertiary)]" name="gitBranch" />
                         <span className="min-w-0 flex-1 truncate">{branch.name}</span>
-                        {branch.name === selected && <WakuIcon className="size-[11px] text-[var(--text-tertiary)]" name="check" />}
+                        {branch.name === selected && (
+                          <WakuIcon className="size-[11px] text-[var(--text-tertiary)]" name="check" />
+                        )}
                       </button>
                     )
                   })}
@@ -1888,8 +2014,7 @@ const PLAN_USAGE_PROVIDERS: AgentSession['provider'][] = [
   'claude',
   'codex',
   'openCode',
-  'grok',
-]
+  'grok']
 
 function UsageMeter({
   session,
@@ -1908,10 +2033,10 @@ function UsageMeter({
   const { client, config } = useDaemon()
   const settings = useDaemonSettings()
   const [open, setOpen] = useState(false)
-  const usageShortcut = usePrimaryShortcut('⌘U', 'Ctrl+U')
+  const usageShortcut = usePrimaryShortcut('âŒ˜U', 'Ctrl+U')
   const context = session.context_usage
   const contextPercent = context?.window
-    ? context.tokens * 100 / context.window
+    ? (context.tokens * 100) / context.window
     : null
   const supportsPlanUsage = PLAN_USAGE_PROVIDERS.includes(session.provider)
   const plan = useQuery({
@@ -1932,7 +2057,8 @@ function UsageMeter({
     ? t('usage.refresh_failed', { error })
     : contextPercent == null
       ? t('usage.shortcut', { shortcut: usageShortcut })
-      : t('usage.context_used', { percent: contextPercent.toFixed(0), shortcut: usageShortcut })
+      : t('usage.context_used', { percent: contextPercent.toFixed(0), shortcut: usageShortcut,
+        })
 
   return (
     <Popover.Root modal={false} open={open} onOpenChange={setOpen}>
@@ -1957,7 +2083,7 @@ function UsageMeter({
           <Popover.Popup
             aria-label={t('settings.usage')}
             className="waku-popover-surface flex w-80 flex-col gap-3 rounded-[10px] p-3.5 text-xs text-popover-foreground outline-none"
-            finalFocus={(closeType) => closeType === 'keyboard' ? true : returnFocus.current}
+            finalFocus={(closeType) => (closeType === 'keyboard' ? true : returnFocus.current)}
             initialFocus={false}
             role="dialog"
           >
@@ -1969,7 +2095,9 @@ function UsageMeter({
                 : formatTokens(context?.tokens ?? 0)}
             />
             {(plan.data || plan.isFetching || error) && <div className="h-px bg-border" />}
-            {plan.data && <PlanUsageLanes locale={locale} plan={plan.data} provider={session.provider} t={t} />}
+            {plan.data && (
+              <PlanUsageLanes locale={locale} plan={plan.data} provider={session.provider} t={t} />
+            )}
             {plan.isFetching && supportsPlanUsage && <UsageSkeleton t={t} />}
             {error && (
               <div className="space-y-1 text-[11px]">
@@ -2133,7 +2261,8 @@ function resetLabel(resetsAt: number, locale: string, t: Translator) {
     weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(new Date(resetsAt * 1_000)) })
+  }).format(new Date(resetsAt * 1_000)),
+  })
 }
 
 function formatTokens(tokens: number) {

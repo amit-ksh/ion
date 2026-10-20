@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { openDatabase, type DatabaseSource, type SqlDatabase, type Binding as SQLQueryBindings } from "./database";
 import { createHash, randomUUID } from 'node:crypto';
 
 import type { AutomationDefinition, AutomationRunSummary, AutomationProjection, AutomationAction, AutomationSubmission, AutomationCommand, AutomationOwner } from '../../waku-client/src/gateway-automation';
@@ -70,9 +70,9 @@ export function validateAction(value: unknown): asserts value is AutomationActio
 /** A bounded metadata mirror. Only the registered publisher can claim a command;
  * claiming commits uncertainty before the daemon sees any potentially billable action. */
 export class DurableAutomationRelay {
-  private readonly db: Database;
-  constructor(path: string, private readonly now: () => number = Date.now) {
-    this.db = new Database(path, { create: true, strict: true });
+  private readonly db: SqlDatabase;
+  constructor(path: DatabaseSource, private readonly now: () => number = Date.now) {
+    this.db = openDatabase(path);
     this.db.run('PRAGMA busy_timeout = 5000'); this.db.run('PRAGMA synchronous = FULL');
     this.db.run('CREATE TABLE IF NOT EXISTS relay_automation_owners (publisher_id TEXT PRIMARY KEY, body TEXT NOT NULL, published_at INTEGER NOT NULL)');
     this.db.run('CREATE TABLE IF NOT EXISTS relay_automation_commands (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, publisher_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(device_id, idempotency_key))');
@@ -80,9 +80,7 @@ export class DurableAutomationRelay {
   }
   close(): void { this.db.close(true); }
   private write<T>(operation: () => T): T {
-    this.db.run('BEGIN IMMEDIATE');
-    try { const result = operation(); this.db.run('COMMIT'); return result; }
-    catch (error) { this.db.run('ROLLBACK'); throw error; }
+    return this.db.atomic(operation);
   }
   publish(publisherId: string, value: unknown): void {
     if (!id(publisherId)) throw new Error('Invalid owner');

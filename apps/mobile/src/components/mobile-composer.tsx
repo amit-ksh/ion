@@ -4,11 +4,11 @@ import type {
   PendingPermission,
   PendingUserInput,
   UserInputAnswer,
-} from '@waku/client';
-import * as DocumentPicker from 'expo-document-picker';
-import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+} from "@waku/client";
+import * as DocumentPicker from "expo-document-picker";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -17,40 +17,40 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppSymbol } from './app-symbol';
-import { AttachmentTile } from './attachment-tile';
-import { ComposerAccessMenu } from './composer-access-menu';
-import { ComposerContextPicker } from './composer-context-picker';
-import { useComposerLocalCommands } from './composer-command-sheets';
+import { AppSymbol } from "./app-symbol";
+import { AttachmentTile } from "./attachment-tile";
+import { ComposerAccessMenu } from "./composer-access-menu";
+import { ComposerContextPicker } from "./composer-context-picker";
+import { useComposerLocalCommands } from "./composer-command-sheets";
 import {
   ComposerAddMenu,
   type ComposerAttachmentSource,
-} from './composer-add-menu';
-import { ComposerTextInput } from './composer-text-input';
-import type { ComposerTextInputProps } from './composer-text-input.types';
-import { GlassSurface, liquidGlass } from './glass-surface';
-import { ModelTraitsSheet } from './session-option-sheets';
-import { PhoneDictationControl } from './phone-dictation-control';
-import { LiveDictationPreview } from '@/components/live-dictation-preview';
-import { MonoFont, NativeTint, Radius } from '@/constants/theme';
-import { useProviderModels, useTaskState } from '@/hooks/use-daemon-data';
-import { useComposerPicker } from '@/hooks/use-composer-picker';
-import { useSyncedComposerDraft } from '@/hooks/use-synced-composer-draft';
-import { useTheme } from '@/hooks/use-theme';
+} from "./composer-add-menu";
+import { ComposerTextInput } from "./composer-text-input";
+import type { ComposerTextInputProps } from "./composer-text-input.types";
+import { GlassSurface, liquidGlass } from "./glass-surface";
+import { ModelTraitsSheet } from "./session-option-sheets";
+import { PhoneDictationControl } from "./phone-dictation-control";
+import { LiveDictationPreview } from "@/components/live-dictation-preview";
+import { MonoFont, NativeTint, Radius } from "@/constants/theme";
+import { useProviderModels, useTaskState } from "@/hooks/use-daemon-data";
+import { useComposerPicker } from "@/hooks/use-composer-picker";
+import { useSyncedComposerDraft } from "@/hooks/use-synced-composer-draft";
+import { useTheme } from "@/hooks/use-theme";
 import {
   importLocalAttachment,
   localFileName,
   type LocalAttachmentFile,
-} from '@/lib/attachments';
-import { useDaemon } from '@/lib/daemon-context';
-import { sessionBusy, sessionCwd } from '@/lib/mobile-runtime';
-import { composerProviderPrompt } from '@/lib/composer-completion';
-import { modelHasConfigurableTraits } from '@/lib/model-traits';
-import { useRuntime } from '@/lib/runtime-context';
-import { isDaemonDisconnectError } from '@/lib/runtime-errors';
+} from "@/lib/attachments";
+import { useDaemon } from "@/lib/daemon-context";
+import { sessionBusy, sessionCwd } from "@/lib/mobile-runtime";
+import { composerProviderPrompt } from "@/lib/composer-completion";
+import { modelHasConfigurableTraits } from "@/lib/model-traits";
+import { useRuntime } from "@/lib/runtime-context";
+import { isDaemonDisconnectError } from "@/lib/runtime-errors";
 
 /**
  * The composer surface shared by the session screen and the new-task screen:
@@ -92,6 +92,16 @@ export function ComposerCard({
         <View style={styles.toolbarSpacer} />
         <View style={styles.cluster}>{right}</View>
       </View>
+    <Text
+        style={{
+          color: theme.textSecondary,
+          fontSize: 12,
+          paddingHorizontal: 12,
+          paddingBottom: 6,
+        }}
+      >
+        @ files, teams &amp; apps · @@ AI teams · @@@ apps
+      </Text>
     </GlassSurface>
   );
 }
@@ -103,7 +113,7 @@ export function ComposerIconButton({
   active = false,
   disabled = false,
 }: {
-  icon: Parameters<typeof AppSymbol>[0]['name'];
+  icon: Parameters<typeof AppSymbol>[0]["name"];
   label: string;
   onPress: () => void;
   active?: boolean;
@@ -121,7 +131,7 @@ export function ComposerIconButton({
       style={({ pressed }) => [
         styles.iconButton,
         {
-          backgroundColor: active ? theme.overlayStrong : 'transparent',
+          backgroundColor: active ? theme.overlayStrong : "transparent",
           opacity: disabled ? 0.35 : pressed ? 0.55 : 1,
         },
       ]}>
@@ -167,10 +177,13 @@ export function SendButton({
       ) : (
         <AppSymbol
           name={queueing
-            ? { ios: 'text.append', android: 'playlist_add', web: 'playlist_add' }
-            : { ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
+            ? { ios: "text.append", android: "playlist_add", web: "playlist_add",
+                }
+            : { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward",
+                }}
           size={17}
-          tintColor={disabled ? theme.textTertiary : steering ? '#ffffff' : theme.onInverse}
+          tintColor={disabled ? theme.textTertiary : steering ? "#ffffff"
+                : theme.onInverse}
         />
       )}
     </Pressable>
@@ -190,7 +203,7 @@ export function MobileComposer({
   const insets = useSafeAreaInsets();
   const daemon = useDaemon();
   const runtime = useRuntime();
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [importingAttachments, setImportingAttachments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -198,20 +211,22 @@ export function MobileComposer({
   const [speechPreview, setSpeechPreview] = useState<string | null>(null);
   const [traitsSheetOpen, setTraitsSheetOpen] = useState(false);
   const modelProbe = useProviderModels(session.provider);
-  const providerAvailable = session.provider === 'nebius' || Boolean(session.team_assignment);
+  const providerAvailable = session.provider === "nebius" || Boolean(session.team_assignment);
   const models = modelProbe.data?.models ?? [];
   const activeModel = session.model
     ? models.find((item) => item.id === session.model)
-    : models.find((item) => item.is_default) ?? models[0];
+    : (models.find((item) => item.is_default) ?? models[0]);
   const busy = sessionBusy(session);
   const canStop = busy || Boolean(session.team_assignment && session.team_assignment_status
-    && !['completed', 'canceled', 'superseded'].includes(session.team_assignment_status));
+    && !["completed", "canceled", "superseded"].includes(session.team_assignment_status,
+      ),
+    );
   const liveRuntime = runtime.runtimes[session.id];
-  const canSteer = busy && Boolean(liveRuntime?.supportsSteer) && session.status !== 'connecting';
+  const canSteer = busy && Boolean(liveRuntime?.supportsSteer) && session.status !== "connecting";
   const permission = runtime.permissions[session.id];
   const userInput = runtime.userInputs[session.id];
   const runtimeError = runtime.errors[session.id];
-  const connected = daemon.phase === 'connected';
+  const connected = daemon.phase === "connected";
   const visibleLocalError = connected && isDaemonDisconnectError(localError) ? null : localError;
   const visibleRuntimeError = connected && isDaemonDisconnectError(runtimeError)
     ? null
@@ -219,7 +234,8 @@ export function MobileComposer({
   const visibleError = visibleLocalError || visibleRuntimeError;
   const queued = session.queued_messages ?? [];
   const taskState = useTaskState();
-  const project = taskState.data?.projects.find((item) => item.id === session.project_id);
+  const project = taskState.data?.projects.find((item) => item.id === session.project_id,
+  );
 
   useEffect(() => setLocalError(null), [session.id]);
   useEffect(() => {
@@ -230,7 +246,7 @@ export function MobileComposer({
   // hydrate when this surface becomes active, save only local edits, and
   // clear on send. A daemon-loaded value must never be echoed back as an edit.
   const draftSync = useSyncedComposerDraft({
-    target: { type: 'session', sessionId: session.id },
+    target: { type: "session", sessionId: session.id },
     text: draft,
     attachments,
     onHydrate: (synchronized) => {
@@ -240,6 +256,11 @@ export function MobileComposer({
     flushOnUnmount: true,
   });
   const contextPicker = useComposerPicker({
+    invokeTeams:
+      !session.team_assignment &&
+      !session.turns.length &&
+      !session.messages.length &&
+      !session.provider_cursor,
     text: draft,
     onChangeText: (value) => {
       draftSync.markEdited();
@@ -261,7 +282,7 @@ export function MobileComposer({
     onGoal: (operation) => runtime.sendGoalOperation(session, operation),
     onClear: () => {
       draftSync.markEdited();
-      setDraft('');
+      setDraft("");
     },
   });
   const activeSessionId = useRef(session.id);
@@ -271,7 +292,8 @@ export function MobileComposer({
   const mounted = useRef(true);
   useEffect(() => () => {
     mounted.current = false;
-  }, []);
+  }, [],
+  );
 
   const attachmentImportTail = useRef<Promise<void>>(Promise.resolve());
   const pendingAttachmentImports = useRef(0);
@@ -284,8 +306,8 @@ export function MobileComposer({
     setLocalError(null);
     const operation = attachmentImportTail.current.catch(() => {}).then(async () => {
       const client = daemon.client;
-      if (!client || daemon.phase !== 'connected') {
-        throw new Error('Waku daemon is disconnected');
+      if (!client || daemon.phase !== "connected") {
+        throw new Error("Waku daemon is disconnected");
       }
       for (const file of files) {
         const imported = await importLocalAttachment(client, file);
@@ -309,11 +331,11 @@ export function MobileComposer({
 
   async function chooseAttachment(source: ComposerAttachmentSource) {
     try {
-      if (source === 'files') {
+      if (source === "files") {
         const result = await DocumentPicker.getDocumentAsync({
           copyToCacheDirectory: true,
           multiple: true,
-          type: '*/*',
+          type: "*/*",
         });
         if (!result.canceled) {
           await addLocalFiles(result.assets.map((asset) => ({
@@ -322,31 +344,32 @@ export function MobileComposer({
             mimeType: asset.mimeType,
             size: asset.size,
             base64: asset.base64,
-          })));
+          })),
+          );
         }
         return;
       }
 
-      if (source === 'camera') {
+      if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          throw new Error('Camera access is required to take a photo');
+          throw new Error("Camera access is required to take a photo");
         }
         const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images'],
+          mediaTypes: ["images"],
           quality: 1,
         });
-        if (!result.canceled) await addLocalFiles(imagePickerFiles(result.assets, 'Photo'));
+        if (!result.canceled) await addLocalFiles(imagePickerFiles(result.assets, "Photo"));
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsMultipleSelection: true,
-        mediaTypes: ['images'],
+        mediaTypes: ["images"],
         quality: 1,
         selectionLimit: 0,
       });
-      if (!result.canceled) await addLocalFiles(imagePickerFiles(result.assets, 'Photo'));
+      if (!result.canceled) await addLocalFiles(imagePickerFiles(result.assets, "Photo"));
     } catch (cause) {
       setLocalError(cause instanceof Error ? cause.message : String(cause));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -364,7 +387,9 @@ export function MobileComposer({
 
   async function submit() {
     if (!providerAvailable) {
-      setLocalError('This historical provider is read-only in this ion distribution.');
+      setLocalError(
+        "This historical provider is read-only in this ion distribution.",
+      );
       return;
     }
     const prompt = draft.trim();
@@ -379,16 +404,19 @@ export function MobileComposer({
     setSubmitting(true);
     setLocalError(null);
     try {
-      const commands = prompt.startsWith('/') ? await contextPicker.getCommands() : [];
+      const commands = prompt.startsWith("/") ? await contextPicker.getCommands() : [];
       if (await localCommands.execute(prompt, commands)) return;
-      const providerPrompt = composerProviderPrompt(session.provider, prompt, commands, submittedAttachments);
+      const providerPrompt = composerProviderPrompt(session.provider, prompt, commands, submittedAttachments,
+      );
       onSubmitted?.();
-      if (canSteer) await runtime.steerPrompt(session, prompt, submittedAttachments, providerPrompt);
-      else await runtime.sendPrompt(session, prompt, submittedAttachments, providerPrompt);
+      if (canSteer) await runtime.steerPrompt(session, prompt, submittedAttachments, providerPrompt,
+        );
+      else await runtime.sendPrompt(session, prompt, submittedAttachments, providerPrompt,
+        );
       if (activeSessionId.current === submittedSessionId && latestDraft.current.text === submittedDraft.text
         && latestDraft.current.attachments === submittedDraft.attachments) {
         draftSync.removeSubmittedDraft();
-        setDraft('');
+        setDraft("");
         setAttachments([]);
       }
       await Haptics.selectionAsync();
@@ -410,24 +438,25 @@ export function MobileComposer({
     }
   }
 
-  function applyOptions(changes: Parameters<typeof runtime.updateSessionOptions>[1]) {
+  function applyOptions(changes: Parameters<typeof runtime.updateSessionOptions>[1],
+  ) {
     runtime.updateSessionOptions(session.id, changes).catch((cause) => {
       setLocalError(cause instanceof Error ? cause.message : String(cause));
     });
   }
 
-  const disconnected = daemon.phase !== 'connected';
+  const disconnected = daemon.phase !== "connected";
   const placeholder = disconnected
-    ? daemon.phase === 'reconnecting'
-      ? 'Reconnecting…'
-      : daemon.phase === 'connecting' || daemon.phase === 'booting'
-        ? 'Connecting…'
-        : 'Reconnect to message this agent'
+    ? daemon.phase === "reconnecting"
+      ? "Reconnecting…"
+      : daemon.phase === "connecting" || daemon.phase === "booting"
+        ? "Connecting…"
+        : "Reconnect to message this agent"
     : canSteer
-      ? 'Message the working agent…'
+      ? "Message the working agent…"
       : busy
-        ? 'Queue a follow-up…'
-        : 'Message agent';
+        ? "Queue a follow-up…"
+        : "Message agent";
 
   return (
     <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -460,7 +489,7 @@ export function MobileComposer({
             }}
             style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
             <AppSymbol
-              name={{ ios: 'xmark', android: 'close', web: 'close' }}
+              name={{ ios: "xmark", android: "close", web: "close" }}
               size={12}
               tintColor={theme.danger}
             />
@@ -470,15 +499,16 @@ export function MobileComposer({
       {queued.map((message) => (
         <View
           key={message.id}
-          style={[styles.queuedRow, { backgroundColor: theme.overlay, borderColor: theme.border }]}>
+          style={[styles.queuedRow, { backgroundColor: theme.overlay, borderColor: theme.border },
+          ]}>
           <AppSymbol
-            name={{ ios: 'clock', android: 'schedule', web: 'schedule' }}
+            name={{ ios: "clock", android: "schedule", web: "schedule" }}
             size={12}
             tintColor={theme.textTertiary}
           />
           <Text numberOfLines={1} style={[styles.queuedText, { color: theme.textSecondary }]}>
             {message.display_content?.trim()
-              || message.attachments?.map((attachment) => attachment.name).join(', ')
+              || message.attachments?.map((attachment) => attachment.name).join(", ")
               || message.content}
           </Text>
           <Pressable
@@ -488,7 +518,7 @@ export function MobileComposer({
             onPress={() => void runtime.removeQueuedMessage(session.id, message.id).catch(() => {})}
             style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
             <AppSymbol
-              name={{ ios: 'xmark', android: 'close', web: 'close' }}
+              name={{ ios: "xmark", android: "close", web: "close" }}
               size={11}
               tintColor={theme.textTertiary}
             />
@@ -513,51 +543,57 @@ export function MobileComposer({
                 key={`${attachment.blob_reference ?? attachment.path}:${index}`}
                 onRemove={() => {
                   draftSync.markEdited();
-                  setAttachments((current) => current.filter((_, item) => item !== index));
+                  setAttachments((current) => current.filter((_, item) => item !== index),
+                    );
                 }}
                 removeDisabled={submitting}
               />
             ))}
             {importingAttachments && (
-              <View style={[styles.attachmentLoading, { backgroundColor: theme.inset, borderColor: theme.border }]}>
+              <View style={[styles.attachmentLoading, { backgroundColor: theme.inset, borderColor: theme.border },
+                  ]}>
                 <ActivityIndicator color={theme.textSecondary} size="small" />
-                <Text style={[styles.attachmentName, { color: theme.textSecondary }]}>Attaching…</Text>
+                <Text style={[styles.attachmentName, { color: theme.textSecondary },
+                    ]}>Attaching…</Text>
               </View>
             )}
           </ScrollView>
         ) : undefined}
         editable={!disconnected && !submitting && providerAvailable}
-        left={(
+        left={
           <>
             <ComposerAddMenu
               disabled={disconnected || submitting || importingAttachments || !providerAvailable}
               onChoose={(source) => void chooseAttachment(source)}
               onChooseContext={contextPicker.open}
             />
-            {providerAvailable && <ComposerAccessMenu
+            {providerAvailable && (
+              <ComposerAccessMenu
               mode={session.runtime_mode}
               onApply={(mode) => applyOptions({ runtimeMode: mode })}
-            />}
+            />
+            )}
           </>
-        )}
+        }
         placeholder={placeholder}
-        right={(
+        right={
           <>
             <PhoneDictationControl
               client={daemon.client}
               onPreview={setSpeechPreview}
               contextKey={session.id}
-              host={daemon.activeProfile?.name ?? 'the selected daemon'}
+              host={daemon.activeProfile?.name ?? "the selected daemon"}
               disabled={disconnected || submitting || !providerAvailable}
               onError={setLocalError}
               onTranscript={(text) => {
                 draftSync.markEdited();
-                setDraft((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
+                setDraft((current) => current.trim() ? `${current.trimEnd()} ${text}` : text,
+                );
               }}
             />
             {providerAvailable && !session.team_assignment && activeModel && modelHasConfigurableTraits(activeModel) && (
               <ComposerIconButton
-                icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
+                icon={{ ios: "speedometer", android: "speed", web: "speed" }}
                 label="Model options"
                 onPress={() => setTraitsSheetOpen(true)}
               />
@@ -570,10 +606,11 @@ export function MobileComposer({
                 onPress={() => void stop()}
                 style={({ pressed }) => [
                   styles.sendButton,
-                  { backgroundColor: theme.dangerSoft, opacity: pressed ? 0.55 : 1 },
+                  { backgroundColor: theme.dangerSoft, opacity: pressed ? 0.55 : 1,
+                  },
                 ]}>
                 <AppSymbol
-                  name={{ ios: 'stop.fill', android: 'stop', web: 'stop' }}
+                  name={{ ios: "stop.fill", android: "stop", web: "stop" }}
                   size={14}
                   tintColor={theme.danger}
                 />
@@ -588,22 +625,28 @@ export function MobileComposer({
                 || disconnected
                 || !providerAvailable
               }
-              label={canSteer ? 'Send to working agent' : busy ? 'Queue message' : 'Send message'}
+              label={canSteer ? "Send to working agent"
+                  : busy ? "Queue message"
+                    : "Send message"
+              }
               onPress={() => void submit()}
               queueing={busy && !canSteer}
               steering={canSteer}
             />
           </>
-        )}
+        }
         value={draft}
         onPasteError={(message) => {
           setLocalError(message);
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error,
+          );
         }}
         onPasteFiles={(files) => {
           void addLocalFiles(files).catch(async (cause) => {
-            setLocalError(cause instanceof Error ? cause.message : String(cause));
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            setLocalError(cause instanceof Error ? cause.message : String(cause),
+            );
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error,
+            );
           });
         }}
       />
@@ -636,7 +679,7 @@ function imagePickerFiles(
     uri: asset.uri,
     name: asset.fileName ?? localFileName(
       asset.uri,
-      `${fallbackPrefix}-${timestamp}${assets.length > 1 ? `-${index + 1}` : ''}.jpg`,
+      `${fallbackPrefix}-${timestamp}${assets.length > 1 ? `-${index + 1}` : ""}.jpg`,
     ),
     mimeType: asset.mimeType,
     size: asset.fileSize,
@@ -658,7 +701,8 @@ function PermissionPanel({
     <RequestPanel borderColor={theme.warning}>
       <View style={styles.requestHeading}>
         <AppSymbol
-          name={{ ios: 'hand.raised.fill', android: 'front_hand', web: 'pan_tool' }}
+          name={{ ios: "hand.raised.fill", android: "front_hand", web: "pan_tool",
+          }}
           size={16}
           tintColor={theme.warning}
         />
@@ -667,13 +711,16 @@ function PermissionPanel({
       {permission.detail ? (
         <ScrollView
           nestedScrollEnabled
-          style={[styles.detailScroll, { backgroundColor: theme.inset, borderColor: theme.border }]}>
+          style={[styles.detailScroll, { backgroundColor: theme.inset, borderColor: theme.border },
+          ]}>
           <Text selectable style={[styles.requestDetail, { color: theme.textSecondary }]}>
             {permission.detail}
           </Text>
         </ScrollView>
       ) : null}
-      {error && <Text style={[styles.panelError, { color: theme.danger }]}>{error}</Text>}
+      {error && (
+        <Text style={[styles.panelError, { color: theme.danger }]}>{error}</Text>
+      )}
       <View style={styles.optionActions}>
         {permission.options.map((option) => (
           <Pressable
@@ -685,7 +732,8 @@ function PermissionPanel({
               setError(null);
               void Haptics.selectionAsync();
               void onRespond(option.id).catch((cause) => {
-                setError(cause instanceof Error ? cause.message : String(cause));
+                setError(cause instanceof Error ? cause.message : String(cause),
+                );
                 setResponding(null);
               });
             }}
@@ -723,7 +771,8 @@ function UserInputPanel({
   const theme = useTheme();
   const [index, setIndex] = useState(0);
   const [selections, setSelections] = useState<Record<string, string[]>>({});
-  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({},
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -738,13 +787,13 @@ function UserInputPanel({
   const question = input.questions[index];
   if (!question) return null;
   const selected = selections[question.id] ?? [];
-  const custom = customAnswers[question.id] ?? '';
+  const custom = customAnswers[question.id] ?? "";
   const canContinue = Boolean(custom.trim() || selected.length);
   const last = index === input.questions.length - 1;
 
   function toggle(label: string) {
     void Haptics.selectionAsync();
-    setCustomAnswers((values) => ({ ...values, [question.id]: '' }));
+    setCustomAnswers((values) => ({ ...values, [question.id]: "" }));
     setSelections((values) => {
       const previous = values[question.id] ?? [];
       return {
@@ -771,9 +820,10 @@ function UserInputPanel({
         const customValue = customAnswers[item.id]?.trim();
         return {
           questionId: item.id,
-          answers: customValue ? [customValue] : selections[item.id] ?? [],
+          answers: customValue ? [customValue] : (selections[item.id] ?? []),
         };
-      }));
+      }),
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setSubmitting(false);
@@ -796,7 +846,7 @@ function UserInputPanel({
           const checked = selected.includes(option.label);
           return (
             <Pressable
-              accessibilityRole={question.multiSelect ? 'checkbox' : 'radio'}
+              accessibilityRole={question.multiSelect ? "checkbox" : "radio"}
               accessibilityState={{ checked }}
               key={option.label}
               onPress={() => toggle(option.label)}
@@ -804,21 +854,22 @@ function UserInputPanel({
                 styles.questionOption,
                 {
                   backgroundColor: checked ? theme.overlayStrong : theme.surfaceMuted,
-                  borderColor: checked ? NativeTint : 'transparent',
+                  borderColor: checked ? NativeTint : "transparent",
                   opacity: pressed ? 0.65 : 1,
                 },
               ]}>
               <View style={styles.questionOptionCopy}>
                 <Text style={[styles.questionOptionLabel, { color: theme.text }]}>{option.label}</Text>
                 {option.description && option.description !== option.label && (
-                  <Text style={[styles.questionOptionDescription, { color: theme.textSecondary }]}>
+                  <Text style={[styles.questionOptionDescription, { color: theme.textSecondary },
+                    ]}>
                     {option.description}
                   </Text>
                 )}
               </View>
               {checked && (
                 <AppSymbol
-                  name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+                  name={{ ios: "checkmark", android: "check", web: "check" }}
                   size={14}
                   tintColor={NativeTint}
                 />
@@ -836,7 +887,7 @@ function UserInputPanel({
             styles.customAnswer,
             {
               backgroundColor: theme.surfaceMuted,
-              borderColor: custom.trim() ? NativeTint : 'transparent',
+              borderColor: custom.trim() ? NativeTint : "transparent",
               color: theme.text,
             },
           ]}
@@ -847,7 +898,9 @@ function UserInputPanel({
           }}
         />
       </ScrollView>
-      {error && <Text style={[styles.panelError, { color: theme.danger }]}>{error}</Text>}
+      {error && (
+        <Text style={[styles.panelError, { color: theme.danger }]}>{error}</Text>
+      )}
       <View style={styles.questionActions}>
         {index > 0 ? (
           <Pressable
@@ -856,18 +909,23 @@ function UserInputPanel({
             style={styles.backButton}>
             <Text style={[styles.backButtonText, { color: theme.textSecondary }]}>Back</Text>
           </Pressable>
-        ) : <View />}
+        ) : (
+          <View />
+        )}
         <Pressable
           accessibilityRole="button"
           disabled={!canContinue || submitting}
           onPress={() => void advance()}
           style={({ pressed }) => [
             styles.nextButton,
-            { backgroundColor: theme.inverse, opacity: !canContinue || submitting || pressed ? 0.55 : 1 },
+            { backgroundColor: theme.inverse, opacity: !canContinue || submitting || pressed ? 0.55 : 1,
+            },
           ]}>
-          {submitting && <ActivityIndicator color={theme.onInverse} size="small" />}
+          {submitting && (
+            <ActivityIndicator color={theme.onInverse} size="small" />
+          )}
           <Text style={[styles.nextButtonText, { color: theme.onInverse }]}>
-            {last ? 'Submit' : 'Next'}
+            {last ? "Submit" : "Next"}
           </Text>
         </Pressable>
       </View>
@@ -875,10 +933,13 @@ function UserInputPanel({
   );
 }
 
-function RequestPanel({ borderColor, children }: { borderColor: string; children: ReactNode }) {
+function RequestPanel({ borderColor, children,
+}: { borderColor: string; children: ReactNode;
+}) {
   const theme = useTheme();
   return (
-    <View style={[styles.requestPanel, { backgroundColor: theme.surface, borderColor }]}>
+    <View style={[styles.requestPanel, { backgroundColor: theme.surface, borderColor },
+      ]}>
       {children}
     </View>
   );
@@ -900,50 +961,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 8,
   },
-  attachmentStrip: { gap: 8, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 6 },
+  attachmentStrip: { gap: 8, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 6,
+  },
   attachmentLoading: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 9,
     borderWidth: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 7,
     height: 80,
     width: 80,
   },
   attachmentName: { fontSize: 11.5 },
-  toolbar: { alignItems: 'center', flexDirection: 'row', marginTop: 2 },
+  toolbar: { alignItems: "center", flexDirection: "row", marginTop: 2 },
   toolbarSpacer: { flex: 1 },
-  cluster: { alignItems: 'center', flexDirection: 'row', gap: 2 },
+  cluster: { alignItems: "center", flexDirection: "row", gap: 2 },
   iconButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.pill,
     height: 36,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 36,
   },
   sendButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.pill,
     height: 36,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginLeft: 4,
     width: 36,
   },
   errorBanner: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.small,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 9,
     marginBottom: 7,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  errorText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  errorText: { flex: 1, fontSize: 12, fontWeight: "600", lineHeight: 17 },
   queuedRow: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.small,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 6,
     minHeight: 34,
@@ -956,8 +1018,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 12,
   },
-  requestHeading: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-  requestTitle: { flex: 1, fontSize: 14, fontWeight: '700' },
+  requestHeading: { alignItems: "center", flexDirection: "row", gap: 8 },
+  requestTitle: { flex: 1, fontSize: 14, fontWeight: "700" },
   detailScroll: {
     borderRadius: Radius.small,
     borderWidth: StyleSheet.hairlineWidth,
@@ -966,27 +1028,31 @@ const styles = StyleSheet.create({
     padding: 9,
   },
   requestDetail: { fontFamily: MonoFont, fontSize: 11.5, lineHeight: 17 },
-  optionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 11 },
+  optionActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", marginTop: 11,
+  },
   optionButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.pill,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
     minHeight: 38,
     paddingHorizontal: 14,
   },
-  optionButtonText: { fontSize: 13, fontWeight: '700' },
+  optionButtonText: { fontSize: 13, fontWeight: "700" },
   panelError: { fontSize: 12, lineHeight: 17, marginTop: 8 },
-  questionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  questionEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.55, textTransform: 'uppercase' },
-  progress: { fontSize: 11, fontWeight: '600' },
-  questionText: { fontSize: 14, fontWeight: '600', lineHeight: 20, marginTop: 7 },
+  questionHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between",
+  },
+  questionEyebrow: { fontSize: 11, fontWeight: "700", letterSpacing: 0.55, textTransform: "uppercase",
+  },
+  progress: { fontSize: 11, fontWeight: "600" },
+  questionText: { fontSize: 14, fontWeight: "600", lineHeight: 20, marginTop: 7,
+  },
   questionOptions: { marginTop: 10, maxHeight: 260 },
   questionOption: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.medium,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 6,
     minHeight: 44,
@@ -994,7 +1060,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   questionOptionCopy: { flex: 1 },
-  questionOptionLabel: { fontSize: 13, fontWeight: '600' },
+  questionOptionLabel: { fontSize: 13, fontWeight: "600" },
   questionOptionDescription: { fontSize: 11.5, lineHeight: 16, marginTop: 2 },
   customAnswer: {
     borderRadius: Radius.medium,
@@ -1005,18 +1071,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 9,
   },
-  questionActions: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  backButton: { justifyContent: 'center', minHeight: 36, paddingHorizontal: 6 },
-  backButtonText: { fontSize: 13, fontWeight: '600' },
+  questionActions: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10,
+  },
+  backButton: { justifyContent: "center", minHeight: 36, paddingHorizontal: 6 },
+  backButtonText: { fontSize: 13, fontWeight: "600" },
   nextButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: Radius.pill,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: 36,
     minWidth: 78,
     paddingHorizontal: 14,
   },
-  nextButtonText: { fontSize: 13, fontWeight: '700' },
+  nextButtonText: { fontSize: 13, fontWeight: "700" },
 });

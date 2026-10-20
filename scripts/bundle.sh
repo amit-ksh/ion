@@ -181,6 +181,8 @@ if [ "$profile" = "release" ]; then
   esac
   mkdir -p "$contents/MacOS/nemo-speech"
   cp -R "$nemo_prefix"/. "$contents/MacOS/nemo-speech/"
+  mkdir -p "$contents/MacOS/nemo-speech/share/ion-speech"
+  cp -R resources/speech/. "$contents/MacOS/nemo-speech/share/ion-speech/"
   "$contents/MacOS/nemo-speech/bin/nemo-speech" --version | grep -F '0.1.0' >/dev/null
 fi
 cp "$cargo_target_dir/$profile/waku_js_repl" "$repl_executable"

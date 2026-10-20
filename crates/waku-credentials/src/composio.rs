@@ -35,6 +35,52 @@ fn payload(response: Response) -> Result<Value> {
     Ok(serde_json::from_slice(&bytes).context("Invalid Composio response")?)
 }
 impl CredentialService {
+    pub fn composio_mention_apps(&self) -> Result<Vec<(String, String)>> {
+        if self.status(CredentialKind::ComposioScopedProjectKey) == CredentialStatus::Missing {
+            return Ok(Vec::new());
+        }
+        let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
+        let client = client()?;
+        let mut cursor = None::<String>;
+        let mut apps = std::collections::BTreeMap::new();
+        for _ in 0..10 {
+            let mut request = client
+                .get(format!("{BASE}/connected_accounts"))
+                .query(&[("limit", "100")])
+                .header("x-api-key", &key);
+            if let Some(cursor) = &cursor {
+                request = request.query(&[("cursor", cursor)]);
+            }
+            let data = payload(request.send()?)?;
+            for raw in data["items"]
+                .as_array()
+                .context("Composio returned no account list")?
+            {
+                if raw["status"].as_str() != Some("ACTIVE") {
+                    continue;
+                }
+                let slug = raw["toolkit"]["slug"].as_str().context("Missing toolkit")?;
+                if slug.is_empty()
+                    || slug.len() > 160
+                    || !slug
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                {
+                    bail!("Invalid connected app identity");
+                }
+                apps.insert(slug.to_owned(), slug.replace('_', " "));
+            }
+            cursor = data["next_cursor"]
+                .as_str()
+                .filter(|c| !c.is_empty())
+                .map(str::to_owned);
+            if cursor.is_none() {
+                return Ok(apps.into_iter().collect());
+            }
+        }
+        bail!("Too many Composio accounts. Use a smaller scoped project.")
+    }
+
     pub fn composio_apps(&self) -> Result<(Vec<ComposioAuthConfig>, Vec<GatewayAccount>)> {
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
         let client = client()?;

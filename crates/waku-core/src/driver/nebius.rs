@@ -17,8 +17,8 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{DriverControl, DriverEventSender, DriverStartOptions, SessionOptions};
-use crate::credentials::{CredentialService, TOKEN_FACTORY_BASE_URL};
 use crate::model::{ActivityKind, DriverEvent, PermissionOption, ProviderResumeCursor};
+use waku_credentials::inference::Inference;
 
 mod nemoclaw;
 pub(super) mod team;
@@ -99,13 +99,13 @@ impl NebiusDriver {
         };
         reconcile_incomplete_calls(&cwd, &journal_path, &mut journal)?;
 
-        let key = CredentialService::global().nebius_runtime_key()?;
+        let key = Inference::runtime()?;
         let client = reqwest::blocking::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(120))
             .build()?;
-        let response = client
-            .get(format!("{TOKEN_FACTORY_BASE_URL}/models"))
-            .bearer_auth(&key)
+        let response = key
+            .request(&client, "models")?
             .send()
             .context("could not verify the Nebius model catalog")?;
         if !response.status().is_success() {
@@ -198,7 +198,7 @@ fn run_worker(
     cancelled: Arc<AtomicBool>,
     events: DriverEventSender,
     client: reqwest::blocking::Client,
-    key: String,
+    key: Inference,
     model: String,
     cwd: PathBuf,
     journal_path: PathBuf,
@@ -263,7 +263,7 @@ fn run_turn(
     cancelled: &AtomicBool,
     events: &DriverEventSender,
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     cwd: &Path,
     journal_path: &Path,
@@ -370,7 +370,7 @@ fn run_turn(
 
 fn completion(
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     messages: &[Value],
     events: &DriverEventSender,
@@ -408,7 +408,7 @@ fn completion(
 #[allow(clippy::too_many_arguments)]
 fn completion_with_context(
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     messages: &[Value],
     events: &DriverEventSender,
@@ -436,9 +436,8 @@ fn completion_with_context(
         "content": system
     })];
     request_messages.extend_from_slice(messages);
-    let response = client
-        .post(format!("{TOKEN_FACTORY_BASE_URL}/chat/completions"))
-        .bearer_auth(key)
+    let response = key
+        .request(client, "chat/completions")?
         .json(&json!({
             "model": model, "messages": request_messages, "tools": tools,
             "tool_choice": "auto", "stream": true, "stream_options":{"include_usage":true}
@@ -642,7 +641,7 @@ fn execute_tool(
     cancelled: &AtomicBool,
     events: &DriverEventSender,
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     cwd: &Path,
     journal_path: &Path,

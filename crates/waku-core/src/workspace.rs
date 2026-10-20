@@ -66,6 +66,14 @@ pub fn execute(operation: WorkspaceOperation) -> anyhow::Result<WorkspaceResult>
         WorkspaceOperation::ListProjectFiles { root, cap } => WorkspaceResult::ProjectFiles {
             entries: crate::composer_complete::list_project_files(&root, cap),
         },
+        WorkspaceOperation::ListComposerApps => {
+            let apps = crate::credentials::CredentialService::global()
+                .composio_mention_apps()?
+                .into_iter()
+                .map(|(slug, name)| waku_protocol::composer::ComposerApp { slug, name })
+                .collect();
+            WorkspaceResult::ComposerApps { apps }
+        }
         WorkspaceOperation::DiscoverSlashCommands {
             provider,
             project_root,

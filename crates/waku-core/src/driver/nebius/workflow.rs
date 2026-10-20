@@ -6,6 +6,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command as ProcessCommand, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use waku_credentials::inference::Inference;
 
 use anyhow::{Context as _, Result, anyhow, bail};
 use crossbeam_channel::Receiver;
@@ -148,7 +149,7 @@ pub(super) fn execute(
     cancelled: &AtomicBool,
     events: &DriverEventSender,
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     cwd: &Path,
     journal_path: &Path,
@@ -208,7 +209,7 @@ fn delegate_specialist(
     cancelled: &AtomicBool,
     events: &DriverEventSender,
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     cwd: &Path,
     journal_path: &Path,
@@ -295,7 +296,7 @@ fn repeat_specialist(
     cancelled: &AtomicBool,
     events: &DriverEventSender,
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     cwd: &Path,
     journal_path: &Path,
@@ -337,7 +338,7 @@ fn run_specialist(
     cancelled: &AtomicBool,
     events: &DriverEventSender,
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
     cwd: &Path,
     journal_path: &Path,

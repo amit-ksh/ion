@@ -1,0 +1,14 @@
+{
+  "instanceId": "REPLACE_WITH_EXISTING_COMPUTE_INSTANCE_ID",
+  "projectId": "project-e04qppz9bc0026zt9y9ky7",
+  "microUSDPerHour": null,
+  "maxRuntimeSeconds": 900,
+  "idleSeconds": 120,
+  "startupSeconds": 300,
+  "stopAllowanceSeconds": 600,
+  "limits": {
+    "monthly": 7000000,
+    "lifetime": 22000000,
+    "accountLifetime": 22000000
+  }
+}

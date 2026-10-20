@@ -10,6 +10,7 @@ import type {
   SequencedEvent,
   UserInputAnswer,
 } from '@waku/client';
+import { queueComposerTeam } from '@waku/client/composer-autocomplete';
 import { adoptTeamFollowUp, reduceRuntimeEvent } from '@waku/client/event-reducer';
 import { writeProviderProbeCache } from '@waku/client/provider-probe-cache';
 import * as Crypto from 'expo-crypto';
@@ -574,6 +575,8 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       setErrors((values) => removeKey(values, current.id));
       return current;
     }
+    const team = await queueComposerTeam(client, current, prompt, attachments);
+    if (team) { cacheSession(team); return team; }
     if (sessionBusy(current)) {
       const queued = queueSubmission(current, prompt, clock, attachments, providerPrompt);
       cacheSession(queued);

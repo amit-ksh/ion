@@ -1,3 +1,4 @@
+import { gatewayAccountToken } from "./gateway-account-auth";
 import type { PushTopic } from "@waku/client";
 import {
   validateInboxCommand,
@@ -18,6 +19,7 @@ import type {
 } from "@waku/client";
 export interface GatewayPairing {
   baseUrl: string;
+  cloudWorkspaceId?: string;
   id: string;
   token: string;
   expiresAt: number;
@@ -134,15 +136,28 @@ export class GatewayRequestError extends Error {
 }
 
 async function request<T>(
-  baseUrl: string,
+  target: string | GatewayPairing,
   path: string,
   init: RequestInit,
 ): Promise<T> {
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 20_000);
   try {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const baseUrl = typeof target === "string" ? target : target.baseUrl;
+    const headers = new Headers(init.headers);
+    let prefix = "";
+    if (typeof target !== "string" && target.cloudWorkspaceId) {
+      const accountToken = await gatewayAccountToken(
+        baseUrl,
+        target.cloudWorkspaceId,
+      );
+      headers.set("X-Ion-Device-Token", target.token);
+      headers.set("Authorization", "Bearer " + accountToken);
+      prefix = "/v1/gateway";
+    }
+    const response = await fetch(baseUrl + prefix + path, {
       ...init,
+      headers: prefix ? headers : init.headers,
       signal: abort.signal,
       cache: "no-store",
       redirect: "error",
@@ -191,7 +206,7 @@ export async function gatewayReviewQueue(
   pairing: GatewayPairing,
 ): Promise<GatewayProposal[]> {
   const response = await request<{ proposals: GatewayProposal[] }>(
-    pairing.baseUrl,
+    pairing,
     "/v1/device/review-queue",
     { headers: deviceHeaders(pairing) },
   );
@@ -206,7 +221,7 @@ export async function decideGatewayProposal(
   approve: boolean,
 ): Promise<GatewayProposal> {
   return request<GatewayProposal>(
-    pairing.baseUrl,
+    pairing,
     `/v1/device/proposals/${proposal.id}/decision`,
     {
       method: "POST",
@@ -223,11 +238,9 @@ export async function gatewayReviewStatus(
   pairing: GatewayPairing,
   proposalId: string,
 ): Promise<GatewayProposal> {
-  return request<GatewayProposal>(
-    pairing.baseUrl,
-    `/v1/device/reviews/${proposalId}`,
-    { headers: deviceHeaders(pairing) },
-  );
+  return request<GatewayProposal>(pairing, `/v1/device/reviews/${proposalId}`, {
+    headers: deviceHeaders(pairing),
+  });
 }
 
 export async function gatewayOwnerTask(
@@ -243,7 +256,7 @@ export async function gatewayOwnerTask(
   )
     throw new Error("Pair with Read tasks to open the original owner task");
   const reply = await request<unknown>(
-    pairing.baseUrl,
+    pairing,
     `/v1/device/tasks/${taskId}?publisherId=${publisherId}`,
     { headers: deviceHeaders(pairing) },
   );
@@ -279,7 +292,7 @@ export async function gatewayTasks(pairing: GatewayPairing): Promise<{
   tasks: GatewayTask[];
   publishedAt: number | null;
 }> {
-  return request(pairing.baseUrl, "/v1/device/tasks", {
+  return request(pairing, "/v1/device/tasks", {
     headers: deviceHeaders(pairing),
   });
 }
@@ -293,11 +306,9 @@ export async function gatewayPushStatus(
   pairing: GatewayPairing,
   topic: PushTopic = "taskRequests",
 ): Promise<boolean> {
-  const result = await request<{ enabled: boolean }>(
-    pairing.baseUrl,
-    pushPath(topic),
-    { headers: deviceHeaders(pairing) },
-  );
+  const result = await request<{ enabled: boolean }>(pairing, pushPath(topic), {
+    headers: deviceHeaders(pairing),
+  });
   return result.enabled === true;
 }
 
@@ -306,7 +317,7 @@ export async function registerGatewayPush(
   token: string,
   topic: PushTopic = "taskRequests",
 ): Promise<void> {
-  await request(pairing.baseUrl, pushPath(topic), {
+  await request(pairing, pushPath(topic), {
     method: "PUT",
     headers: { ...deviceHeaders(pairing), "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
@@ -317,7 +328,7 @@ export async function unregisterGatewayPush(
   pairing: GatewayPairing,
   topic: PushTopic = "taskRequests",
 ): Promise<void> {
-  await request(pairing.baseUrl, pushPath(topic), {
+  await request(pairing, pushPath(topic), {
     method: "DELETE",
     headers: deviceHeaders(pairing),
   });
@@ -333,7 +344,7 @@ export async function gatewayTaskEvents(
 }> {
   if (!Number.isSafeInteger(after) || after < 0)
     throw new Error("Invalid event cursor");
-  return request(pairing.baseUrl, `/v1/device/events?after=${after}`, {
+  return request(pairing, `/v1/device/events?after=${after}`, {
     headers: deviceHeaders(pairing),
   });
 }
@@ -344,7 +355,7 @@ export async function gatewayTaskInteractions(
 ): Promise<GatewayTaskInteraction[]> {
   if (!/^[0-9a-f-]{36}$/.test(taskId)) throw new Error("Invalid task ID");
   const response = await request<{ interactions: GatewayTaskInteraction[] }>(
-    pairing.baseUrl,
+    pairing,
     `/v1/device/tasks/${taskId}/interactions`,
     { headers: deviceHeaders(pairing) },
   );
@@ -377,7 +388,7 @@ export async function enqueueGatewayTaskCommand(
   const reply = await request<
     GatewayTaskCommand & { publisherId?: string; deviceId?: string }
   >(
-    pairing.baseUrl,
+    pairing,
     publisherId === undefined
       ? "/v1/device/commands"
       : `/v1/device/commands?publisherId=${publisherId}`,
@@ -416,7 +427,7 @@ export async function gatewayTaskCommand(
     throw new Error("Invalid task command ID or owner");
   const reply = await request<
     GatewayTaskCommand & { publisherId?: string; deviceId?: string }
-  >(pairing.baseUrl, `/v1/device/commands/${id}`, {
+  >(pairing, `/v1/device/commands/${id}`, {
     headers: deviceHeaders(pairing),
   });
   if (
@@ -548,7 +559,7 @@ export async function gatewayAutomationOwners(
 ): Promise<(AutomationOwner & { name: string })[]> {
   const feed = await request<{
     owners: (AutomationOwner & { name: string })[];
-  }>(pairing.baseUrl, "/v1/device/automations", {
+  }>(pairing, "/v1/device/automations", {
     headers: deviceHeaders(pairing),
   });
   if (
@@ -564,7 +575,7 @@ export async function gatewayEnqueueAutomation(
   pairing: GatewayPairing,
   input: AutomationSubmission,
 ): Promise<AutomationCommand> {
-  return request(pairing.baseUrl, "/v1/device/automations/commands", {
+  return request(pairing, "/v1/device/automations/commands", {
     method: "POST",
     headers: { ...deviceHeaders(pairing), "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -575,7 +586,7 @@ export async function gatewayAutomationCommandByKey(
   key: string,
 ): Promise<AutomationCommand | null> {
   const result = await request<{ command: AutomationCommand | null }>(
-    pairing.baseUrl,
+    pairing,
     `/v1/device/automations/commands?key=${encodeURIComponent(key)}`,
     { headers: deviceHeaders(pairing) },
   );
@@ -587,7 +598,7 @@ export async function gatewayAutomationCommands(
   pairing: GatewayPairing,
 ): Promise<AutomationCommand[]> {
   const result = await request<{ commands: AutomationCommand[] }>(
-    pairing.baseUrl,
+    pairing,
     "/v1/device/automations/commands",
     { headers: deviceHeaders(pairing) },
   );
@@ -611,7 +622,7 @@ export async function gatewayPortfolioOwners(
   pairing: GatewayPairing,
 ): Promise<PortfolioOwner[]> {
   const result = await request<{ owners: PortfolioOwner[] }>(
-    pairing.baseUrl,
+    pairing,
     "/v1/device/portfolio",
     { method: "GET", headers: deviceHeaders(pairing) },
   );
@@ -637,7 +648,7 @@ export async function submitGatewayPortfolio(
   input: PortfolioSubmission,
 ): Promise<PortfolioJob> {
   const result: unknown = await request(
-    pairing.baseUrl,
+    pairing,
     "/v1/device/portfolio/queries",
     {
       method: "POST",
@@ -656,7 +667,7 @@ export async function readGatewayPortfolio(
   input: PortfolioSubmission,
 ): Promise<PortfolioJob | null> {
   const result = await request<{ job: unknown }>(
-    pairing.baseUrl,
+    pairing,
     `/v1/device/portfolio/queries?key=${encodeURIComponent(input.idempotencyKey)}`,
     { method: "GET", headers: deviceHeaders(pairing) },
   );
@@ -669,18 +680,14 @@ export async function gatewayEnqueueInbox(
   pairing: GatewayPairing,
   input: InboxSubmission,
 ): Promise<InboxCommand> {
-  const result = await request<unknown>(
-    pairing.baseUrl,
-    "/v1/device/inbox/commands",
-    {
-      method: "POST",
-      headers: {
-        ...deviceHeaders(pairing),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
+  const result = await request<unknown>(pairing, "/v1/device/inbox/commands", {
+    method: "POST",
+    headers: {
+      ...deviceHeaders(pairing),
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify(input),
+  });
   validateInboxCommand(result);
   return result;
 }
@@ -689,7 +696,7 @@ export async function gatewayInboxByKey(
   key: string,
 ): Promise<InboxCommand | null> {
   const result = await request<{ command: unknown }>(
-    pairing.baseUrl,
+    pairing,
     `/v1/device/inbox/commands?key=${encodeURIComponent(key)}`,
     { headers: deviceHeaders(pairing) },
   );

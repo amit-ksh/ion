@@ -29,7 +29,7 @@ fn connection(step: Step) -> Option<Kind> {
         Step::Welcome => None,
         Step::Models => Some(Kind::NebiusTokenFactoryApiKey),
         Step::Apps => Some(Kind::ComposioScopedProjectKey),
-        Step::Speech => Some(Kind::SpeechService),
+        Step::Speech => None,
         Step::Gateway => Some(Kind::GatewayPairingToken),
     }
 }
@@ -39,7 +39,7 @@ fn title(step: Step) -> &'static str {
         Step::Models => "AI providers",
         Step::Apps => "Connected apps",
         Step::Speech => "Speech",
-        Step::Gateway => "Personal gateway",
+        Step::Gateway => "Remote access",
     }
 }
 fn index(step: Step) -> usize {
@@ -72,6 +72,10 @@ impl Waku {
         self.refresh_credential_statuses(cx);
     }
     fn setup_needs_attention(&self, step: Step) -> bool {
+        if step == Step::Models && self.shared_inference_enabled() { return false; }
+        if step == Step::Gateway && self.cloud_ui.status.connected {
+            return false;
+        }
         let Some(kind) = connection(step) else {
             return false;
         };
@@ -89,6 +93,12 @@ impl Waku {
             .count()
     }
     fn setup_status(&self, kind: Kind) -> &'static str {
+        if kind == Kind::NebiusTokenFactoryApiKey && self.shared_inference_enabled() {
+            return "Shared Token Factory is enabled. A personal key is optional.";
+        }
+        if kind == Kind::GatewayPairingToken && self.cloud_ui.status.connected {
+            return "This computer is linked to Ion Cloud.";
+        }
         if self.credential_busy.contains(&kind) {
             return "Connection request in progress…";
         }
@@ -478,12 +488,12 @@ impl Waku {
                     (
                         "icons/mic.svg",
                         "Speech",
-                        "A shared speech endpoint for desktop and phone",
+                        "Local Parakeet dictation for desktop and paired phones",
                     ),
                     (
                         "icons/server.svg",
-                        "Personal gateway",
-                        "Remote access to your personal workspace",
+                        "Remote access",
+                        "Sign in to Ion Cloud or connect your own gateway",
                     ),
                 ] {
                     form = form.child(
@@ -509,7 +519,7 @@ impl Waku {
                 }
             }
             Step::Models => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Add a Nebius Token Factory key to use its models. You can also configure an installed coding harness with its own sign-in."))
+                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Use shared Token Factory when enabled by the owner, or add your own key for personal billing. Installed coding harnesses use their own sign-in."))
                     .child(self.setup_credential_form(Kind::NebiusTokenFactoryApiKey,"Nebius API key",cx))
                     .child(self.control_button("setup-harnesses","Configure harnesses",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)))
                     .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child("Cloud execution targets, permissions and budgets are configured separately for each agent. Saving a model key does not enable cloud spending."));
@@ -520,10 +530,17 @@ impl Waku {
                     .child(self.control_button("setup-connect-apps","Connect apps",cx,|this,window,cx|this.setup_apps(window,cx)));
             }
             Step::Speech => {
-                form=form.child(div().text_size(sp(14.0)).line_height(sp(21.0)).text_color(theme.text_secondary).child("Use local dictation on this computer, or connect a speech service shared with your phone."))
-                    .child(self.setup_field("Speech service URL", "setup-speech-url", self.speech_url_input.clone(), "icons/server.svg", cx))
-                    .child(self.setup_credential_form(Kind::SpeechService,"Speech service token",cx))
-                    .child(self.control_button("setup-local-speech","Speech settings",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)));
+                form = form
+                    .child(div().text_size(sp(14.0)).line_height(sp(21.0)).text_color(theme.text_secondary)
+                        .child("Dictation uses NVIDIA Parakeet TDT-CTC 110M on this computer. Download the model now, or let Ion download it when you first use the microphone. The download is about 146 MB."))
+                    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary)
+                        .child("After download, speech recognition runs on this computer. Phone dictation requires this paired desktop to be online. English dictation only."))
+                    .child(self.control_button("setup-download-speech", if self.speech_busy { "Cancel download" } else { "Download / verify Parakeet" }, cx, |this, _, cx| {
+                        if this.speech_busy { this.cancel_speech_recording(cx); } else { this.prepare_local_speech_model(cx); }
+                    }));
+                if let Some(feedback) = &self.speech_feedback {
+                    form = form.child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child(feedback.clone()));
+                }
                 if let Some(status) = &self.speech_runtime_status {
                     form = form.child(
                         div()
@@ -534,7 +551,9 @@ impl Waku {
                 }
             }
             Step::Gateway => {
-                form=form.child(div().text_size(sp(14.0)).line_height(sp(21.0)).text_color(theme.text_secondary).child("Connect your phone and access your workspace remotely. Enter your gateway's HTTPS URL and a one-use invite from its owner console."))
+                form=form.child(self.render_cloud_account(cx))
+                    .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).child("Your own gateway"))
+                    .child(div().text_size(sp(13.0)).line_height(sp(20.0)).text_color(theme.text_secondary).child("Optional: connect a self-hosted gateway using its HTTPS URL and owner invite. Disconnect Ion Cloud before pairing it."))
                     .child(self.setup_field("Gateway URL", "setup-gateway-url", self.gateway_url_input.clone(), "icons/server.svg", cx))
                     .child(self.setup_field("One-use pairing invite", "setup-gateway-invite", self.gateway_invite_input.clone(), "icons/lock.svg", cx))
                     .child(div().flex().flex_wrap().gap(px(8.0))

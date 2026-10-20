@@ -370,6 +370,7 @@ impl Waku {
             .flex_col()
             .gap(px(16.0))
             .child(tabs)
+            .child(self.render_shared_cloud_usage(cx))
             .child(content)
             .into_any_element()
     }

@@ -43,6 +43,13 @@ pub struct SlashCommand {
     pub template: Option<String>,
 }
 
+/// Public toolkit identity only; account IDs and credentials never enter a prompt.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct ComposerApp {
+    pub slug: String,
+    pub name: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 pub struct FileEntry {
     pub path: String,

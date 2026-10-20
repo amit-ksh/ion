@@ -1,11 +1,9 @@
 //! Short remote recordings transcribed on the daemon host with NeMo-Speech.cpp.
 
 use std::fs::{self, OpenOptions};
-use std::io::Read as _;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context as _, Result, bail};
 use uuid::Uuid;
@@ -42,7 +40,7 @@ pub fn cleanup_stale_recordings() {
             .modified()
             .ok()
             .and_then(|modified| modified.elapsed().ok())
-            .is_some_and(|age| age > Duration::from_secs(10 * 60));
+            .is_some_and(|age| age > Duration::from_secs(24 * 60 * 60));
         if stale {
             let _ = fs::remove_file(path);
         }
@@ -98,144 +96,40 @@ fn validate_wav(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn executable() -> PathBuf {
-    let name = if cfg!(windows) {
-        "nemo-speech.exe"
-    } else {
-        "nemo-speech"
-    };
-    if let Ok(app) = std::env::current_exe()
-        && let Some(parent) = app.parent()
-    {
-        for candidate in [
-            parent.join("nemo-speech").join("bin").join(name),
-            parent.join(name),
-        ] {
-            if candidate.is_file() {
-                return candidate;
-            }
-        }
-    }
-    #[cfg(windows)]
-    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        let candidate = PathBuf::from(local)
-            .join("Programs/NeMoSpeech/bin")
-            .join(name);
-        if candidate.is_file() {
-            return candidate;
-        }
-    }
-    #[cfg(not(windows))]
-    if let Some(home) = dirs::home_dir() {
-        let candidate = home.join(".local/bin").join(name);
-        if candidate.is_file() {
-            return candidate;
-        }
-    }
-    PathBuf::from(name)
-}
-
 /// Runs on a daemon request worker, never the UI thread. Temporary audio is
 /// deleted on every normal exit, including CLI failure and timeout.
 pub fn transcribe_wav(bytes: &[u8], language: &str) -> Result<String> {
     validate_wav(bytes)?;
-    let language = match language {
-        "auto" | "en-US" | "hi-IN" => language,
+    match language {
+        "auto" | "en-US" => language,
+        "hi-IN" => {
+            bail!("Parakeet 110M supports English dictation only")
+        }
         _ => bail!("Unsupported dictation language"),
     };
     if BUSY.swap(true, Ordering::AcqRel) {
         bail!("Dictation is already running on this daemon")
     }
     let _busy = BusyGuard;
-    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
-        return service.transcribe(bytes.to_vec(), language);
-    }
     let id = Uuid::new_v4();
     let dir = std::env::temp_dir();
     let paths = RecordingFiles {
         wav: dir.join(format!("ion-phone-dictation-{id}.wav")),
     };
-    let mut wav = OpenOptions::new()
-        .write(true)
-        .create_new(true)
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    let mut wav = options
         .open(&paths.wav)
         .context("Could not create temporary dictation recording")?;
     use std::io::Write as _;
     wav.write_all(bytes)?;
     drop(wav);
-    let mut child = Command::new(executable())
-        .args(["--quiet", "transcribe"])
-        .arg(&paths.wav)
-        .args([
-            "--model",
-            "nemotron-3.5",
-            "--language",
-            language,
-            "--stream",
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("NeMo-Speech.cpp is not installed on the daemon host")?;
-    let mut stdout = child
-        .stdout
-        .take()
-        .context("Could not read local dictation")?;
-    let (output_sender, output_receiver) = std::sync::mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let result = (|| -> std::io::Result<(Vec<u8>, bool)> {
-            let mut output = Vec::new();
-            let mut exceeded = false;
-            let mut buffer = [0_u8; 4096];
-            loop {
-                let count = stdout.read(&mut buffer)?;
-                if count == 0 {
-                    break;
-                }
-                let remaining = (64 * 1024_usize).saturating_sub(output.len());
-                output.extend_from_slice(&buffer[..count.min(remaining)]);
-                exceeded |= count > remaining;
-            }
-            Ok((output, exceeded))
-        })();
-        let _ = output_sender.send(result);
-    });
-    let deadline = Instant::now() + Duration::from_secs(120);
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                if !status.success() {
-                    bail!("Local dictation failed; check NeMo-Speech.cpp on the daemon host")
-                }
-                break;
-            }
-            Ok(None) => {}
-            Err(error) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(error).context("Could not check local dictation");
-            }
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            bail!("Local dictation timed out");
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    let (output, exceeded) = output_receiver
-        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-        .context("Could not read local dictation before the timeout")??;
-    if exceeded {
-        bail!("Dictation output is too large")
-    }
-    let text = String::from_utf8(output).context("Invalid local dictation output")?;
-    let text = text.trim();
-    if text.is_empty() {
-        bail!("No speech was recognized in this recording")
-    }
-    Ok(text.to_owned())
+    waku_credentials::speech::local::transcribe_wav(&paths.wav, &|| false)
 }
 
 #[cfg(test)]

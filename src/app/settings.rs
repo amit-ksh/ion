@@ -135,73 +135,71 @@ impl Waku {
         }
         self.speech_generation = self.speech_generation.wrapping_add(1);
         let generation = self.speech_generation;
-        let language = self.speech_language;
         self.speech_busy = true;
         self.speech_transcript = None;
         self.speech_partial = None;
         self.speech_draft_owner = self.selected_composer_draft_key();
         self.speech_session_owner = self.state.selected_session;
-        self.speech_feedback = Some("Preparing Nemotron 3.5 speech…".into());
+        self.speech_feedback =
+            Some("Preparing local Parakeet… First use downloads about 146 MB.".into());
+        let (stop, commands) = crossbeam_channel::unbounded();
+        self.speech_stop_tx = Some(stop);
         cx.notify();
         let (progress_tx, progress_rx) = crossbeam_channel::bounded(32);
+        self.observe_speech_progress(generation, progress_rx, cx);
         cx.spawn(async move |waku, cx| {
-            loop {
-                let receiver = progress_rx.clone();
-                let event = cx.background_executor().spawn(async move {
-                    smol::unblock(move || receiver.recv()).await
-                }).await;
-                let Ok(event) = event else { break; };
-                let still_current = waku.update(cx, |waku, cx| {
-                    if waku.speech_generation != generation { return false; }
-                    match event {
-                        crate::speech::SpeechProgress::Ready { live_preview, cloud } => {
-                            if waku.speech_recording {
-                                waku.speech_feedback = Some(if cloud {
-                                    "Streaming microphone audio to your speech service. Press Stop when finished.".into()
-                                } else if live_preview {
-                                    "Recording locally with live transcript preview. Press Stop when finished.".into()
-                                } else {
-                                    "Recording locally. Live preview unavailable; final transcription will still run.".into()
-                                });
-                            }
-                        }
-                        crate::speech::SpeechProgress::Preview(text) => {
-                            if waku.speech_recording || waku.speech_busy {
-                                waku.speech_partial = Some(text);
-                            }
-                        }
-                    }
-                    cx.notify();
-                    true
-                }).unwrap_or(false);
-                if !still_current { break; }
-            }
-        }).detach();
-        cx.spawn(async move |waku, cx| {
+            let preparing_commands = commands.clone();
+            let preparing_progress = progress_tx.clone();
             let prepared = cx
                 .background_executor()
-                .spawn(async { smol::unblock(crate::speech::prepare_model).await })
+                .spawn(async move {
+                    smol::unblock(move || {
+                        crate::speech::prepare_recording(
+                            &preparing_commands,
+                            Some(&preparing_progress),
+                        )
+                    })
+                    .await
+                })
                 .await;
             if let Err(error) = prepared {
                 let _ = waku.update(cx, |waku, cx| {
                     if waku.speech_generation == generation {
                         waku.speech_busy = false;
+                        waku.speech_stop_tx = None;
                         waku.speech_feedback = Some(error.to_string());
                         cx.notify();
                     }
                 });
                 return;
             }
-            let (stop, commands) = crossbeam_channel::unbounded();
             let started = waku
                 .update(cx, |waku, cx| {
                     if waku.speech_generation != generation {
                         return false;
                     }
+                    let canceled = waku.speech_stop_tx.is_none();
+                    let changed_context = waku.speech_draft_owner
+                        != waku.selected_composer_draft_key()
+                        || waku.speech_session_owner != waku.state.selected_session;
+                    if canceled || changed_context {
+                        waku.speech_busy = false;
+                        waku.speech_recording = false;
+                        waku.speech_stop_tx = None;
+                        waku.speech_feedback = Some(
+                            if canceled {
+                                "Dictation canceled."
+                            } else {
+                                "Parakeet is ready. Start dictation from the chat you want to use."
+                            }
+                            .into(),
+                        );
+                        cx.notify();
+                        return false;
+                    }
                     waku.speech_busy = false;
                     waku.speech_recording = true;
-                    waku.speech_stop_tx = Some(stop);
-                    waku.speech_feedback = Some("Connecting the speech recognizer…".into());
+                    waku.speech_feedback = Some("Starting the microphone…".into());
                     cx.notify();
                     true
                 })
@@ -213,7 +211,7 @@ impl Waku {
                 .background_executor()
                 .spawn(async move {
                     smol::unblock(move || {
-                        crate::speech::record_and_transcribe(commands, language, progress_tx)
+                        crate::speech::record_and_transcribe(commands, progress_tx)
                     })
                     .await
                 })
@@ -248,15 +246,96 @@ impl Waku {
         .detach();
     }
 
+    fn observe_speech_progress(
+        &self,
+        generation: u64,
+        progress_rx: crossbeam_channel::Receiver<crate::speech::SpeechProgress>,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |waku, cx| {
+            loop {
+                let receiver = progress_rx.clone();
+                let event = cx.background_executor().spawn(async move {
+                    smol::unblock(move || receiver.recv()).await
+                }).await;
+                let Ok(event) = event else { break; };
+                let still_current = waku.update(cx, |waku, cx| {
+                    if waku.speech_generation != generation || waku.speech_stop_tx.is_none() { return false; }
+                    match event {
+                        crate::speech::SpeechProgress::Ready => {
+                            if waku.speech_recording {
+                                waku.speech_feedback = Some("Recording on this computer. Press Stop to transcribe with Parakeet.".into());
+                            }
+                        }
+                        crate::speech::SpeechProgress::Model(event) => {
+                            use waku_credentials::speech::download::Progress;
+                            waku.speech_feedback = Some(match event {
+                                Progress::Waiting => "Waiting for another local model download. You can cancel or keep using Ion.".into(),
+                                Progress::Verifying => "Verifying the saved Parakeet model…".into(),
+                                Progress::Downloading { bytes, total } => format!("Downloading Parakeet: {} / {} MB. You can cancel or keep using Ion.", bytes / 1_000_000, total / 1_000_000),
+                                Progress::Ready => "Parakeet is ready for local dictation.".into(),
+                            });
+                        }
+                        crate::speech::SpeechProgress::Warning(message) => {
+                            waku.speech_feedback = Some(message);
+                        }
+                    }
+                    cx.notify();
+                    true
+                }).unwrap_or(false);
+                if !still_current { break; }
+            }
+        }).detach();
+    }
+
     pub(super) fn cancel_speech_recording(&mut self, cx: &mut Context<Self>) {
         if let Some(stop) = self.speech_stop_tx.take() {
             let _ = stop.send(crate::speech::RecordCommand::Cancel);
             self.speech_recording = false;
             self.speech_busy = true;
             self.speech_partial = None;
-            self.speech_feedback = Some("Canceling recording…".into());
+            self.speech_feedback = Some("Canceling dictation…".into());
             cx.notify();
         }
+    }
+
+    pub(super) fn prepare_local_speech_model(&mut self, cx: &mut Context<Self>) {
+        if self.speech_busy || self.speech_recording {
+            return;
+        }
+        self.speech_generation = self.speech_generation.wrapping_add(1);
+        let generation = self.speech_generation;
+        let (stop, commands) = crossbeam_channel::unbounded();
+        self.speech_stop_tx = Some(stop);
+        self.speech_busy = true;
+        self.speech_feedback = Some("Downloading and verifying Parakeet… About 146 MB on first use. You can keep using Ion.".into());
+        cx.notify();
+        let (progress_tx, progress_rx) = crossbeam_channel::bounded(32);
+        self.observe_speech_progress(generation, progress_rx, cx);
+        cx.spawn(async move |waku, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    smol::unblock(move || {
+                        crate::speech::prepare_recording(&commands, Some(&progress_tx))
+                    })
+                    .await
+                })
+                .await;
+            let _ = waku.update(cx, |waku, cx| {
+                if waku.speech_generation != generation {
+                    return;
+                }
+                waku.speech_busy = false;
+                waku.speech_stop_tx = None;
+                waku.speech_feedback = Some(match result {
+                    Ok(()) => "Parakeet is ready for local dictation.".into(),
+                    Err(error) => error.to_string(),
+                });
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     pub(super) fn refresh_speech_runtime_status(&mut self, cx: &mut Context<Self>) {
@@ -269,7 +348,7 @@ impl Waku {
             let _ = waku.update(cx, |waku, cx| {
                 if waku.speech_generation == generation {
                     waku.speech_runtime_status = Some(match status {
-                        Ok(version) => format!("Installed: {version}"),
+                        Ok(version) => format!("Runtime installed: {version}"),
                         Err(error) => error.to_string(),
                     });
                     cx.notify();
@@ -289,7 +368,6 @@ impl Waku {
             multiple: false,
             prompt: Some("Choose a WAV recording".into()),
         });
-        let language = self.speech_language;
         self.speech_generation = self.speech_generation.wrapping_add(1);
         let generation = self.speech_generation;
         self.speech_feedback = None;
@@ -297,7 +375,12 @@ impl Waku {
         self.speech_partial = None;
         self.speech_draft_owner = self.selected_composer_draft_key();
         self.speech_session_owner = self.state.selected_session;
+        let (stop, commands) = crossbeam_channel::unbounded();
+        self.speech_stop_tx = Some(stop);
         self.speech_busy = true;
+        self.speech_feedback = Some(
+            "Preparing local Parakeet transcription… First use may download about 146 MB.".into(),
+        );
         cx.notify();
         cx.spawn(async move |waku, cx| {
             let path = match receiver.await {
@@ -307,7 +390,7 @@ impl Waku {
             let result = if let Some(path) = path {
                 Some(
                     cx.background_executor()
-                        .spawn(async move { crate::speech::transcribe_wav(&path, language) })
+                        .spawn(async move { crate::speech::transcribe_wav(&path, &commands) })
                         .await,
                 )
             } else {
@@ -317,6 +400,12 @@ impl Waku {
                 if waku.speech_generation != generation {
                     return;
                 }
+                let result = if waku.speech_stop_tx.is_some() {
+                    result
+                } else {
+                    None
+                };
+                waku.speech_stop_tx = None;
                 waku.speech_busy = false;
                 match result {
                     Some(Ok(transcript)) => {
@@ -358,6 +447,7 @@ impl Waku {
     }
 
     pub(super) fn refresh_credential_statuses(&mut self, cx: &mut Context<Self>) {
+        self.refresh_cloud_account(cx);
         use crate::credentials::{CredentialKind as Kind, CredentialService};
         let kinds = [
             Kind::NebiusTokenFactoryApiKey,
@@ -464,7 +554,7 @@ impl Waku {
         .detach();
     }
 
-    fn republish_pending_gateway_interactions(&self) {
+    pub(super) fn republish_pending_gateway_interactions(&self) {
         let Some(bridge) = &self._gateway_bridge else {
             return;
         };
@@ -919,17 +1009,16 @@ impl Waku {
     pub(super) fn render_models_speech_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         use crate::credentials::{CredentialKind as Kind, CredentialStatus};
         let theme = Theme::current(cx);
-        let mut content = div().flex().flex_col().gap(px(14.0));
+        let mut content = div()
+            .flex()
+            .flex_col()
+            .gap(px(14.0))
+            .child(self.render_cloud_account(cx));
         for (kind, title, description) in [
-            (
-                Kind::SpeechService,
-                "Cloud speech",
-                "Save your personal speech URL and token. Desktop and phone can connect directly; no local speech installation is needed when configured.",
-            ),
             (
                 Kind::NebiusTokenFactoryApiKey,
                 "Nebius Token Factory",
-                "Use your own API key. ion checks the official model catalog at api.tokenfactory.nebius.com/v1.",
+                "Optional personal API key, used first when configured. Otherwise Ion uses account-based shared inference when the owner enables it.",
             ),
             (
                 Kind::ComposioScopedProjectKey,
@@ -943,6 +1032,7 @@ impl Waku {
                 .copied()
                 .unwrap_or(CredentialStatus::Missing)
             {
+                CredentialStatus::Missing if kind == Kind::NebiusTokenFactoryApiKey && self.shared_inference_enabled() => "Shared inference enabled; personal key optional",
                 CredentialStatus::Missing => "Not configured",
                 CredentialStatus::StoredInVault => "Stored in OS vault",
                 CredentialStatus::ManagedFile => "Managed by a private service file",
@@ -1033,51 +1123,6 @@ impl Waku {
             }
             content = content.child(card);
         }
-        let mut languages = div().flex().gap(px(8.0));
-        for language in [
-            crate::speech::SpeechLanguage::Auto,
-            crate::speech::SpeechLanguage::English,
-            crate::speech::SpeechLanguage::Hindi,
-        ] {
-            languages = languages.child(
-                div()
-                    .id(SharedString::from(format!(
-                        "speech-language-{}",
-                        language.code()
-                    )))
-                    .tab_group()
-                    .tab_index(0)
-                    .tab_stop(true)
-                    .focus_visible(|style| style.border_color(theme.accent))
-                    .h(px(30.0))
-                    .px(px(12.0))
-                    .rounded(px(7.0))
-                    .border_1()
-                    .border_color(if self.speech_language == language {
-                        theme.accent
-                    } else {
-                        theme.border_strong
-                    })
-                    .flex()
-                    .items_center()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text)
-                    .child(language.label())
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.speech_language = language;
-                        cx.notify();
-                    }))
-                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
-                        if !event.keystroke.modifiers.modified()
-                            && matches!(event.keystroke.key.as_str(), "enter" | "space")
-                        {
-                            this.speech_language = language;
-                            cx.notify();
-                            cx.stop_propagation();
-                        }
-                    })),
-            );
-        }
         let mut speech = div()
             .w_full()
             .p(px(18.0))
@@ -1088,10 +1133,12 @@ impl Waku {
             .gap(px(8.0))
             .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Speech"))
             .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
-                .child("Use Dictate in the composer to record your microphone, or choose a local WAV here. Cloud speech uses your configured endpoint. Without one, local NeMo-Speech.cpp downloads Nemotron 3.5 on first use."))
+                .child("Dictation runs on this computer with NVIDIA Parakeet TDT-CTC 110M. The first use downloads about 146 MB; later recognition uses the saved model on this computer. Paired phones send recordings here. English dictation with punctuation. Other languages are unavailable."))
             .child(div().text_size(sp(12.0)).text_color(theme.text_secondary)
-                .child(self.speech_runtime_status.clone().unwrap_or_else(|| "Checking NeMo-Speech.cpp…".into())))
-            .child(languages)
+                .child(self.speech_runtime_status.clone().unwrap_or_else(|| "Checking local speech runtime…".into())))
+            .child(self.control_button("speech-prepare-model", if self.speech_busy { "Cancel dictation setup" } else { "Download / verify Parakeet" }, cx, |this, _, cx| {
+                if this.speech_busy { this.cancel_speech_recording(cx); } else { this.prepare_local_speech_model(cx); }
+            }))
             .child(div()
                 .id("speech-choose-wav")
                 .tab_group()

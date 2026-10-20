@@ -325,6 +325,7 @@ function fileTypeIconName(path: string): FileTypeIconName {
 }
 
 const PROVIDER_ICONS: Record<ProviderKind, string> = {
+  antigravity: 'i-waku-sparkle',
   amp: 'i-waku-provider-amp',
   claude: 'i-waku-provider-claude',
   codex: 'i-waku-provider-openai',

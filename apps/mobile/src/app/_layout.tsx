@@ -9,10 +9,12 @@ import {
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { AccountGate } from "@/components/account-gate";
+import { cloudAccount } from "@/lib/cloud-account";
 import { Colors } from "@/constants/theme";
 import {
   HeaderAction,
@@ -55,18 +57,6 @@ const floatingHeader = {
 } satisfies NativeStackNavigationOptions;
 
 export default function RootLayout() {
-  useEffect(
-    () =>
-      listenForGatewayNotifications((destination) => {
-        if (destination.scope === "inbox") router.push("/gateway-portfolio");
-        else
-          router.push({
-            pathname: "/gateway-task/[id]",
-            params: { id: destination.taskId },
-          });
-      }),
-    [],
-  );
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
   const navigationTheme =
@@ -90,22 +80,41 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
-        <DaemonProvider>
-          <RuntimeProvider>
-            <ThemeProvider value={navigationTheme}>
-              <TaskDrawerHost>
-                <AppNavigator />
-              </TaskDrawerHost>
-              <StatusBar style="auto" />
-            </ThemeProvider>
-          </RuntimeProvider>
-        </DaemonProvider>
+        <ThemeProvider value={navigationTheme}>
+          <AccountGate>
+            <DaemonProvider>
+              <RuntimeProvider>
+                <TaskDrawerHost>
+                  <AppNavigator />
+                </TaskDrawerHost>
+                <StatusBar style="auto" />
+              </RuntimeProvider>
+            </DaemonProvider>
+          </AccountGate>
+        </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }
 
 function AppNavigator() {
+  useEffect(
+    () =>
+      listenForGatewayNotifications((destination) => {
+        if (destination.scope === "inbox") router.push("/gateway-portfolio");
+        else
+          router.push({
+            pathname: "/gateway-task/[id]",
+            params: { id: destination.taskId },
+          });
+      }),
+    [],
+  );
+  const [cloudEpoch, setCloudEpoch] = useState(0);
+  useEffect(
+    () => cloudAccount.onSignOut(() => setCloudEpoch((value) => value + 1)),
+    [],
+  );
   const { phase, profiles } = useDaemon();
   const { openTaskDrawer } = useTaskDrawer();
   const colorScheme = useColorScheme();
@@ -139,6 +148,7 @@ function AppNavigator() {
 
   return (
     <Stack
+      key={cloudEpoch}
       screenOptions={{
         contentStyle: { backgroundColor: theme.background },
         headerBackButtonDisplayMode: "minimal",
@@ -157,7 +167,7 @@ function AppNavigator() {
       />
       {/* Removing the final saved daemon also removes every daemon-backed
        * route from navigation, returning restored and open tasks to home. */}
-      <Stack.Screen name="speech" options={{ title: "Cloud speech" }} />
+      <Stack.Screen name="speech" options={{ title: "Dictation" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
         <Stack.Screen
           name="artifacts"

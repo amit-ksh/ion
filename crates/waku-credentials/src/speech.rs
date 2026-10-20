@@ -2,6 +2,8 @@
 use super::*;
 use std::io::Read;
 
+pub mod local;
+pub mod download;
 mod realtime;
 pub use realtime::RealtimeSpeech;
 pub const MODEL: &str = "nvidia/nemotron-3.5-asr-streaming-0.6b";
@@ -10,15 +12,28 @@ pub const MODEL: &str = "nvidia/nemotron-3.5-asr-streaming-0.6b";
 pub struct SpeechService {
     pub base_url: String,
     token: String,
+    #[serde(skip)]
+    managed: bool,
 }
 impl SpeechService {
+    pub(crate) fn managed(base_url: String) -> Self {
+        Self {
+            base_url,
+            token: String::new(),
+            managed: true,
+        }
+    }
     pub fn new(base_url: String, token: String) -> Result<Self> {
         gateway_base_url(&base_url)?;
         anyhow::ensure!(
             !token.trim().is_empty() && !token.contains(['\r', '\n']),
             "Enter the speech service token"
         );
-        Ok(Self { base_url, token })
+        Ok(Self {
+            base_url,
+            token,
+            managed: false,
+        })
     }
     pub(crate) fn validate_saved(&self) -> Result<()> {
         Self::new(self.base_url.clone(), self.token.clone())?;
@@ -31,6 +46,13 @@ impl SpeechService {
             .build()?)
     }
     pub fn test_inventory(&self) -> Result<()> {
+        if self.managed {
+            anyhow::ensure!(
+                crate::cloud::services::bootstrap()?["features"]["speech"] == true,
+                "Managed speech is unavailable"
+            );
+            return Ok(());
+        }
         let response = self
             .client()?
             .get(gateway_base_url(&self.base_url)?.join("v1/models")?)
@@ -64,9 +86,15 @@ impl SpeechService {
     }
     /// Open an authenticated PCM stream on a blocking worker. No redirects or retries.
     pub fn start_live(&self, sample_rate: u32, language: &str) -> Result<RealtimeSpeech> {
+        if self.managed {
+            return crate::cloud::services::speech_ticket(120)?.start_live(sample_rate, language);
+        }
         RealtimeSpeech::connect(self, sample_rate, language)
     }
     pub fn transcribe(&self, bytes: Vec<u8>, language: &str) -> Result<String> {
+        if self.managed {
+            return crate::cloud::services::speech_ticket(120)?.transcribe(bytes, language);
+        }
         anyhow::ensure!(
             !bytes.is_empty() && bytes.len() <= 50 * 1024 * 1024,
             "Choose a WAV smaller than 50 MB"
@@ -130,6 +158,9 @@ impl CredentialService {
         } else {
             vault::get(CredentialKind::SpeechService.account())?
         };
+        if value.is_none() {
+            return crate::cloud::services::speech();
+        }
         value
             .map(|value| {
                 let service: SpeechService =

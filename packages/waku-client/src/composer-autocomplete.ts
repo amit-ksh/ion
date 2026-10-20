@@ -1,5 +1,7 @@
 import type {
   FileEntry,
+  ComposerApp,
+  Team,
   ProviderKind,
   ProviderModelOption,
   ReportedCommand,
@@ -9,7 +11,7 @@ import { fuzzyScore } from './fuzzy-search'
 
 export const COMPOSER_AUTOCOMPLETE_CAP = 64
 
-export type ComposerTriggerKind = 'command' | 'file'
+export type ComposerTriggerKind = 'command' | 'file' | 'team' | 'app'
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind
@@ -21,6 +23,8 @@ export interface ComposerTrigger {
 export type ComposerAutocompleteRow =
   | { kind: 'command'; command: SlashCommand }
   | { kind: 'file'; file: FileEntry }
+  | { kind: 'app'; app: ComposerApp }
+  | { kind: 'team'; team: Team; mention: string; invoke: boolean }
 
 export function detectComposerTrigger(text: string, cursor: number): ComposerTrigger | null {
   const end = Math.max(0, Math.min(cursor, text.length))
@@ -28,15 +32,34 @@ export function detectComposerTrigger(text: string, cursor: number): ComposerTri
   const linePrefix = text.slice(lineStart, end)
   if (linePrefix.startsWith('/')) {
     const query = linePrefix.slice(1)
-    if (/\s/u.test(query)) return null
-    return { kind: 'command', query, start: lineStart, end }
+    if (!/\s/u.test(query))
+      return { kind: 'command', query, start: lineStart, end }
   }
 
+  const prefix = text.slice(0, end)
+  const braced = prefix.match(/(?:^|\s)(@@\{[^}\r\n]*)$/u)
+  if (braced)
+    return {
+      kind: 'team',
+      query: braced[1]!.slice(2),
+      start: end - braced[1]!.length,
+      end,
+    }
+  const legacyBraced = prefix.match(/^\s*(@(?:team:)?\{[^}\r\n]*)$/u)
+  if (legacyBraced)
+    return {
+      kind: 'file',
+      query: legacyBraced[1]!.slice(1),
+      start: end - legacyBraced[1]!.length,
+      end,
+    }
   let tokenStart = end
   while (tokenStart > 0 && !/\s/u.test(text[tokenStart - 1]!)) tokenStart -= 1
   const token = text.slice(tokenStart, end)
-  if (!token.startsWith('@')) return null
-  return { kind: 'file', query: token.slice(1), start: tokenStart, end }
+  if (!token.startsWith('@') || token.startsWith('@@@@')) return null
+  const length = token.startsWith('@@@') ? 3 : token.startsWith('@@') ? 2 : 1
+  return { kind: length === 3 ? 'app' : length === 2 ? 'team' : 'file', query: token.slice(length), start: tokenStart, end,
+  }
 }
 
 export function mergeComposerCommands(
@@ -69,11 +92,14 @@ export function isFastModeToggleSubmission(
   prompt: string,
   commands: SlashCommand[],
 ): boolean {
-  return provider === 'codex'
+  return (
+    provider === 'codex'
     && prompt.trim() === '/fast'
     && commands.some((command) => command.name === 'fast'
       && command.scope === 'Builtin'
-      && command.template === null)
+      && command.template === null,
+    )
+  )
 }
 
 /** Waku's provider-neutral terminal-session picker. */
@@ -108,7 +134,8 @@ export function parseGoalSubmission(
   if (!split || split[1] !== 'goal') return null
   const goalIsCodexBuiltin = commands.some((command) => command.name === 'goal'
     && command.scope === 'Builtin'
-    && command.template === null)
+    && command.template === null,
+  )
   if (!goalIsCodexBuiltin) return null
   const argument = (split[2] ?? '').trim()
   switch (argument) {
@@ -126,9 +153,17 @@ export function toggledFastServiceTier(
   serviceTiers: ProviderModelOption[],
 ): string | null {
   const fast = serviceTiers.find((tier) => ['fast', 'priority'].includes(tier.id)
-    || tier.label.toLocaleLowerCase() === 'fast')
+    || tier.label.toLocaleLowerCase() === 'fast',
+  )
   if (!fast) return null
   return current === fast.id ? 'default' : fast.id
+}
+
+export interface ComposerReferences {
+  apps: ComposerApp[]
+  teams: Team[]
+  allowTeams: boolean
+  invokeTeams?: boolean
 }
 
 export function composerAutocompleteRows(
@@ -136,31 +171,50 @@ export function composerAutocompleteRows(
   commands: SlashCommand[],
   files: FileEntry[],
   cap = COMPOSER_AUTOCOMPLETE_CAP,
+  references: ComposerReferences = { apps: [], teams: [], allowTeams: false },
 ): ComposerAutocompleteRow[] {
-  if (!trigger.query.trim()) {
-    return trigger.kind === 'command'
-      ? commands.slice(0, cap).map((command) => ({ kind: 'command', command }))
-      : files.slice(0, cap).map((file) => ({ kind: 'file', file }))
-  }
-  const source = trigger.kind === 'command'
-    ? commands.map((command) => ({
-        row: { kind: 'command' as const, command },
-        candidate: command.name,
-      }))
-    : files.map((file) => ({
-        row: { kind: 'file' as const, file },
-        candidate: file.path,
-      }))
-  return source
-    .map(({ row, candidate }, index) => ({
-      row,
+  const rank = <T>(items: T[], candidate: (item: T) => string, query: string, limit: number): T[] => {
+    if (!query.trim()) return items.slice(0, limit)
+    return items.map((item, index) => ({ item,
       index,
-      score: fuzzyScore(trigger.query, candidate),
-    }))
+      score: fuzzyScore(query, candidate(item)) }))
     .filter((item): item is typeof item & { score: number } => item.score !== null)
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, cap)
-    .map(({ row }) => row)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit).map(({ item }) => item)
+  }
+  if (trigger.kind === 'command')
+    return rank(commands, (item) => item.name, trigger.query, cap)
+    .map((command) => ({
+      kind: 'command',
+      command,
+    }))
+  const query = trigger.query.replace(/^(app:|team:)/u, '').replace(/^[{]/u, '')
+  const referenceCap = trigger.kind === 'file' ? Math.min(16, Math.floor(cap / 3)) : cap
+  const teams: ComposerAutocompleteRow[] =
+    !references.allowTeams || trigger.kind === 'app'
+      ? []
+      : rank(references.teams, (item) => item.name, query, referenceCap).map((team) => ({
+          kind: 'team',
+          team,
+          mention: teamReference(team, references.teams),
+          invoke: references.invokeTeams ?? true,
+        }))
+  const apps: ComposerAutocompleteRow[] =
+    trigger.kind === 'team'
+      ? []
+      : rank(references.apps, (item) => `${item.name} ${item.slug}`, query, referenceCap).map(
+          (app) => ({ kind: 'app', app }),
+        )
+  if (trigger.kind === 'team') return teams
+  if (trigger.kind === 'app') return apps
+  // Keep all three categories reachable even when a checkout has 50,000 files.
+  const fileRows: ComposerAutocompleteRow[] = rank(
+    files,
+    (item) => item.path,
+    trigger.query,
+    cap - teams.length - apps.length,
+  ).map((file) => ({ kind: 'file', file }))
+  return [...fileRows, ...teams, ...apps]
 }
 
 export function replaceComposerTrigger(
@@ -170,7 +224,11 @@ export function replaceComposerTrigger(
 ): { text: string; cursor: number } {
   const insert = row.kind === 'command'
     ? `/${row.command.name} `
-    : `@${row.file.path} `
+    : row.kind === 'team'
+        ? `${row.mention} `
+        : row.kind === 'app'
+          ? `@@@${row.app.slug} `
+          : `@${row.file.path.startsWith('@') ? './' : ''}${row.file.path} `
   const next = `${text.slice(0, trigger.start)}${insert}${text.slice(trigger.end)}`
   return { text: next, cursor: trigger.start + insert.length }
 }
@@ -240,4 +298,65 @@ function commandScopeRank(scope: SlashCommand['scope']): number {
     case 'Skill':
       return 3
   }
+}
+
+export function teamReference(team: Team, teams: Team[]): string {
+  const name = team.name.trim()
+  return /[{}\n\r]/u.test(name) ||
+    teams.filter((item) => item.name.trim().toLowerCase() === name.toLowerCase()).length !== 1
+    ? `@@${team.id}`
+    : `@@{${name}}`
+}
+
+/** The daemon re-resolves the recipient and pins access/budgets on durable queueing. */
+export async function queueComposerTeam(
+  client: import('./client').WakuClient,
+  session: import('./generated').AgentSession,
+  prompt: string,
+  attachments: import('./generated').MessageAttachment[],
+): Promise<import('./generated').AgentSession | null> {
+  if (!/^\s*(@@(?!@)|#team:|@team:)/u.test(prompt)) return null
+  if (
+    session.turns.length ||
+    session.messages.length ||
+    session.provider_cursor ||
+    session.last_reply_at ||
+    ['connecting', 'working', 'waiting', 'background'].includes(session.status)
+  ) {
+    if (/^\s*(@@(?!@)|#team:)/u.test(prompt)) return null
+    throw new Error('Use New task to start a team task.')
+  }
+  const match = prompt
+    .trimStart()
+    .match(/^(?:@@(?!@)|[#@]team:)(?:\{([^}\r\n]+)\}|([^\s{}]+))\s+([\s\S]+)$/u)
+  if (!match || !match[3]!.trim()) throw new Error('Choose a team with @@, then describe the task.')
+  const response = await client.request({ type: 'loadWorkspaceControl' })
+  if (response.type !== 'workspaceControl') throw new Error('Could not load teams. Try again.')
+  const teams = response.snapshot.records.filter(
+    (item): item is Team & { kind: 'team' } => item.kind === 'team',
+  )
+  const name = match[1] ?? match[2]!
+  const isId = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(name)
+  const matches = teams.filter((item) =>
+    isId
+      ? item.id.toLowerCase() === name.toLowerCase()
+      : item.name.trim().toLowerCase() === name.toLowerCase(),
+  )
+  if (matches.length !== 1)
+    throw new Error('This team is unavailable or ambiguous. Choose it from @@ suggestions.')
+  const queued = await client.request(
+    {
+      type: 'queueTeamTask',
+      runId: session.id,
+      projectId: session.project_id,
+      expectedDefinitionRevision: response.snapshot.revision,
+      teamId: matches[0]!.id,
+      sourcePrompt: prompt,
+      attachments,
+    },
+    session.id,
+  )
+  if (queued.type !== 'teamTaskQueued' || queued.session.id !== session.id)
+    throw new Error('Team acknowledgement missing. Refresh Tasks before retrying.')
+  return queued.session
 }

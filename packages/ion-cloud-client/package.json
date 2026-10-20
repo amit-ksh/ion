@@ -1,0 +1,11 @@
+{
+  "name": "@ion/cloud-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/login.ts",
+  "scripts": {
+    "test": "bun test src",
+    "check": "tsc --noEmit -p tsconfig.json"
+  }
+}

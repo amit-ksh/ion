@@ -1,9 +1,12 @@
+import { adoptTeamFollowUp } from '@waku/client/event-reducer'
+import { queueComposerTeam } from '@waku/client/composer-autocomplete'
 import { useQueryClient } from '@tanstack/react-query'
 import type {
   AgentSession,
   DaemonSettings,
   GoalOperation,
   MessageAttachment,
+  QueuedMessage,
   PlanUsage,
   Project,
   ProviderProbe,
@@ -158,6 +161,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   localeRef.current = locale
   const queryClient = useQueryClient()
   const entries = useRef(new Map<string, RuntimeEntry>())
+  const teamFollowups = useRef(new Map<string, QueuedMessage>())
   const attachRequests = useRef(new Map<string, Promise<boolean>>())
   const persistenceTails = useRef(new Map<string, Promise<AgentSession>>())
   const checkpointCaptures = useRef(new Map<string, Promise<AgentSession>>())
@@ -630,6 +634,26 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       const currentSession = queryClient.getQueryData<AgentSession>(
         daemonKeys.session(config.address, inputSession.id),
       ) ?? inputSession
+      if (currentSession.team_assignment) {
+        if (!prompt || new TextEncoder().encode(prompt).length > 4096 || attachments.length || providerPrompt !== prompt) {
+          throw new Error('Team follow-ups support plain text up to 4 KiB.')
+        }
+        const previous = teamFollowups.current.get(currentSession.id)
+        const message: QueuedMessage = previous?.content === prompt ? previous : {
+          id: crypto.randomUUID(), content: prompt, display_content: null, attachments: [], created_at: Math.floor(Date.now() / 1000),
+        }
+        teamFollowups.current.set(currentSession.id, message)
+        const response = await client.request({type: 'queueTeamFollowUp', runId: currentSession.team_assignment.runId, message}, currentSession.id)
+        if (response.type !== 'teamFollowUpQueued') throw new Error('Team acknowledgement missing. Refresh before retrying.')
+        const accepted = response.snapshot.followUps.find((item) => item.message.id === message.id)
+        if (!accepted) throw new Error('Team acknowledgement missing. Refresh before retrying.')
+        const latest = queryClient.getQueryData<AgentSession>(daemonKeys.session(config.address, currentSession.id)) ?? currentSession
+        cacheSession(adoptTeamFollowUp(latest, accepted.message))
+        if (teamFollowups.current.get(currentSession.id)?.id === message.id) teamFollowups.current.delete(currentSession.id)
+        return
+      }
+      const team = await queueComposerTeam(client, currentSession, prompt, attachments)
+      if (team) { cacheSession(team); return }
       if (
         currentSession.status === 'connecting' ||
         currentSession.status === 'working' ||
@@ -1056,11 +1080,18 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const cancel = useCallback(
     async (sessionId: string) => {
       if (!client) throw new Error(translate(localeRef.current, 'errors.daemon_disconnected'))
+      const session = config ? queryClient.getQueryData<AgentSession>(daemonKeys.session(config.address, sessionId)) : undefined
+      if (session?.team_assignment) {
+        const response = await client.request({type: 'getTeamRun', runId: session.team_assignment.runId}, sessionId)
+        if (response.type !== 'teamRun') throw new Error('Refresh the team run before stopping.')
+        await client.request({type: 'stopTeamRun', runId: session.team_assignment.runId, expectedRevision: response.snapshot.revision}, sessionId)
+        return
+      }
       const runtime = entries.current.get(sessionId)
       if (!runtime) throw new Error(translate(localeRef.current, 'errors.no_live_runtime'))
       await client.request({ type: 'cancel' }, sessionId, runtime.runtimeId)
     },
-    [client],
+    [client, config, queryClient],
   )
 
   const closeSession = useCallback(
@@ -1442,6 +1473,8 @@ function syntheticEvent(
 function providerName(provider: AgentSession['provider']) {
   return (
     {
+      antigravity: 'Antigravity',
+      nebius: 'Nebius',
       amp: 'Amp',
       claude: 'Claude Code',
       codex: 'Codex',

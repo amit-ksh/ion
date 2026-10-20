@@ -1,3 +1,4 @@
+import type { DatabaseSource } from "./database";
 import { DurableInboxRelay } from "./inbox-relay";
 import { DurablePortfolioRelay } from "./portfolio-relay";
 import type { AllowedTool } from "./authority";
@@ -9,26 +10,24 @@ import { GatewayPush } from "./push";
 import type { ComposioCatalog } from "./composio";
 import type { ComposioExecutor } from "./composio-execution";
 
-export interface GatewayServerOptions {
-  databasePath: string;
+export interface GatewayRuntimeOptions {
+  databasePath: DatabaseSource;
+  periodicPush?: boolean;
   ownerToken: string;
   allowedTools: AllowedTool[];
   composio?: ComposioCatalog;
   executor?: ComposioExecutor;
   pushFetch?: typeof fetch;
+}
+
+export interface GatewayServerOptions extends GatewayRuntimeOptions {
   hostname?: string;
   port?: number;
   tls?: { key: Bun.BunFile; cert: Bun.BunFile };
 }
 
-export function startGateway(options: GatewayServerOptions): {
-  server: Bun.Server<undefined>;
-  close: () => Promise<void>;
-} {
-  const hostname = options.hostname ?? "127.0.0.1";
-  if (!["127.0.0.1", "::1", "localhost"].includes(hostname) && !options.tls) {
-    throw new Error("A non-loopback gateway requires TLS");
-  }
+/** Owns the durable services without allocating a listener for each account. */
+export function createGatewayRuntime(options: GatewayRuntimeOptions) {
   const authority = new DurableGatewayAuthority(
     options.databasePath,
     options.allowedTools,
@@ -43,36 +42,29 @@ export function startGateway(options: GatewayServerOptions): {
     automations = new DurableAutomationRelay(options.databasePath);
     portfolio = new DurablePortfolioRelay(options.databasePath);
     inbox = new DurableInboxRelay(options.databasePath);
-    push = new GatewayPush(options.databasePath, authority, options.pushFetch);
-    const runtime = { relay, automations, push, portfolio, inbox };
-    const server = Bun.serve({
-      hostname,
-      port: options.port ?? 0,
-      tls: options.tls,
-      maxRequestBodySize: 70_000,
-      fetch: createGatewayHandler(
-        authority,
-        options.ownerToken,
-        relay,
-        push,
-        options.composio,
-        options.executor,
-        automations,
-        portfolio,
-        inbox,
-      ),
-      error: () =>
-        Response.json({ error: "Request rejected" }, { status: 500 }),
-    });
+    push = new GatewayPush(options.databasePath, authority, options.pushFetch, Date.now, options.periodicPush ?? true);
+    const services = { relay, automations, push, portfolio, inbox };
+    const handler = createGatewayHandler(
+      authority,
+      options.ownerToken,
+      relay,
+      push,
+      options.composio,
+      options.executor,
+      automations,
+      portfolio,
+      inbox,
+    );
     return {
-      server,
+      fetch: handler,
+      flush: () => services.push.flush(),
+      hasPendingPush: () => services.push.hasPending(),
       close: async () => {
-        await server.stop();
-        await runtime.push.close();
-        runtime.inbox.close();
-        runtime.portfolio.close();
-        runtime.automations.close();
-        runtime.relay.close();
+        await services.push.close();
+        services.inbox.close();
+        services.portfolio.close();
+        services.automations.close();
+        services.relay.close();
         authority.close();
       },
     };
@@ -83,6 +75,38 @@ export function startGateway(options: GatewayServerOptions): {
     automations?.close();
     relay?.close();
     authority.close();
+    throw error;
+  }
+}
+
+export function startGateway(options: GatewayServerOptions): {
+  server: Bun.Server<undefined>;
+  close: () => Promise<void>;
+} {
+  const hostname = options.hostname ?? "127.0.0.1";
+  if (!["127.0.0.1", "::1", "localhost"].includes(hostname) && !options.tls) {
+    throw new Error("A non-loopback gateway requires TLS");
+  }
+  const runtime = createGatewayRuntime(options);
+  try {
+    const server = Bun.serve({
+      hostname,
+      port: options.port ?? 0,
+      tls: options.tls,
+      maxRequestBodySize: 70_000,
+      fetch: runtime.fetch,
+      error: () =>
+        Response.json({ error: "Request rejected" }, { status: 500 }),
+    });
+    return {
+      server,
+      close: async () => {
+        await server.stop();
+        await runtime.close();
+      },
+    };
+  } catch (error) {
+    void runtime.close();
     throw error;
   }
 }
