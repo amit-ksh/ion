@@ -195,10 +195,10 @@ impl Network {
         );
         let mut bytes = Vec::new();
         response
-            .take(70_001)
+            .take(300_001)
             .read_to_end(&mut bytes)
             .map_err(|_| anyhow::anyhow!("Cloud response could not be read"))?;
-        ensure!(bytes.len() <= 70_000, "Cloud response exceeds its limit");
+        ensure!(bytes.len() <= 300_000, "Cloud response exceeds its limit");
         serde_json::from_slice(&bytes).map_err(|_| anyhow::anyhow!("Cloud returned invalid JSON"))
     }
 }

@@ -186,6 +186,10 @@ pub(super) struct ControlUi {
     pub(super) mention_apps_generation: u64,
     apps_busy: bool,
     apps_generation: u64,
+    apps_workspace: Option<String>,
+    apps_next: Option<String>,
+    apps_after: Option<String>,
+    apps_previous: Vec<Option<String>>,
     pub(super) app_search: Entity<TextInput>,
     apps_connected_only: bool,
     app_action_account: Option<String>,
@@ -384,6 +388,10 @@ impl ControlUi {
             mention_apps_generation: 0,
             apps_busy: false,
             apps_generation: 0,
+            apps_workspace: None,
+            apps_next: None,
+            apps_after: None,
+            apps_previous: Vec::new(),
             app_search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search apps")),
             apps_connected_only: false,
             app_action_account: None,
@@ -436,67 +444,61 @@ impl Waku {
             self.control_ui.mention_apps_generation.wrapping_add(1);
         self.control_ui.mention_apps_busy = false;
         self.control_ui.mention_apps_error = false;
+        self.control_ui.apps_workspace = None;
+        self.control_ui.apps_next = None;
+        self.control_ui.apps_after = None;
+        self.control_ui.apps_previous.clear();
+        self.control_ui.app_action_generation = self.control_ui.app_action_generation.wrapping_add(1);
+        self.control_ui.app_action_busy = false;
+        self.control_ui.app_action_tools.clear();
+        self.control_ui.app_action_account = None;
         self.control_ui.app_configs.clear();
         self.control_ui.app_accounts.clear();
         self.control_ui.mention_apps = Rc::new(Vec::new());
     }
     fn refresh_composio_apps(&mut self, cx: &mut Context<Self>) {
-        if self.control_ui.apps_busy {
-            return;
-        }
+        self.load_composio_apps(None, cx);
+    }
+    fn load_composio_apps(&mut self, cursor: Option<String>, cx: &mut Context<Self>) {
+        if self.control_ui.apps_busy { return; }
         self.control_ui.apps_busy = true;
-        self.control_ui.apps_generation += 1;
+        self.control_ui.apps_generation = self.control_ui.apps_generation.wrapping_add(1);
         let generation = self.control_ui.apps_generation;
+        let expected = self.cloud_ui.status.workspace_id.clone();
+        let query = self.control_ui.app_search.read(cx).content().trim().to_owned();
+        let connected = self.control_ui.apps_connected_only;
         cx.spawn(async move |this, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async {
-                    smol::unblock(|| {
-                        crate::credentials::CredentialService::global().composio_apps()
-                    })
-                    .await
-                })
-                .await;
+            let result = cx.background_executor().spawn(async move {
+                smol::unblock(move || crate::credentials::CredentialService::global()
+                    .composio_app_page(&query, cursor.as_deref(), connected, expected.as_deref())).await
+            }).await;
             let _ = this.update(cx, |this, cx| {
-                if this.control_ui.apps_generation != generation {
-                    return;
-                }
+                if this.control_ui.apps_generation != generation { return; }
                 this.control_ui.apps_busy = false;
                 match result {
-                    Ok((configs, accounts)) => {
-                        this.control_ui.mention_apps = Rc::new(
-                            configs
-                                .iter()
-                                .filter(|app| {
-                                    accounts.iter().any(|account| {
-                                        account.toolkit == app.toolkit && account.status == "ACTIVE"
-                                    })
-                                })
-                                .map(|app| waku_client::composer_complete::ComposerApp {
-                                    slug: app.toolkit.clone(),
-                                    name: app.name.clone(),
-                                })
-                                .collect(),
-                        );
-                        this.control_ui.app_configs = configs;
-                        this.control_ui.app_accounts = accounts;
+                    Ok(page) => {
+                        this.control_ui.apps_workspace = page.workspace_id;
+                        this.control_ui.apps_next = page.next_cursor;
+                        this.control_ui.app_configs = page.apps;
+                        this.control_ui.app_accounts = page.accounts;
                         this.control_ui.error = None;
+                        this.refresh_composer_reference_apps(cx);
                     }
                     Err(error) => {
-                        this.control_ui.mention_apps = Rc::new(Vec::new());
                         this.control_ui.app_configs.clear();
                         this.control_ui.app_accounts.clear();
+                        this.control_ui.apps_workspace = None;
+                        this.control_ui.apps_next = None;
                         this.control_ui.error = Some(error.to_string());
                     }
                 }
                 cx.notify();
             });
-        })
-        .detach();
+        }).detach();
         cx.notify();
     }
     fn connect_composio_app(&mut self, config_id: String, cx: &mut Context<Self>) {
-        if config_id.starts_with("available:") {
+        if config_id.starts_with("available:") || config_id.starts_with("unavailable:") {
             return;
         }
         if config_id.starts_with("configure:") {
@@ -509,7 +511,8 @@ impl Waku {
         self.control_ui.apps_busy = true;
         self.control_ui.apps_generation += 1;
         let generation = self.control_ui.apps_generation;
-        // Stable per-install identity, independent of model/task identity.
+        let expected_workspace = self.control_ui.apps_workspace.clone();
+        // Legacy personal projects retain their stable per-install identity.
         let user_id = self.state.composio_user_id();
         self.save();
         cx.spawn(async move |this, cx| {
@@ -518,7 +521,7 @@ impl Waku {
                 .spawn(async move {
                     smol::unblock(move || {
                         crate::credentials::CredentialService::global()
-                            .composio_connect(&config_id, &user_id)
+                            .composio_connect_for(&config_id, &user_id, expected_workspace.as_deref())
                     })
                     .await
                 })
@@ -539,6 +542,29 @@ impl Waku {
             });
         })
         .detach();
+        cx.notify();
+    }
+    fn disconnect_composio_app(&mut self, account_id: String, cx: &mut Context<Self>) {
+        if self.control_ui.apps_busy { return; }
+        self.control_ui.apps_busy = true;
+        self.control_ui.apps_generation = self.control_ui.apps_generation.wrapping_add(1);
+        let generation = self.control_ui.apps_generation;
+        let expected = self.control_ui.apps_workspace.clone();
+        cx.spawn(async move |this, cx| {
+            let result = cx.background_executor().spawn(async move {
+                smol::unblock(move || crate::credentials::CredentialService::global()
+                    .composio_disconnect(&account_id, expected.as_deref())).await
+            }).await;
+            let _ = this.update(cx, |this, cx| {
+                if this.control_ui.apps_generation != generation { return; }
+                this.control_ui.apps_busy = false;
+                match result {
+                    Ok(()) => { this.invalidate_composio_apps(); this.refresh_composio_apps(cx); this.show_toast("App disconnected."); }
+                    Err(error) => this.control_ui.error = Some(error.to_string()),
+                }
+                cx.notify();
+            });
+        }).detach();
         cx.notify();
     }
     fn workspace_notices(&self) -> Vec<Notice> {
@@ -1819,6 +1845,7 @@ impl Waku {
                         .filter(|a| {
                             a.toolkit.to_lowercase().contains(&query)
                                 || a.name.to_lowercase().contains(&query)
+                                || a.description.to_lowercase().contains(&query)
                         })
                         .cloned()
                         .collect::<Vec<_>>();
@@ -1940,7 +1967,7 @@ impl Waku {
                     "No apps match your search."
                 }
                 Page::Apps if self.control_ui.apps_connected_only => "No connected accounts yet.",
-                Page::Apps => "Save your Composio project key in Settings to load available apps.",
+                Page::Apps => "No apps available. Refresh or check your Ion account connection.",
                 _ => "Nothing here yet.",
             }));
         }
@@ -2162,6 +2189,26 @@ impl Waku {
                     .child(div().flex_1().min_w_0().child(
                         TextField::new("apps-search", self.control_ui.app_search.clone()).w_full(),
                     ))
+                    .child(self.control_button("apps-search-submit", "Search", cx, |this, _, cx| {
+                        this.control_ui.apps_after = None;
+                        this.control_ui.apps_previous.clear();
+                        this.refresh_composio_apps(cx);
+                    }))
+                    .when(!self.control_ui.apps_previous.is_empty(), |row| row.child(self.control_button("apps-previous", "Previous", cx, |this, _, cx| {
+                        if this.control_ui.apps_busy { return; }
+                        if let Some(cursor) = this.control_ui.apps_previous.pop() {
+                            this.control_ui.apps_after = cursor.clone();
+                            this.load_composio_apps(cursor, cx);
+                        }
+                    })))
+                    .when(self.control_ui.apps_next.is_some(), |row| row.child(self.control_button("apps-next", "Next", cx, |this, _, cx| {
+                        if this.control_ui.apps_busy { return; }
+                        if let Some(cursor) = this.control_ui.apps_next.clone() {
+                            this.control_ui.apps_previous.push(this.control_ui.apps_after.clone());
+                            this.control_ui.apps_after = Some(cursor.clone());
+                            this.load_composio_apps(Some(cursor), cx);
+                        }
+                    })))
                     .child(
                         self.control_button(
                             "manage-app-connections",
@@ -2192,6 +2239,9 @@ impl Waku {
                     .child(
                         self.control_button("apps-all", "All apps", cx, |this, _, cx| {
                             this.control_ui.apps_connected_only = false;
+                            this.control_ui.apps_after = None;
+                            this.control_ui.apps_previous.clear();
+                            this.refresh_composio_apps(cx);
                             cx.notify();
                         })
                         .border_0()
@@ -2204,6 +2254,9 @@ impl Waku {
                     .child(
                         self.control_button("apps-connected", "Connected", cx, |this, _, cx| {
                             this.control_ui.apps_connected_only = true;
+                            this.control_ui.apps_after = None;
+                            this.control_ui.apps_previous.clear();
+                            this.refresh_composio_apps(cx);
                             cx.notify();
                         })
                         .border_0()
@@ -2411,6 +2464,8 @@ impl Waku {
                                 "Configure"
                             } else if id.starts_with("available:") {
                                 "Available"
+                            } else if id.starts_with("unavailable:") {
+                                "Unavailable"
                             } else {
                                 "Connect"
                             },
@@ -2422,6 +2477,11 @@ impl Waku {
                                 this.connect_composio_app(id.clone(), cx);
                             },
                         ));
+                    if let Some(account) = account {
+                        let account_id = account.id.clone();
+                        tile = tile.child(self.control_button(format!("app-disconnect-{}", account.id), "Disconnect", cx,
+                            move |this, _, cx| this.disconnect_composio_app(account_id.clone(), cx)));
+                    }
                     pair = pair.child(tile);
                 }
                 if count == 1 {
@@ -2647,11 +2707,18 @@ impl Waku {
                     "icons/folder.svg",
                 )
             }
-            Row::Account(toolkit, id, status) => (
-                app_name(&toolkit),
-                format!("{status} · {id}"),
-                "icons/package.svg",
-            ),
+            Row::Account(toolkit, id, status) => {
+                if status == "ACTIVE" {
+                    let account_id = id.clone();
+                    actions = actions.child(self.control_button(format!("disconnect-account-{id}"), "Disconnect", cx,
+                        move |this, _, cx| this.disconnect_composio_app(account_id.clone(), cx)));
+                } else if let Some(config) = self.control_ui.app_configs.iter().find(|c| c.toolkit == toolkit && !c.id.starts_with("unavailable:")) {
+                    let config_id = config.id.clone();
+                    actions = actions.child(self.control_button(format!("reconnect-account-{id}"), "Reconnect", cx,
+                        move |this, _, cx| this.connect_composio_app(config_id.clone(), cx)));
+                }
+                (app_name(&toolkit), format!("{status} · {id}"), "icons/package.svg")
+            }
             Row::AgentInTeam(agent, depth, parent) => {
                 body = body.pl(px(22.0 + depth as f32 * 24.0));
                 (

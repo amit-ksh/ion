@@ -40,7 +40,8 @@ const computePolicy = { instanceId: "computeinstance-fixture", projectId: "proje
   limits: { monthly: 7_000_000, lifetime: 22_000_000, accountLifetime: 22_000_000 } };
 const inferencePolicy = { models: [{ id: "fixture-model", contextTokens: 4096, outputTokens: 10, inputMicroUSDPerMillion: 1_000_000,
   outputMicroUSDPerMillion: 1_000_000 }], limits: { monthly: 50000, lifetime: 50000, accountLifetime: 10000 } };
-function instance(directory, configured = false, storage = true) {
+const appSessions = new Map();
+function instance(directory, configured = false, storage = true, apps = false) {
   return new Miniflare({
     ...convertV4MiniflareOptions({
       name: "ion-test",
@@ -56,6 +57,26 @@ function instance(directory, configured = false, storage = true) {
       durableObjectsPersist: join(directory, "sql"),
       r2Persist: join(directory, "objects"),
       outboundService: async (req) => {
+        if (apps && req.url.startsWith("https://backend.composio.dev/api/v3.1/")) {
+          assert.equal(req.headers.get("x-api-key"), "fixture-project-key");
+          const path = new URL(req.url).pathname;
+          if (path === "/api/v3.1/tool_router/session" && req.method === "POST") {
+            const config = await req.json();
+            assert.equal(config.instant, false);
+            assert.equal(config.workbench.enable, false);
+            assert.equal(config.proxy_execute.enable, false);
+            const id = "trs_" + config.user_id;
+            appSessions.set(id, { session_id: id, config });
+            return Response.json(appSessions.get(id), { status: 201 });
+          }
+          const id = path.split("/")[5];
+          if (path.endsWith("/toolkits")) return Response.json({ items: [
+            { slug: "fixture_app", name: "Fixture App", composio_managed_auth_schemes: ["OAUTH2"],
+              connected_account: { id: "ca_operator", user_id: "operator-personal" }, meta: { description: "Safe catalog" } },
+          ], next_cursor: null });
+          if (appSessions.has(id)) return Response.json(appSessions.get(id));
+          throw new Error("Unexpected app fixture operation");
+        }
         if (
           req.url === "https://dev-amit-ksh.au.auth0.com/.well-known/jwks.json"
         )
@@ -69,6 +90,7 @@ function instance(directory, configured = false, storage = true) {
         throw new Error("Unexpected outbound request in offline acceptance");
       },
       bindings: {
+        ...(apps ? { COMPOSIO_PROJECT_KEY: "fixture-project-key" } : {}),
         HOSTING_WORKER_TOKEN: "fixture_" + "x".repeat(43),
         HOSTING_WORKER_ORIGIN: "https://worker.fixture.invalid",
         ...(configured ? { COMPUTE_POLICY_JSON: JSON.stringify(computePolicy), COMPUTE_CONTROLLER_TOKEN: controllerToken,
@@ -441,5 +463,30 @@ test("gateway-only deployment preserves auth and inference without advertising s
     assert.match(await response.text(), /\[DONE\]/);
     const usage = await (await call("judge", "/v1/services/usage")).json();
     assert.equal(usage.tokenFactory.account.spent, 5);
+  } finally { await mf.dispose(); rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+test("managed apps: verified JWT scopes session identity, hides operator connections and persists sessions", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ion-managed-apps-"));
+  let mf = instance(directory, false, false, true);
+  const call = async (subject, body = {}) => mf.dispatchFetch(origin + "/v1/apps/catalog", {
+    method: "POST", headers: { Authorization: "Bearer " + await token(subject), "Content-Type": "application/json",
+      "x-ion-account-subject": "owner", "x-ion-workspace": workspace("owner") }, body: JSON.stringify(body),
+  });
+  try {
+    assert.equal((await mf.dispatchFetch(origin + "/v1/apps/catalog", { headers: { "x-ion-workspace": workspace("owner") } })).status, 401);
+    assert.equal((await call("unapproved")).status, 403);
+    assert.equal((await call("judge", { user_id: "operator-personal" })).status, 400);
+    const a = await call("owner"), b = await call("judge");
+    assert.equal(a.status, 200, await a.clone().text());
+    assert.equal(b.status, 200, await b.clone().text());
+    assert.ok(appSessions.has("trs_ion_" + workspace("owner")));
+    assert.ok(appSessions.has("trs_ion_" + workspace("judge")));
+    const text = await b.text();
+    for (const secret of ["ca_operator", "operator-personal", "fixture-project-key", "trs_ion_"]) assert.ok(!text.includes(secret));
+    assert.equal((await (await mf.dispatchFetch(origin + "/v1/bootstrap")).json()).features.managedApps, true);
+    const size = appSessions.size;
+    await mf.dispose(); mf = instance(directory, false, false, true);
+    assert.equal((await call("judge")).status, 200);
+    assert.equal(appSessions.size, size);
   } finally { await mf.dispose(); rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });

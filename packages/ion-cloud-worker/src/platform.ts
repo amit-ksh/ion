@@ -4,6 +4,7 @@ import { Budget } from "../../ion-cloud/src/budget";
 import { Compute, computePolicy } from "../../ion-cloud/src/compute";
 import { Inference, inferencePolicy } from "../../ion-cloud/src/inference";
 import { Controls } from "../../ion-cloud/src/controls";
+import { ManagedApps } from "../../ion-cloud/src/apps";
 import { Hosting } from "../../ion-cloud/src/hosting";
 import { ServiceStore } from "../../ion-cloud/src/service-store";
 import { CloudFailure, type Account } from "../../ion-cloud/src/auth";
@@ -15,6 +16,7 @@ import type { Env } from "./env";
 export class Platform extends DurableObject<Env> {
   private readonly store: ServiceStore;
   private readonly controls: Controls;
+  private readonly apps: ManagedApps;
   private readonly budget: Budget;
   private readonly compute: Compute;
   private readonly inference: Inference;
@@ -24,6 +26,7 @@ export class Platform extends DurableObject<Env> {
     super(ctx, env);
     this.admission = new Admission(JSON.parse(env.MEMBERS_JSON ?? "[]"));
     this.store = new ServiceStore(durableDatabase(ctx.storage));
+    this.apps = new ManagedApps(this.store, env.COMPOSIO_PROJECT_KEY);
     this.budget = new Budget(this.store);
     const self = this;
     this.controls = new Controls(this.store, this.admission, {
@@ -61,7 +64,7 @@ export class Platform extends DurableObject<Env> {
         return await this.compute.tick(request);
       }
       if (url.pathname === "/internal/platform/capabilities")
-        return Response.json({ htmlPublishing: !!this.hosting,
+        return Response.json({ managedApps: this.apps.available, htmlPublishing: !!this.hosting,
           appDeployment: !!this.hosting && this.compute.available, sharedInference: this.inference.available });
       if (url.pathname.startsWith("/internal/hosting/")) {
         if (!this.hosting) throw new CloudFailure(503, "App storage is not configured yet");
@@ -84,8 +87,10 @@ export class Platform extends DurableObject<Env> {
         scopes: new Set(["ion:gateway"]),
       };
       this.admission.admit(account);
+      if (url.pathname.startsWith("/v1/apps/")) return await this.apps.handle(account, request);
       if (url.pathname === "/v1/services/controls") return await this.controls.handle(account, request);
       if (url.pathname === "/v1/services/usage") return Response.json({
+        combined: this.budget.combined(),
         cloud: this.budget.usage("cloud", account.workspaceId), tokenFactory: this.budget.usage("tokenFactory", account.workspaceId),
         compute: this.compute.status(), owner: this.admission.admit(account) === "owner",
       }, { headers: { "Cache-Control": "no-store" } });

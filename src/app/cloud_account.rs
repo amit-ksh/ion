@@ -8,6 +8,7 @@ use std::sync::{
 pub(super) struct CloudUiState {
     focus: [FocusHandle; 8],
     services: Option<cloud::services::ServiceControls>,
+    pub(super) managed_apps: bool,
     shared_usage: Option<serde_json::Value>,
     status_error: bool,
     checked: bool,
@@ -26,6 +27,7 @@ impl CloudUiState {
         Self {
             focus: std::array::from_fn(|_| cx.focus_handle()),
             services: None,
+            managed_apps: false,
             shared_usage: None,
             status_error: false,
             checked: false,
@@ -113,7 +115,9 @@ impl Waku {
                     } else {
                         None
                     };
-                    anyhow::Ok((status, services, usage))
+                    let managed_apps = status.signed_in && cloud::services::bootstrap()
+                        .is_ok_and(|value| value["features"]["managedApps"] == true);
+                    anyhow::Ok((status, services, usage, managed_apps))
                 })
                 .await;
             let _ = view.update(cx, |this, cx| {
@@ -123,7 +127,8 @@ impl Waku {
                 this.cloud_ui.checking = false;
                 this.cloud_ui.checked = true;
                 match status {
-                    Ok((status, services, usage)) => {
+                    Ok((status, services, usage, managed_apps)) => {
+                        this.cloud_ui.managed_apps = managed_apps;
                         let refresh_models = this.cloud_ui.status.workspace_id
                             != status.workspace_id
                             || this.cloud_ui.services.as_ref().map(|s| s.token_factory)
@@ -135,6 +140,7 @@ impl Waku {
                         }
                         if this.cloud_ui.status.workspace_id != status.workspace_id {
                             this.control_ui.clear_hosting_account(cx);
+                            this.invalidate_composio_apps();
                         }
                         this.cloud_ui.status = status;
                         this.cloud_ui.status_error = false;
@@ -142,6 +148,8 @@ impl Waku {
                     }
                     Err(error) => {
                         this.cloud_ui.services = None;
+                        this.cloud_ui.managed_apps = false;
+                        this.invalidate_composio_apps();
                         this.cloud_ui.shared_usage = None;
                         this.cloud_ui.status_error = true;
                         this.cloud_ui.verified = false;
@@ -177,6 +185,8 @@ impl Waku {
                 }
                 if self.cloud_ui.status.workspace_id != status.workspace_id {
                     self.control_ui.clear_hosting_account(cx);
+                    self.invalidate_composio_apps();
+                    self.cloud_ui.managed_apps = false;
                     self.cloud_ui.services = None;
                     self.cloud_ui.shared_usage = None;
                 }

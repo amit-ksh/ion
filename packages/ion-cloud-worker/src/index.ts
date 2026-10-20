@@ -116,7 +116,7 @@ export default {
       if (url.pathname === "/v1/bootstrap" && request.method === "GET") {
         const capabilities = await env.PLATFORM.get(env.PLATFORM.idFromName("platform-v1")).fetch(
           new Request(env.PUBLIC_ORIGIN + "/internal/platform/capabilities"));
-        const ready = await capabilities.json() as { htmlPublishing: boolean; appDeployment: boolean; sharedInference: boolean };
+        const ready = await capabilities.json() as { managedApps: boolean; htmlPublishing: boolean; appDeployment: boolean; sharedInference: boolean };
         return json({
           version: 1,
           auth: {
@@ -141,6 +141,7 @@ export default {
             htmlPublishing: ready.htmlPublishing,
             appDeployment: ready.appDeployment,
             sharedInference: ready.sharedInference,
+            managedApps: ready.managedApps,
           },
           limits: { hostingBundleBytes: 20_000_000, hostingSites: 10 },
         });
@@ -166,6 +167,7 @@ export default {
       if (
         ["/v1/services/controls", "/v1/services/usage"].includes(url.pathname) ||
         url.pathname.startsWith("/v1/inference/") ||
+        url.pathname.startsWith("/v1/apps/") ||
         url.pathname.startsWith("/v1/hosting/")
       ) {
         headers.set("x-ion-account-subject", account.subject);

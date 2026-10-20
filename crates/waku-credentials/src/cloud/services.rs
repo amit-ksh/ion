@@ -1,5 +1,10 @@
 //! Account-scoped services. All callers must use background workers.
 use super::*;
+/// Capture before dispatching a background operation; account replacement must
+/// never lend another user's bearer token to an old app operation.
+pub fn app_request(expected_workspace: &str, path: &str, body: Value) -> Result<Value> {
+    account()?.app_request(expected_workspace, path, body)
+}
 pub fn bootstrap() -> Result<Value> {
     let account = account()?;
     let value = account.http.json(
@@ -140,6 +145,17 @@ pub(crate) fn inference_request(
     account()?.inference_request(client, method, path, expected_workspace)
 }
 impl<V: Vault, H: Http> Account<V, H> {
+    pub(super) fn app_request(&self, expected_workspace: &str, path: &str, body: Value) -> Result<Value> {
+        ensure!(workspace(expected_workspace) && ["/v1/apps/catalog", "/v1/apps/connect", "/v1/apps/disconnect"].contains(&path), "Invalid managed app operation");
+        let _guard = self.lock()?;
+        let mut state = self.read()?;
+        // Verify identity before refresh as well as after it.
+        ensure!(state.session.as_ref().is_some_and(|s| s.workspace_id == expected_workspace), "The app account changed; refresh Apps in the intended account");
+        self.authorize(&mut state)?;
+        let session = state.session.as_ref().context("Sign in to Ion Cloud")?;
+        ensure!(session.workspace_id == expected_workspace, "The app account changed; refresh Apps in the intended account");
+        self.http.json("POST", &format!("{}{path}", self.config.origin), Some(&session.access_token), Some(body))
+    }
     pub(super) fn inference_request(
         &self,
         client: &reqwest::blocking::Client,

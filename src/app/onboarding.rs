@@ -73,6 +73,7 @@ impl Waku {
     }
     fn setup_needs_attention(&self, step: Step) -> bool {
         if step == Step::Models && self.shared_inference_enabled() { return false; }
+        if step == Step::Apps && self.cloud_ui.status.signed_in && self.cloud_ui.managed_apps { return false; }
         if step == Step::Gateway && self.cloud_ui.status.connected {
             return false;
         }
@@ -525,9 +526,13 @@ impl Waku {
                     .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child("Cloud execution targets, permissions and budgets are configured separately for each agent. Saving a model key does not enable cloud spending."));
             }
             Step::Apps => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Add your Composio project key so agents can work with your apps. Choose apps and sign in from Apps after saving the key."))
-                    .child(self.setup_credential_form(Kind::ComposioScopedProjectKey,"Composio scoped project key",cx))
-                    .child(self.control_button("setup-connect-apps","Connect apps",cx,|this,window,cx|this.setup_apps(window,cx)));
+                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary)
+                    .child("Connect your own app accounts through Ion. App sign-in is handled by Composio; you do not need a Composio project key."))
+                    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child(
+                        if self.cloud_ui.managed_apps { "Managed app connections are available for your Ion account." }
+                        else { "Managed app connections are not available yet. You can skip this step and connect later." }))
+                    .child(self.control_button("setup-connect-apps","Connect apps",cx,|this,window,cx|this.setup_apps(window,cx)))
+                    .child(self.control_button("setup-personal-apps","Advanced: personal project",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)));
             }
             Step::Speech => {
                 form = form

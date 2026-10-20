@@ -57,6 +57,10 @@ impl Http for FakeHttp {
                 json!({"workspaceId": if self.foreign.load(Ordering::SeqCst) { "b".repeat(64) } else { "a".repeat(64) }}),
             );
         }
+        if url.ends_with("/v1/apps/catalog") {
+            assert!(token.is_some());
+            return Ok(json!({"managed":true,"items":[],"nextCursor":null}));
+        }
         if url.ends_with("/invites") {
             assert_eq!(body.unwrap()["grants"], json!(["publish"]));
             return Ok(json!({"invite":"one-use-invite"}));
@@ -718,5 +722,28 @@ fn managed_inference_refreshes_and_never_borrows_a_replacement_accounts_token() 
             .inference_request(&client, reqwest::Method::GET, "models", &expected)
             .is_err()
     );
+    clean(account);
+}
+
+#[test]
+fn managed_apps_bind_identity_before_refresh_and_never_dispatch_for_another_account() {
+    let account = fixture();
+    seed(&account, true, false);
+    let expected = "a".repeat(64);
+    let page = account.app_request(&expected, "/v1/apps/catalog", json!({})).unwrap();
+    assert_eq!(page["managed"], true);
+    assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
+    let count = account.http.calls.lock().unwrap().len();
+    assert!(account.app_request(&expected, "/v1/apps/../services/controls", json!({})).is_err());
+    let mut state = account.read().unwrap();
+    let session = state.session.as_mut().unwrap();
+    session.workspace_id = "b".repeat(64);
+    session.expires_at = 1;
+    account.store().write(&state).unwrap();
+    assert!(account.app_request(&expected, "/v1/apps/connect", json!({})).unwrap_err().to_string().contains("account changed"));
+    assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
+    assert_eq!(account.http.calls.lock().unwrap().len(), count);
+    account.store().write(&State::empty().unwrap()).unwrap();
+    assert!(account.app_request(&expected, "/v1/apps/disconnect", json!({})).is_err());
     clean(account);
 }

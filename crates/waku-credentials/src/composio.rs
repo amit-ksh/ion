@@ -13,6 +13,23 @@ pub struct ComposioAuthConfig {
     pub name: String,
     pub description: String,
 }
+pub struct ComposioAppPage {
+    pub apps: Vec<ComposioAuthConfig>,
+    pub accounts: Vec<GatewayAccount>,
+    pub next_cursor: Option<String>,
+    pub workspace_id: Option<String>,
+}
+fn app_operation_id() -> Result<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).map_err(|_| anyhow::anyhow!("Secure app operation identity unavailable"))?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+fn app_workspace(expected: Option<&str>) -> Result<String> {
+    let status = crate::cloud::status()?;
+    let current = status.workspace_id.filter(|_| status.signed_in).context("Sign in to Ion to connect your apps")?;
+    if expected.is_some_and(|w| w != current) { bail!("The app account changed; refresh Apps in the intended account"); }
+    Ok(current)
+}
 fn client() -> Result<Client> {
     Ok(Client::builder()
         .timeout(Duration::from_secs(15))
@@ -37,7 +54,21 @@ fn payload(response: Response) -> Result<Value> {
 impl CredentialService {
     pub fn composio_mention_apps(&self) -> Result<Vec<(String, String)>> {
         if self.status(CredentialKind::ComposioScopedProjectKey) == CredentialStatus::Missing {
-            return Ok(Vec::new());
+            let status = crate::cloud::status()?;
+            if !status.signed_in { return Ok(Vec::new()); }
+            let mut cursor = None;
+            let mut apps = std::collections::BTreeMap::new();
+            for _ in 0..4 {
+                let page = self.composio_app_page("", cursor.as_deref(), true, status.workspace_id.as_deref())?;
+                for app in page.apps {
+                    if page.accounts.iter().any(|a| a.toolkit == app.toolkit && a.status == "ACTIVE") {
+                        apps.insert(app.toolkit, app.name);
+                    }
+                }
+                cursor = page.next_cursor;
+                if cursor.is_none() { return Ok(apps.into_iter().collect()); }
+            }
+            bail!("Connected app mention limit reached; select an app from Apps");
         }
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
         let client = client()?;
@@ -82,6 +113,24 @@ impl CredentialService {
     }
 
     pub fn composio_apps(&self) -> Result<(Vec<ComposioAuthConfig>, Vec<GatewayAccount>)> {
+        let page = self.composio_app_page("", None, false, None)?;
+        Ok((page.apps, page.accounts))
+    }
+    pub fn composio_app_page(&self, search: &str, cursor: Option<&str>, connected_only: bool, expected_workspace: Option<&str>) -> Result<ComposioAppPage> {
+        if search.len() > 256 || cursor.is_some_and(|c| c.len() > 1024) { bail!("Invalid app catalog filters"); }
+        if self.status(CredentialKind::ComposioScopedProjectKey) != CredentialStatus::Missing {
+            if let Some(expected) = expected_workspace { app_workspace(Some(expected))?; }
+            let (mut apps, accounts) = self.personal_composio_apps()?;
+            let needle = search.to_lowercase();
+            apps.retain(|app| (needle.is_empty() || format!("{} {} {}", app.name, app.toolkit, app.description).to_lowercase().contains(&needle)) &&
+                (!connected_only || accounts.iter().any(|a| a.toolkit == app.toolkit && a.status == "ACTIVE")));
+            return Ok(ComposioAppPage { apps, accounts, next_cursor: None, workspace_id: None });
+        }
+        let workspace_id = app_workspace(expected_workspace)?;
+        let page = crate::cloud::services::app_request(&workspace_id, "/v1/apps/catalog", json!({"search":search,"cursor":cursor.unwrap_or(""),"connectedOnly":connected_only}))?;
+        managed_app_page(page, workspace_id)
+    }
+    fn personal_composio_apps(&self) -> Result<(Vec<ComposioAuthConfig>, Vec<GatewayAccount>)> {
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
         let client = client()?;
         let configs = payload(
@@ -207,6 +256,17 @@ impl CredentialService {
         Ok((apps, accounts))
     }
     pub fn composio_connect(&self, config_id: &str, user_id: &str) -> Result<String> {
+        self.composio_connect_for(config_id, user_id, None)
+    }
+    pub fn composio_connect_for(&self, config_id: &str, user_id: &str, expected_workspace: Option<&str>) -> Result<String> {
+        if let Some(toolkit) = config_id.strip_prefix("managed:") {
+            if !identifier(toolkit, 100) { bail!("Choose an app from the catalog"); }
+            let workspace = app_workspace(expected_workspace)?;
+            let data = crate::cloud::services::app_request(&workspace, "/v1/apps/connect", json!({"toolkit":toolkit,"operationId":app_operation_id()?}))?;
+            let url = data["redirectUrl"].as_str().context("App sign-in URL unavailable")?;
+            validate_connect_url(url)?;
+            return Ok(url.into());
+        }
         if config_id.is_empty()
             || config_id.len() > 160
             || user_id.is_empty()
@@ -260,6 +320,38 @@ impl CredentialService {
         validate_connect_url(url)?;
         Ok(url.into())
     }
+    pub fn composio_disconnect(&self, account: &str, expected_workspace: Option<&str>) -> Result<()> {
+        if !identifier(account, 160) { bail!("Invalid connected account"); }
+        if let Some(workspace) = expected_workspace {
+            let workspace = app_workspace(Some(workspace))?;
+            let data = crate::cloud::services::app_request(&workspace, "/v1/apps/disconnect", json!({"accountId":account,"operationId":app_operation_id()?}))?;
+            anyhow::ensure!(data["account"]["id"] == account && data["account"]["status"] == "REVOKED", "App disconnect needs verification");
+        } else {
+            let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
+            let data = payload(client()?.post(format!("{BASE}/connected_accounts/{account}/revoke")).header("x-api-key", key).send()?)?;
+            anyhow::ensure!(data["connected_account"]["id"] == account && data["connected_account"]["status"] == "REVOKED", "App disconnect needs verification");
+        }
+        Ok(())
+    }
+}
+fn managed_app_page(page: Value, workspace_id: String) -> Result<ComposioAppPage> {
+    anyhow::ensure!(page["managed"] == true, "Unexpected app service");
+    let rows = page["items"].as_array().filter(|r| r.len() <= 50).context("Invalid app catalog page")?;
+    let mut apps = Vec::new(); let mut accounts = Vec::new();
+    for row in rows {
+        let toolkit = row["toolkit"].as_str().filter(|s| identifier(s,100)).context("Invalid app toolkit")?;
+        let name = row["name"].as_str().filter(|s| s.len() <= 1024).context("Invalid app name")?;
+        let description = row["description"].as_str().filter(|s| s.len() <= 4096).context("Invalid app description")?;
+        apps.push(ComposioAuthConfig { id:format!("{}:{toolkit}",if row["connectable"] == true {"managed"} else {"unavailable"}), toolkit:toolkit.into(), name:name.into(), description:description.into() });
+        if let Some(account) = row.get("account") {
+            let id = account["id"].as_str().filter(|s| identifier(s,160)).context("Invalid connected app")?;
+            let status = account["status"].as_str().filter(|s| identifier(s,64)).context("Invalid app status")?;
+            anyhow::ensure!(account["toolkit"] == toolkit, "Connected app toolkit changed");
+            accounts.push(GatewayAccount { id:id.into(), toolkit:toolkit.into(), status:status.into() });
+        }
+    }
+    let next_cursor = match &page["nextCursor"] { Value::Null => None, Value::String(s) if !s.is_empty() && s.len() <= 1024 => Some(s.clone()), _ => bail!("Invalid app catalog cursor") };
+    Ok(ComposioAppPage { apps, accounts, next_cursor, workspace_id:Some(workspace_id) })
 }
 /// Safe pinned tool metadata. No account authentication parameters leave the vault boundary.
 #[derive(Clone)]
@@ -527,6 +619,25 @@ fn validate_connect_url(value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn managed_catalog_has_bounded_pages_and_never_accepts_mismatched_account_toolkits() {
+        let page = json!({"managed":true,"items":[{"toolkit":"mail","name":"Mail","description":"Connect mail","connectable":true,
+            "account":{"id":"ca_own","toolkit":"mail","status":"ACTIVE"}}],"nextCursor":"next"});
+        let parsed = managed_app_page(page.clone(), "a".repeat(64)).unwrap();
+        assert_eq!(parsed.apps[0].id, "managed:mail");
+        assert_eq!(parsed.accounts[0].id, "ca_own");
+        assert_eq!(parsed.next_cursor.as_deref(), Some("next"));
+        let mut changed = page.clone(); changed["items"][0]["account"]["toolkit"] = json!("other");
+        assert!(managed_app_page(changed, "a".repeat(64)).is_err());
+        let mut changed = page.clone(); changed["nextCursor"] = json!(5);
+        assert!(managed_app_page(changed, "a".repeat(64)).is_err());
+        let mut changed = page; changed["managed"] = json!(false);
+        assert!(managed_app_page(changed, "a".repeat(64)).is_err());
+        assert!(managed_app_page(json!({"managed":true,"items":vec![json!({});51],"nextCursor":null}), "a".repeat(64)).is_err());
+        let operation = app_operation_id().unwrap();
+        assert_eq!(operation.len(),32);
+        assert_ne!(operation, app_operation_id().unwrap());
+    }
     #[test]
     fn hosted_auth_only_accepts_composio_https() {
         assert!(validate_connect_url("https://connect.composio.dev/link/test").is_ok());

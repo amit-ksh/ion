@@ -2,7 +2,7 @@
 
 Workers + SQLite Durable Objects + private R2. Reuses the existing account/device/relay and hosting protocols. No speech VM is involved; phone audio goes to the paired desktop's local Parakeet runtime.
 
-**Gateway-only pilot deployed; full storage/compute acceptance pending.** See [live deployment record](../../docs/ai-ide-plan/119-live-gateway-pilot.md). Owner permission switches default OFF and cannot enable an unconfigured service. The public model file is staged locally and must be uploaded before first-use download can succeed.
+**Gateway-only pilot deployed; full storage/compute acceptance pending.** See [live deployment record](../../docs/ai-ide-plan/119-live-gateway-pilot.md). Owner permission switches default OFF and cannot enable an unconfigured service. The speech model is published on Hugging Face at an immutable revision; the native downloader and CPU runtime have passed real acceptance. See [speech release evidence](../../docs/ai-ide-plan/122-hugging-face-speech-release.md).
 
 ## Local checks
 
@@ -42,7 +42,13 @@ The script name, Durable Object classes, IDs and migration tag stay the same, so
 adding storage does not replace account or spending records. Verify the model
 and site routes before claiming first-use downloads or publishing work.
 
-## Publish the exact speech model
+## Optional API mirror of the speech model
+
+The active native manifest downloads directly from `amit-ksh/ion-stt` on Hugging Face.
+R2 activation is not required for dictation. The instructions below are optional
+API mirroring instructions; no mirror is currently enabled.
+
+### R2 mirror upload
 
 The staged release directory is `D:/personal/apps/waku/dist/ion-speech-110m` on the current build machine. Verify the file against `resources/speech/parakeet-110m.json` before upload.
 
@@ -68,3 +74,24 @@ Confirm a real HTTPS GET returns exactly **146029600 bytes** and the expected SH
 See [implementation evidence and owner checklist](../../docs/ai-ide-plan/116-110m-and-serverless-implementation.md).
 
 For policy examples, operator secrets and the latest verification/release checklist, see [plan 117](../../docs/ai-ide-plan/117-managed-compute-and-inference.md) and the [controller runbook](../../services/compute-controller/README.md).
+
+## Managed app connections
+
+`COMPOSIO_PROJECT_KEY` is an encrypted Worker secret, never a desktop/mobile key.
+`/v1/apps/catalog`, `/connect` and `/disconnect` require the existing approved
+Auth0 identity. Sessions use `ion_<verified-workspace-hash>`; caller-selected user
+IDs/session IDs/credential overrides are rejected. Only account-checked summaries
+and the user's Connect Link leave this boundary. Instant Tools, raw proxy calls
+and Composio sandbox execution remain disabled. This is separate from the planned
+Nebius Token Factory sandbox service.
+
+Native Apps search/pagination/connect/revoke and connected app mentions use this
+backend unless the user has retained an optional personal Composio project key.
+Onboarding no longer requires that personal key. Account changes invalidate cached
+app/grant data and queued operations remain pinned to the original workspace.
+
+The app connection foundation is deployed; real app OAuth and read-only tool
+execution acceptance still require a user's app authorization. Managed action
+execution is a separate pending milestone, not implied by a successful catalog.
+
+The shared spending ledger now enforces the [combined pilot envelope](../../docs/ai-ide-plan/121-combined-spending-envelope.md).
