@@ -1,5 +1,11 @@
 # Public speech model release and native acceptance
 
+> Historical Hugging Face release acceptance. The user's later direction moved
+> the default model download to private R2 through Ion's HTTPS API; see
+> [128](128-r2-speech-and-publishing.md). Source attribution and the HF immutable
+> revision remain provenance. References below to HF as the active download
+> origin or R2 as unavailable describe that earlier milestone.
+
 20 October 2026. The operator supplied `amit-ksh/ion-stt` and local upload access.
 
 ## Published artifact

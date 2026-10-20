@@ -4,6 +4,41 @@
 harness adapters remain excluded. This record distinguishes local verification
 from real-provider and physical-user acceptance.
 
+## Current status update — after static-only publishing acceptance
+
+This is a chronological acceptance record. Later evidence supersedes older
+"signed out", R2-not-activated and app-VM prerequisite statements below.
+
+- Native owner login, OS-vault refresh, account-scope checks and publish-only
+  desktop registration passed. The native owner remains signed in/connected.
+- Owner Google Drive consent and one approved read-only quota action passed.
+  Its provider log is recorded in plan 129; do not replay the action merely
+  because billing reconciliation remains open.
+- R2 is active. The verified speech model is downloaded through Ion's API;
+  real native first-download and cache reuse passed.
+- HTML and static app publishing run on Cloudflare. The final static-only
+  publisher and real native-account production acceptance passed, with the
+  disposable site deleted and all spending switches unchanged. See plan 131.
+- Backend app servers, cloud builds and the Nebius app VM/controller are
+  explicitly deferred by the owner. No VM access change is needed for the
+  selected static-only app publishing scope. Sandbox access is separate.
+- Moto G32 in-place APK upgrade, user-confirmed sign-in, nonvisual cold start
+  and the primary Android user's microphone grant passed. Real paired speech
+  and account switching remain unverified.
+- The initial Windows package completed, but predates the R2 source migration.
+  It is preserved in the cache. A fresh Windows release job now builds source
+  `7ffbbdd` plus the same 111 QA files; provenance and logs use the
+  `.waku-cache/ion-static-release-*` and `ion-static-windows-build.*` names.
+- Extracted packaged NeMo CPU runtime passed the fixed speech and silence
+  fixtures against the R2-downloaded model. The final rebuilt package still
+  needs integrity/runtime comparison and installer acceptance.
+
+The independent redesign task runs in its own worktree and does not change the
+acceptance source for this package. Remaining live gates are sandbox permissions
+and reviewed images, actual native chat/team/workflow/account-switch behavior,
+physical paired dictation, release install/upgrade and provider reconciliation.
+No required acceptance is inferred from a successful build or a user's absence.
+
 ## Completed implementation commits
 
 - `bc9d21c`: managed sandbox recovery requires the original saved payload and
