@@ -8,7 +8,7 @@
   "filename": "ion-parakeet-110m-tdt-q8-v1.gguf",
   "bytes": 146029600,
   "sha256": "21ca92b8f0299c6e7d28eb9caa25235bf0a55eaa6511e8e46fbbc27e96900876",
-  "url": "https://api.build-with-ion.tech/models/ion-parakeet-110m-tdt-q8-v1.gguf",
+  "url": "https://huggingface.co/amit-ksh/ion-stt/resolve/e2d275da00383be64c0ee95f340ff37e3329c407/ion-parakeet-110m-tdt-q8-v1.gguf",
   "sourceRevision": "431a349f3051ab85c22b9b7a2741b5fe77065665",
   "sourceSha256": "1e6b5c3bcaa390b479bd8112512ede515d2ef5b61495568f2c266d6d5e680c3a",
   "converterRevision": "caa3f47c7c75fa2e9e6340272ebad57c1647dd44",
@@ -17,5 +17,6 @@
   "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
   "sourceUrl": "https://huggingface.co/nvidia/parakeet-tdt_ctc-110m",
   "attribution": "Original model by NVIDIA and Suno.ai; native format conversion and Q8 packaging by Ion contributors.",
-  "changes": "Converted the original hybrid checkpoint with NVIDIA NeMo-Speech.cpp, selected the TDT decoder and quantized blockwise to Q8_0. Model weights were not fine-tuned."
+  "changes": "Converted the original hybrid checkpoint with NVIDIA NeMo-Speech.cpp, selected the TDT decoder and quantized blockwise to Q8_0. Model weights were not fine-tuned.",
+  "distributionRevision": "e2d275da00383be64c0ee95f340ff37e3329c407"
 }
