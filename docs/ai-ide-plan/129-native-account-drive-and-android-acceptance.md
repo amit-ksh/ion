@@ -105,5 +105,24 @@ Evidence: `ion-managed-android-package-final.log`, `ion-managed-android-signatur
 - Live second-account publishing denial; local workerd already covers this case.
 
 No Nebius VM or sandbox was created or started for the checks above. The latest
-IAM v2 project read reports the approved Compute project ACTIVE. The deprecated
-v1 project's old suspension field must not be used as the current project state.
+IAM v2 project read reports the approved Compute project ACTIVE. The v1 project also reports a SUSPENDED suspension field. The relationship
+between that field and the v2 lifecycle state has not been established; do not
+claim the create denial is conclusively an IAM-role problem without checking
+both access and project/billing status. No resource was created by either
+rejected request.
+
+
+## Publish-only desktop registration
+
+The actual native account test registered this desktop with the managed
+publish-only grant after verifying no personal pairing credential existed.
+The real grant was then checked through the service and the original native
+workspace remained unchanged. The desktop stays signed in and connected;
+no credential was copied into a report. One ignored opt-in test passed.
+Evidence: `.waku-cache/ion-native-publisher.json` and
+`ion-native-publisher.log`. This does not prove online desktop relay or speech.
+
+The later static-only publishing scope in plan 131 defers the app VM/controller
+remaining gate listed above. Nebius rejected the stopped-host creation request;
+post-request instance/disk inventories were empty. No app host is required for
+static Worker/R2 publication.

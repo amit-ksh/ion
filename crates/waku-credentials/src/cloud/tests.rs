@@ -1155,3 +1155,47 @@ fn live_native_managed_drive_quota_action_once() {
         controls.token_factory
     );
 }
+
+#[test]
+#[ignore = "registers this trusted desktop with a publish-only managed gateway grant"]
+fn live_native_desktop_publish_grant() {
+    assert_eq!(
+        std::env::var("ION_NATIVE_PUBLISHER_ACCEPTANCE").as_deref(),
+        Ok("1")
+    );
+    let before = super::verified_status().expect("Verify current native identity");
+    assert!(before.signed_in);
+    let personal =
+        crate::CredentialService::global().status(crate::CredentialKind::GatewayPairingToken);
+    let path =
+        std::env::var_os("ION_NATIVE_PUBLISHER_REPORT").expect("Sanitized publisher evidence path");
+    if personal != crate::CredentialStatus::Missing {
+        std::fs::write(
+            &path,
+            serde_json::to_vec_pretty(
+                &json!({"personalPairingPresent":true,"managedConnected":before.connected}),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        panic!(
+            "Preserve the existing personal gateway pairing; choose managed mode explicitly before live publisher acceptance"
+        );
+    }
+    if !before.connected {
+        super::connect_computer().expect("Register this trusted desktop with publish-only access");
+    }
+    assert!(super::verify_connection().expect("Verify the actual managed device grant"));
+    let after = super::status().unwrap();
+    assert!(after.signed_in && after.connected);
+    assert_eq!(after.workspace_id, before.workspace_id);
+    std::fs::write(
+        path,
+        serde_json::to_vec_pretty(
+            &json!({"personalPairingPresent":false,"managedConnected":true,
+        "publishGrantVerified":true,"newRegistration":!before.connected,"paidCalls":0}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+}
