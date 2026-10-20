@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Matcher, Utf32Str};
-pub use waku_protocol::composer::{CommandScope, FileEntry, SlashCommand};
+pub use waku_protocol::composer::{CommandScope, ComposerApp, FileEntry, SlashCommand};
 use waku_protocol::model::{ProviderKind, ProviderModelOption, ReportedCommand};
 
 pub const FILTER_CAP: usize = 64;
@@ -14,6 +14,8 @@ pub const FILE_INDEX_CAP: usize = 50_000;
 pub enum TriggerKind {
     Command,
     File,
+    Team,
+    App,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -40,6 +42,18 @@ pub fn detect_trigger(text: &str, cursor: usize) -> Option<Trigger> {
         }
         return None;
     }
+    // A braced team name may contain spaces. Keep the full recipient under
+    // the caret until it closes, including when referenced mid-conversation.
+    if let Some(start) = text[..cursor].rfind("@@{")
+        && (start == 0 || text[..start].ends_with(char::is_whitespace))
+        && !text[start..cursor].contains(['}', '\n', '\r'])
+    {
+        return Some(Trigger {
+            kind: TriggerKind::Team,
+            query: text[start + 2..cursor].to_owned(),
+            range: start..cursor,
+        });
+    }
     let leading = text[..cursor].trim_start();
     if (leading.starts_with("@team:{") || leading.starts_with("@{"))
         && !leading.contains(['}', '\n', '\r'])
@@ -56,9 +70,19 @@ pub fn detect_trigger(text: &str, cursor: usize) -> Option<Trigger> {
             index + text[index..].chars().next().unwrap().len_utf8()
         });
     let token = &text[token_start..cursor];
+    let (kind, query) = if let Some(query) = token.strip_prefix("@@@") {
+        (TriggerKind::App, query)
+    } else if let Some(query) = token.strip_prefix("@@") {
+        (TriggerKind::Team, query)
+    } else {
+        (TriggerKind::File, token.strip_prefix('@')?)
+    };
+    if query.starts_with('@') {
+        return None;
+    }
     Some(Trigger {
-        kind: TriggerKind::File,
-        query: token.strip_prefix('@')?.to_owned(),
+        kind,
+        query: query.to_owned(),
         range: token_start..cursor,
     })
 }
@@ -360,6 +384,26 @@ pub fn filter_teams(
         .into_iter()
         .map(|(i, positions)| Scored {
             item: teams[i].clone(),
+            positions,
+        })
+        .collect()
+}
+
+pub fn filter_apps(
+    apps: &[waku_protocol::composer::ComposerApp],
+    query: &str,
+    matcher: &mut Matcher,
+) -> Vec<Scored<waku_protocol::composer::ComposerApp>> {
+    let query = query.strip_prefix("app:").unwrap_or(query);
+    let names = apps
+        .iter()
+        .map(|app| format!("{} {}", app.name, app.slug))
+        .collect::<Vec<_>>();
+    let haystack = names.iter().map(String::as_str).collect::<Vec<_>>();
+    filter_scored(&haystack, query, matcher, FILTER_CAP)
+        .into_iter()
+        .map(|(i, positions)| Scored {
+            item: apps[i].clone(),
             positions,
         })
         .collect()

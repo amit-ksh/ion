@@ -1,0 +1,28 @@
+[Unit]
+Description=Ion isolated app hosting worker
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+User=ion-hosting
+Group=ion-hosting
+SupplementaryGroups=docker
+WorkingDirectory=/opt/ion
+EnvironmentFile=/etc/ion-hosting/worker.env
+ExecStart=/usr/local/bin/bun run --cwd services/hosting start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=660
+UMask=0077
+LimitNOFILE=4096
+MemoryMax=1G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ion-hosting
+# Docker socket access is equivalent to host administration. This worker MUST
+# use a dedicated disposable VM, with no cloud instance credentials or data.
+[Install]
+WantedBy=multi-user.target

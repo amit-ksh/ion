@@ -75,6 +75,7 @@ pub enum WorkspaceOperation {
         root: PathBuf,
         cap: usize,
     },
+    ListComposerApps,
     DiscoverSlashCommands {
         provider: ProviderKind,
         #[ts(type = "string")]
@@ -214,6 +215,9 @@ pub enum WorkspaceResult {
     },
     ProjectFiles {
         entries: Vec<FileEntry>,
+    },
+    ComposerApps {
+        apps: Vec<crate::composer::ComposerApp>,
     },
     SlashCommands {
         commands: Vec<SlashCommand>,

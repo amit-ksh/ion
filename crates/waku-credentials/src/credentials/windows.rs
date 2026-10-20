@@ -61,7 +61,12 @@ pub fn set(account: &str, value: &str) -> Result<()> {
         user_name: user.as_mut_ptr(),
     };
     if unsafe { CredWriteW(&credential, 0) } == 0 {
-        bail!("Windows Credential Manager unavailable")
+        bail!(
+            "Windows Credential Manager unavailable (OS error {})",
+            std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or_default()
+        )
     }
     Ok(())
 }
@@ -73,7 +78,12 @@ pub fn get(account: &str) -> Result<Option<String>> {
         if std::io::Error::last_os_error().raw_os_error() == Some(ERROR_NOT_FOUND) {
             return Ok(None);
         }
-        bail!("Windows Credential Manager unavailable");
+        bail!(
+            "Windows Credential Manager unavailable (OS error {})",
+            std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or_default()
+        );
     }
     let credential = unsafe { &*pointer };
     if credential.blob_size % 2 != 0 {
@@ -97,7 +107,12 @@ pub fn delete(account: &str) -> Result<()> {
     if unsafe { CredDeleteW(target.as_ptr(), TYPE_GENERIC, 0) } == 0
         && std::io::Error::last_os_error().raw_os_error() != Some(ERROR_NOT_FOUND)
     {
-        bail!("Windows Credential Manager unavailable");
+        bail!(
+            "Windows Credential Manager unavailable (OS error {})",
+            std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or_default()
+        );
     }
     Ok(())
 }

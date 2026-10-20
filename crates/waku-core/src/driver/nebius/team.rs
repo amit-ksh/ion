@@ -257,8 +257,9 @@ pub fn run_native_team_assignment(
     events: &DriverEventSender,
     cancelled: &AtomicBool,
 ) -> Result<NativeTeamExit> {
-    let key = CredentialService::global().nebius_runtime_key()?;
+    let key = Inference::runtime()?;
     let client = reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(120))
         .build()?;
     run_with_completion(
@@ -271,8 +272,7 @@ pub fn run_native_team_assignment(
         |model, system, messages, tools| {
             let mut request = vec![json!({"role":"system","content":system})];
             request.extend_from_slice(messages);
-            let response = client.post(format!("{TOKEN_FACTORY_BASE_URL}/chat/completions"))
-            .bearer_auth(&key).json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true},"max_completion_tokens":MAX_OUTPUT_TOKENS,"n":1})).send().context("Teams completion request failed")?;
+            let response = key.request(&client, "chat/completions")?.json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true},"max_completion_tokens":MAX_OUTPUT_TOKENS,"n":1})).send().context("Teams completion request failed")?;
             anyhow::ensure!(
                 response.status().is_success(),
                 "Teams completion failed (HTTP {})",
@@ -298,8 +298,10 @@ pub(in crate::driver) fn worker_completion(
     input_cap: u64,
     output_cap: u64,
 ) -> Result<StreamCompletion> {
-    let key = std::env::var("ION_TEAM_NEBIUS_KEY")
-        .context("Configure the worker's Nebius account credential on the execution host")?;
+    let key = Inference::personal(
+        std::env::var("ION_TEAM_NEBIUS_KEY")
+            .context("Configure the worker's Nebius account credential on the execution host")?,
+    )?;
     let client = reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(120))
@@ -311,7 +313,7 @@ pub(in crate::driver) fn worker_completion(
     );
     let mut request = vec![json!({"role":"system","content":system})];
     request.extend_from_slice(messages);
-    let response=client.post(format!("{TOKEN_FACTORY_BASE_URL}/chat/completions")).bearer_auth(&key).json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true},"max_completion_tokens":MAX_OUTPUT_TOKENS,"n":1})).send()?;
+    let response=key.request(&client, "chat/completions")?.json(&json!({"model":model,"messages":request,"tools":tools,"tool_choice":"auto","stream":true,"stream_options":{"include_usage":true},"max_completion_tokens":MAX_OUTPUT_TOKENS,"n":1})).send()?;
     anyhow::ensure!(
         response.status().is_success(),
         "Nebius worker completion failed (HTTP {})",
@@ -332,13 +334,12 @@ pub(in crate::driver) fn worker_completion(
 // execution blocks before sending a billable completion.
 fn model_allowance(
     client: &reqwest::blocking::Client,
-    key: &str,
+    key: &Inference,
     model: &str,
 ) -> Result<ModelCallAllowance> {
-    let response = client
-        .get(format!("{TOKEN_FACTORY_BASE_URL}/models"))
+    let response = key
+        .request(client, "models")?
         .query(&[("verbose", "true")])
-        .bearer_auth(key)
         .send()
         .context("Could not verify the Nebius model token allowance")?;
     anyhow::ensure!(

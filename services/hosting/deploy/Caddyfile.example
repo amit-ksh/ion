@@ -1,0 +1,8 @@
+# Dedicated worker host, reachable only from the control-plane private network.
+# Use an operator-owned hostname/certificate. Firewall 443 to the API host.
+{$ION_HOSTING_WORKER_HOSTNAME} {
+  request_body {
+    max_size 2MB
+  }
+  reverse_proxy 127.0.0.1:8792
+}

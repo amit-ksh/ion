@@ -1,0 +1,16 @@
+{
+  "models": [
+    {
+      "id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
+      "contextTokens": 131072,
+      "outputTokens": 4096,
+      "inputMicroUSDPerMillion": null,
+      "outputMicroUSDPerMillion": null
+    }
+  ],
+  "limits": {
+    "monthly": 10000000,
+    "lifetime": 25000000,
+    "accountLifetime": 1000000
+  }
+}

@@ -40,6 +40,15 @@ describe('mobile composer selection', () => {
       .toEqual({ text: 'look @src/app.ts next', cursor: 17 });
   });
 
+  test('detects file, team and app mentions after slash command arguments', () => {
+    for (const [prefix, kind] of [['@', 'file'], ['@@', 'team'], ['@@@', 'app']] as const) {
+      const text = `/review ${prefix}design`;
+      expect(detectComposerTrigger(text, text.length))
+        .toEqual({ kind, query: 'design', start: 8, end: text.length });
+    }
+    expect(detectComposerTrigger('/review changes', 15)).toBeNull();
+  });
+
   test('tracks insertion, backspace, and replacing a selection in the middle', () => {
     expect(selectionAfterComposerEdit('read @app next', 'read @apps next', { start: 9, end: 9 }))
       .toEqual({ start: 10, end: 10 });

@@ -1,4 +1,8 @@
-# Personal Nebius speech deployment
+# Speech runtime deployment
+
+> Speech deployment is superseded by [local Parakeet dictation](../../docs/ai-ide-plan/116-110m-and-serverless-implementation.md). Current desktop and mobile dictation do not use these hosted STT paths.
+
+Historical hosted implementation: the API supplied per-recording account tickets. The instructions below describe that dormant worker and are not required by current local dictation. See [managed implementation and deferred acceptance](../../docs/ai-ide-plan/111-managed-services-app-integration.md).
 
 Status: prepared for a Nebius Linux VM; **not deployed**. No VM, cluster, DNS
 name, or access target has been supplied. These files make no cloud changes.

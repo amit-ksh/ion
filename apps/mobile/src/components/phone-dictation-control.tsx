@@ -57,7 +57,7 @@ export function PhoneDictationControl({
     }
     Alert.alert(
       'Record on this phone?',
-      `ion streams up to 60 seconds of microphone audio to your configured speech service. Without one, audio is sent to ${host} after you stop. You can review and edit the text before sending it to an agent.`,
+      `Ion records up to 60 seconds, then sends it to ${host} for local Parakeet transcription. The first use may download about 146 MB on that desktop. Keep it online. Review the text before sending it to an agent.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -121,7 +121,7 @@ export function PhoneDictationControl({
             accessibilityLiveRegion="polite"
             style={[styles.state, { color: theme.danger }]}
           >
-            {recording ? (dictation.cloud ? 'Streaming' : 'Recording') : ''}
+            {recording ? 'Recording' : ''}
           </Text>
           <Pressable
             accessibilityLabel="Discard recording"

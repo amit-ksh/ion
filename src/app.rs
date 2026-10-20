@@ -1128,13 +1128,13 @@ pub struct Waku {
     gateway_effect_inputs: HashMap<&'static str, Entity<TextInput>>,
     gateway_effect_expanded: bool,
     gateway_last_proposal: Option<crate::credentials::GatewayProposal>,
+    cloud_ui: cloud_account::CloudUiState,
     credential_statuses:
         HashMap<crate::credentials::CredentialKind, crate::credentials::CredentialStatus>,
     credential_feedback: HashMap<crate::credentials::CredentialKind, String>,
     credential_busy: HashSet<crate::credentials::CredentialKind>,
     credential_generation: HashMap<crate::credentials::CredentialKind, u64>,
     nebius_catalog: Vec<String>,
-    speech_language: crate::speech::SpeechLanguage,
     speech_runtime_status: Option<String>,
     speech_url_input: Entity<TextInput>,
     speech_busy: bool,
@@ -1644,6 +1644,7 @@ mod activity_diff;
 mod autocomplete;
 mod background_work;
 mod branches;
+mod cloud_account;
 mod command_palette;
 mod commit_dialog;
 mod components;
@@ -2532,9 +2533,32 @@ impl Waku {
                     }
                     ComposerEvent::Edited => {
                         this.schedule_composer_draft_save(cx);
+                        let text = this.composer.read(cx).content(cx);
+                        if crate::composer_complete::detect_trigger(
+                            text,
+                            this.composer.read(cx).cursor(cx),
+                        )
+                        .is_some_and(|trigger| {
+                            trigger.kind != crate::composer_complete::TriggerKind::Command
+                                && trigger.query.is_empty()
+                        }) {
+                            this.refresh_composer_reference_apps(cx);
+                            this.refresh_workspace_control(cx);
+                        }
                         cx.notify();
                     }
-                    ComposerEvent::Focus => {}
+                    ComposerEvent::Focus => {
+                        let input = this.composer.read(cx);
+                        if crate::composer_complete::detect_trigger(
+                            input.content(cx),
+                            input.cursor(cx),
+                        )
+                        .is_some_and(|trigger| {
+                            trigger.kind != crate::composer_complete::TriggerKind::Command
+                        }) {
+                            this.refresh_composer_reference_apps(cx);
+                        }
+                    }
                     ComposerEvent::BackspaceOnEmpty => {
                         if this.composer_attachments.pop().is_some() {
                             this.schedule_composer_draft_save(cx);
@@ -2920,12 +2944,12 @@ impl Waku {
                 gateway_effect_inputs,
                 gateway_effect_expanded: false,
                 gateway_last_proposal: None,
+                cloud_ui: cloud_account::CloudUiState::new(cx),
                 credential_statuses: HashMap::new(),
                 credential_feedback: HashMap::new(),
                 credential_busy: HashSet::new(),
                 credential_generation: HashMap::new(),
                 nebius_catalog: Vec::new(),
-                speech_language: crate::speech::SpeechLanguage::Auto,
                 speech_runtime_status: None,
                 speech_url_input,
                 speech_busy: false,
@@ -3194,6 +3218,7 @@ impl Waku {
         // that there is an entity to notify and deliberately not before the
         // first frame.
         entity.update(cx, |this, cx| {
+            this.start_account_gate(cx);
             this.restart_task_state_sync();
             this.initialize_onboarding(window, cx);
             for session_id in startup_live_session_ids {

@@ -1,0 +1,19 @@
+# Set real DNS names before starting Caddy. Backend stays on loopback.
+# Caddy must have a DNS provider plugin configured for wildcard TLS issuance.
+{$ION_CLOUD_HOSTNAME} {
+  encode zstd gzip
+  request_body {
+    max_size 40MB
+  }
+  header Strict-Transport-Security "max-age=31536000"
+  reverse_proxy 127.0.0.1:8790
+}
+*.{$ION_CONTENT_DOMAIN} {
+  # Configure "tls { dns YOUR_PROVIDER ... }" with a verified Caddy DNS plugin,
+  # or install your wildcard certificate. This example intentionally contains
+  # no fabricated provider credentials or certificate path.
+  request_body {
+    max_size 2MB
+  }
+  reverse_proxy 127.0.0.1:8790
+}

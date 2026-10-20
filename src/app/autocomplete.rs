@@ -56,6 +56,7 @@ pub(super) enum AutocompleteRow {
     Command(Scored<SlashCommand>),
     File(Scored<FileEntry>),
     Team(Scored<waku_client::control::Team>),
+    App(Scored<composer_complete::ComposerApp>),
 }
 
 /// Filter results for one (kind, query, source index) — the popup's rows are
@@ -64,7 +65,7 @@ struct ResultsMemo {
     kind: TriggerKind,
     query: String,
     /// `Rc::as_ptr` identity of the source index the rows were filtered from.
-    source: (usize, usize, bool),
+    source: (usize, usize, usize, bool),
     rows: Rc<Vec<AutocompleteRow>>,
 }
 
@@ -107,6 +108,49 @@ impl AutocompleteUi {
 }
 
 impl Waku {
+    pub(super) fn refresh_composer_reference_apps(&mut self, cx: &mut Context<Self>) {
+        if self.control_ui.mention_apps_busy {
+            return;
+        }
+        self.control_ui.mention_apps_generation =
+            self.control_ui.mention_apps_generation.wrapping_add(1);
+        let generation = self.control_ui.mention_apps_generation;
+        self.control_ui.mention_apps_busy = true;
+        self.control_ui.mention_apps_error = false;
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async {
+                    smol::unblock(|| {
+                        crate::credentials::CredentialService::global().composio_mention_apps()
+                    })
+                    .await
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.control_ui.mention_apps_generation != generation {
+                    return;
+                }
+                this.control_ui.mention_apps_busy = false;
+                match result {
+                    Ok(apps) => {
+                        this.control_ui.mention_apps = Rc::new(
+                            apps.into_iter()
+                                .map(|(slug, name)| composer_complete::ComposerApp { slug, name })
+                                .collect(),
+                        )
+                    }
+                    Err(_) => {
+                        this.control_ui.mention_apps = Rc::new(Vec::new());
+                        this.control_ui.mention_apps_error = true;
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     /// Refresh the drawn command and file indexes for the selected session.
     ///
     /// A cache hit lands immediately; a miss starts discovery on the
@@ -295,10 +339,11 @@ impl Waku {
                 .selected_session()
                 .is_some_and(|s| s.detail_loaded && !s.has_started() && s.turns.is_empty());
         let source = match trigger.kind {
-            TriggerKind::Command => (Rc::as_ptr(&self.slash_command_index) as usize, 0, false),
-            TriggerKind::File => (
+            TriggerKind::Command => (Rc::as_ptr(&self.slash_command_index) as usize, 0, 0, false),
+            TriggerKind::File | TriggerKind::Team | TriggerKind::App => (
                 Rc::as_ptr(&self.mention_file_index) as usize,
                 Rc::as_ptr(&self.control_ui.team_index) as usize,
+                Rc::as_ptr(&self.control_ui.mention_apps) as usize,
                 team_site,
             ),
         };
@@ -320,8 +365,8 @@ impl Waku {
             .into_iter()
             .map(AutocompleteRow::Command)
             .collect::<Vec<_>>(),
-            TriggerKind::File => {
-                let mut rows = if team_site {
+            TriggerKind::File | TriggerKind::Team | TriggerKind::App => {
+                let teams = if trigger.kind != TriggerKind::App {
                     composer_complete::filter_teams(
                         &self.control_ui.team_index,
                         &trigger.query,
@@ -333,19 +378,40 @@ impl Waku {
                 } else {
                     Vec::new()
                 };
-                if !trigger.query.starts_with("team:") {
-                    // Reserve space for files even when the workspace has many teams.
-                    rows.truncate(16);
-                    rows.extend(
+                let apps = if trigger.kind != TriggerKind::Team {
+                    composer_complete::filter_apps(
+                        &self.control_ui.mention_apps,
+                        &trigger.query,
+                        &mut matcher,
+                    )
+                    .into_iter()
+                    .map(AutocompleteRow::App)
+                    .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
+                let mut rows = match trigger.kind {
+                    TriggerKind::File => {
+                        // Reserve room for each reference category in a large checkout.
+                        let teams = teams.into_iter().take(16).collect::<Vec<_>>();
+                        let apps = apps.into_iter().take(16).collect::<Vec<_>>();
+                        let file_cap = composer_complete::FILTER_CAP - teams.len() - apps.len();
                         composer_complete::filter_files(
                             &self.mention_file_index,
                             &trigger.query,
                             &mut matcher,
                         )
                         .into_iter()
-                        .map(AutocompleteRow::File),
-                    );
-                }
+                        .take(file_cap)
+                        .map(AutocompleteRow::File)
+                        .chain(teams)
+                        .chain(apps)
+                        .collect::<Vec<_>>()
+                    }
+                    TriggerKind::Team => teams,
+                    TriggerKind::App => apps,
+                    TriggerKind::Command => unreachable!(),
+                };
                 rows.truncate(composer_complete::FILTER_CAP);
                 rows
             }
@@ -409,16 +475,19 @@ impl Waku {
             }
             AutocompleteRow::File(scored) => {
                 let path = &scored.item.path;
-                if self.control_ui.team_names.contains(&path.to_lowercase()) {
+                if path.starts_with('@') || self.control_ui.team_names.contains(&path.to_lowercase()) {
                     format!("@./{path} ")
                 } else {
                     format!("@{path} ")
                 }
             }
-            AutocompleteRow::Team(scored) => format!(
-                "{} ",
-                waku_client::teams::mentions::mention(&scored.item, &self.control_ui.team_index)
-            ),
+            AutocompleteRow::Team(scored) => {
+                format!(
+                    "{} ",
+                    waku_client::teams::mentions::tag(&scored.item, &self.control_ui.team_index,)
+                )
+            }
+            AutocompleteRow::App(scored) => format!("@@@{} ", scored.item.slug),
         };
         if matches!(row, AutocompleteRow::Command(_)) {
             let mut submission = self.composer.read(cx).content(cx).to_owned();
@@ -450,9 +519,13 @@ impl Waku {
         let rows = self.autocomplete_rows(&trigger, cx);
         let loading = match trigger.kind {
             TriggerKind::Command => self.slash_command_index_loading,
-            TriggerKind::File => self.mention_file_index_loading,
+            TriggerKind::File => {
+                self.mention_file_index_loading || self.control_ui.mention_apps_busy
+            }
+            TriggerKind::Team => !self.control_ui.snapshot_loaded,
+            TriggerKind::App => self.control_ui.mention_apps_busy,
         };
-        if rows.is_empty() && !loading {
+        if rows.is_empty() && !loading && trigger.kind == TriggerKind::Command {
             return None;
         }
         // The probe records during paint, so the first frame a composer ever
@@ -472,6 +545,18 @@ impl Waku {
             .overflow_y_scroll()
             .track_scroll(&self.composer_autocomplete.scroll)
             .p(px(4.0));
+        if matches!(trigger.kind, TriggerKind::File | TriggerKind::App)
+            && self.control_ui.mention_apps_error
+        {
+            list = list.child(
+                div()
+                    .px(px(8.0))
+                    .py(px(6.0))
+                    .text_size(sp(12.0))
+                    .text_color(theme.text_secondary)
+                    .child("Apps unavailable. Check connections in Apps, then type @@@ to retry."),
+            );
+        }
         if rows.is_empty() {
             list = list.child(
                 div()
@@ -482,12 +567,23 @@ impl Waku {
                     .gap(px(8.0))
                     .text_size(sp(12.5))
                     .text_color(theme.text_tertiary)
-                    .child(crate::ui::motion::spin(icon(
-                        "icons/loader-circle.svg",
-                        12.0,
-                        theme.text_tertiary,
-                    )))
-                    .child(tr!("composer.loading_suggestions")),
+                    .when(loading, |row| {
+                        row.child(crate::ui::motion::spin(icon(
+                            "icons/loader-circle.svg",
+                            12.0,
+                            theme.text_tertiary,
+                        )))
+                    })
+                    .child(if loading {
+                        tr!("composer.loading_suggestions")
+                    } else {
+                        match trigger.kind {
+                            TriggerKind::Team => "No matching AI teams. Create a team in Teams.",
+                            TriggerKind::App => "No matching apps. Connect an app in Apps.",
+                            _ => "No matching files, teams or apps.",
+                        }
+                        .into()
+                    }),
             );
         } else {
             for (index, row) in rows.iter().enumerate() {
@@ -622,6 +718,24 @@ impl Waku {
                     )
                     .into_any_element()
             }
+            AutocompleteRow::App(scored) => base
+                .child(icon("icons/package.svg", 13.0, theme.text_secondary))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text)
+                        .child(scored.item.name.clone()),
+                )
+                .child(
+                    div()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_secondary)
+                        .child("Connected app"),
+                )
+                .into_any_element(),
             AutocompleteRow::Team(scored) => base
                 .child(icon("icons/fork.svg", 13.0, theme.text_secondary))
                 .child(

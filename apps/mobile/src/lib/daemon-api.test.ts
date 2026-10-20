@@ -10,10 +10,10 @@ describe('mobile daemon API', () => {
       requests.push(args);
       return { type: 'transcript', text: 'spoken words' };
     } } as unknown as WakuClient;
-    expect(await transcribePhoneWav(client, 'UklGRg==', 'hi-IN')).toBe('spoken words');
+    expect(await transcribePhoneWav(client, 'UklGRg==')).toBe('spoken words');
     expect(requests).toEqual([[
-      { type: 'transcribeWav', language: 'hi-IN', bytes: 'UklGRg==' },
-      undefined, undefined, { timeoutMs: 150_000 },
+      { type: 'transcribeWav', language: 'auto', bytes: 'UklGRg==' },
+      undefined, undefined, { timeoutMs: 750_000 },
     ]]);
   });
   test('requests composer catalogs from the selected daemon workspace and provider override', async () => {

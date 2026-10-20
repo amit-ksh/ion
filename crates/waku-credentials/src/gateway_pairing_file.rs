@@ -145,6 +145,7 @@ mod tests {
                 url: super::super::gateway_base_url(&p.base_url).unwrap(),
                 device_id: p.device_id,
                 token: p.token,
+                managed: None,
                 client: super::super::gateway_client().unwrap(),
             }
         };

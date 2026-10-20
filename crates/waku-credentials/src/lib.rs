@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
 const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 
+pub mod cloud;
+pub mod inference;
 pub mod composio;
 mod gateway_pairing_file;
 pub mod speech;
@@ -183,6 +185,7 @@ pub struct GatewayApi {
     url: reqwest::Url,
     device_id: String,
     token: String,
+    managed: Option<cloud::PublisherBinding>,
     client: reqwest::blocking::Client,
 }
 
@@ -201,7 +204,14 @@ impl GatewayApi {
     }
     /// Compare capabilities without exposing the bearer token to a caller.
     pub fn same_pairing(&self, other: &Self) -> bool {
-        self.url == other.url && self.device_id == other.device_id && self.token == other.token
+        self.url == other.url
+            && self.device_id == other.device_id
+            && self.token == other.token
+            && match (&self.managed, &other.managed) {
+                (Some(a), Some(b)) => a.matches(b),
+                (None, None) => true,
+                _ => false,
+            }
     }
     pub fn identity(&self) -> (&str, &str) {
         (self.url.as_str(), &self.device_id)
@@ -213,28 +223,66 @@ impl GatewayApi {
         path: &str,
         body: Option<serde_json::Value>,
     ) -> Result<T> {
+        match &self.managed {
+            Some(binding) => cloud::with_publisher_authorization(binding, |token| {
+                self.dispatch(method, path, body, token)
+            }),
+            None => self.dispatch(method, path, body, &self.token),
+        }
+    }
+
+    // Dispatch is private so managed callers cannot bypass their session guard.
+    fn dispatch<T: serde::de::DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<serde_json::Value>,
+        account_token: &str,
+    ) -> Result<T> {
+        let route = if self.managed.is_some() {
+            format!("v1/gateway/{path}")
+        } else {
+            path.to_owned()
+        };
         let mut request = self
             .client
-            .request(method, self.url.join(path)?)
-            .bearer_auth(&self.token)
+            .request(method, self.url.join(&route)?)
+            .bearer_auth(account_token)
             .header("x-waku-device-id", &self.device_id);
+        if self.managed.is_some() {
+            request = request.header("x-ion-device-token", &self.token);
+        }
         if let Some(body) = body {
             request = request.json(&body);
         }
         let response = request
             .send()
-            .context("Could not reach the personal gateway")?;
+            .map_err(|_| anyhow::anyhow!("Could not reach the gateway"))?;
         if !response.status().is_success() {
-            bail!(
-                "Personal gateway request failed (HTTP {})",
-                response.status()
-            );
+            bail!("Gateway request failed (HTTP {})", response.status());
         }
+        use std::io::Read;
+        let mut bytes = Vec::new();
         response
-            .json()
-            .context("Gateway returned an invalid response")
+            .take(8_388_609)
+            .read_to_end(&mut bytes)
+            .map_err(|_| anyhow::anyhow!("Gateway response could not be read"))?;
+        anyhow::ensure!(
+            bytes.len() <= 8_388_608,
+            "Gateway response exceeds its limit"
+        );
+        serde_json::from_slice(&bytes)
+            .map_err(|_| anyhow::anyhow!("Gateway returned an invalid response"))
     }
-
+    pub(crate) fn managed(binding: cloud::PublisherBinding) -> Result<Self> {
+        Ok(Self {
+            url: gateway_base_url(&binding.origin)?,
+            device_id: binding.device_id.clone(),
+            token: binding.device_token.clone(),
+            managed: Some(binding),
+            client: gateway_client()?,
+        })
+    }
     pub fn has_publish_grant(&self) -> Result<bool> {
         #[derive(Deserialize)]
         struct Session {
@@ -641,6 +689,10 @@ impl CredentialService {
         name: &str,
     ) -> Result<CredentialStatus> {
         self.ensure_gateway_not_file_managed(CredentialKind::GatewayPairingToken)?;
+        anyhow::ensure!(
+            !cloud::status()?.connected,
+            "Disconnect Ion Cloud before pairing a personal gateway"
+        );
         let url = gateway_base_url(base_url)?;
         if invite.trim().is_empty() || name.trim().is_empty() {
             bail!("Enter a pairing invite and device name");
@@ -694,89 +746,50 @@ impl CredentialService {
     }
 
     pub fn gateway_api(&self) -> Result<GatewayApi> {
+        let file_managed = self.gateway_pairing_file.lock().unwrap().is_some();
+        if !file_managed
+            && self.status(CredentialKind::GatewayPairingToken) == CredentialStatus::Missing
+        {
+            return GatewayApi::managed(cloud::publisher_binding()?);
+        }
         let pairing = self.gateway_pairing()?;
         Ok(GatewayApi {
             url: gateway_base_url(&pairing.base_url)?,
             device_id: pairing.device_id,
             token: pairing.token,
+            managed: None,
             client: gateway_client()?,
         })
     }
 
     pub fn gateway_session(&self) -> Result<GatewaySession> {
-        let pairing = self.gateway_pairing()?;
-        let url = gateway_base_url(&pairing.base_url)?;
-        let response = gateway_client()?
-            .get(url.join("v1/device/session")?)
-            .bearer_auth(&pairing.token)
-            .header("x-waku-device-id", &pairing.device_id)
-            .send()
-            .context("Could not reach the personal gateway")?;
-        if !response.status().is_success() {
-            bail!(
-                "Gateway pairing is no longer valid (HTTP {}). Pair again from the owner console.",
-                response.status()
-            );
-        }
+        let api = self.gateway_api()?;
         #[derive(Deserialize)]
-        struct SessionResponse {
+        struct Reply {
             device: GatewaySession,
         }
-        let session: SessionResponse = response
-            .json()
-            .context("Gateway returned an invalid session")?;
-        if session.device.id != pairing.device_id {
-            bail!("Gateway returned a mismatched device session");
-        }
-        Ok(session.device)
+        let reply: Reply = api.request(reqwest::Method::GET, "v1/device/session", None)?;
+        ensure_gateway_device(&reply.device.id, &api.device_id)?;
+        Ok(reply.device)
     }
-
     pub fn gateway_accounts(&self) -> Result<Vec<GatewayAccount>> {
-        let pairing = self.gateway_pairing()?;
-        let url = gateway_base_url(&pairing.base_url)?;
-        let response = gateway_client()?
-            .get(url.join("v1/device/connected-accounts")?)
-            .bearer_auth(&pairing.token)
-            .header("x-waku-device-id", &pairing.device_id)
-            .send()
-            .context("Could not reach the personal gateway")?;
-        if !response.status().is_success() {
-            bail!(
-                "Could not list gateway accounts (HTTP {}).",
-                response.status()
-            );
-        }
         #[derive(Deserialize)]
-        struct AccountPage {
+        struct Page {
             items: Vec<GatewayAccount>,
         }
-        let page: AccountPage = response
-            .json()
-            .context("Gateway returned an invalid account list")?;
-        Ok(page.items)
+        Ok(self
+            .gateway_api()?
+            .request::<Page>(reqwest::Method::GET, "v1/device/connected-accounts", None)?
+            .items)
     }
-
     /// Submit an exact action to the gateway's durable owner-approval queue.
     /// This never executes the action; only the owner can decide and execute.
     pub fn gateway_propose(&self, effect: GatewayEffect) -> Result<GatewayProposal> {
-        let pairing = self.gateway_pairing()?;
-        let url = gateway_base_url(&pairing.base_url)?;
-        let response = gateway_client()?
-            .post(url.join("v1/device/proposals")?)
-            .bearer_auth(&pairing.token)
-            .header("x-waku-device-id", &pairing.device_id)
-            .json(&serde_json::json!({ "effect": effect }))
-            .send()
-            .context("Could not reach the personal gateway")?;
-        if !response.status().is_success() {
-            bail!(
-                "Gateway rejected the proposed action (HTTP {}). Check the tool, account, version, and scopes against its allowlist.",
-                response.status()
-            );
-        }
-        let proposal: GatewayProposal = response
-            .json()
-            .context("Gateway returned an invalid proposal")?;
+        let proposal: GatewayProposal = self.gateway_api()?.request(
+            reqwest::Method::POST,
+            "v1/device/proposals",
+            Some(serde_json::json!({"effect": effect})),
+        )?;
         if proposal.id.len() != 36 || proposal.status != "pending" {
             bail!("Gateway returned an invalid proposal state");
         }
@@ -791,23 +804,11 @@ impl CredentialService {
         {
             bail!("Invalid gateway proposal ID");
         }
-        let pairing = self.gateway_pairing()?;
-        let url = gateway_base_url(&pairing.base_url)?;
-        let response = gateway_client()?
-            .get(url.join(&format!("v1/device/proposals/{proposal_id}"))?)
-            .bearer_auth(&pairing.token)
-            .header("x-waku-device-id", &pairing.device_id)
-            .send()
-            .context("Could not reach the personal gateway")?;
-        if !response.status().is_success() {
-            bail!(
-                "Could not inspect gateway proposal (HTTP {}).",
-                response.status()
-            );
-        }
-        let proposal: GatewayProposal = response
-            .json()
-            .context("Gateway returned an invalid proposal")?;
+        let proposal: GatewayProposal = self.gateway_api()?.request(
+            reqwest::Method::GET,
+            &format!("v1/device/proposals/{proposal_id}"),
+            None,
+        )?;
         if proposal.id != proposal_id {
             bail!("Gateway returned a mismatched proposal");
         }
@@ -815,14 +816,7 @@ impl CredentialService {
     }
 
     pub fn nebius_model_ids(&self) -> Result<Vec<String>> {
-        #[cfg(target_os = "linux")]
-        let secret = if std::env::var_os("WAKU_NEBIUS_KEY_FILE").is_some() {
-            self.nebius_runtime_key()?
-        } else {
-            self.secret(CredentialKind::NebiusTokenFactoryApiKey)?
-        };
-        #[cfg(not(target_os = "linux"))]
-        let secret = self.secret(CredentialKind::NebiusTokenFactoryApiKey)?;
+        let transport = inference::Inference::catalog(self)?;
         #[derive(Deserialize)]
         struct Model {
             id: String,
@@ -831,11 +825,11 @@ impl CredentialService {
         struct Catalog {
             data: Vec<Model>,
         }
-        let response = reqwest::blocking::Client::builder()
+        let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(12))
-            .build()?
-            .get(format!("{TOKEN_FACTORY_BASE_URL}/models"))
-            .bearer_auth(secret)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
+        let response = transport.request(&client, "models")?
             .send()
             .context("could not reach Nebius Token Factory")?;
         if !response.status().is_success() {
@@ -956,4 +950,12 @@ impl GatewayApi {
         );
         Ok(())
     }
+}
+
+fn ensure_gateway_device(actual: &str, expected: &str) -> Result<()> {
+    anyhow::ensure!(
+        actual == expected,
+        "Gateway returned a mismatched device session"
+    );
+    Ok(())
 }

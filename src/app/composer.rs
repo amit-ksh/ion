@@ -1929,7 +1929,11 @@ impl Waku {
                         let preset_id = preset.id.clone();
                         let selected = preset_id == selected_id;
                         let name = if preset.is_custom {
-                            format!("{} · {}", preset.display_name(), tr!("agent_preset.custom"))
+                            format!(
+                                "{} · {}",
+                                preset.display_name(),
+                                tr!("agent_preset.custom")
+                            )
                         } else {
                             preset.display_name()
                         };
@@ -2264,6 +2268,11 @@ impl Waku {
         prompt: &str,
         cx: &mut Context<Self>,
     ) -> Option<ComposerSubmission> {
+        if !self.ide_account_unlocked() {
+            self.show_toast("Sign in to Ion before starting a task.");
+            cx.notify();
+            return None;
+        }
         if self.handle_team_composer_submission(prompt, cx) {
             return None;
         }
@@ -2996,7 +3005,7 @@ impl Waku {
                                 .tooltip(Tooltip::text(if self.speech_recording {
                                     "Stop recording and finalize transcript"
                                 } else if self.speech_busy && self.speech_stop_tx.is_some() {
-                                    "Finalizing dictation…"
+                                    "Preparing or transcribing locally…"
                                 } else if self.speech_busy {
                                     "Preparing dictation…"
                                 } else {
@@ -3838,6 +3847,16 @@ impl Waku {
                     .children(branch_selector)
                     .child(div().flex_1())
                     .children(usage_meter),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .max_w(px(CONTENT_MAX_WIDTH))
+                    .mx_auto()
+                    .px(px(17.0))
+                    .text_size(sp(11.5))
+                    .text_color(theme.text_secondary)
+                    .child("@ files, teams & apps · @@ AI teams · @@@ apps"),
             )
     }
 }

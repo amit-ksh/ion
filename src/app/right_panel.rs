@@ -2290,7 +2290,8 @@ impl Waku {
     /// settings page and overlay menus all funnel through here, so a webview
     /// can never linger over unrelated UI.
     pub(super) fn sync_browser_webviews(&mut self, cx: &mut Context<Self>) {
-        let document_overlay = !self.scene_overlay_enabled && self.any_overlay_open(cx);
+        let document_overlay = !self.ide_account_unlocked()
+            || (!self.scene_overlay_enabled && self.any_overlay_open(cx));
         self.sync_document_webview(document_overlay, cx);
         if self.right_panel_browsers.is_empty() {
             return;
@@ -2302,7 +2303,8 @@ impl Waku {
         // A webview composites above the GPUI scene, so the panel's clip does
         // not apply to it: shown mid-slide it would hang over the transcript
         // at full width. Keep it down until the panel has finished moving.
-        let active_browser = if self.settings_page.is_none()
+        let active_browser = if self.ide_account_unlocked()
+            && self.settings_page.is_none()
             && !self.onboarding_ui.open
             && self.right_panel_visible
             && self.right_panel_slide.is_none()

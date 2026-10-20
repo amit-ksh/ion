@@ -1,3 +1,4 @@
+import { CloudArtifactPublish } from "@/components/cloud-artifact-publish";
 import { prepareHtmlResourceDocument } from "@/lib/html-resource-document";
 import { readArtifactHtmlResources } from "@/lib/html-resource-readers";
 import { pdfDigest } from "@/components/artifact-pdf-preview";
@@ -414,6 +415,7 @@ export default function ArtifactDocumentScreen() {
               )}
             {preview && (
               <>
+                {daemon.client && <CloudArtifactPublish client={daemon.client} document={preview.document} bytes={preview.bytes} current={preview.current} />}
                 <Text style={[styles.body, { color: theme.textSecondary }]}>
                   {preview.image
                     ? "Verified document · Image"

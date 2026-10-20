@@ -1,0 +1,22 @@
+export interface CloudAccountStatus {
+  available: boolean;
+  problem?: string;
+  signedIn: boolean;
+  workspaceId?: string;
+  phoneConnected?: boolean;
+  controlsEnabled?: boolean;
+}
+export interface CloudAccountActions {
+  status(): Promise<CloudAccountStatus>;
+  verifySession(): Promise<CloudAccountStatus>;
+  subscribe(listener: () => void): () => void;
+  onSignOut(listener: () => void): () => void;
+  signIn(): Promise<boolean>;
+  request(
+    path: string,
+    method?: "GET" | "POST" | "DELETE" | "PUT",
+    body?: unknown,
+  ): Promise<any>;
+  connectPhone(controls: boolean): Promise<void>;
+  signOut(): Promise<{ revoked: boolean }>;
+}

@@ -68,6 +68,7 @@ export type { CommandResourceUsage } from "./CommandResourceUsage";
 export type { CommandResourceVector } from "./CommandResourceVector";
 export type { CommandScope } from "./CommandScope";
 export type { CommitSnapshot } from "./CommitSnapshot";
+export type { ComposerApp } from "./ComposerApp";
 export type { ComposerDraft } from "./ComposerDraft";
 export type { ComposerDraftAttachment } from "./ComposerDraftAttachment";
 export type { ComposerDraftChange } from "./ComposerDraftChange";

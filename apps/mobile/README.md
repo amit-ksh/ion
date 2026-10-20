@@ -87,3 +87,13 @@ up signing credentials. Follow its build link to install on the phone. The
 for platform requirements.
 
 Waku is licensed under the repository's GNU GPL v3.0-only license.
+
+## Managed Ion Cloud account
+
+Native onboarding and Daemons settings include cloud sign-in when the operator sets EXPO_PUBLIC_ION_CLOUD_ORIGIN to the deployed HTTPS origin. Register ion://auth/callback on the Auth0 Native mobile client and build a new native app. Sign-in does not overwrite a self-hosted pairing. See the [configuration and device checklist](../../docs/ai-ide-plan/109-mobile-cloud-login.md).
+
+Managed speech, HTML publication and deployment controls: [implementation and deferred acceptance 111](../../docs/ai-ide-plan/111-managed-services-app-integration.md). Project source snapshots are submitted from desktop. No new APK or device acceptance is included in this increment.
+
+## Local dictation
+
+The task microphone records up to 60 seconds and sends the WAV to the selected paired desktop for local NVIDIA Parakeet TDT-CTC 110M recognition. Keep that desktop online. Prepare the approximately 146 MB model in desktop Settings → Models & Speech, or wait for the first-use download. No speech-service endpoint or token is required. See [local dictation scope and acceptance](../../docs/ai-ide-plan/116-110m-and-serverless-implementation.md).

@@ -367,6 +367,7 @@ impl Waku {
         let id = a.id;
         let preview = a.clone();
         let export = ControlRecord::Artifact(a.clone());
+        let publish = a.clone();
         div()
             .id(SharedString::from(format!("artifact-card-{id}")))
             .flex_1()
@@ -434,6 +435,7 @@ impl Waku {
                     .flex()
                     .flex_wrap()
                     .gap(px(8.0))
+                    .when(a.format.eq_ignore_ascii_case("html") && a.evidence.is_some(), |row| row.child(self.control_button(format!("artifact-publish-{id}"), "Publish HTML", cx, move|this,_,cx|this.open_artifact_hosting(publish.clone(),cx))))
                     .child(self.control_button(
                         format!("artifact-open-{id}"),
                         "Open",

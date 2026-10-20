@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import { openDatabase, type DatabaseSource, type SqlDatabase, type Binding as SQLQueryBindings } from "./database";
 import { randomUUID, createHash } from "node:crypto";
 import {
   portfolioId,
@@ -45,12 +45,12 @@ function canonical(value: unknown): string {
 /** Read-only owner queries. They cannot contain an agent, app or notification
  * mutation. Retrying a lost owner answer reads state; it never executes work. */
 export class DurablePortfolioRelay {
-  private readonly db: Database;
+  private readonly db: SqlDatabase;
   constructor(
-    path: string,
+    path: DatabaseSource,
     private readonly now: () => number = Date.now,
   ) {
-    this.db = new Database(path, { create: true, strict: true });
+    this.db = openDatabase(path);
     this.db.run("PRAGMA busy_timeout=5000");
     this.db.run("PRAGMA journal_mode=WAL");
     this.db.run("PRAGMA synchronous=FULL");
@@ -80,15 +80,7 @@ export class DurablePortfolioRelay {
     this.db.close(true);
   }
   private write<T>(fn: () => T): T {
-    this.db.run("BEGIN IMMEDIATE");
-    try {
-      const result = fn();
-      this.db.run("COMMIT");
-      return result;
-    } catch (error) {
-      this.db.run("ROLLBACK");
-      throw error;
-    }
+    return this.db.atomic(fn);
   }
   private prune(): void {
     const time = this.now();

@@ -602,7 +602,8 @@ mod tests {
 impl Waku {
     pub(in crate::app) fn sync_document_webview(&mut self, overlay: bool, cx: &mut Context<Self>) {
         if let Some(browser) = self.control_ui.preview.browser.clone() {
-            let visible = self.control_ui.preview.reading
+            let visible = self.ide_account_unlocked()
+                && self.control_ui.preview.reading
                 && self.control_ui.preview.artifact.is_some()
                 && self.control_ui.page.is_some()
                 && self.settings_page.is_none()

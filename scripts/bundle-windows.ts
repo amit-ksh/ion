@@ -119,6 +119,7 @@ async function bundleSpeech(destination: string, architecture: string): Promise<
   const runtime = join(destination, "nemo-speech");
   await cp(join(nemoPrefix, "bin"), join(runtime, "bin"), { recursive: true });
   await cp(join(nemoPrefix, "share"), join(runtime, "share"), { recursive: true });
+  await cp(join(projectRoot, "resources", "speech"), join(runtime, "share", "ion-speech"), { recursive: true });
   const bundled = join(runtime, "bin", "nemo-speech.exe");
   const version = await $`${bundled} --version`.quiet().text();
   if (!version.includes("0.1.0")) throw new Error(`Bundled NeMo-Speech.cpp failed version check: ${version}`);

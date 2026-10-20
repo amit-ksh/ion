@@ -9,16 +9,27 @@ pub struct TeamInvocation {
 }
 
 /// Team addressing is reserved at the start of a new task, just like a recipient.
-/// Unknown bare @tokens remain file mentions; qualified @team: tokens fail closed.
+/// Unknown bare @tokens remain file mentions; qualified @@, @team: and #team: tokens fail closed.
 /// Quotes, code, later mentions and ordinary team names never select execution.
 pub fn resolve(prompt: &str, teams: &[Team]) -> Result<Option<TeamInvocation>, String> {
     let text = prompt.trim_start();
-    let Some(address) = text.strip_prefix('@') else {
+    // Match app tags first: an app recipient must never start a team run.
+    if text.starts_with("@@@") {
         return Ok(None);
-    };
-    let (qualified, address) = match address.strip_prefix("team:") {
-        Some(address) => (true, address),
-        None => (false, address),
+    }
+    let (qualified, address) = if let Some(address) = text.strip_prefix("@@") {
+        (true, address)
+    } else {
+        let Some(address) = text
+            .strip_prefix('@')
+            .or_else(|| text.strip_prefix("#team:").map(|_| &text[1..]))
+        else {
+            return Ok(None);
+        };
+        match address.strip_prefix("team:") {
+            Some(address) => (true, address),
+            None => (false, address),
+        }
     };
     let (name, rest) = if let Some(braced) = address.strip_prefix('{') {
         let Some(end) = braced.find('}') else {
@@ -54,7 +65,7 @@ pub fn resolve(prompt: &str, teams: &[Team]) -> Result<Option<TeamInvocation>, S
         .collect();
     match found.as_slice() {
         [] if qualified => {
-            Err("This team no longer exists. Choose a team from @ suggestions.".into())
+            Err("This team no longer exists. Choose a team from @@ suggestions.".into())
         }
         [] => Ok(None),
         [team] => {
@@ -67,7 +78,7 @@ pub fn resolve(prompt: &str, teams: &[Team]) -> Result<Option<TeamInvocation>, S
                 objective: objective.to_owned(),
             }))
         }
-        _ => Err("Several teams share this name. Choose the team from @ suggestions.".into()),
+        _ => Err("Several teams share this name. Choose the team from @@ suggestions.".into()),
     }
 }
 
@@ -85,6 +96,12 @@ pub fn mention(team: &Team, teams: &[Team]) -> String {
     } else {
         format!("@team:{{{}}}", team.name.trim())
     }
+}
+
+/// Composer tags use @@; the older mention form remains readable in saved tasks.
+pub fn tag(team: &Team, teams: &[Team]) -> String {
+    let legacy = mention(team, teams);
+    format!("@@{}", legacy.trim_start_matches("@team:"))
 }
 
 #[cfg(test)]

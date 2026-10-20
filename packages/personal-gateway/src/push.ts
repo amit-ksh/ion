@@ -1,4 +1,4 @@
-import { Database, type SQLQueryBindings } from "bun:sqlite";
+import { openDatabase, type DatabaseSource, type SqlDatabase, type Binding as SQLQueryBindings } from "./database";
 import { portfolioId } from "../../waku-client/src/gateway-portfolio";
 import {
   validateNotificationBatch,
@@ -20,18 +20,19 @@ type Ticket = {
 /** Explicit phone opt-ins. New Inbox alerts send a fixed message and scope only;
  * producer/device/event identities stay in the gateway database. */
 export class GatewayPush {
-  private readonly db: Database;
-  private readonly timer: ReturnType<typeof setInterval>;
+  private readonly db: SqlDatabase;
+  private readonly timer?: ReturnType<typeof setInterval>;
   private busy = false;
   private writing = false;
 
   constructor(
-    path: string,
+    path: DatabaseSource,
     private readonly authority: DurableGatewayAuthority,
     private readonly send: typeof fetch = fetch,
     private readonly now: () => number = Date.now,
+    periodic = true,
   ) {
-    this.db = new Database(path, { create: true, strict: true });
+    this.db = openDatabase(path);
     this.db.run("PRAGMA busy_timeout = 5000");
     this.db.run("PRAGMA synchronous = FULL");
     this.db.run(
@@ -84,8 +85,7 @@ export class GatewayPush {
       "UPDATE gateway_push_jobs SET expires_at=?1 WHERE expires_at IS NULL",
       [this.now() + 15 * 60_000],
     );
-    this.timer = setInterval(() => void this.flush(), 5_000);
-    this.timer.unref?.();
+    if (periodic) { this.timer = setInterval(() => void this.flush(), 5_000); this.timer.unref?.(); }
   }
 
   async close(): Promise<void> {
@@ -96,18 +96,10 @@ export class GatewayPush {
 
   private write<T>(operation: () => T): T {
     if (this.writing) return operation();
-    this.db.run("BEGIN IMMEDIATE");
-    this.writing = true;
-    try {
-      const value = operation();
-      this.db.run("COMMIT");
-      return value;
-    } catch (error) {
-      this.db.run("ROLLBACK");
-      throw error;
-    } finally {
-      this.writing = false;
-    }
+    return this.db.atomic(() => {
+      this.writing = true;
+      try { return operation(); } finally { this.writing = false; }
+    });
   }
   private all<T>(sql: string, values: SQLQueryBindings[] = []): T[] {
     const q = this.db.prepare<T, SQLQueryBindings[]>(sql);
@@ -310,6 +302,10 @@ export class GatewayPush {
     void this.flush();
   }
 
+  /** No recurring timer is needed once all jobs have reached a terminal state. */
+  hasPending(): boolean {
+    return !!this.one<{ n: number }>("SELECT count(*) AS n FROM gateway_push_jobs WHERE status IN ('queued','submitted')")?.n;
+  }
   async flush(): Promise<void> {
     if (this.busy) return;
     this.busy = true;

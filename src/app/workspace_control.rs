@@ -12,6 +12,7 @@ mod billing_ui;
 mod budget_ui;
 mod collector_ui;
 mod document_preview;
+mod hosting_ui;
 mod inbox;
 mod remote_ui;
 mod resource_ui;
@@ -107,6 +108,7 @@ enum FormKind {
 }
 pub(super) struct ControlUi {
     artifacts: artifacts_ui::ArtifactsUi,
+    hosting: hosting_ui::HostingUi,
     billing: billing_ui::BillingUi,
     remote: remote_ui::RemoteUi,
     resources: resource_ui::ResourceUi,
@@ -178,6 +180,10 @@ pub(super) struct ControlUi {
     accepted_proposal: Option<WorkspaceAction>,
     app_configs: Vec<crate::credentials::ComposioAuthConfig>,
     app_accounts: Vec<crate::credentials::GatewayAccount>,
+    pub(super) mention_apps: Rc<Vec<waku_client::composer_complete::ComposerApp>>,
+    pub(super) mention_apps_busy: bool,
+    pub(super) mention_apps_error: bool,
+    pub(super) mention_apps_generation: u64,
     apps_busy: bool,
     apps_generation: u64,
     pub(super) app_search: Entity<TextInput>,
@@ -302,6 +308,7 @@ impl ControlUi {
     pub fn new(window: &mut Window, cx: &mut App) -> Self {
         Self {
             artifacts: artifacts_ui::ArtifactsUi::new(window, cx),
+            hosting: hosting_ui::HostingUi::new(window, cx),
             billing: billing_ui::BillingUi::new(window, cx),
             remote: remote_ui::RemoteUi::new(cx),
             resources: resource_ui::ResourceUi::new(cx),
@@ -371,6 +378,10 @@ impl ControlUi {
             accepted_proposal: None,
             app_configs: Vec::new(),
             app_accounts: Vec::new(),
+            mention_apps: Rc::new(Vec::new()),
+            mention_apps_busy: false,
+            mention_apps_error: false,
+            mention_apps_generation: 0,
             apps_busy: false,
             apps_generation: 0,
             app_search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search apps")),
@@ -421,8 +432,13 @@ impl Waku {
     pub(super) fn invalidate_composio_apps(&mut self) {
         self.control_ui.apps_generation = self.control_ui.apps_generation.wrapping_add(1);
         self.control_ui.apps_busy = false;
+        self.control_ui.mention_apps_generation =
+            self.control_ui.mention_apps_generation.wrapping_add(1);
+        self.control_ui.mention_apps_busy = false;
+        self.control_ui.mention_apps_error = false;
         self.control_ui.app_configs.clear();
         self.control_ui.app_accounts.clear();
+        self.control_ui.mention_apps = Rc::new(Vec::new());
     }
     fn refresh_composio_apps(&mut self, cx: &mut Context<Self>) {
         if self.control_ui.apps_busy {
@@ -448,11 +464,26 @@ impl Waku {
                 this.control_ui.apps_busy = false;
                 match result {
                     Ok((configs, accounts)) => {
+                        this.control_ui.mention_apps = Rc::new(
+                            configs
+                                .iter()
+                                .filter(|app| {
+                                    accounts.iter().any(|account| {
+                                        account.toolkit == app.toolkit && account.status == "ACTIVE"
+                                    })
+                                })
+                                .map(|app| waku_client::composer_complete::ComposerApp {
+                                    slug: app.toolkit.clone(),
+                                    name: app.name.clone(),
+                                })
+                                .collect(),
+                        );
                         this.control_ui.app_configs = configs;
                         this.control_ui.app_accounts = accounts;
                         this.control_ui.error = None;
                     }
                     Err(error) => {
+                        this.control_ui.mention_apps = Rc::new(Vec::new());
                         this.control_ui.app_configs.clear();
                         this.control_ui.app_accounts.clear();
                         this.control_ui.error = Some(error.to_string());
@@ -928,6 +959,7 @@ impl Waku {
             }))
     }
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.control_ui.hosting.open = false;
         self.control_ui.remote.close();
         self.control_ui.resources.close();
         self.control_ui.collector.close();
@@ -1420,7 +1452,7 @@ impl Waku {
             ControlRecord::Team(team) => {
                 if let Some(project) = project {
                     let mention =
-                        waku_client::teams::mentions::mention(&team, &self.control_ui.team_index);
+                        waku_client::teams::mentions::tag(&team, &self.control_ui.team_index);
                     // Keep New task; picking a team only inserts an explicit address.
                     // Never combine every member's instructions into a solo prompt.
                     self.prepare_control_task(
@@ -1558,6 +1590,14 @@ impl Waku {
             .justify_end()
             .max_w(gpui::relative(1.0))
             .gap(px(8.0));
+        if page == Page::Projects {
+            actions = actions.child(self.control_button(
+                "project-deployment-library",
+                "Deployments",
+                cx,
+                |this, _, cx| this.open_hosting_library(cx),
+            ));
+        }
         if page == Page::Teams {
             actions = actions.child(self.render_team_view_tabs(cx));
         }
@@ -1913,6 +1953,9 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let theme = Theme::workspace(cx);
+        if self.control_ui.hosting.open {
+            return self.render_hosting(cx);
+        }
         if self.control_ui.preview.artifact.is_some() {
             return self.render_document_preview(cx);
         }
@@ -2574,6 +2617,12 @@ impl Waku {
                 let Some(project) = self.state.projects.iter().find(|p| p.id == id) else {
                     return div().into_any_element();
                 };
+                actions = actions.child(self.control_button(
+                    format!("project-deploy-{id}"),
+                    "Deploy",
+                    cx,
+                    move |this, _, cx| this.open_project_hosting(id, cx),
+                ));
                 actions = actions.child(self.control_button(
                     format!("project-open-{id}"),
                     "New task",

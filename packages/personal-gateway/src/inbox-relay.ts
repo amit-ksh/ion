@@ -1,5 +1,5 @@
 import { portfolioId } from "../../waku-client/src/gateway-portfolio";
-import { Database } from "bun:sqlite";
+import { openDatabase, type DatabaseSource, type SqlDatabase, type Binding as SQLQueryBindings } from "./database";
 import { randomUUID } from "node:crypto";
 import {
   validateInboxSubmission,
@@ -10,12 +10,12 @@ import {
 /** Notification state only. A claimed request has a durable owner-side receipt;
  * it cannot approve decisions, invoke agents or mutate a workflow. */
 export class DurableInboxRelay {
-  private readonly db: Database;
+  private readonly db: SqlDatabase;
   constructor(
-    path: string,
+    path: DatabaseSource,
     private readonly now: () => number = Date.now,
   ) {
-    this.db = new Database(path, { create: true, strict: true });
+    this.db = openDatabase(path);
     this.db.run("PRAGMA busy_timeout=5000");
     this.db.run("PRAGMA synchronous=FULL");
     this.db.run(
@@ -32,15 +32,7 @@ export class DurableInboxRelay {
     this.db.close(true);
   }
   private write<T>(fn: () => T): T {
-    this.db.run("BEGIN IMMEDIATE");
-    try {
-      const result = fn();
-      this.db.run("COMMIT");
-      return result;
-    } catch (error) {
-      this.db.run("ROLLBACK");
-      throw error;
-    }
+    return this.db.atomic(fn);
   }
   private expireQueued(): void {
     // A queued operation was never claimed. Atomically making its expired

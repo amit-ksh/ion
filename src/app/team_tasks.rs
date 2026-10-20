@@ -12,7 +12,16 @@ impl Waku {
             return true;
         }
         let text = self.composer.read(cx).content(cx).trim_start();
-        let Some(address) = text.strip_prefix('@') else {
+        if text.starts_with("@@@") {
+            return false;
+        }
+        if text.starts_with("@@") {
+            return true;
+        }
+        let Some(address) = text
+            .strip_prefix('@')
+            .or_else(|| text.strip_prefix("#team:").map(|_| &text[1..]))
+        else {
             return false;
         };
         if address.starts_with("team:") {
@@ -52,7 +61,8 @@ impl Waku {
             self.handle_team_followup_submission(prompt, cx);
             return true;
         }
-        if !prompt.trim_start().starts_with('@') {
+        let text = prompt.trim_start();
+        if text.starts_with("@@@") || (!text.starts_with('@') && !text.starts_with("#team:")) {
             return false;
         }
         if !self.control_ui.snapshot_loaded {
@@ -75,6 +85,12 @@ impl Waku {
         let Some(session) = self.selected_session().cloned() else {
             return true;
         };
+        if (text.starts_with("@@") || text.starts_with("#team:"))
+            && session.detail_loaded
+            && (session.has_started() || !session.turns.is_empty())
+        {
+            return false;
+        }
         if !session.detail_loaded
             || session.has_started()
             || !session.turns.is_empty()
@@ -88,16 +104,22 @@ impl Waku {
             );
             return true;
         }
-        if !prompt.trim_start().starts_with("@team:") && self.mention_file_index_loading {
+        if !text.starts_with("@@")
+            && !text.starts_with("@team:")
+            && !text.starts_with("#team:")
+            && self.mention_file_index_loading
+        {
             restore_error(
                 self,
-                "Checking file mentions. Choose the team from @ suggestions to address it explicitly.",
+                "Checking file mentions. Choose the team from @@ suggestions to address it explicitly.",
                 cx,
             );
             return true;
         }
         // A bare name that is also a workspace path must be qualified explicitly.
-        if !prompt.trim_start().starts_with("@team:")
+        if !text.starts_with("@@")
+            && !text.starts_with("@team:")
+            && !text.starts_with("#team:")
             && self.mention_file_index.iter().any(|f| {
                 prompt
                     .trim_start()
@@ -107,7 +129,7 @@ impl Waku {
         {
             restore_error(
                 self,
-                "This mention matches a team and a file. Choose the team from @ suggestions.",
+                "This mention matches a team and a file. Choose the team from @@ suggestions.",
                 cx,
             );
             return true;

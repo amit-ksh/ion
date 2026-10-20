@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { openDatabase, type DatabaseSource, type SqlDatabase, type Binding as SQLQueryBindings } from "./database";
 import {
   GatewayAuthority,
   type AllowedTool,
@@ -15,14 +15,14 @@ import {
  * both consume an invite or claim the same approved external effect.
  */
 export class DurableGatewayAuthority {
-  private readonly db: Database;
+  private readonly db: SqlDatabase;
 
   constructor(
-    databasePath: string,
+    databasePath: DatabaseSource,
     private readonly allowedTools: AllowedTool[],
     private readonly now: () => number = Date.now,
   ) {
-    this.db = new Database(databasePath, { create: true, strict: true });
+    this.db = openDatabase(databasePath);
     this.db.run('PRAGMA busy_timeout = 5000');
     // A single small snapshot favors simple rollback journaling on Windows;
     // IMMEDIATE transactions still serialize competing gateway processes.
@@ -54,20 +54,15 @@ export class DurableGatewayAuthority {
   }
 
   private write<T>(operation: (authority: GatewayAuthority) => T): T {
-    this.db.run('BEGIN IMMEDIATE');
-    try {
+    return this.db.atomic(() => {
       const authority = this.load();
       const result = operation(authority);
       this.db.run(
         'INSERT INTO gateway_state (id, snapshot) VALUES (1, ?1) ON CONFLICT (id) DO UPDATE SET snapshot = excluded.snapshot',
         [JSON.stringify(authority.snapshot())],
       );
-      this.db.run('COMMIT');
       return result;
-    } catch (error) {
-      this.db.run('ROLLBACK');
-      throw error;
-    }
+    });
   }
 
   createInvite(grants: DeviceGrant[], lifetimeMs?: number, deviceLifetimeMs?: number): string {

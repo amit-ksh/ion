@@ -1,3 +1,4 @@
+import { cloudAccount } from "@/lib/cloud-account";
 import type { WakuClient } from '@waku/client';
 import {
   requestRecordingPermissionsAsync,
@@ -9,12 +10,6 @@ import { File, Paths } from 'expo-file-system';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { readSpeechEndpoint } from '@/lib/speech-storage';
-import { type SpeechEndpoint } from '@/lib/speech-endpoint';
-import {
-  CloudSpeechStream,
-  nativeSpeechSocket,
-} from '@/lib/speech-stream-native';
 import { transcribePhoneWav } from '@/lib/daemon-api';
 import { phoneDictationWav } from '@/lib/phone-dictation-wav';
 
@@ -22,20 +17,19 @@ type Phase = 'idle' | 'preparing' | 'recording' | 'transcribing';
 type Capture = {
   client: WakuClient;
   contextKey: string;
-  speech: SpeechEndpoint | null;
-  live: CloudSpeechStream | null;
   controller: AbortController;
 };
 let microphoneOwner: symbol | null = null;
 let resettingAudioMode: Promise<void> = Promise.resolve();
 
-/** Configured cloud streams live; otherwise a bounded WAV goes to the selected desktop. */
+/** A bounded WAV is transcribed locally by Parakeet on the selected desktop. */
 export function usePhoneDictation(
   client: WakuClient | null,
   contextKey: string,
   onTranscript: (text: string) => void,
   onPreview?: (text: string | null) => void,
 ) {
+  useEffect(() => cloudAccount.onSignOut(() => discard()), []);
   const [phase, setPhase] = useState<Phase>('idle');
   const phaseRef = useRef<Phase>('idle');
   const changePhase = (next: Phase) => {
@@ -43,7 +37,6 @@ export function usePhoneDictation(
     if (mounted.current) setPhase(next);
   };
   const [error, setError] = useState<string | null>(null);
-  const [cloud, setCloud] = useState(false);
   const owner = useRef(Symbol('phone dictation'));
   const ownsMicrophone = () => microphoneOwner === owner.current;
   const releaseMicrophone = () => {
@@ -121,9 +114,7 @@ export function usePhoneDictation(
         return;
       }
       try {
-        if (destination.live)
-          destination.live.append(buffer.data, buffer.sampleRate);
-        else chunks.current.push(new Uint8Array(buffer.data).slice());
+        chunks.current.push(new Uint8Array(buffer.data).slice());
       } catch (cause) {
         failCapture(
           destination,
@@ -216,34 +207,8 @@ export function usePhoneDictation(
       if (!permission.granted)
         throw new Error('Microphone permission is required for dictation');
       if (!valid()) return;
-      const speech = await readSpeechEndpoint();
-      if (!valid()) return;
-      const destination: Capture = {
-        client,
-        contextKey,
-        speech,
-        live: null,
-        controller,
-      };
+      const destination: Capture = { client, contextKey, controller };
       target.current = destination;
-      setCloud(!!speech);
-      if (speech) {
-        destination.live = await CloudSpeechStream.open(
-          speech,
-          nativeSpeechSocket,
-          controller.signal,
-          {
-            onPreview: (text) => {
-              if (current(destination)) onPreviewRef.current?.(text);
-            },
-            onFailure: (cause) => failCapture(destination, cause.message),
-          },
-        );
-      }
-      if (!valid()) {
-        destination.live?.cancel();
-        return;
-      }
       await resettingAudioMode;
       if (!valid()) return;
       await setAudioModeAsync({
@@ -302,24 +267,16 @@ export function usePhoneDictation(
     }
     changePhase('transcribing');
     let file: File | null = null;
-    const timeout = setTimeout(() => destination.controller.abort(), 120_000);
+    const timeout = setTimeout(() => destination.controller.abort(), 750_000);
     try {
-      let transcript: string;
-      if (destination.live) transcript = await destination.live.finish();
-      else {
-        const wav = phoneDictationWav(chunks.current, sampleRate.current);
-        chunks.current = [];
-        file = new File(
-          Paths.cache,
-          `ion-dictation-${Crypto.randomUUID()}.wav`,
-        );
-        file.create();
-        file.write(wav);
-        const base64 = await file.base64();
-        if (!current(destination) || destination.controller.signal.aborted)
-          return;
-        transcript = await transcribePhoneWav(destination.client, base64);
-      }
+      const wav = phoneDictationWav(chunks.current, sampleRate.current);
+      chunks.current = [];
+      file = new File(Paths.cache, `ion-dictation-${Crypto.randomUUID()}.wav`);
+      file.create();
+      file.write(wav);
+      const base64 = await file.base64();
+      if (!current(destination) || destination.controller.signal.aborted) return;
+      const transcript = await transcribePhoneWav(destination.client, base64);
       if (!current(destination) || destination.controller.signal.aborted)
         return;
       onTranscriptRef.current(transcript);
@@ -344,7 +301,6 @@ export function usePhoneDictation(
         chunks.current = [];
         target.current = null;
         abort.current = null;
-        destination.live?.cancel();
         changePhase('idle');
         onPreviewRef.current?.(null);
       }
@@ -354,7 +310,6 @@ export function usePhoneDictation(
   return {
     phase,
     error,
-    cloud,
     start,
     stop,
     discard,

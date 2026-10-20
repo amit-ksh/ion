@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import { openDatabase, type DatabaseSource, type SqlDatabase, type Binding as SQLQueryBindings } from "./database";
 import { createHash, randomUUID } from "node:crypto";
 
 export interface RelayTask {
@@ -146,13 +146,13 @@ function validCommand(
 
 /** Durable outbound desktop feed and single-claim phone command inbox. */
 export class DurableTaskRelay {
-  private readonly db: Database;
+  private readonly db: SqlDatabase;
 
   constructor(
-    path: string,
+    path: DatabaseSource,
     private readonly now: () => number = Date.now,
   ) {
-    this.db = new Database(path, { create: true, strict: true });
+    this.db = openDatabase(path);
     this.db.run("PRAGMA busy_timeout = 5000");
     this.db.run("PRAGMA synchronous = FULL");
     this.db.run(
@@ -245,15 +245,7 @@ export class DurableTaskRelay {
   }
 
   private write<T>(operation: () => T): T {
-    this.db.run("BEGIN IMMEDIATE");
-    try {
-      const result = operation();
-      this.db.run("COMMIT");
-      return result;
-    } catch (error) {
-      this.db.run("ROLLBACK");
-      throw error;
-    }
+    return this.db.atomic(operation);
   }
 
   publishTask(task: RelayTask, publisherId: string): { changed: boolean } {

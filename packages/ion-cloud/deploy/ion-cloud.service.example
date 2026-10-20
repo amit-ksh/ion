@@ -1,0 +1,27 @@
+[Unit]
+Description=Ion Cloud pilot API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ion-cloud
+Group=ion-cloud
+WorkingDirectory=/opt/ion
+EnvironmentFile=/etc/ion-cloud/operator.env
+ExecStart=/usr/local/bin/bun run --cwd packages/ion-cloud start
+StateDirectory=ion-cloud
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+LimitNOFILE=4096
+MemoryMax=1G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ion-cloud
+
+[Install]
+WantedBy=multi-user.target

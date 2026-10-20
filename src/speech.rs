@@ -1,10 +1,8 @@
-//! Local and authenticated cloud NeMo-Speech.cpp adapter. All calls must run on a background executor.
+//! Local Parakeet TDT dictation. All calls must run on a background executor.
 
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
-use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -18,126 +16,16 @@ const MAX_RECORD_SECONDS: u32 = 120;
 
 #[derive(Debug)]
 pub enum SpeechProgress {
-    Ready { live_preview: bool, cloud: bool },
-    Preview(String),
-}
-
-struct LiveRecognizer {
-    _child: Option<LocalSpeechProcess>,
-    session: waku_credentials::speech::RealtimeSpeech,
-    sample_rate: u32,
-    last_preview_at: std::time::Instant,
-    pending_preview: Option<String>,
-}
-
-struct LocalSpeechProcess(Child);
-
-impl Drop for LocalSpeechProcess {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
-}
-
-impl LiveRecognizer {
-    fn start_local(language: SpeechLanguage, sample_rate: u32) -> Result<Self> {
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let port = listener.local_addr()?.port();
-        drop(listener);
-        let key = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-        let mut child = LocalSpeechProcess(
-            Command::new(executable())
-                .args(["serve", "--host", "127.0.0.1", "--port"])
-                .arg(port.to_string())
-                .args(["--asr-model", "nemotron-3.5", "--no-ui"])
-                .env("NEMO_SPEECH_HTTP_API_KEY", &key)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .context("Could not start the local speech preview")?,
-        );
-        let ready_url = format!("http://127.0.0.1:{port}/ready");
-        let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_millis(400))
-            .no_proxy()
-            .build()?;
-        let deadline = std::time::Instant::now() + Duration::from_secs(35);
-        loop {
-            if let Ok(response) = client.get(&ready_url).send()
-                && response.status().is_success()
-            {
-                break;
-            }
-            if child.0.try_wait()?.is_some() || std::time::Instant::now() >= deadline {
-                bail!("Local speech preview could not become ready");
-            }
-            std::thread::sleep(Duration::from_millis(150));
-        }
-        let service =
-            waku_credentials::speech::SpeechService::new(format!("http://127.0.0.1:{port}/"), key)?;
-        Ok(Self {
-            _child: Some(child),
-            session: service.start_live(sample_rate, language.code())?,
-            sample_rate,
-            last_preview_at: std::time::Instant::now() - Duration::from_millis(125),
-            pending_preview: None,
-        })
-    }
-    fn start_cloud(
-        service: &waku_credentials::speech::SpeechService,
-        language: SpeechLanguage,
-        sample_rate: u32,
-    ) -> Result<Self> {
-        Ok(Self {
-            _child: None,
-            session: service.start_live(sample_rate, language.code())?,
-            sample_rate,
-            last_preview_at: std::time::Instant::now() - Duration::from_millis(125),
-            pending_preview: None,
-        })
-    }
-    fn send_audio(&mut self, samples: &[i16], progress: &Sender<SpeechProgress>) -> Result<()> {
-        for chunk in samples.chunks(self.sample_rate as usize) {
-            self.session.send_pcm(chunk)?;
-        }
-        self.poll_preview(progress)
-    }
-    fn poll_preview(&mut self, progress: &Sender<SpeechProgress>) -> Result<()> {
-        if let Some(preview) = self.session.poll()? {
-            self.pending_preview = Some(preview);
-        }
-        if self.last_preview_at.elapsed() >= Duration::from_millis(125)
-            && let Some(preview) = self.pending_preview.take()
-        {
-            let _ = progress.try_send(SpeechProgress::Preview(preview));
-            self.last_preview_at = std::time::Instant::now();
-        }
-        Ok(())
-    }
-    fn finish(
-        mut self,
-        commands: &Receiver<RecordCommand>,
-        progress: &Sender<SpeechProgress>,
-    ) -> Result<Option<String>> {
-        self.session.commit()?;
-        let deadline = std::time::Instant::now() + Duration::from_secs(20);
-        while std::time::Instant::now() < deadline {
-            if recording_canceled(commands) {
-                return Ok(None);
-            }
-            self.poll_preview(progress)?;
-            if let Some(transcript) = self.session.final_transcript()? {
-                return Ok(Some(transcript));
-            }
-        }
-        bail!("Speech service did not confirm a final transcript. Try a shorter recording.")
-    }
+    Ready,
+    Warning(String),
+    Model(waku_credentials::speech::download::Progress),
 }
 
 fn recording_canceled(commands: &Receiver<RecordCommand>) -> bool {
     matches!(
         commands.try_recv(),
-        Ok(RecordCommand::Cancel) | Err(crossbeam_channel::TryRecvError::Disconnected)
+        Ok(RecordCommand::Cancel | RecordCommand::Stop)
+            | Err(crossbeam_channel::TryRecvError::Disconnected)
     )
 }
 
@@ -147,56 +35,28 @@ pub enum RecordCommand {
     Cancel,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SpeechLanguage {
-    Auto,
-    English,
-    Hindi,
-}
-
-impl SpeechLanguage {
-    pub fn code(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::English => "en-US",
-            Self::Hindi => "hi-IN",
-        }
-    }
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Auto => "Auto",
-            Self::English => "English",
-            Self::Hindi => "Hindi",
-        }
-    }
-}
-
 pub fn runtime_version() -> Result<String> {
-    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
-        service.test_inventory()?;
-        return Ok("Cloud speech - Nemotron 3.5 ASR".into());
-    }
-    let output = Command::new(executable())
-        .arg("--version")
-        .output()
-        .context("NeMo-Speech.cpp is not installed or is absent from PATH")?;
-    if !output.status.success() {
-        bail!("NeMo-Speech.cpp could not start (exit {})", output.status);
-    }
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    if version.is_empty() {
-        bail!("NeMo-Speech.cpp returned no version");
-    }
-    Ok(version)
+    waku_credentials::speech::local::runtime_version()
 }
 
-/// Transcribe a WAV on a worker using the configured endpoint, or the local runtime.
-pub fn transcribe_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
+/// Download once and verify the local Parakeet artifact before microphone capture.
+pub fn prepare_recording(
+    commands: &Receiver<RecordCommand>,
+    progress: Option<&Sender<SpeechProgress>>,
+) -> Result<()> {
+    waku_credentials::speech::local::prepare_model(&|| recording_canceled(commands), &mut |event| {
+        if let Some(progress) = progress {
+            let _ = progress.try_send(SpeechProgress::Model(event));
+        }
+    })
+    .map(|_| ())
+}
+
+pub fn transcribe_wav(path: &Path, commands: &Receiver<RecordCommand>) -> Result<String> {
     if !path.is_file()
         || !path
             .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
     {
         bail!("Choose a local .wav file");
     }
@@ -207,98 +67,7 @@ pub fn transcribe_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
     if len == 0 || len > MAX_WAV_BYTES {
         bail!("Choose a WAV file between 1 byte and 50 MB");
     }
-    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
-        return service.transcribe(std::fs::read(path)?, language.code());
-    }
-    transcribe_local_wav(path, language)
-}
-
-fn transcribe_local_wav(path: &Path, language: SpeechLanguage) -> Result<String> {
-    let output = Command::new(executable())
-        .args(["--quiet", "transcribe"])
-        .arg(path)
-        .args([
-            "--model",
-            "nemotron-3.5",
-            "--language",
-            language.code(),
-            "--stream",
-        ])
-        .output()
-        .context("NeMo-Speech.cpp is not installed or is absent from PATH")?;
-    if !output.status.success() {
-        let diagnostic = String::from_utf8_lossy(&output.stderr);
-        let diagnostic = diagnostic.trim().chars().take(600).collect::<String>();
-        bail!("Local transcription failed: {diagnostic}");
-    }
-    let transcript = String::from_utf8(output.stdout)
-        .context("NeMo-Speech.cpp returned text that is not UTF-8")?
-        .trim()
-        .to_owned();
-    if transcript.is_empty() {
-        bail!("No speech was recognized in this recording");
-    }
-    Ok(transcript)
-}
-
-/// Locate the app-bundled runtime first, then documented per-user installs.
-/// The latter matters when an installer has updated PATH after ion launched.
-fn executable() -> PathBuf {
-    let name = if cfg!(windows) {
-        "nemo-speech.exe"
-    } else {
-        "nemo-speech"
-    };
-    if let Ok(app) = std::env::current_exe()
-        && let Some(parent) = app.parent()
-    {
-        for bundled in [
-            parent.join("nemo-speech").join("bin").join(name),
-            parent.join(name),
-        ] {
-            if bundled.is_file() {
-                return bundled;
-            }
-        }
-    }
-    #[cfg(windows)]
-    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        let installed = PathBuf::from(local)
-            .join("Programs")
-            .join("NeMoSpeech")
-            .join("bin")
-            .join(name);
-        if installed.is_file() {
-            return installed;
-        }
-    }
-    #[cfg(not(windows))]
-    if let Some(home) = dirs::home_dir() {
-        let installed = home.join(".local").join("bin").join(name);
-        if installed.is_file() {
-            return installed;
-        }
-    }
-    PathBuf::from(name)
-}
-
-/// Idempotent first-use model preparation. NeMo-Speech.cpp verifies the
-/// artifact against its pinned size and SHA-256 before returning success.
-pub fn prepare_model() -> Result<()> {
-    if let Some(service) = waku_credentials::CredentialService::global().speech_service()? {
-        return service.test_inventory();
-    }
-    runtime_version()?;
-    let output = Command::new(executable())
-        .args(["pull", "nemotron-3.5"])
-        .output()
-        .context("Could not prepare the Nemotron 3.5 model")?;
-    if !output.status.success() {
-        let diagnostic = String::from_utf8_lossy(&output.stderr);
-        let diagnostic = diagnostic.trim().chars().take(600).collect::<String>();
-        bail!("Nemotron 3.5 model setup failed: {diagnostic}");
-    }
-    Ok(())
+    waku_credentials::speech::local::transcribe_wav(path, &|| recording_canceled(commands))
 }
 
 struct TemporaryWav(PathBuf);
@@ -311,17 +80,15 @@ impl Drop for TemporaryWav {
 
 pub fn record_and_transcribe(
     commands: Receiver<RecordCommand>,
-    language: SpeechLanguage,
     progress: Sender<SpeechProgress>,
 ) -> Result<Option<String>> {
-    record_microphone(commands, language, &progress)
+    record_microphone(commands, &progress)
 }
 
 /// Called only on a blocking worker. The callback holds a small in-memory
 /// buffer; temporary WAV data is local and removed after transcription.
 fn record_microphone(
     commands: Receiver<RecordCommand>,
-    language: SpeechLanguage,
     progress: &Sender<SpeechProgress>,
 ) -> Result<Option<String>> {
     let host = cpal::default_host();
@@ -347,13 +114,6 @@ fn record_microphone(
     )));
     let stream_error = Arc::new(Mutex::new(None::<String>));
     let config = supported.config();
-    let service = waku_credentials::CredentialService::global().speech_service()?;
-    let cloud = service.is_some();
-    let mut live = if let Some(service) = &service {
-        Some(LiveRecognizer::start_cloud(service, language, sample_rate)?)
-    } else {
-        LiveRecognizer::start_local(language, sample_rate).ok()
-    };
     if recording_canceled(&commands) {
         return Ok(None);
     }
@@ -366,7 +126,10 @@ fn record_microphone(
                 move |data: &[f32], _| {
                     append_mono(data, channels, max_samples, &samples, |s| s);
                 },
-                move |error| *error_slot.lock().unwrap() = Some(error.to_string()),
+                {
+                    let progress = progress.clone();
+                    move |error| microphone_stream_error(error, &error_slot, &progress)
+                },
                 None,
             )?
         }
@@ -379,7 +142,10 @@ fn record_microphone(
                         s as f32 / 32768.0
                     });
                 },
-                move |error| *error_slot.lock().unwrap() = Some(error.to_string()),
+                {
+                    let progress = progress.clone();
+                    move |error| microphone_stream_error(error, &error_slot, &progress)
+                },
                 None,
             )?
         }
@@ -392,7 +158,10 @@ fn record_microphone(
                         (s as f32 - 32768.0) / 32768.0
                     });
                 },
-                move |error| *error_slot.lock().unwrap() = Some(error.to_string()),
+                {
+                    let progress = progress.clone();
+                    move |error| microphone_stream_error(error, &error_slot, &progress)
+                },
                 None,
             )?
         }
@@ -401,12 +170,8 @@ fn record_microphone(
     stream
         .play()
         .context("Could not start the microphone. Check OS permission.")?;
-    let _ = progress.try_send(SpeechProgress::Ready {
-        live_preview: live.is_some(),
-        cloud,
-    });
+    let _ = progress.try_send(SpeechProgress::Ready);
     let deadline = std::time::Instant::now() + Duration::from_secs(u64::from(MAX_RECORD_SECONDS));
-    let mut sent_samples = 0usize;
     let decision = loop {
         if let Some(error) = stream_error.lock().unwrap().take() {
             bail!("Microphone stopped: {error}");
@@ -417,24 +182,6 @@ fn record_microphone(
             Ok(RecordCommand::Cancel) | Err(RecvTimeoutError::Disconnected)
         ) {
             break RecordCommand::Cancel;
-        }
-        if let Some(recognizer) = live.as_mut() {
-            let fresh = {
-                let recorded = samples.lock().unwrap();
-                let fresh = recorded[sent_samples..].to_vec();
-                sent_samples = recorded.len();
-                fresh
-            };
-            if let Err(error) = recognizer.send_audio(&fresh, progress) {
-                if cloud {
-                    return Err(error);
-                }
-                live = None;
-                let _ = progress.try_send(SpeechProgress::Ready {
-                    live_preview: false,
-                    cloud: false,
-                });
-            }
         }
         if samples.lock().unwrap().len() >= max_samples || std::time::Instant::now() >= deadline {
             break RecordCommand::Stop;
@@ -456,26 +203,36 @@ fn record_microphone(
     if recording_canceled(&commands) {
         return Ok(None);
     }
-    if let Some(mut recognizer) = live {
-        match recognizer.send_audio(&samples[sent_samples..], progress) {
-            Ok(()) => match recognizer.finish(&commands, progress) {
-                Ok(result) => return Ok(result),
-                Err(error) if cloud => return Err(error),
-                Err(_) => {}
-            },
-            Err(error) if cloud => return Err(error),
-            Err(_) => {}
-        }
-    }
-    if recording_canceled(&commands) {
-        return Ok(None);
-    }
-    // Offline preview can degrade to the existing local file recognizer. A configured
-    // cloud session never re-uploads audio or switches destination after a failure.
     let wav =
         TemporaryWav(std::env::temp_dir().join(format!("ion-dictation-{}.wav", Uuid::new_v4())));
     write_wav(&wav.0, sample_rate, &samples)?;
-    transcribe_local_wav(&wav.0, language).map(Some)
+    waku_credentials::speech::local::transcribe_wav(&wav.0, &|| recording_canceled(&commands))
+        .map(Some)
+}
+
+fn microphone_stream_error(
+    error: cpal::Error,
+    fatal: &Mutex<Option<String>>,
+    progress: &Sender<SpeechProgress>,
+) {
+    // CPAL reports WASAPI discontinuities while continuing to deliver samples.
+    // Route changes and scheduling warnings also leave the stream active.
+    // Preserve those samples and cancellation; actual device/permission failures
+    // still stop capture and are never overwritten by a later warning.
+    if matches!(
+        error.kind(),
+        cpal::ErrorKind::Xrun | cpal::ErrorKind::DeviceChanged | cpal::ErrorKind::RealtimeDenied
+    ) {
+        let _ = progress.try_send(SpeechProgress::Warning(
+            "Audio was briefly interrupted; recording continues. Check the transcript before sending."
+                .into(),
+        ));
+    } else {
+        let mut fatal = fatal.lock().unwrap();
+        if fatal.is_none() {
+            *fatal = Some(error.to_string());
+        }
+    }
 }
 
 fn append_mono<T: Copy>(
@@ -497,10 +254,20 @@ fn append_mono<T: Copy>(
 
 fn write_wav(path: &Path, sample_rate: u32, samples: &[i16]) -> Result<()> {
     let data_bytes = u32::try_from(samples.len() * 2).context("Recording is too long")?;
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
     let mut file = BufWriter::with_capacity(
         64 * 1024,
-        File::create(path).context("Could not create temporary recording")?,
+        options
+            .open(path)
+            .context("Could not create temporary recording")?,
     );
+
     file.write_all(b"RIFF")?;
     file.write_all(&(36 + data_bytes).to_le_bytes())?;
     file.write_all(b"WAVEfmt ")?;
@@ -518,4 +285,38 @@ fn write_wav(path: &Path, sample_rate: u32, samples: &[i16]) -> Result<()> {
     }
     file.flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn microphone_discontinuity_keeps_samples_and_reports_warning() {
+        let fatal = Mutex::new(None);
+        let samples = Mutex::new(Vec::new());
+        let (progress, events) = crossbeam_channel::bounded(4);
+        append_mono(&[0.5_f32, 0.25], 1, 10, &samples, |s| s);
+        microphone_stream_error(cpal::ErrorKind::Xrun.into(), &fatal, &progress);
+        append_mono(&[0.125_f32], 1, 10, &samples, |s| s);
+        assert!(fatal.lock().unwrap().is_none());
+        assert_eq!(samples.lock().unwrap().len(), 3);
+        assert!(matches!(events.try_recv(), Ok(SpeechProgress::Warning(_))));
+    }
+
+    #[test]
+    fn microphone_device_and_permission_failures_remain_fatal() {
+        for kind in [
+            cpal::ErrorKind::PermissionDenied,
+            cpal::ErrorKind::DeviceNotAvailable,
+        ] {
+            let fatal = Mutex::new(None);
+            let (progress, _) = crossbeam_channel::bounded(4);
+            microphone_stream_error(kind.into(), &fatal, &progress);
+            let first = fatal.lock().unwrap().clone();
+            assert!(first.is_some());
+            microphone_stream_error(cpal::ErrorKind::Xrun.into(), &fatal, &progress);
+            assert_eq!(*fatal.lock().unwrap(), first);
+        }
+    }
 }
