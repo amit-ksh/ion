@@ -31,7 +31,7 @@ function provider(){
  };
  return{send,get posts(){return posts;},foreign:()=>{foreign=true;},inactive:()=>{inactive=true;},fail:()=>{fail=true;}};
 }
-async function prepare(actions:AppActions){return (await (await actions.handle(account(),request("prepare",effect))).json()).proposalId as string;}
+async function prepare(actions:AppActions){return ((await (await actions.handle(account(),request("prepare",effect))).json()) as { proposalId: string }).proposalId;}
 test("owned app effects require exact approval, retain versions and return bounded receipts",()=>fixture(async store=>{
  const upstream=provider(),apps=new ManagedApps(store,"backend-key",upstream.send),budget=new Budget(store);
  let enabled=true;const actions=new AppActions(store,apps,budget,()=>enabled);
@@ -41,7 +41,7 @@ test("owned app effects require exact approval, retain versions and return bound
  await actions.handle(account(),request("approve",{proposalId,allow:true}));
  await expect(actions.handle(account(),request("execute",{proposalId,arguments:{query:"changed"}}))).rejects.toThrow("saved approved payload");
  enabled=false;await expect(actions.handle(account(),request("execute",{proposalId}))).rejects.toThrow("OFF");enabled=true;
- const result=await (await actions.handle(account(),request("execute",{proposalId}))).json();
+ const result=await (await actions.handle(account(),request("execute",{proposalId}))).json() as { data: { answer: string }; log_id: string };
  expect(result.data.answer).toBe("read result");expect(JSON.stringify(result)).not.toContain("secret");expect(JSON.stringify(result)).not.toContain("session_info");
  expect(result.log_id).toBe("log_real_fixture");expect(upstream.posts).toBe(1);
  const restarted=new AppActions(store,apps,budget,()=>true);
@@ -64,7 +64,7 @@ test("uncertain provider dispatch keeps a reservation and cannot repeat after re
  await expect(actions.handle(account(),request("execute",{proposalId}))).rejects.toThrow("could not be reached");
  await expect(new AppActions(store,apps,budget,()=>true).handle(account(),request("execute",{proposalId}))).rejects.toThrow("uncertain");
  expect(upstream.posts).toBe(1);expect(budget.combined().total.held).toBe(1000);
- expect((await (await actions.handle(account(),request("status",{proposalId}))).json()).state).toBe("uncertain");
+ expect(((await (await actions.handle(account(),request("status",{proposalId}))).json()) as { state: string }).state).toBe("uncertain");
 }));
 test("arbitrary credentials, meta tools, instant accounts and unpinned versions are rejected",()=>fixture(async store=>{
  const upstream=provider(),actions=new AppActions(store,new ManagedApps(store,"backend-key",upstream.send),new Budget(store),()=>true);

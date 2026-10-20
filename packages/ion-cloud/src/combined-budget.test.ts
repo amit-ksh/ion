@@ -31,6 +31,8 @@ test("combined envelope covers all dispatch types, old counters, unknown holds a
     envelope.lifetime=1000;
     expect(restarted.combined().limits.lifetime).toBe(150);
     expect(() => new Budget(store, Date.now, {...pilotEnvelope,lifetime:15_000_001})).toThrow("authorization");
+    expect(() => new Budget(store, Date.now, {...pilotEnvelope,monthly:pilotEnvelope.monthly+1})).toThrow("authorization");
+    expect(() => new Budget(store, Date.now, {...pilotEnvelope,lifetime:pilotEnvelope.lifetime+1})).toThrow("authorization");
   } finally { store.close(); rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100}); }
 });
 test("combined envelope picks up counters written before deployment and rolls back rejected multi-service reservations", () => {

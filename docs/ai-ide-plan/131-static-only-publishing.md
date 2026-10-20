@@ -53,10 +53,11 @@ activated by this change; existing Worker/R2 usage remains metered.
 - Worker and mobile TypeScript checks passed. Final desktop
   `cargo check --offline -p waku` passed, including the reparse-point guard.
   The native suite passed three tests with the explicit live test ignored.
-- The standalone cloud-package TypeScript check remains red in unrelated
-  app/sandbox test typings, budget fixture literal types and `BodyInit` typing.
-  Its executable service tests and the production Worker's type check pass;
-  this is not recorded as a clean repository-wide type check.
+- The standalone cloud-package check initially found app/sandbox fixture
+  response typings, budget constructor literal inference and `BodyInit` typing.
+  The later type-only milestone resolves those errors; see
+  [133](133-backend-typecheck-acceptance.md). Both backend and Worker checks now
+  pass. This does not claim a repository-wide type check beyond those packages.
 
 Evidence is retained under `.waku-cache/ion-static-*`. No native visual test,
 new VM, container, paid subscription or change to owner spending switches was

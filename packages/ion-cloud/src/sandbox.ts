@@ -61,7 +61,7 @@ export class Sandbox {
     const id=record.workspace+":"+record.request, old=this.store.get<Operation>("_operator","sandbox-request",id);
     this.store.put("_operator", "sandbox-request",id,{...record,...(old?.receipt?{receipt:old.receipt}:{})});
   }
-  private async call(path: string, method = "GET", body?: BodyInit, type = "application/json", project=this.policy?.projectId) {
+  private async call(path: string, method = "GET", body?: RequestInit["body"], type = "application/json", project=this.policy?.projectId) {
     if(!this.key || !project)throw new CloudFailure(503,"Restore the original sandbox credentials before reconciliation");
     try {
       return await this.send(base + path, { method, body, redirect: "manual", signal: AbortSignal.timeout(20_000),

@@ -19,7 +19,7 @@ export function money(value: number): number {
  * their full reservation forever; only a trusted provider receipt can settle it. */
 export class Budget {
   constructor(private store: ServiceStore, private clock = Date.now,
-    private envelope = pilotEnvelope) {
+    private envelope: Readonly<Pick<Limits, "monthly" | "lifetime">> = pilotEnvelope) {
     money(envelope.monthly); money(envelope.lifetime);
     if (!envelope.monthly || !envelope.lifetime || envelope.monthly > pilotEnvelope.monthly || envelope.lifetime > pilotEnvelope.lifetime)
       throw new Error("Combined spending envelope exceeds the pilot authorization");

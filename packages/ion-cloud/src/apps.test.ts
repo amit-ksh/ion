@@ -45,13 +45,13 @@ function provider() {
     const session = sessions.get(path.split("/")[3]!);
     if (session) return Response.json(session);
     return new Response(null, { status: 404 });
-  }) as typeof fetch;
+  });
   return { send, calls, sessions, setForeign: () => { foreignAccount = true; }, failLink: () => { failLink = true; }, get linkPosts() { return linkPosts; }, get revokes() { return revokes; } };
 }
 test("managed catalog uses stable authenticated users, redacts capabilities and hides operator accounts", () => fixture(async store => {
   const upstream = provider(), apps = new ManagedApps(store, "server-project-key", upstream.send);
-  const a = await (await apps.handle(account(), request())).json();
-  expect(a.items[0].account.id).toBe("ca_own"); expect(a.items[1].account).toBeUndefined();
+  const a = await (await apps.handle(account(), request())).json() as { items: { account?: { id: string } }[] };
+  expect(a.items[0]!.account!.id).toBe("ca_own"); expect(a.items[1]!.account).toBeUndefined();
   const text = JSON.stringify(a);
   for (const secret of ["private-provider-token", "private-capability", "server-project-key", "never-forward", "ca_operator", "operator-personal-user"]) expect(text).not.toContain(secret);
   const second = new ManagedApps(store, "server-project-key", upstream.send);
@@ -69,15 +69,15 @@ test("simultaneous session initialization is coalesced; a second account gets an
 }));
 test("restarted uncertain session initialization never silently creates another session", () => fixture(async store => {
   let calls = 0;
-  const apps = new ManagedApps(store, "key", (async () => { calls++; throw new Error("private-provider-error"); }) as typeof fetch);
+  const apps = new ManagedApps(store, "key", (async () => { calls++; throw new Error("private-provider-error"); }));
   await expect(apps.handle(account(), request())).rejects.toThrow("could not be reached");
-  await expect(new ManagedApps(store, "key", (async () => { calls++; return Response.json({}); }) as typeof fetch).handle(account(), request())).rejects.toThrow("reconciliation");
+  await expect(new ManagedApps(store, "key", (async () => { calls++; return Response.json({}); })).handle(account(), request())).rejects.toThrow("reconciliation");
   expect(calls).toBe(1);
 }));
 test("connection operations bind exact payloads, survive restart and do not repeat effects", () => fixture(async store => {
   const upstream = provider(), apps = new ManagedApps(store, "server-project-key", upstream.send);
   const input = { toolkit: "own_app", operationId };
-  const first = await (await apps.handle(account(), request("connect", input))).json();
+  const first = await (await apps.handle(account(), request("connect", input))).json() as { redirectUrl: string };
   expect(first.redirectUrl).toBe("https://app.composio.dev/link/opaque");
   expect(JSON.stringify(first)).not.toContain("link_token");
   await new ManagedApps(store, "server-project-key", upstream.send).handle(account(), request("connect", input));

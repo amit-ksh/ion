@@ -33,7 +33,7 @@ test("sandbox is unavailable without verified operator configuration or provider
  const budget=new Budget(store),upstream=provider();
  expect(await(await new Sandbox(store,budget,()=>false).handle(account(),request("/config"))).json()).toMatchObject({configured:false,available:false});
  upstream.deny();const sandbox=new Sandbox(store,budget,()=>true,"server-only",sandboxPolicy(JSON.stringify(policy)),upstream.send);
- expect((await(await sandbox.handle(account(),request("/config"))).json()).available).toBe(false);
+ expect(((await(await sandbox.handle(account(),request("/config"))).json()) as { available: boolean }).available).toBe(false);
  await expect(sandbox.handle(account(),request("/instances","POST",body()))).rejects.toThrow("activation");
  expect(upstream.launches).toBe(0);expect(budget.combined().total.held).toBe(0);
 }));
@@ -47,7 +47,7 @@ test("sandbox launch binds identity, reserves before dispatch and does not repea
  expect((await make().handle(account(),request("/instances","POST",body()))).status).toBe(201);expect(upstream.launches).toBe(1);
  await expect(make().handle(account(),request("/instances","POST",{...body(),timeout:149}))).rejects.toThrow("changed");
  enabled=false;await make().maintenance();expect(upstream.cancels).toBe(1);
- expect((await(await make().handle(account(),request("/operations/"+operation))).json()).status).toBe("CANCELLED");
+ expect(((await(await make().handle(account(),request("/operations/"+operation))).json()) as { status: string }).status).toBe("CANCELLED");
  expect(make().pending).toBe(false);expect(budget.combined().total.held).toBe(10000);
 }));
 test("uncertain sandbox acknowledgement keeps the spending hold and cannot retry or use another account",()=>fixture(async store=>{
@@ -66,7 +66,7 @@ test("bounded uploaded files have account ownership; repeated confirmed upload i
  const upstream=provider(),sandbox=new Sandbox(store,new Budget(store),()=>true,"server-only",policy,upstream.send),bytes=Buffer.from("project archive"),digest=hash(bytes);
  const upload=()=>new Request("https://api.example/v1/sandbox/files",{method:"POST",body:bytes});
  expect((await sandbox.handle(account(),upload())).status).toBe(201);
- expect((await(await sandbox.handle(account(),request("/files/"+digest))).json()).sha256).toBe(digest);
+ expect(((await(await sandbox.handle(account(),request("/files/"+digest))).json()) as { sha256: string }).sha256).toBe(digest);
  await expect(sandbox.handle(account("b"),request("/files/"+digest))).rejects.toThrow("unavailable");
  expect((await sandbox.handle(account(),upload())).status).toBe(201);
 }));
@@ -84,7 +84,7 @@ test("lost sandbox acknowledgement recovers only its complete account-stamped pr
  const recovered=await make().handle(account(),request("/recover","POST",{requestId,operationId:operation}));expect(recovered.status).toBe(200);
  // Cleanup retains the original project even after removing its launch policy.
  await new Sandbox(store,budget,()=>false,"server-only",undefined,upstream.send).maintenance();
- const stopped=await(await make().handle(account(),request("/operations/"+operation))).json();
+ const stopped=await(await make().handle(account(),request("/operations/"+operation))).json() as { status: string; metadata: { hostname: string } };
  expect(stopped.status).toBe("CANCELLED");expect(stopped.metadata.hostname).toBe(body().hostname);
  expect(upstream.launches).toBe(1);expect(budget.combined().total.held).toBe(10000);
 }));
@@ -96,7 +96,7 @@ test("one sandbox target maps to a separate credential-free command image and fi
  const commandPolicy={version:1,target:image,image:commandImage,credential_free:true,max_commands:2,max_seconds:30,max_layer_bytes:268435456,uid:1000,gid:1000,executables:["/usr/bin/python3"],resources:{version:1,cpu_seconds:10,address_space_bytes:268435456,max_file_bytes:1048576,processes:32,open_files:64}};
  const registered=sandboxPolicy(JSON.stringify({...policy,images:[...policy.images,{target:image,image:commandImage,kind:"command",manifest,policy:commandPolicy}]}))!;
  const sandbox=new Sandbox(store,new Budget(store),()=>false,"server-only",registered,async()=>Response.json(manifest));
- const result=await(await sandbox.handle(account(),request("/images/"+image))).json();
+ const result=await(await sandbox.handle(account(),request("/images/"+image))).json() as { image: string; target: string; credential_free: boolean };
  expect(result.image).toBe(commandImage);expect(result.target).toBe(image);expect(result.credential_free).toBe(true);
  for(const changed of [{credential_free:false},{uid:0}])expect(()=>sandboxPolicy(JSON.stringify({...registered,images:[registered.images[0],{...registered.images[1],policy:{...commandPolicy,...changed}}]}))).toThrow("boundary");
 }));
