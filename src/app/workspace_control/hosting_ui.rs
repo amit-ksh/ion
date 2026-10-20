@@ -23,12 +23,7 @@ pub(super) struct HostingUi {
     spa: bool,
     operation: Uuid,
     entry: Entity<TextInput>,
-    build: Entity<TextInput>,
-    start: Entity<TextInput>,
     output: Entity<TextInput>,
-    port: Entity<TextInput>,
-    health: Entity<TextInput>,
-    environment: Entity<TextInput>,
     paths: ListState,
     focus: FocusHandle,
 }
@@ -47,17 +42,7 @@ impl HostingUi {
             spa: false,
             operation: Uuid::new_v4(),
             entry: cx.new(|cx| TextInput::new(window, cx).placeholder("index.html")),
-            build: cx
-                .new(|cx| TextInput::new(window, cx).placeholder(r#"["npm","run","build"] or []"#)),
-            start: cx.new(|cx| TextInput::new(window, cx).placeholder(r#"["node","server.js"]"#)),
-            output: cx.new(|cx| TextInput::new(window, cx).placeholder("dist")),
-            port: cx.new(|cx| TextInput::new(window, cx).placeholder("3000")),
-            health: cx.new(|cx| TextInput::new(window, cx).placeholder("/")),
-            environment: cx.new(|cx| {
-                TextInput::new(window, cx)
-                    .placeholder(r#"{"SERVICE_KEY":"value"}"#)
-                    .secure()
-            }),
+            output: cx.new(|cx| TextInput::new(window, cx).placeholder("dist, out, build or .")),
             paths: ListState::new(0, ListAlignment::Top, px(22.0)),
             focus: cx.focus_handle(),
         }
@@ -201,6 +186,17 @@ impl Waku {
         if self.control_ui.hosting.busy {
             return;
         }
+        self.prepare_hosting_export(source, None, cx);
+    }
+    fn prepare_hosting_export(
+        &mut self,
+        source: Option<Source>,
+        directory: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.control_ui.hosting.busy {
+            return;
+        }
         let ui = &mut self.control_ui.hosting;
         ui.open = true;
         ui.busy = true;
@@ -217,16 +213,9 @@ impl Waku {
         } else {
             "static"
         };
-        for input in [&ui.build, &ui.start, &ui.environment] {
-            input.update(cx, |input, cx| input.set_content("{}", cx));
-        }
-        ui.build.update(cx, |input, cx| input.set_content("[]", cx));
-        ui.start.update(cx, |input, cx| input.set_content("[]", cx));
-        ui.output
-            .update(cx, |input, cx| input.set_content("dist", cx));
-        ui.port
-            .update(cx, |input, cx| input.set_content("3000", cx));
-        ui.health.update(cx, |input, cx| input.set_content("/", cx));
+        ui.output.update(cx, |input, cx| {
+            input.set_content(directory.clone().unwrap_or_default(), cx)
+        });
         let generation = ui.generation;
         let client = self.daemon.client();
         cx.spawn(async move |view, cx| {
@@ -234,7 +223,12 @@ impl Waku {
                 .background_executor()
                 .spawn(async move {
                     let bundle = match source {
-                        Some(Source::Project(p)) => bundle::project(&p.path).map(Some),
+                        Some(Source::Project(p)) => match directory {
+                            Some(directory) => {
+                                bundle::static_project(&p.path, &directory).map(Some)
+                            }
+                            None => bundle::project(&p.path).map(Some),
+                        },
                         Some(Source::Artifact(a)) => artifact_bundle(client, a).map(Some),
                         None => Ok(None),
                     };
@@ -252,6 +246,10 @@ impl Waku {
                     Ok(Some(bundle)) => {
                         ui.entry
                             .update(cx, |i, cx| i.set_content(bundle.entry.clone(), cx));
+                        if let Some(directory) = &bundle.export_directory {
+                            ui.output
+                                .update(cx, |i, cx| i.set_content(directory.clone(), cx));
+                        }
                         ui.paths.reset(bundle.paths.len());
                         ui.bundle = Some(Arc::new(bundle));
                     }
@@ -284,27 +282,22 @@ impl Waku {
             Source::Project(p) => (p.name, "project"),
             Source::Artifact(a) => (a.name, "artifact"),
         };
-        let build = serde_json::from_str::<Vec<String>>(ui.build.read(cx).content());
-        let start = serde_json::from_str::<Vec<String>>(ui.start.read(cx).content());
-        let environment = serde_json::from_str::<std::collections::HashMap<String, String>>(
-            ui.environment.read(cx).content(),
-        );
-        let (Ok(build), Ok(start), Ok(environment)) = (build, start, environment) else {
-            self.control_ui.hosting.error = Some(
-                "Commands must be JSON arrays; runtime settings must be a JSON object.".into(),
-            );
+        if bundle
+            .export_directory
+            .as_deref()
+            .is_some_and(|directory| directory != ui.output.read(cx).content().trim())
+        {
+            self.control_ui.hosting.error =
+                Some("Review the selected static export folder before publishing.".into());
             cx.notify();
             return;
-        };
-        let settings = serde_json::json!({"runtime":ui.runtime,"entry":ui.entry.read(cx).content(),"build":build,"start":start,"outputDirectory":ui.output.read(cx).content(),"port":ui.port.read(cx).content().parse::<u16>().unwrap_or(0),"healthPath":ui.health.read(cx).content(),"spa":ui.spa});
+        }
+        let settings = serde_json::json!({"runtime":ui.runtime,"entry":ui.entry.read(cx).content(),"build":[],"start":[],"outputDirectory":"dist","port":3000,"healthPath":"/","spa":ui.spa});
         let visibility = if ui.public { "public" } else { "private" };
         let operation = ui.operation.to_string();
-        self.control_ui
-            .hosting
-            .environment
-            .update(cx, |input, cx| input.clear(cx));
-        self.run_hosting_request("POST","/v1/hosting/releases".into(),Some((bundle,serde_json::json!({"sourceId":source_id,"title":title,"kind":kind,"visibility":visibility,"idempotencyKey":operation,"settings":settings,"environment":environment}))),None,cx);
+        self.run_hosting_request("POST","/v1/hosting/releases".into(),Some((bundle,serde_json::json!({"sourceId":source_id,"title":title,"kind":kind,"visibility":visibility,"idempotencyKey":operation,"settings":settings}))),None,cx);
     }
+
     fn hosting_action(
         &mut self,
         id: String,
@@ -438,11 +431,21 @@ impl Waku {
                             ui.open = false;
                             ui.generation += 1;
                             ui.busy = false;
-                            ui.environment.update(cx, |input, cx| input.clear(cx));
                             cx.notify();
                         }),
                     ),
             );
+        if matches!(&ui.source, Some(Source::Project(_))) {
+            content = content
+                .child(div().text_size(sp(13.0)).text_color(theme.text_secondary)
+                    .child("Publish a static app export to Cloudflare. Build locally first, then review the output folder. Backend servers and cloud builds are unavailable."))
+                .child(self.hosting_field("Static export folder · relative to project", ui.output.clone(), cx))
+                .child(self.control_button("hosting-review-export", "Review static export", cx, |this, _, cx| {
+                    let source = this.control_ui.hosting.source.clone();
+                    let directory = this.control_ui.hosting.output.read(cx).content().trim().to_owned();
+                    this.prepare_hosting_export(source, Some(directory), cx);
+                }));
+        }
         if let Some(bundle) = &ui.bundle {
             content = content.child(
                 div()
@@ -455,7 +458,7 @@ impl Waku {
                     )),
             );
             let mut modes = div().flex().flex_wrap().gap(px(8.0));
-            for runtime in ["document", "static", "node", "bun", "python"] {
+            for runtime in ["document", "static"] {
                 if matches!(&ui.source, Some(Source::Artifact(_)))
                     && runtime != "document"
                     && runtime != "static"
@@ -504,30 +507,6 @@ impl Waku {
                         }
                     },
                 ));
-            }
-            if ui.runtime != "document" && matches!(&ui.source, Some(Source::Project(_))) {
-                content = content
-                    .child(self.hosting_field(
-                        "Build command · JSON argument array · optional",
-                        ui.build.clone(),
-                        cx,
-                    ))
-                    .child(self.hosting_field("Build output directory", ui.output.clone(), cx));
-                if ui.runtime != "static" {
-                    content = content
-                        .child(self.hosting_field(
-                            "Start command · JSON argument array",
-                            ui.start.clone(),
-                            cx,
-                        ))
-                        .child(self.hosting_field("HTTP port", ui.port.clone(), cx))
-                        .child(self.hosting_field("Readiness path", ui.health.clone(), cx))
-                        .child(self.hosting_field(
-                            "Runtime secrets · JSON object · encrypted in cloud storage",
-                            ui.environment.clone(),
-                            cx,
-                        ));
-                }
             }
             content = content.child(
                 div()
@@ -606,7 +585,6 @@ impl Waku {
             let view = id.clone();
             let stop = id.clone();
             let visibility = id.clone();
-            let logs = id.clone();
             let copy_url = site["url"].as_str().unwrap_or_default().to_owned();
             let public = site["visibility"] == "public";
             let stopped = site["stopped"] == true;
@@ -616,16 +594,8 @@ impl Waku {
                 .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child(site["url"].as_str().unwrap_or_default().to_owned()))
                 .child(div().flex().flex_wrap().gap(px(8.0))
                     .child(self.control_button(format!("hosting-view-{id}"),"Open",cx,move|this,_,cx|this.hosting_action(view.clone(),"view",serde_json::json!({}),cx)))
-                    .child(self.control_button(format!("hosting-stop-{id}"),if stopped{"Start"}else{"Stop / Unpublish"},cx,move|this,_,cx|this.hosting_action(stop.clone(),if stopped{"start"}else{"stop"},serde_json::json!({}),cx)))
+                    .child(self.control_button(format!("hosting-stop-{id}"),if stopped{"Republish"}else{"Unpublish"},cx,move|this,_,cx|this.hosting_action(stop.clone(),if stopped{"start"}else{"stop"},serde_json::json!({}),cx)))
                     .child(self.control_button(format!("hosting-access-{id}"),if public{"Make private"}else{"Make public"},cx,move|this,_,cx|this.hosting_action(visibility.clone(),"visibility",serde_json::json!({"visibility":if public{"private"}else{"public"}}),cx))));
-            row = row.child(self.control_button(
-                format!("hosting-logs-{id}"),
-                "Runtime logs",
-                cx,
-                move |this, _, cx| {
-                    this.hosting_action(logs.clone(), "logs", serde_json::json!({}), cx)
-                },
-            ));
             row = row.child(self.control_button(
                 format!("hosting-copy-{id}"),
                 "Copy link",
@@ -712,12 +682,9 @@ impl Waku {
 }
 
 impl ControlUi {
-    pub(in crate::app) fn clear_hosting_account(&mut self, cx: &mut App) {
+    pub(in crate::app) fn clear_hosting_account(&mut self, _cx: &mut App) {
         self.hosting.generation += 1;
         self.hosting.busy = false;
         self.hosting.sites.clear();
-        self.hosting
-            .environment
-            .update(cx, |input, cx| input.clear(cx));
     }
 }

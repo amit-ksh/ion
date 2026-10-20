@@ -116,8 +116,8 @@ export default function CloudDeployments() {
               onRefresh={() => void reload()}
             />
             <Text style={{ color: theme.textSecondary }}>
-              Publish HTML from a verified artifact. Deploy project source from
-              the desktop app.
+              Publish HTML from a verified artifact. Publish a static app export
+              from the desktop app.
             </Text>
             {error && (
               <Text accessibilityRole="alert" style={{ color: theme.danger }}>
@@ -170,12 +170,12 @@ export default function CloudDeployments() {
                 onPress={() => void action(item, "view")}
               />
               <AutomationButton
-                label="Runtime logs"
+                label="Publication details"
                 disabled={busy || !item.active}
                 onPress={() => void action(item, "logs")}
               />
               <AutomationButton
-                label={item.stopped ? "Start" : "Stop / Unpublish"}
+                label={item.stopped ? "Republish" : "Unpublish"}
                 disabled={busy}
                 onPress={() =>
                   void action(item, item.stopped ? "start" : "stop")
@@ -226,7 +226,7 @@ export default function CloudDeployments() {
                       onPress={() =>
                         Alert.alert(
                           "Remove inactive version?",
-                          "This removes its retained source and runtime after the worker reconnects.",
+                          "This removes the inactive version and its unused published files.",
                           [
                             { text: "Cancel", style: "cancel" },
                             {

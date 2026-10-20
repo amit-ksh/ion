@@ -1,5 +1,12 @@
 # Ion serverless gateway
 
+App publishing currently accepts only prebuilt static exports and HTML documents.
+No Nebius VM, controller or hosting-worker token is required for these releases.
+Build locally, review the output, then upload it through the authenticated
+hosting API. Server runtimes, cloud build/start commands and runtime secrets
+are rejected; old runtime releases cannot be activated or served. Bootstrap
+`appDeployment` means static app publishing is configured when R2 is bound.
+
 Workers + SQLite Durable Objects + private R2. Reuses the existing account/device/relay and hosting protocols. No speech VM is involved; phone audio goes to the paired desktop's local Parakeet runtime.
 
 **Private R2 storage and model download deployed; live publishing/compute acceptance pending.** See [R2 migration](../../docs/ai-ide-plan/128-r2-speech-and-publishing.md). Owner permission switches default OFF and cannot enable an unconfigured service. The speech model is distributed by Ion from private R2 storage; the earlier Hugging Face revision remains provenance. The native downloader and CPU runtime have passed real acceptance against that identical artifact.

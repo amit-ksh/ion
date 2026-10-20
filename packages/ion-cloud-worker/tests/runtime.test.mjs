@@ -326,6 +326,30 @@ test("real Workers SQL/R2: owner switches, private publication, idempotency and 
         },
       ],
     };
+    const bootstrap = await (await mf.dispatchFetch(origin + "/v1/bootstrap")).json();
+    assert.equal(bootstrap.features.appDeployment, true);
+    const js = Buffer.from('document.querySelector("h1").textContent="Static app"');
+    const staticBody = { ...body, kind: "project", sourceId: "static-project",
+      visibility: "public", idempotencyKey: "static-project-publication-001",
+      settings: { ...body.settings, runtime: "static", spa: true },
+      files: [...body.files, { path: "assets/app.js", bytes: js.length,
+        content: js.toString("base64"), sha256: createHash("sha256").update(js).digest("hex") }] };
+    const staticResponse = await call("judge", "/v1/hosting/releases", "POST", staticBody);
+    assert.equal(staticResponse.status, 201, await staticResponse.clone().text());
+    const staticSite = await staticResponse.json();
+    assert.equal(staticSite.releases[0].status, "ready");
+    assert.equal(await (await mf.dispatchFetch(staticSite.url + "assets/app.js")).text(), js.toString());
+    assert.equal(await (await mf.dispatchFetch(staticSite.url + "settings/profile")).text(), html.toString());
+    assert.equal((await mf.dispatchFetch(staticSite.url + "missing.js")).status, 404);
+    assert.equal((await mf.dispatchFetch(staticSite.url, { method: "POST" })).status, 405);
+    for (const settings of [
+      { ...staticBody.settings, build: ["npm", "run", "build"] },
+      { ...staticBody.settings, start: ["node", "server.js"] },
+      ...["node", "bun", "python"].map(runtime => ({ ...staticBody.settings, runtime, start: [runtime, "index.html"] })),
+    ]) {
+      assert.equal((await call("judge", "/v1/hosting/releases", "POST", { ...staticBody, settings })).status, 403);
+    }
+    assert.equal((await call("judge", "/v1/hosting/releases", "POST", { ...staticBody, environment: { SECRET: "not-for-client-code" } })).status, 400);
     const response = await call("judge", "/v1/hosting/releases", "POST", body);
     assert.equal(response.status, 201, await response.clone().text());
     const site = await response.json();
@@ -426,7 +450,7 @@ test("real Workers SQL/R2: owner switches, private publication, idempotency and 
   }
 });
 
-test("configured pilot: approved shared inference, durable spending, authenticated VM wake and Cloud OFF stop", async () => {
+test("configured pilot: shared inference, durable spending and denied server publishing never wakes compute", async () => {
   const directory = mkdtempSync(join(tmpdir(), "ion-configured-"));
   let mf = instance(directory, true);
   const dispatch = async (req) => mf.dispatchFetch(req.url, { method: req.method, headers: Object.fromEntries(req.headers),
@@ -449,13 +473,11 @@ test("configured pilot: approved shared inference, durable spending, authenticat
     const publish = await call("judge", "/v1/hosting/releases", "POST", { sourceId: "node-app", title: "App fixture", kind: "project", visibility: "private",
       idempotencyKey: "node-app-publication-key-001", settings: { runtime: "node", entry: "server.js", build: [], start: ["node", "server.js"], outputDirectory: "dist", port: 3000, healthPath: "/" },
       files: [{ path: "server.js", bytes: source.length, content: source.toString("base64"), sha256: createHash("sha256").update(source).digest("hex") }] });
-    assert.equal(publish.status, 201, await publish.clone().text());
-    assert.equal((await (await tick("STOPPED")).json()).action, "start");
-    assert.ok((await (await call("owner", "/v1/services/usage")).json()).cloud.total.held > 0);
-    await tick("RUNNING");
+    assert.equal(publish.status, 403, await publish.clone().text());
+    assert.equal((await (await tick("STOPPED")).json()).action, "observe");
+    assert.equal((await (await call("owner", "/v1/services/usage")).json()).cloud.total.held, 0);
     assert.equal((await call("owner", "/v1/services/controls", "PUT", { cloud: false, tokenFactory: false })).status, 200);
-    assert.equal((await (await tick("RUNNING")).json()).action, "stop");
-    await tick("STOPPED");
+    assert.equal((await (await tick("STOPPED")).json()).action, "observe");
     await mf.dispose(); mf = instance(directory, true);
     const usage = await (await call("judge", "/v1/services/usage")).json();
     assert.equal(usage.tokenFactory.account.spent, 5); assert.equal(usage.cloud.total.held, 0);

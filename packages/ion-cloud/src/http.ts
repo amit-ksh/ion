@@ -121,7 +121,7 @@ export function createCloudHandler(options: {
             gateway: true,
             speech: speech.enabled,
             htmlPublishing: hosting.enabled,
-            appDeployment: hosting.enabled && !!options.hosting?.workerToken && (controls?.cloudAvailable ?? false),
+            appDeployment: hosting.enabled,
           },
           limits: {
             speechMaximumSeconds: 120,

@@ -1,6 +1,5 @@
 import { extname } from "node:path";
 import { LocalBlobs, type BlobStore } from "./blobs";
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { CloudFailure, type Account } from "./auth";
 import { ServiceStore, hash, readJson, secret } from "./service-store";
 
@@ -53,6 +52,10 @@ export interface HostingOptions {
   secretsKey?: string;
   maxStorageBytes?: number;
 }
+const staticPublishingOnly = "Only static apps and HTML documents can be published. Build or export the app locally before uploading; server runtimes and cloud builds are unavailable.";
+const isStaticExport = (settings: BuildSettings) =>
+  ["document", "static"].includes(settings.runtime) &&
+  settings.build.length === 0 && settings.start.length === 0;
 export const safePath = (value: unknown): value is string =>
   typeof value === "string" &&
   value.length > 0 &&
@@ -105,9 +108,9 @@ export class Hosting {
     readonly store: ServiceStore,
     directory: string | BlobStore,
     private options?: HostingOptions,
-    private readonly computeEnabled: () => boolean = () => true,
+    _computeEnabled: () => boolean = () => true,
     recoverIncomplete = true,
-    private readonly wake?: () => boolean,
+    _wake?: () => boolean,
   ) {
     this.enabled = !!options;
     this.objects =
@@ -250,6 +253,10 @@ export class Hosting {
       !safePath(settings.outputDirectory)
     )
       throw new CloudFailure(400, "Review the build and runtime settings");
+    if (!isStaticExport(settings))
+      throw new CloudFailure(403, staticPublishingOnly);
+    if (!/\.html?$/i.test(settings.entry))
+      throw new CloudFailure(400, "Choose an HTML entry from the static export");
     if (
       settings.runtime === "document" &&
       (settings.build.length ||
@@ -259,20 +266,6 @@ export class Hosting {
       throw new CloudFailure(
         400,
         "Document publishing requires an HTML entry without build commands",
-      );
-    if (
-      ["node", "bun", "python"].includes(settings.runtime) &&
-      !settings.start.length
-    )
-      throw new CloudFailure(400, "A start command is required");
-    if (
-      (settings.build.length ||
-        ["node", "bun", "python"].includes(settings.runtime)) &&
-      !this.options?.workerToken
-    )
-      throw new CloudFailure(
-        503,
-        "The isolated hosting worker is not configured",
       );
     return { files: input.files, settings, bytes };
   }
@@ -343,12 +336,8 @@ export class Hosting {
     ) {
       const input = await readJson(request);
       const { files, settings, bytes } = this.validate(input);
-      if (
-        (settings.build.length ||
-          ["node", "bun", "python"].includes(settings.runtime)) &&
-        !this.computeEnabled()
-      )
-        throw new CloudFailure(403, "Nebius Cloud is disabled by the owner");
+      if (input.environment && Object.keys(input.environment).length)
+        throw new CloudFailure(400, "Static publishing does not accept runtime secrets");
       if (
         typeof input.sourceId !== "string" ||
         input.sourceId.length > 150 ||
@@ -383,30 +372,9 @@ export class Hosting {
           );
         return json(this.publicSite(workspace, this.site(workspace, id)));
       }
-      const environment = input.environment ?? {};
-      if (
-        typeof environment !== "object" ||
-        Array.isArray(environment) ||
-        Object.keys(environment).length > 32 ||
-        Object.entries(environment).some(
-          ([key, value]) =>
-            !/^[_A-Za-z][_A-Za-z0-9]{0,63}$/.test(key) ||
-            [
-              "PORT",
-              "PATH",
-              "HOME",
-              "NODE_OPTIONS",
-              "LD_PRELOAD",
-              "LD_LIBRARY_PATH",
-            ].includes(key) ||
-            typeof value !== "string" ||
-            value.length > 8000 ||
-            /[\r\n\0]/.test(value),
-        )
-      )
-        throw new CloudFailure(400, "Invalid runtime environment");
-      if (Object.keys(environment).length && !this.options?.secretsKey)
-        throw new CloudFailure(503, "Runtime secret storage is not configured");
+      if (input.environment !== undefined && (input.environment === null ||
+          typeof input.environment !== "object" || Array.isArray(input.environment)))
+        throw new CloudFailure(400, "Static publishing does not accept runtime secrets");
       const release: Release = {
         id: secret().slice(0, 32),
         siteId: id,
@@ -472,24 +440,7 @@ export class Hosting {
           release.id,
           input.visibility,
         );
-        if (Object.keys(environment).length) {
-          const nonce = randomBytes(12),
-            cipher = createCipheriv(
-              "aes-256-gcm",
-              Buffer.from(this.options!.secretsKey!, "hex"),
-              nonce,
-            );
-          cipher.setAAD(Buffer.from(workspace + ":" + release.id));
-          const bytes = Buffer.concat([
-            cipher.update(JSON.stringify(environment), "utf8"),
-            cipher.final(),
-          ]);
-          this.store.put(workspace, "runtimeSecrets", release.id, {
-            nonce: nonce.toString("base64"),
-            tag: cipher.getAuthTag().toString("base64"),
-            bytes: bytes.toString("base64"),
-          });
-        }
+
       });
       try {
         for (const file of files)
@@ -498,19 +449,12 @@ export class Hosting {
             file.sha256,
             Buffer.from(file.content, "base64"),
           );
-        if (
-          settings.build.length ||
-          ["node", "bun", "python"].includes(settings.runtime)
-        ) {
-          release.status = "queued";
-        } else {
-          release.status = "ready";
-          const site = this.site(workspace, id);
-          site.active = release.id;
-          site.visibility = input.visibility;
-          site.stopped = false;
-          this.store.put(workspace, "site", id, site);
-        }
+        release.status = "ready";
+        const site = this.site(workspace, id);
+        site.active = release.id;
+        site.visibility = input.visibility;
+        site.stopped = false;
+        this.store.put(workspace, "site", id, site);
         this.store.put(workspace, "release", release.id, release);
       } catch {
         release.status = "failed";
@@ -527,24 +471,7 @@ export class Hosting {
       if (action === "logs" && request.method === "POST") {
         if (!site.active) throw new CloudFailure(409, "No active runtime");
         const release = this.release(workspace, site.active);
-        if (!release.jobId || !this.options?.workerOrigin)
-          return json({ logs: release.logs });
-        const response = await fetch(
-          this.options.workerOrigin + "/logs/" + release.jobId,
-          {
-            headers: { Authorization: "Bearer " + this.options.workerToken },
-            redirect: "manual",
-            signal: AbortSignal.timeout(10_000),
-          },
-        );
-        if (!response.ok)
-          throw new CloudFailure(503, "Runtime logs unavailable");
-        const result = (await response.json()) as { logs: unknown };
-        if (typeof result.logs !== "string" || result.logs.length > 20_000)
-          throw new CloudFailure(503, "Invalid runtime log response");
-        release.logs = result.logs;
-        this.store.put(workspace, "release", release.id, release);
-        return json({ logs: result.logs });
+        return json({ logs: release.logs });
       }
       if (!action && request.method === "DELETE") {
         const releases = this.store
@@ -615,16 +542,8 @@ export class Hosting {
         }
         if (action === "start") {
           if (!site.active) throw new CloudFailure(409, "No ready version");
-          if (
-            ["node", "bun", "python"].includes(
-              this.release(workspace, site.active).settings.runtime,
-            ) &&
-            !this.computeEnabled()
-          )
-            throw new CloudFailure(
-              403,
-              "Nebius Cloud is disabled by the owner",
-            );
+          if (!isStaticExport(this.release(workspace, site.active).settings))
+            throw new CloudFailure(403, staticPublishingOnly);
           site.stopped = false;
         }
         if (action === "visibility") {
@@ -636,14 +555,8 @@ export class Hosting {
           const release = this.release(workspace, input.releaseId);
           if (release.siteId !== site.id || release.status !== "ready")
             throw new CloudFailure(409, "Choose a ready version");
-          if (
-            ["node", "bun", "python"].includes(release.settings.runtime) &&
-            !this.computeEnabled()
-          )
-            throw new CloudFailure(
-              403,
-              "Nebius Cloud is disabled by the owner",
-            );
+          if (!isStaticExport(release.settings))
+            throw new CloudFailure(403, staticPublishingOnly);
           site.active = release.id;
           site.requested = release.id;
           site.stopped = false;
@@ -689,188 +602,14 @@ export class Hosting {
         hash("Bearer " + options.workerToken)
     )
       throw new CloudFailure(401, "Worker authorization required");
-    const input = await readJson(request, 40_000_000),
-      path = new URL(request.url).pathname;
-    if (path === "/internal/hosting/claim") {
-      if (!this.computeEnabled()) return Response.json({ job: null });
-      const result = this.store.transaction(() => {
-        const rows = this.store.db
-          .query<{ workspace: string; id: string; value: string }, []>(
-            "SELECT workspace,id,value FROM service_objects WHERE kind='release'",
-          )
-          .all();
-        for (const row of rows) {
-          const release = JSON.parse(row.value) as Release;
-          if (release.status !== "queued") continue;
-          release.status = "building";
-          release.jobId = release.id;
-          this.store.put(row.workspace, "release", release.id, release);
-          return { workspace: row.workspace, release };
-        }
-        return null;
-      });
-      if (!result) return Response.json({ job: null });
-      const files: BundleFile[] = [];
-      for (const file of result.release.files)
-        files.push({
-          ...file,
-          content: (
-            await this.objects.get(result.workspace, file.sha256)
-          ).toString("base64"),
-        });
-      const sealed = this.store.get<{
-        nonce: string;
-        tag: string;
-        bytes: string;
-      }>(result.workspace, "runtimeSecrets", result.release.id);
-      let environment = {};
-      if (sealed) {
-        if (!this.options?.secretsKey)
-          throw new CloudFailure(503, "Secret key unavailable");
-        const cipher = createDecipheriv(
-          "aes-256-gcm",
-          Buffer.from(this.options.secretsKey, "hex"),
-          Buffer.from(sealed.nonce, "base64"),
-        );
-        cipher.setAAD(Buffer.from(result.workspace + ":" + result.release.id));
-        cipher.setAuthTag(Buffer.from(sealed.tag, "base64"));
-        environment = JSON.parse(
-          Buffer.concat([
-            cipher.update(Buffer.from(sealed.bytes, "base64")),
-            cipher.final(),
-          ]).toString("utf8"),
-        );
-      }
-      return Response.json({ job: { ...result, files, environment } });
-    }
-    if (path === "/internal/hosting/complete") {
-      if (
-        !/^[a-f0-9]{64}$/.test(input.workspace) ||
-        typeof input.releaseId !== "string"
-      )
-        throw new CloudFailure(400, "Invalid worker receipt");
-      return this.mutate(input.workspace, async () => {
-        const release = this.release(input.workspace, input.releaseId);
-        if (release.status === "ready" && input.uncertain === true && ["node", "bun", "python"].includes(release.settings.runtime)) {
-          const site = this.site(input.workspace, release.siteId);
-          site.stopped = true;
-          this.store.put(input.workspace, "site", site.id, site);
-          release.status = "uncertain";
-          release.logs = "Runtime could not be recovered after host restart. Review and publish a new version.";
-          this.store.put(input.workspace, "release", release.id, release);
-          return Response.json({ accepted: true });
-        }
-        if (release.status !== "building" && release.status !== "uncertain")
-          return Response.json({ accepted: release.status === "ready" });
-        if (input.uncertain === true) {
-          release.status = "uncertain";
-          release.logs =
-            "Worker restarted during execution. Inspect this version before replacing it.";
-          this.store.put(input.workspace, "release", release.id, release);
-          return Response.json({ accepted: true });
-        }
-        if (input.success !== true) {
-          release.status = "failed";
-          release.logs =
-            "Isolated build/runtime failed. Review the worker's private diagnostic log.";
-          this.store.put(input.workspace, "release", release.id, release);
-          return Response.json({ accepted: true });
-        }
-        if (release.settings.runtime === "static") {
-          const validated = this.validate({
-            files: input.files,
-            settings: {
-              ...release.settings,
-              build: [],
-              entry: release.settings.entry,
-            },
-          });
-          const retained = this.store
-            .all<Release>(input.workspace, "release")
-            .filter((r) => r.id !== release.id)
-            .reduce(
-              (n, r) =>
-                n +
-                [...r.files, ...(r.sourceFiles ?? [])].reduce(
-                  (sum, f) => sum + f.bytes,
-                  0,
-                ),
-              0,
-            );
-          const thisVersion = [
-            ...new Map(
-              [
-                ...validated.files,
-                ...(release.sourceFiles ?? release.files),
-              ].map((f) => [f.sha256, f]),
-            ).values(),
-          ].reduce((sum, f) => sum + f.bytes, 0);
-          if (
-            retained + thisVersion >
-            (this.options?.maxStorageBytes ?? 200_000_000)
-          )
-            throw new CloudFailure(
-              429,
-              "Built output exceeds the retained storage allowance",
-            );
-          release.files = validated.files.map(({ content, ...f }) => f);
-          this.store.put(input.workspace, "release", release.id, release); // Reserve retained output before filesystem work.
-          for (const file of validated.files)
-            await this.objects.put(
-              input.workspace,
-              file.sha256,
-              Buffer.from(file.content, "base64"),
-            );
-        }
-        release.status = "ready";
-        release.logs = "Build and readiness completed.";
-        this.store.put(input.workspace, "release", release.id, release);
-        const site = this.site(input.workspace, release.siteId);
-        if (site.requested !== release.id || site.pendingCancelled)
-          return Response.json({ accepted: true });
-        site.active = release.id;
-        site.stopped = false;
-        site.visibility =
-          this.store.get<"private" | "public">(
-            input.workspace,
-            "requestedVisibility",
-            release.id,
-          ) ?? "private";
-        this.store.put(input.workspace, "site", site.id, site);
-        return Response.json({ accepted: true });
-      });
-    }
-    if (path === "/internal/hosting/desired") {
-      const rows = this.store.db
-        .query<{ workspace: string; value: string }, []>(
-          "SELECT workspace,value FROM service_objects WHERE kind='release'",
-        )
-        .all();
-      return Response.json({
-        jobs: rows.flatMap((row) => {
-          const r = JSON.parse(row.value) as Release;
-          if (!r.jobId) return [];
-          const site = this.site(row.workspace, r.siteId);
-          return [
-            {
-              id: r.jobId,
-              running:
-                this.computeEnabled() &&
-                r.status === "ready" &&
-                site.active === r.id &&
-                !site.stopped,
-              building:
-                this.computeEnabled() &&
-                r.status === "building" &&
-                site.requested === r.id &&
-                !site.pendingCancelled,
-            },
-          ];
-        }),
-      });
-    }
-    throw new CloudFailure(404, "Worker route not found");
+    const path = new URL(request.url).pathname;
+    // Old workers must not claim builds or keep old runtimes alive after the
+    // static-only rollout. Empty desired state lets them retire their jobs.
+    if (path === "/internal/hosting/claim") return Response.json({ job: null });
+    if (path === "/internal/hosting/desired") return Response.json({ jobs: [] });
+    throw new CloudFailure(503, staticPublishingOnly);
   }
+
   async content(request: Request): Promise<Response | null> {
     if (!this.options) return null;
     const url = new URL(request.url),
@@ -955,80 +694,7 @@ export class Hosting {
       }
     }
     const release = this.release(row.workspace, site.active);
-    if (["node", "bun", "python"].includes(release.settings.runtime)) {
-      if (!this.computeEnabled())
-        return new Response("Application compute is disabled by the owner", {
-          status: 503,
-          headers: { "Cache-Control": "no-store" },
-        });
-      if (this.wake && !this.wake()) {
-        const html = request.method === "GET" && (request.headers.get("accept") ?? "").includes("text/html");
-        return new Response(html ? '<!doctype html><meta http-equiv="refresh" content="10"><title>Starting app</title><p>Starting this application. Retrying in 10 seconds.</p>' : "Application is starting. Retry later.", {
-          status: 503, headers: { "Retry-After": "10", "Cache-Control": "no-store", "Content-Type": html ? "text/html; charset=utf-8" : "text/plain", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" },
-        });
-      }
-      if (
-        !this.options.workerOrigin ||
-        !this.options.workerToken ||
-        !release.jobId
-      )
-        return new Response("Runtime unavailable", { status: 503 });
-      const headers = new Headers();
-      for (const key of [
-        "content-type",
-        "accept",
-        "accept-language",
-        "if-none-match",
-        "if-modified-since",
-        "range",
-        "user-agent",
-      ]) {
-        const value = request.headers.get(key);
-        if (value) headers.set(key, value);
-      }
-      headers.set("authorization", "Bearer " + this.options.workerToken);
-      const target =
-        this.options.workerOrigin +
-        "/runtime/" +
-        release.jobId +
-        url.pathname +
-        url.search;
-      try {
-        const response = await fetch(target, {
-          method: request.method,
-          headers,
-          body: request.body,
-          redirect: "manual",
-          signal: AbortSignal.timeout(30_000),
-          duplex: "half",
-        } as RequestInit);
-        const output = new Headers(response.headers);
-        output.delete("set-cookie");
-        output.delete("server");
-        output.set("Cache-Control", "no-store");
-        output.set("Referrer-Policy", "no-referrer");
-        output.set("X-Content-Type-Options", "nosniff");
-        output.set(
-          "Content-Security-Policy",
-          "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
-        );
-        const location = output.get("location");
-        if (
-          location &&
-          (!location.startsWith("/") || location.startsWith("//"))
-        )
-          output.delete("location");
-        return new Response(response.body, {
-          status: response.status,
-          headers: output,
-        });
-      } catch {
-        return new Response("Runtime unavailable", {
-          status: 503,
-          headers: { "Cache-Control": "no-store" },
-        });
-      }
-    }
+    if (!isStaticExport(release.settings)) return deny();
     if (!["GET", "HEAD"].includes(request.method))
       return new Response("Method not allowed", { status: 405 });
     let path: string;

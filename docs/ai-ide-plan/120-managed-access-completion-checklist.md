@@ -129,6 +129,14 @@ artifact. See [128](128-r2-speech-and-publishing.md).
 
 ## 8. HTML and app publishing
 
+**Scope update — 21 October 2026:** the owner now allows **static app publishing
+only** on Cloudflare. Backend app servers, cloud build execution and the Nebius
+app-host/controller provisioning and sleep/wake gates below are deferred, not
+remaining dependencies for this static release. Keep Token Factory inference
+and sandbox acceptance separate. See [130](130-cloudflare-app-deployment-feasibility.md)
+and [131](131-static-only-publishing.md).
+
+
 - [x] Activate R2, create the private bucket and deploy the production storage
   binding. Complete HTTPS model GET/HEAD passed exact size and SHA-256 checks.
 - [ ] Verify private storage bindings, bounded uploads, artifact ownership,

@@ -76,7 +76,7 @@ export class Platform extends DurableObject<Env> {
       }
       if (url.pathname === "/internal/platform/capabilities")
         return Response.json({ managedApps: this.apps.available, managedSandbox: this.sandbox.configured, htmlPublishing: !!this.hosting,
-          appDeployment: !!this.hosting && this.compute.available, sharedInference: this.inference.available });
+          appDeployment: !!this.hosting, sharedInference: this.inference.available });
       if (url.pathname.startsWith("/internal/hosting/")) {
         if (!this.hosting) throw new CloudFailure(503, "App storage is not configured yet");
         const response = await this.hosting.worker(request);

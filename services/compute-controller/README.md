@@ -1,5 +1,10 @@
 # Operator compute controller
 
+> Deferred by the owner's 21 October 2026 scope change. Ion currently publishes
+> only static exports and HTML through Cloudflare Worker/R2. Do not provision
+> or start this Nebius app-host path for static publishing. This runbook records
+> the earlier server-runtime implementation for possible future use.
+
 This **Linux-only** Node 22+ process runs outside the disposable app VM. It has
 no public listener. It polls the authenticated Worker for one pinned instance's
 desired action and uses the official `@nebius/js-sdk` **0.2.81** gRPC client.

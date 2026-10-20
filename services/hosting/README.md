@@ -1,5 +1,10 @@
 # Ion isolated app worker
 
+> Deferred by the owner's 21 October 2026 scope change. Ion currently publishes
+> only static exports and HTML through Cloudflare Worker/R2. Do not provision
+> or start this Nebius app-host path for static publishing. This runbook records
+> the earlier server-runtime implementation for possible future use.
+
 Runs reviewed source builds and stateless HTTP runtimes on a **dedicated disposable Linux VM**. Never install it on the user's computer or alongside shared account services.
 
 See [implementation, operator setup and deferred acceptance](../../docs/ai-ide-plan/111-managed-services-app-integration.md).
