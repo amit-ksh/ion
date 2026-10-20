@@ -1,6 +1,10 @@
 import { CloudFailure } from "./auth";
 import { ServiceStore, secret } from "./service-store";
-export type Meter = "cloud" | "tokenFactory";
+export type Meter = "cloud" | "tokenFactory" | "sandbox" | "composio";
+const meters: Meter[] = ["cloud", "tokenFactory", "sandbox", "composio"];
+// Leave USD 3 for retained storage/network charges: the provider invoice can
+// include costs outside these controlled runtime/inference dispatches.
+export const pilotEnvelope = Object.freeze({ monthly: 7_000_000, lifetime: 12_000_000 });
 export interface Limits { monthly: number; lifetime: number; accountLifetime: number }
 interface Counter { spent: number; held: number }
 interface Reservation { meter: Meter; workspace: string; month: string; maximum: number; settled?: number }
@@ -14,7 +18,13 @@ export function money(value: number): number {
 /** Micro-USD reservations are charged before dispatch. Unknown outcomes retain
  * their full reservation forever; only a trusted provider receipt can settle it. */
 export class Budget {
-  constructor(private store: ServiceStore, private clock = Date.now) {}
+  constructor(private store: ServiceStore, private clock = Date.now,
+    private envelope = pilotEnvelope) {
+    money(envelope.monthly); money(envelope.lifetime);
+    if (!envelope.monthly || !envelope.lifetime || envelope.monthly > pilotEnvelope.monthly || envelope.lifetime > pilotEnvelope.lifetime)
+      throw new Error("Combined spending envelope exceeds the pilot authorization");
+    this.envelope = Object.freeze({ ...envelope });
+  }
   private counter(id: string): Counter {
     const c = this.store.get<Counter>(scope, "budget", id) ?? zero();
     money(c.spent); money(c.held); return c;
@@ -23,10 +33,16 @@ export class Budget {
     return [meter + ":total", meter + ":month:" + month, meter + ":account:" + workspace];
   }
   reserve(meter: Meter, workspace: string, maximum: number, limits: Limits): string {
+    if (!meters.includes(meter)) throw new Error("Unknown controlled service meter");
+    if (!meters.includes(meter)) throw new Error("Unknown controlled service meter");
     money(maximum); Object.values(limits).forEach(money);
     if (!maximum) throw new Error("A positive reservation is required");
     const month = new Date(this.clock()).toISOString().slice(0, 7);
     return this.store.transaction(() => {
+      const combined = this.combined();
+      if (combined.total.spent + combined.total.held + maximum > this.envelope.lifetime ||
+          combined.monthly.spent + combined.monthly.held + maximum > this.envelope.monthly)
+        throw new CloudFailure(429, "Combined Ion spending limit reached");
       const keys = this.keys(meter, workspace, month), ceilings = [limits.lifetime, limits.monthly, limits.accountLifetime];
       for (let i = 0; i < keys.length; i++) {
         const row = this.counter(keys[i]!);
@@ -64,6 +80,18 @@ export class Budget {
     return { unit: "microUSD", month, total: this.counter(meter + ":total"),
       monthly: this.counter(meter + ":month:" + month),
       ...(workspace ? { account: this.counter(meter + ":account:" + workspace) } : {}) };
+  }
+  combined() {
+    const month = new Date(this.clock()).toISOString().slice(0, 7);
+    const total = zero(), monthly = zero();
+    // Derive from existing durable counters, so older deployments' spending
+    // and uncertain reservations count immediately, with no reset migration.
+    for (const meter of meters) {
+      const all = this.counter(meter + ":total"), current = this.counter(meter + ":month:" + month);
+      total.spent += all.spent; total.held += all.held;
+      monthly.spent += current.spent; monthly.held += current.held;
+    }
+    return { unit: "microUSD", month, total, monthly, limits: this.envelope, retainedCostAllowance: 3_000_000 };
   }
 }
 export function tokenCost(tokens: number, microUSDPerMillion: number): number {
