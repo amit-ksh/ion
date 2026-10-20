@@ -9,6 +9,7 @@ export interface Env {
   COMPUTE_CONTROLLER_TOKEN?: string;
   TOKEN_FACTORY_POLICY_JSON?: string;
   TOKEN_FACTORY_KEY?: string;
+  SANDBOX_POLICY_JSON?: string;
   COMPOSIO_PROJECT_KEY?: string;
   HOSTING_WORKER_TOKEN?: string;
   HOSTING_WORKER_ORIGIN?: string;

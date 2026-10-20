@@ -167,6 +167,7 @@ export default {
       if (
         ["/v1/services/controls", "/v1/services/usage"].includes(url.pathname) ||
         url.pathname.startsWith("/v1/inference/") ||
+        url.pathname.startsWith("/v1/sandbox/") ||
         url.pathname.startsWith("/v1/apps/") ||
         url.pathname.startsWith("/v1/hosting/")
       ) {

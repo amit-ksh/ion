@@ -5,6 +5,7 @@ import { Compute, computePolicy } from "../../ion-cloud/src/compute";
 import { Inference, inferencePolicy } from "../../ion-cloud/src/inference";
 import { Controls } from "../../ion-cloud/src/controls";
 import { ManagedApps } from "../../ion-cloud/src/apps";
+import { Sandbox, sandboxPolicy } from "../../ion-cloud/src/sandbox";
 import { AppActions } from "../../ion-cloud/src/app-actions";
 import { Hosting } from "../../ion-cloud/src/hosting";
 import { ServiceStore } from "../../ion-cloud/src/service-store";
@@ -19,6 +20,7 @@ export class Platform extends DurableObject<Env> {
   private readonly controls: Controls;
   private readonly apps: ManagedApps;
   private readonly appActions: AppActions;
+  private readonly sandbox: Sandbox;
   private readonly budget: Budget;
   private readonly compute: Compute;
   private readonly inference: Inference;
@@ -33,7 +35,7 @@ export class Platform extends DurableObject<Env> {
     const self = this;
     this.controls = new Controls(this.store, this.admission, {
       get cloud() { return !!env.OBJECTS && (self.compute?.available ?? false); },
-      get tokenFactory() { return self.inference?.available ?? false; },
+      get tokenFactory() { return (self.inference?.available ?? false) || (self.sandbox?.configured ?? false); },
       get appActions() { return self.apps.available; },
     });
     this.compute = new Compute(this.store, this.budget, () => this.controls.get().cloud,
@@ -41,6 +43,7 @@ export class Platform extends DurableObject<Env> {
     this.inference = new Inference(this.budget, () => this.controls.get().tokenFactory,
       env.TOKEN_FACTORY_KEY, inferencePolicy(env.TOKEN_FACTORY_POLICY_JSON));
     this.appActions=new AppActions(this.store,this.apps,this.budget,()=>this.controls.get().appActions===true);
+    this.sandbox = new Sandbox(this.store,this.budget,()=>this.controls.get().tokenFactory,env.TOKEN_FACTORY_KEY,sandboxPolicy(env.SANDBOX_POLICY_JSON));
     this.hosting = env.OBJECTS ? new Hosting(
       this.store,
       new R2Blobs(env.OBJECTS),
@@ -54,6 +57,10 @@ export class Platform extends DurableObject<Env> {
       false,
       () => this.compute.demand(),
     ) : undefined;
+  }
+  override async alarm() {
+    await this.sandbox.maintenance();
+    if(this.sandbox.pending)await this.ctx.storage.setAlarm(Date.now()+5000);
   }
   override async fetch(request: Request): Promise<Response> {
     try {
@@ -91,11 +98,17 @@ export class Platform extends DurableObject<Env> {
         scopes: new Set(["ion:gateway"]),
       };
       this.admission.admit(account);
+      if(url.pathname.startsWith("/v1/sandbox/")) {
+        try{return await this.sandbox.handle(account,request);}
+        finally{if(this.sandbox.pending)await this.ctx.storage.setAlarm(Date.now()+5000);}
+      }
       if(url.pathname.startsWith("/v1/apps/actions/"))return await this.appActions.handle(account,request);
       if (url.pathname.startsWith("/v1/apps/")) return await this.apps.handle(account, request);
       if (url.pathname === "/v1/services/controls") return await this.controls.handle(account, request);
       if (url.pathname === "/v1/services/usage") return Response.json({
         combined: this.budget.combined(),
+        sandbox: this.budget.usage("sandbox",account.workspaceId),
+        composio: this.budget.usage("composio",account.workspaceId),
         cloud: this.budget.usage("cloud", account.workspaceId), tokenFactory: this.budget.usage("tokenFactory", account.workspaceId),
         compute: this.compute.status(), owner: this.admission.admit(account) === "owner",
       }, { headers: { "Cache-Control": "no-store" } });

@@ -40,8 +40,11 @@ const computePolicy = { instanceId: "computeinstance-fixture", projectId: "proje
   limits: { monthly: 7_000_000, lifetime: 22_000_000, accountLifetime: 22_000_000 } };
 const inferencePolicy = { models: [{ id: "fixture-model", contextTokens: 4096, outputTokens: 10, inputMicroUSDPerMillion: 1_000_000,
   outputMicroUSDPerMillion: 1_000_000 }], limits: { monthly: 50000, lifetime: 50000, accountLifetime: 10000 } };
+const sandboxImage="10000000-0000-4000-8000-000000000001",sandboxOperation="20000000-0000-4000-8000-000000000001";
+const sandboxPolicy={projectId:"project-fixture123",images:[{target:sandboxImage,image:sandboxImage,kind:"harness",manifest:{version:2,capabilities:[]}}],maximumOperationMicroUSD:10000,maxRuntimeSeconds:150,pricingReference:"https://fixture.invalid/pricing",limits:{monthly:50000,lifetime:50000,accountLifetime:50000}};
+const sandboxProvider={launches:0,cancels:0,body:null,terminal:false};
 const appSessions = new Map();
-function instance(directory, configured = false, storage = true, apps = false) {
+function instance(directory, configured = false, storage = true, apps = false, sandbox = false) {
   return new Miniflare({
     ...convertV4MiniflareOptions({
       name: "ion-test",
@@ -57,6 +60,18 @@ function instance(directory, configured = false, storage = true, apps = false) {
       durableObjectsPersist: join(directory, "sql"),
       r2Persist: join(directory, "objects"),
       outboundService: async (req) => {
+        if (sandbox && req.url.startsWith("https://api.tokenfactory.nebius.com/sandboxes/v1/")) {
+          assert.equal(req.headers.get("authorization"),"Bearer fixture-inference-key");
+          assert.equal(req.headers.get("project"),sandboxPolicy.projectId);
+          const path=new URL(req.url).pathname;
+          if(path.endsWith("/whoami"))return Response.json({permissions:{spawn_disposable:true,list:true,cancel:true}});
+          if(path.endsWith("/instances")){sandboxProvider.launches++;sandboxProvider.body=await req.json();return Response.json({uuid:sandboxOperation},{status:201});}
+          if(path.endsWith("/operations/"+sandboxOperation)){
+            if(req.method==="DELETE"){sandboxProvider.cancels++;sandboxProvider.terminal=true;return new Response(null,{status:202});}
+            return Response.json({uuid:sandboxOperation,kind:"instance",status:sandboxProvider.terminal?"CANCELLED":"EXECUTING",image_uuid:sandboxImage,result_image_uuid:null,metadata:{...sandboxProvider.body}});
+          }
+          throw new Error("Unexpected sandbox fixture route");
+        }
         if (apps && req.url.startsWith("https://backend.composio.dev/api/v3.1/")) {
           assert.equal(req.headers.get("x-api-key"), "fixture-project-key");
           const path = new URL(req.url).pathname;
@@ -97,6 +112,7 @@ function instance(directory, configured = false, storage = true, apps = false) {
         throw new Error("Unexpected outbound request in offline acceptance");
       },
       bindings: {
+        ...(sandbox ? {SANDBOX_POLICY_JSON:JSON.stringify(sandboxPolicy),TOKEN_FACTORY_KEY:"fixture-inference-key"}:{}),
         ...(apps ? { COMPOSIO_PROJECT_KEY: "fixture-project-key" } : {}),
         HOSTING_WORKER_TOKEN: "fixture_" + "x".repeat(43),
         HOSTING_WORKER_ORIGIN: "https://worker.fixture.invalid",
@@ -521,5 +537,28 @@ test("managed app effects: public JWT isolation, owner stop, exact approval and 
   assert.equal((await (await call("judge",root+"execute","POST",{proposalId})).json()).log_id,"fixture_worker_log");
   const usage=await(await call("judge","/v1/services/usage","GET")).json();assert.equal(usage.combined.total.held,1000);
   assert.equal((await call("owner","/v1/services/controls","PUT",{appActions:false})).status,200);
+ }finally{await mf.dispose();rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
+});
+
+
+test("managed sandbox: authenticated bridge survives restart and alarm confirms owner stop",async()=>{
+ const directory=mkdtempSync(join(tmpdir(),"ion-worker-sandbox-"));let mf=instance(directory,false,false,false,true);
+ const call=async(subject,path,method="GET",body)=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:"Bearer "+await token(subject),"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
+ try{
+  const config=await(await call("judge","/v1/sandbox/config")).json();assert.equal(config.available,true);assert.equal(config.enabled,false);
+  assert.equal((await call("judge","/v1/services/controls","PUT",{tokenFactory:true})).status,403);
+  assert.equal((await call("owner","/v1/services/controls","PUT",{tokenFactory:true})).status,200);
+  const id="30000000-0000-4000-8000-000000000001";
+  const body={image:sandboxImage,hostname:"ion-"+id,command:"/usr/local/bin/ion-harness-worker",args:[],shell:false,env:{PATH:"/usr/local/bin:/usr/bin:/bin",HOME:"/home/ion"},cwd:"/ion/work",uid:1000,gid:1000,stdin:{value:Buffer.from(JSON.stringify({version:1,request_id:id})).toString("base64"),encoding:"base64",close:true},timeout:150,truncate_output_at:65536,disposable:true,preserve_env:false,resources_limits:{max_layer_bytes:268435456},networking:{enabled:true}};
+  const start=await call("judge","/v1/sandbox/instances","POST",body);assert.equal(start.status,201,await start.clone().text());
+  assert.equal((await call("owner","/v1/sandbox/operations/"+sandboxOperation)).status,404);
+  await mf.dispose();mf=instance(directory,false,false,false,true);
+  assert.equal((await call("judge","/v1/sandbox/instances","POST",body)).status,201);assert.equal(sandboxProvider.launches,1);
+  assert.equal((await call("owner","/v1/services/controls","PUT",{tokenFactory:false})).status,200);
+  const deadline=Date.now()+12000;
+  while(!sandboxProvider.terminal && Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,500));
+  assert.equal(sandboxProvider.terminal,true);assert.equal(sandboxProvider.cancels,1);
+  assert.equal((await(await call("judge","/v1/sandbox/operations/"+sandboxOperation)).json()).status,"CANCELLED");
+  assert.equal((await(await call("judge","/v1/services/usage")).json()).sandbox.account.held,10000);
  }finally{await mf.dispose();rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
 });
