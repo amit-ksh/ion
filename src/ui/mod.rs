@@ -52,13 +52,12 @@ pub fn file_icon(path: &'static str, size: f32) -> Img {
     img(path).w(sp(size)).h(sp(size)).flex_none()
 }
 
-/// A compact ghost icon button: the only button shape outside the composer's
-/// bespoke send control.
+/// Compact desktop toolbar target. Callers attach activation and a tooltip.
 pub fn icon_button(id: impl Into<ElementId>, path: &'static str, theme: Theme) -> Stateful<Div> {
     div()
         .id(id)
-        .size(px(22.0))
-        .rounded(px(6.0))
+        .size(px(28.0))
+        .rounded(px(8.0))
         .flex()
         .items_center()
         .justify_center()

@@ -100,7 +100,7 @@ export function ComposerCard({
           paddingBottom: 6,
         }}
       >
-        @ files, teams &amp; apps · @@ AI teams · @@@ apps
+        @ context · @@ teams · @@@ apps
       </Text>
     </GlassSurface>
   );
@@ -131,11 +131,11 @@ export function ComposerIconButton({
       style={({ pressed }) => [
         styles.iconButton,
         {
-          backgroundColor: active ? theme.overlayStrong : "transparent",
+          backgroundColor: active ? theme.accentSoft : "transparent",
           opacity: disabled ? 0.35 : pressed ? 0.55 : 1,
         },
       ]}>
-      <AppSymbol name={icon} size={19} tintColor={active ? NativeTint : theme.textSecondary} />
+      <AppSymbol name={icon} size={19} tintColor={active ? theme.accent : theme.textSecondary} />
     </Pressable>
   );
 }
@@ -160,6 +160,7 @@ export function SendButton({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled, busy }}
       disabled={disabled}
       hitSlop={4}
       onPress={onPress}
@@ -168,12 +169,12 @@ export function SendButton({
         {
           backgroundColor: disabled
             ? theme.surfaceMuted
-            : steering ? NativeTint : theme.inverse,
+            : theme.primary,
           opacity: pressed || busy ? 0.6 : 1,
         },
       ]}>
       {busy ? (
-        <ActivityIndicator color={disabled ? theme.textTertiary : theme.onInverse} size="small" />
+        <ActivityIndicator color={disabled ? theme.textTertiary : theme.onPrimary} size="small" />
       ) : (
         <AppSymbol
           name={queueing
@@ -182,8 +183,7 @@ export function SendButton({
             : { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward",
                 }}
           size={17}
-          tintColor={disabled ? theme.textTertiary : steering ? "#ffffff"
-                : theme.onInverse}
+          tintColor={disabled ? theme.textTertiary : theme.onPrimary}
         />
       )}
     </Pressable>
@@ -948,7 +948,7 @@ function RequestPanel({ borderColor, children,
 const styles = StyleSheet.create({
   shell: { paddingHorizontal: 12, paddingTop: 4 },
   card: {
-    borderRadius: 26,
+    borderRadius: Radius.large,
     paddingBottom: 8,
     paddingHorizontal: 10,
     paddingTop: 6,
@@ -979,17 +979,17 @@ const styles = StyleSheet.create({
   iconButton: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 36,
+    height: 48,
     justifyContent: "center",
-    width: 36,
+    width: 48,
   },
   sendButton: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 36,
+    height: 48,
     justifyContent: "center",
     marginLeft: 4,
-    width: 36,
+    width: 48,
   },
   errorBanner: {
     alignItems: "center",

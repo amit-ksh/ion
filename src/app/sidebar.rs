@@ -716,6 +716,11 @@ impl Waku {
             .flex_none()
             .px(px(4.0))
             .rounded(px(7.0))
+            .bg(if id == "sidebar-new-session" {
+                theme.accent_soft
+            } else {
+                gpui::transparent_black()
+            })
             .flex()
             .items_center()
             .gap(px(10.0))
@@ -730,7 +735,7 @@ impl Waku {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(icon(icon_path, 14.0, theme.text_secondary)),
+                    .child(icon(icon_path, 14.0, if id == "sidebar-new-session" { theme.accent } else { theme.text_secondary })),
             )
             .child(
                 div()

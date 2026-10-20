@@ -161,15 +161,15 @@ export function PhoneDictationControl({
 const styles = StyleSheet.create({
   group: { flexDirection: 'row', alignItems: 'center' },
   button: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
   state: { fontSize: 10, fontWeight: '600' },
   discard: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

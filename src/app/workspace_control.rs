@@ -999,14 +999,16 @@ impl Waku {
         };
         let action = Rc::new(action);
         let click = action.clone();
+        let id = id.into();
+        let primary = matches!(id.as_ref(), "workspace-create" | "workspace-open-project");
         div()
-            .id(id.into())
+            .id(id)
             .tab_index(0)
             .tab_stop(true)
             .h(px(32.0))
             .flex_shrink_0()
             .px(px(12.0))
-            .rounded(px(7.0))
+            .rounded(px(8.0))
             .border_1()
             .border_color(theme.border_strong)
             .flex()
@@ -1014,13 +1016,26 @@ impl Waku {
             .gap(px(7.0))
             .text_size(sp(13.0))
             .text_color(theme.text)
+            .bg(theme.raised)
             .cursor_default()
             .hover(|style| style.bg(theme.overlay_strong))
+            .active(|style| style.bg(theme.overlay))
+            .when(primary, |button| {
+                button
+                    .bg(theme.primary)
+                    .text_color(theme.on_primary)
+                    .border_color(theme.primary)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .hover(|style| style.bg(theme.primary).opacity(0.9))
+                    .active(|style| style.bg(theme.primary).opacity(0.8))
+            })
             .focus_visible(|style| style.border_1().border_color(theme.accent))
             .child(label.into())
             .on_click(cx.listener(move |this, _, window, cx| click(this, window, cx)))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
-                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                if !event.keystroke.modifiers.modified()
+                    && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                {
                     action(this, window, cx);
                     cx.stop_propagation();
                 }
@@ -1595,7 +1610,7 @@ impl Waku {
                         .px(px(8.0))
                         .text_size(sp(10.5))
                         .text_color(theme.text_tertiary)
-                        .child(if index == 0 { "WORK" } else { "WORKSPACE" }),
+                        .child(if index == 0 { "Work" } else { "Workspace" }),
                 );
             }
             let selected = self.control_ui.page == Some(page);
@@ -1609,12 +1624,12 @@ impl Waku {
                 )
                 .w_full()
                 .justify_start()
-                .px(px(4.0))
+                .px(px(8.0))
                 .gap(px(10.0))
                 .h(px(32.0))
                 .border_0()
                 .bg(if selected {
-                    theme.overlay_strong
+                    theme.accent_soft
                 } else {
                     gpui::transparent_black()
                 })
@@ -1752,7 +1767,7 @@ impl Waku {
                     cx,
                     |this, _, cx| this.add_project(cx),
                 )
-                .child(icon("icons/folder.svg", 14.0, theme.text_secondary)),
+                .child(icon("icons/folder.svg", 14.0, theme.on_primary)),
             );
         }
         div()
@@ -2429,9 +2444,12 @@ impl Waku {
         let theme = Theme::workspace(cx);
         let mut body = div()
             .min_h(px(68.0))
-            .py(px(12.0))
-            .border_b_1()
+            .p(px(14.0))
+            .mb(px(8.0))
+            .rounded(px(12.0))
+            .border_1()
             .border_color(theme.border)
+            .bg(theme.surface)
             .flex()
             .items_center()
             .gap(px(14.0));

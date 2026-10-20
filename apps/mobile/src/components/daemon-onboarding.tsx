@@ -47,15 +47,15 @@ export function DaemonOnboarding({
         onPress={onAddDaemon}
         style={({ pressed }) => [
           styles.primaryButton,
-          { backgroundColor: theme.inverse, opacity: pressed ? 0.78 : 1 },
+          { backgroundColor: theme.primary, opacity: pressed ? 0.78 : 1 },
         ]}
       >
         <AppSymbol
           name={{ ios: "plus", android: "add", web: "add" }}
           size={17}
-          tintColor={theme.onInverse}
+          tintColor={theme.onPrimary}
         />
-        <Text style={[styles.primaryButtonText, { color: theme.onInverse }]}>
+        <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>
           Add a daemon
         </Text>
       </Pressable>
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { fontSize: 16, fontWeight: "700" },
   gatewayButton: {
     justifyContent: "center",
-    minHeight: 46,
+    minHeight: 48,
     marginTop: 10,
     paddingHorizontal: 18,
   },

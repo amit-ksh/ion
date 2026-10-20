@@ -171,12 +171,12 @@ export function AccountGate({ children }: { children: ReactNode }) {
                     style={({ pressed }) => [
                       styles.button,
                       {
-                        backgroundColor: theme.inverse,
+                        backgroundColor: theme.primary,
                         opacity: pressed || busy ? 0.65 : 1,
                       },
                     ]}
                   >
-                    <Text style={[styles.label, { color: theme.onInverse }]}>
+                    <Text style={[styles.label, { color: theme.onPrimary }]}>
                       {busy ? "Opening sign-in…" : "Sign in"}
                     </Text>
                   </Pressable>
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 22 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   button: {
-    minHeight: 46,
+    minHeight: 48,
     borderRadius: 9,
     paddingHorizontal: 20,
     justifyContent: "center",

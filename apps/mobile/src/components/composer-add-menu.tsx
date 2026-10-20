@@ -78,8 +78,8 @@ const styles = StyleSheet.create({
   trigger: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 36,
+    height: 48,
     justifyContent: "center",
-    width: 36,
+    width: 48,
   },
 });
