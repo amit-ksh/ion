@@ -1,7 +1,7 @@
 {
   "models": [
     {
-      "id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
+      "id": "nvidia/nemotron-3-super-120b-a12b",
       "contextTokens": 131072,
       "outputTokens": 4096,
       "inputMicroUSDPerMillion": null,

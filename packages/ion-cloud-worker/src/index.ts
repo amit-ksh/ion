@@ -78,6 +78,8 @@ export default {
       if (url.pathname === "/models/" + model.filename) {
         if (!["GET", "HEAD"].includes(request.method))
           throw new CloudFailure(405, "Method not allowed");
+        if (!env.OBJECTS)
+          throw new CloudFailure(503, "Speech model hosting is not configured yet");
         let object: R2Object | null;
         let body: ReadableStream | null = null;
         if (request.method === "HEAD")
@@ -114,7 +116,7 @@ export default {
       if (url.pathname === "/v1/bootstrap" && request.method === "GET") {
         const capabilities = await env.PLATFORM.get(env.PLATFORM.idFromName("platform-v1")).fetch(
           new Request(env.PUBLIC_ORIGIN + "/internal/platform/capabilities"));
-        const ready = await capabilities.json() as { appDeployment: boolean; sharedInference: boolean };
+        const ready = await capabilities.json() as { htmlPublishing: boolean; appDeployment: boolean; sharedInference: boolean };
         return json({
           version: 1,
           auth: {
@@ -136,7 +138,7 @@ export default {
           features: {
             gateway: true,
             speech: false,
-            htmlPublishing: true,
+            htmlPublishing: ready.htmlPublishing,
             appDeployment: ready.appDeployment,
             sharedInference: ready.sharedInference,
           },

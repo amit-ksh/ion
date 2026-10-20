@@ -31,7 +31,7 @@ use nemoclaw::NemoClawAdapter;
 const MAX_FILE_BYTES: u64 = 256 * 1024;
 const MAX_EDIT_BYTES: usize = 16 * 1024;
 const MAX_STEPS: usize = 16;
-const PREFERRED_MODEL: &str = "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B";
+const PREFERRED_MODEL: &str = "nvidia/nemotron-3-super-120b-a12b";
 
 enum Command {
     Prompt(String),

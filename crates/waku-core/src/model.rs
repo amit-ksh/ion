@@ -62,7 +62,7 @@ fn apply_cached_models(
 pub fn discover_provider_models(mut probe: ProviderProbe) -> ProviderProbe {
     if probe.provider == ProviderKind::Nebius {
         if let Ok(ids) = crate::credentials::CredentialService::global().nebius_model_ids() {
-            let preferred = "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B";
+            let preferred = "nvidia/nemotron-3-super-120b-a12b";
             probe.models = ids
                 .into_iter()
                 .map(|id| {

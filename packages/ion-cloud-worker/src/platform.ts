@@ -18,7 +18,7 @@ export class Platform extends DurableObject<Env> {
   private readonly budget: Budget;
   private readonly compute: Compute;
   private readonly inference: Inference;
-  private readonly hosting: Hosting;
+  private readonly hosting?: Hosting;
   private readonly admission: Admission;
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -27,14 +27,14 @@ export class Platform extends DurableObject<Env> {
     this.budget = new Budget(this.store);
     const self = this;
     this.controls = new Controls(this.store, this.admission, {
-      get cloud() { return self.compute?.available ?? false; },
+      get cloud() { return !!env.OBJECTS && (self.compute?.available ?? false); },
       get tokenFactory() { return self.inference?.available ?? false; },
     });
     this.compute = new Compute(this.store, this.budget, () => this.controls.get().cloud,
       () => this.controls.get().cloudUpdated ?? 0, computePolicy(env.COMPUTE_POLICY_JSON), env.COMPUTE_CONTROLLER_TOKEN);
     this.inference = new Inference(this.budget, () => this.controls.get().tokenFactory,
       env.TOKEN_FACTORY_KEY, inferencePolicy(env.TOKEN_FACTORY_POLICY_JSON));
-    this.hosting = new Hosting(
+    this.hosting = env.OBJECTS ? new Hosting(
       this.store,
       new R2Blobs(env.OBJECTS),
       {
@@ -46,20 +46,25 @@ export class Platform extends DurableObject<Env> {
       this.compute.permitted,
       false,
       () => this.compute.demand(),
-    );
+    ) : undefined;
   }
   override async fetch(request: Request): Promise<Response> {
     try {
       this.store.expire();
       const url = new URL(request.url);
-      const content = await this.hosting.content(request);
+      const content = await this.hosting?.content(request);
       if (content) return content;
       if (url.origin !== this.env.PUBLIC_ORIGIN)
         throw new CloudFailure(404, "Unknown service host");
-      if (url.pathname === "/internal/compute/tick") return await this.compute.tick(request);
+      if (url.pathname === "/internal/compute/tick") {
+        if (!this.hosting) throw new CloudFailure(503, "App storage is not configured yet");
+        return await this.compute.tick(request);
+      }
       if (url.pathname === "/internal/platform/capabilities")
-        return Response.json({ appDeployment: this.compute.available, sharedInference: this.inference.available });
+        return Response.json({ htmlPublishing: !!this.hosting,
+          appDeployment: !!this.hosting && this.compute.available, sharedInference: this.inference.available });
       if (url.pathname.startsWith("/internal/hosting/")) {
+        if (!this.hosting) throw new CloudFailure(503, "App storage is not configured yet");
         const response = await this.hosting.worker(request);
         if (url.pathname === "/internal/hosting/desired" && response.ok) {
           const desired = await response.clone().json() as { jobs: { building: boolean }[] };
@@ -86,8 +91,10 @@ export class Platform extends DurableObject<Env> {
       }, { headers: { "Cache-Control": "no-store" } });
       if (url.pathname.startsWith("/v1/inference/")) return await this.inference.handle(account, request);
       this.store.admit(account.workspaceId);
-      if (url.pathname.startsWith("/v1/hosting/"))
+      if (url.pathname.startsWith("/v1/hosting/")) {
+        if (!this.hosting) throw new CloudFailure(503, "Publishing storage is not configured yet");
         return await this.hosting.handle(account, request);
+      }
       throw new CloudFailure(404, "Not found");
     } catch (error) {
       return Response.json(

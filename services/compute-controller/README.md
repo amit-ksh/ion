@@ -28,7 +28,8 @@ accepting paid runtime. Linux shutdown alone does not stop Nebius billing.
    environment owner-readable only (0600), and the state directory 0700.
 4. Fill `operator.env.example` privately. Use the same random controller token in
    the Worker `COMPUTE_CONTROLLER_TOKEN` secret. Set the exact same instance and
-   project in `COMPUTE_POLICY_JSON`. Never paste credentials into chat or commit
+   project in `COMPUTE_POLICY_JSON` and `ION_COMPUTE_PROJECT_ID`. The project is
+   operator configuration, not a compiled-in account ID. Never paste credentials into chat or commit
    them. The token is separate from `HOSTING_WORKER_TOKEN`.
 5. Review/install the example systemd unit with real paths and a dedicated user.
    Start **after** Worker deployment. The native app's owner can then enable Cloud.

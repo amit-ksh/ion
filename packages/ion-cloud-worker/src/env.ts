@@ -1,7 +1,7 @@
 export interface Env {
   ACCOUNTS: DurableObjectNamespace;
   PLATFORM: DurableObjectNamespace;
-  OBJECTS: R2Bucket;
+  OBJECTS?: R2Bucket;
   PUBLIC_ORIGIN: string;
   CONTENT_DOMAIN: string;
   MEMBERS_JSON: string;

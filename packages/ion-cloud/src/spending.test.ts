@@ -116,3 +116,16 @@ test("a live stream stays single-flight and incomplete usage never emits success
   expect(text).toContain("partial"); expect(text).toContain('"error"'); expect(text).not.toContain("data: [DONE]");
   expect(budget.usage("tokenFactory").total.held).toBe(4106);
 }));
+
+
+test("operator project configuration remains pinned during compute observations", () => fixture(async store => {
+  const policy = computePolicy(JSON.stringify({ ...computeConfig, projectId: "project-e04f8x7qbc00cshy8v3t19" }))!;
+  const compute = new Compute(store, new Budget(store), () => false, () => 0, policy, "t".repeat(43));
+  const tick = (projectId: string) => compute.tick(new Request("https://api.example/internal/compute/tick", {
+    method: "POST", headers: { Authorization: "Bearer " + "t".repeat(43) },
+    body: JSON.stringify({ instanceId: policy.instanceId, projectId, controllerId: "c".repeat(24), state: "STOPPED", operationSettled: true }),
+  }));
+  await expect(tick(computeConfig.projectId)).rejects.toThrow("Invalid compute observation");
+  expect((await tick(policy.projectId)).status).toBe(200);
+  expect(() => computePolicy(JSON.stringify({ ...policy, projectId: "https://other.example" }))).toThrow();
+}));

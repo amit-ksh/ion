@@ -2,7 +2,7 @@
 
 Workers + SQLite Durable Objects + private R2. Reuses the existing account/device/relay and hosting protocols. No speech VM is involved; phone audio goes to the paired desktop's local Parakeet runtime.
 
-**Source and local runtime checked; not deployed.** App VM wake/stop, conservative spending enforcement and shared inference are implemented in source; operator configuration and live acceptance are required. Owner permission switches default OFF and cannot enable an unconfigured service. The public model file is staged locally and must be uploaded before first-use download can succeed.
+**Gateway-only pilot deployed; full storage/compute acceptance pending.** See [live deployment record](../../docs/ai-ide-plan/119-live-gateway-pilot.md). Owner permission switches default OFF and cannot enable an unconfigured service. The public model file is staged locally and must be uploaded before first-use download can succeed.
 
 ## Local checks
 
@@ -26,7 +26,21 @@ bun run --cwd packages/ion-cloud-worker test
 
 Create the bucket with `wrangler r2 bucket create ion-private-objects`. Store the approved list with `wrangler secret put MEMBERS_JSON`. Review the configuration and set DNS/routes, then `bun run --cwd packages/ion-cloud-worker deploy`. These are operator instructions, not actions already performed.
 
-The source deliberately installs **no live routes**. Configure `api.build-with-ion.tech/*` plus the publishing site hosts, preserving the existing root/`www` website routes. A blanket wildcard Worker route without explicit website exclusions can intercept the download website; verify route precedence before enabling it. First-level 32-hex site hostnames are reserved for published documents/apps. Root/`www` and API names cannot become site IDs.
+Both deployment configurations reserve only the `api.build-with-ion.tech` custom domain. Configure the publishing site hosts separately after enabling storage, preserving root/`www` website routes. A blanket wildcard Worker route without explicit website exclusions can intercept the download website; verify route precedence before enabling it. First-level 32-hex site hostnames are reserved for published documents/apps. Root/`www` and API names cannot become site IDs.
+
+### Pilot without R2 activation
+
+`bun run --cwd packages/ion-cloud-worker deploy:gateway` uses
+`wrangler.gateway.jsonc`. It deploys the same Worker and SQLite Durable Objects
+without an R2 binding. Account login, device pairing, relays and configured shared
+inference remain available. Publishing and speech binaries return 503; bootstrap
+does not advertise HTML or app publishing. Compute cannot be enabled without
+storage. Paid-service switches remain owner-controlled and default OFF.
+
+After R2 activation, create/bind the private bucket and use the full configuration.
+The script name, Durable Object classes, IDs and migration tag stay the same, so
+adding storage does not replace account or spending records. Verify the model
+and site routes before claiming first-use downloads or publishing work.
 
 ## Publish the exact speech model
 

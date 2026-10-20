@@ -16,7 +16,7 @@ export function computePolicy(raw?: string): ComputePolicy | undefined {
   if (!raw) return;
   const p = JSON.parse(raw) as ComputePolicy;
   if (!p || !/^computeinstance-[a-z0-9]+$/.test(p.instanceId) ||
-      p.projectId !== "project-e04qppz9bc0026zt9y9ky7" || !p.limits ||
+      !/^project-[a-z0-9]{8,80}$/.test(p.projectId) || !p.limits ||
       p.limits.monthly > 7_000_000 || p.limits.lifetime > 22_000_000)
     throw new Error("Set the pilot instance and Cloud limits with a USD 3 non-runtime allowance");
   money(p.microUSDPerHour); Object.values(p.limits).forEach(money);

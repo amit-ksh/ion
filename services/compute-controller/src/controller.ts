@@ -11,12 +11,13 @@ import { randomBytes } from "node:crypto";
 const origin = process.env.ION_CLOUD_PUBLIC_ORIGIN ?? "",
   token = process.env.ION_COMPUTE_CONTROLLER_TOKEN ?? "",
   instanceId = process.env.ION_COMPUTE_INSTANCE_ID ?? "",
-  projectId = "project-e04qppz9bc0026zt9y9ky7",
+  projectId = process.env.ION_COMPUTE_PROJECT_ID ?? "",
   credentialFile = process.env.ION_NEBIUS_CREDENTIALS_FILE ?? "",
   directory = process.env.ION_COMPUTE_STATE_DIRECTORY ?? "";
 const url = new URL(origin);
 if (url.protocol !== "https:" || origin !== url.origin || url.username || url.password ||
     !/^[A-Za-z0-9_-]{43,128}$/.test(token) || !/^computeinstance-[a-z0-9]+$/.test(instanceId) ||
+    !/^project-[a-z0-9]{8,80}$/.test(projectId) ||
     !isAbsolute(credentialFile) || !isAbsolute(directory))
   throw new Error("Configure the operator controller origin, exact instance, credentials file and private state directory");
 process.umask(0o077);

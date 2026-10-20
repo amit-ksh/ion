@@ -1,10 +1,14 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ion-cloud",
+  "account_id": "19e17365ad17e0450131c4f4d5259479",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
+  "routes": [
+    { "pattern": "api.build-with-ion.tech", "custom_domain": true }
+  ],
   "alias": {
     "bun:sqlite": "./src/sqlite-unavailable.ts",
   },

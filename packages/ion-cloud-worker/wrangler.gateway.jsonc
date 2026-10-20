@@ -1,0 +1,38 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ion-cloud",
+  "account_id": "19e17365ad17e0450131c4f4d5259479",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "alias": {
+    "bun:sqlite": "./src/sqlite-unavailable.ts",
+  },
+  "vars": {
+    "PUBLIC_ORIGIN": "https://api.build-with-ion.tech",
+    "CONTENT_DOMAIN": "build-with-ion.tech",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ACCOUNTS",
+        "class_name": "AccountRelay",
+      },
+      {
+        "name": "PLATFORM",
+        "class_name": "Platform",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AccountRelay", "Platform"],
+    },
+  ],
+  "routes": [
+    { "pattern": "api.build-with-ion.tech", "custom_domain": true }
+  ],
+  "r2_buckets": []
+}

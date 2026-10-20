@@ -8,7 +8,8 @@
     "build": "wrangler deploy --dry-run --outdir dist",
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
-    "test": "bun run build && node --test tests/*.test.mjs"
+    "test": "bun run build && node --test tests/*.test.mjs",
+    "deploy:gateway": "wrangler deploy --config wrangler.gateway.jsonc"
   },
   "dependencies": {
     "jose": "6.2.8"

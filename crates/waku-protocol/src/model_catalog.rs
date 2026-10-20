@@ -63,7 +63,7 @@ pub fn fallback_models(provider: ProviderKind) -> Vec<ProviderModel> {
         }
         ProviderKind::Nebius => vec![
             ProviderModel::new(
-                "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
+                "nvidia/nemotron-3-super-120b-a12b",
                 "NVIDIA Nemotron 3 Super",
             )
             .default(),

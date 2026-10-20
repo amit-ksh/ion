@@ -40,7 +40,7 @@ const computePolicy = { instanceId: "computeinstance-fixture", projectId: "proje
   limits: { monthly: 7_000_000, lifetime: 22_000_000, accountLifetime: 22_000_000 } };
 const inferencePolicy = { models: [{ id: "fixture-model", contextTokens: 4096, outputTokens: 10, inputMicroUSDPerMillion: 1_000_000,
   outputMicroUSDPerMillion: 1_000_000 }], limits: { monthly: 50000, lifetime: 50000, accountLifetime: 10000 } };
-function instance(directory, configured = false) {
+function instance(directory, configured = false, storage = true) {
   return new Miniflare({
     ...convertV4MiniflareOptions({
       name: "ion-test",
@@ -52,7 +52,7 @@ function instance(directory, configured = false) {
         ACCOUNTS: { className: "AccountRelay", useSQLite: true },
         PLATFORM: { className: "Platform", useSQLite: true },
       },
-      r2Buckets: ["OBJECTS"],
+      r2Buckets: storage ? ["OBJECTS"] : [],
       durableObjectsPersist: join(directory, "sql"),
       r2Persist: join(directory, "objects"),
       outboundService: async (req) => {
@@ -411,5 +411,35 @@ test("configured pilot: approved shared inference, durable spending, authenticat
     const usage = await (await call("judge", "/v1/services/usage")).json();
     assert.equal(usage.tokenFactory.account.spent, 5); assert.equal(usage.cloud.total.held, 0);
     assert.equal((await call("judge", "/v1/inference/models")).status, 403);
+  } finally { await mf.dispose(); rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+
+// Exercise a real Worker without an object-storage binding, not a mocked bucket.
+test("gateway-only deployment preserves auth and inference without advertising storage", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ion-gateway-only-"));
+  const mf = instance(directory, true, false);
+  const call = async (subject, path, method = "GET", body) => mf.dispatchFetch(origin + path, {
+    method, headers: { Authorization: "Bearer " + await token(subject),
+      ...(body ? { "Content-Type": "application/json" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  try {
+    const bootstrap = await (await mf.dispatchFetch(origin + "/v1/bootstrap")).json();
+    assert.equal(bootstrap.features.htmlPublishing, false);
+    assert.equal(bootstrap.features.appDeployment, false);
+    assert.equal(bootstrap.features.sharedInference, true);
+    assert.equal((await mf.dispatchFetch(origin + "/v1/session")).status, 401);
+    assert.equal((await call("owner", "/v1/session")).status, 200);
+    assert.equal((await call("outsider", "/v1/session")).status, 403);
+    assert.equal((await call("owner", "/v1/hosting/sites")).status, 503);
+    assert.equal((await mf.dispatchFetch(origin + "/models/ion-parakeet-110m-tdt-q8-v1.gguf")).status, 503);
+    assert.equal((await call("owner", "/v1/services/controls", "PUT", { tokenFactory: true })).status, 200);
+    const response = await call("judge", "/v1/inference/chat/completions", "POST", {
+      model: "fixture-model", messages: [{ role: "user", content: "hello" }], stream: true,
+    });
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /\[DONE\]/);
+    const usage = await (await call("judge", "/v1/services/usage")).json();
+    assert.equal(usage.tokenFactory.account.spent, 5);
   } finally { await mf.dispose(); rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });
