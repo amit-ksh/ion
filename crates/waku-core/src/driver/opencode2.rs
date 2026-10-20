@@ -1153,7 +1153,7 @@ fn fork_session(
         .checked_sub(turns_to_remove)
         .ok_or_else(|| {
             anyhow!(
-                "OpenCode 2 has only {} native turns, but Waku needs to remove {turns_to_remove}",
+                "OpenCode 2 has only {} native turns, but ion needs to remove {turns_to_remove}",
                 user_messages.len()
             )
         })?;

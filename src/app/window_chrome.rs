@@ -33,6 +33,7 @@ impl Waku {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let content = crate::ui::focus_navigation(content).into_any_element();
         let Decorations::Client { tiling } = window.window_decorations() else {
             window.set_client_inset(px(0.0));
             return content;

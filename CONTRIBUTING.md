@@ -1,6 +1,6 @@
-# Contributing to Waku
+# Contributing to ion
 
-Thanks for helping improve Waku. Bug reports, focused fixes, tests, and
+Thanks for helping improve ion. Bug reports, focused fixes, tests, and
 well-scoped features are welcome.
 
 ## Development setup
@@ -90,7 +90,7 @@ bun scripts/bundle-windows.ts
 ```
 
 Both land under `target/release`. The zip holds the two executables side by
-side beneath one versioned directory — the layout Waku needs to find its
+side beneath one versioned directory — the layout ion needs to find its
 daemon — and the installer is built from
 [`resources/windows/waku.iss`](resources/windows/waku.iss), so Inno Setup 6.3
 or newer must be installed (`choco install innosetup`) — the architecture
@@ -163,7 +163,7 @@ your responses in your own words.
   future.
 
 AI-assisted contributions are welcome. This policy aims to prevent low-effort
-submissions and preserve Waku's standards for code quality, performance, and
+submissions and preserve ion's standards for code quality, performance, and
 maintainability.
 
 ## License

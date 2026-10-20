@@ -569,7 +569,7 @@ async fn run_sdk_connection(
 
     Client
         .builder()
-        .name("waku")
+        .name("ion")
         .on_receive_notification(
             {
                 let events = events.clone();
@@ -766,7 +766,7 @@ async fn run_sdk_connection(
                 .send_request(
                     InitializeRequest::new(ProtocolVersion::V1)
                         .client_capabilities(client_capabilities)
-                        .client_info(Implementation::new("waku", env!("CARGO_PKG_VERSION"))),
+                        .client_info(Implementation::new("ion", env!("CARGO_PKG_VERSION"))),
                 )
                 .block_task()
                 .await?;

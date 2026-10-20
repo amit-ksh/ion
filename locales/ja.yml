@@ -1,4 +1,12 @@
 _version: 1
+computer_use.desktop_access: デスクトップへのアクセス
+computer_use.windows_access_description: 現在の Windows デスクトップセッションのアプリを操作します。管理者権限のアプリやセキュアデスクトップへのアクセスは Windows によって制限される場合があります。
+computer_use.linux_access_description: 現在の Linux デスクトップセッションのアプリを操作します。画面キャプチャと入力の対応は、コンポジターとアクセシビリティサービスによって異なります。
+activity.compacting_context: コンテキストを圧縮中
+activity.compacted_context: コンテキストを圧縮しました
+activity.compaction_failed: コンテキストの圧縮に失敗しました
+activity.provider_retrying: リクエストを再試行中
+activity.background_shell: バックグラウンドシェル
 
 menu.about: "%{app} について"
 menu.check_for_updates: アップデートを確認…

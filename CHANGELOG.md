@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Waku. This file is the **source of truth for the release
+All notable changes to ion. This file is the **source of truth for the release
 notes shown in the in-app updater**: [`scripts/release.ts`](scripts/release.ts)
 extracts the section whose heading matches the version being released
 (`MARKETING_VERSION`) and publishes it next to the update, so Sparkle shows it in
@@ -15,6 +15,18 @@ history. When a feature is still unreleased, fold its fixes and refinements into
 the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
+
+## [0.1.23]
+
+- Restore Tab and Shift-Tab navigation through native form fields and keep scrolling definition editors at their intended control sizes.
+- Reconnect to a running local daemon after a dropped connection, preserving task ownership and event replay without resubmitting work.
+- Preserve OpenCode failures when a provider error is followed by idle; constrain connected-app rows and long instruction editors to their native panes.
+- Ignore metadata-only development-watch events so source reads do not restart the app.
+- Complete provider labels and translated activity/access messages; refresh document-integrity regression coverage for the current publication and retention rules.
+- Render verified HTML above WebView2's inline-document limit from a private in-memory resource, and retain complete text originals up to the supported document bound.
+- Generate workflows using a model from the configured Nebius account's live catalog.
+- Keep microphone capture active after recoverable audio discontinuities, show a warning, and retain fatal handling for permission or device failures.
+- Use ion in visible application, helper, permission, connection and updater descriptions while preserving existing profile and protocol identifiers.
 
 ## [0.1.19]
 

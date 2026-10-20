@@ -642,7 +642,7 @@ pub fn serve(
 ) -> anyhow::Result<()> {
     listener
         .set_nonblocking(true)
-        .context("could not configure Waku daemon listener")?;
+        .context("could not configure ion daemon listener")?;
     let hub = Arc::new(Hub::default());
     backend.start(RuntimePublisher { hub: hub.clone() })?;
     let dispatcher = Arc::new(RequestDispatcher::new(backend.clone(), hub.clone()));
@@ -675,13 +675,13 @@ pub fn serve(
                             eprintln!("waku-daemon connection ended: {error:#}");
                         }
                     })
-                    .context("could not start Waku daemon connection thread")?;
+                    .context("could not start ion daemon connection thread")?;
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 std::thread::sleep(ACCEPT_POLL_INTERVAL);
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) => return Err(error).context("Waku daemon listener failed"),
+            Err(error) => return Err(error).context("ion daemon listener failed"),
         }
     }
     backend.shutdown();
@@ -810,7 +810,7 @@ fn handle_connection(
             Ok(_) => {}
             Err(tungstenite::Error::Io(error)) if retryable_io(&error) => {}
             Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => break,
-            Err(error) => return Err(error).context("Waku daemon WebSocket failed"),
+            Err(error) => return Err(error).context("ion daemon WebSocket failed"),
         }
     }
     hub.unsubscribe(subscriber_id);
@@ -1099,6 +1099,7 @@ fn task_catalog_action(command: &Command) -> TaskCatalogAction {
             projects: projects.clone(),
         },
         Command::RemoveSession
+        | Command::RemoveProject { .. }
         | Command::QueueTeamTask { .. }
         | Command::QueueTeamFollowUp { .. }
         | Command::PrepareTeamRun { .. }
@@ -1191,6 +1192,87 @@ mod tests {
     use serde_json::json;
     use std::path::PathBuf;
     use waku_client::{DaemonClient, DaemonSupervisor};
+
+    #[test]
+    fn project_removal_survives_stale_save_and_restart_without_touching_source() {
+        use crate::{
+            daemon::WakuBackend,
+            model::{Project, SessionStatus},
+            persistence::StateStore,
+            settings::DaemonSettingsStore,
+        };
+        let root = std::env::temp_dir().join(format!("ion-project-removal-{}", Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let source = root.join("source");
+        std::fs::create_dir(&source).unwrap();
+        let sentinel = source.join("keep.txt");
+        std::fs::write(&sentinel, b"source must remain").unwrap();
+        let backend = WakuBackend::new(
+            DaemonSettingsStore::open(root.join("settings.json")).unwrap(),
+            StateStore::daemon(root.join("app.db")),
+        )
+        .unwrap();
+        let hub = Arc::new(Hub::default());
+        let call = |command| {
+            backend.handle(
+                Request {
+                    request_id: Uuid::new_v4(),
+                    session_id: Uuid::nil(),
+                    runtime_id: Uuid::nil(),
+                    command,
+                },
+                hub.event_sink(Uuid::nil(), Uuid::nil()),
+            )
+        };
+        let project = Project::from_path(source);
+        let retained = Project::from_path(root.join("other"));
+        let mut task = AgentSession::new(project.id, ProviderKind::Codex);
+        task.begin_turn("QA only");
+        task.status = SessionStatus::Working;
+        let mut other = AgentSession::new(retained.id, ProviderKind::Codex);
+        other.begin_turn("retain this unrelated chat");
+        other.finish_active_turn(crate::model::TurnStatus::Completed);
+        let save = |task: AgentSession| Command::SaveTaskState {
+            projects: vec![project.clone(), retained.clone()],
+            live_session_ids: vec![task.id, other.id],
+            sessions: vec![task, other.clone()],
+        };
+        call(save(task.clone())).unwrap();
+        assert!(
+            call(Command::RemoveProject {
+                project_id: project.id
+            })
+            .is_err()
+        );
+        task.status = SessionStatus::Idle;
+        call(save(task.clone())).unwrap();
+        call(Command::RemoveProject {
+            project_id: project.id,
+        })
+        .unwrap();
+        call(save(task)).unwrap();
+        let ResponsePayload::TaskState {
+            projects, sessions, ..
+        } = call(Command::LoadTaskState).unwrap()
+        else {
+            panic!("task state");
+        };
+        assert_eq!(
+            projects.iter().map(|p| p.id).collect::<Vec<_>>(),
+            vec![retained.id]
+        );
+        assert!(sessions.iter().all(|s| s.project_id != project.id));
+        assert!(sessions.iter().any(|s| s.id == other.id));
+        drop(backend);
+        let reopened = StateStore::daemon(root.join("app.db")).load().unwrap();
+        assert_eq!(
+            reopened.projects.iter().map(|p| p.id).collect::<Vec<_>>(),
+            vec![retained.id]
+        );
+        assert!(reopened.sessions.iter().all(|s| s.project_id != project.id));
+        assert!(reopened.sessions.iter().any(|s| s.id == other.id));
+        assert_eq!(std::fs::read(sentinel).unwrap(), b"source must remain");
+    }
 
     #[test]
     fn team_queue_ack_survives_stale_saves_and_cannot_enter_solo_runtime() {

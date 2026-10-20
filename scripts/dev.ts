@@ -4,6 +4,7 @@ import { $ } from "bun";
 import { bundleComputerUse } from "./cua-driver";
 import { watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
+import { contentChangeFilter } from "./dev-watch";
 
 const root = resolve(import.meta.dir, "..");
 const isMacOS = process.platform === "darwin";
@@ -442,18 +443,21 @@ function scheduleBuild(target: BuildTarget): void {
 
 function startWatchers(): void {
   for (const directory of watchedDirectories) {
+    const changed = contentChangeFilter(join(root, directory));
     const watcher = watch(
       join(root, directory),
       { recursive: true },
-      (_eventType, filename) =>
-        scheduleBuild(targetForChange(directory, filename)),
+      (_eventType, filename) => {
+        if (changed(filename)) scheduleBuild(targetForChange(directory, filename));
+      },
     );
     watcher.on("error", reportWatcherError);
     watchers.push(watcher);
   }
 
+  const changedFiles = new Map(watchedFiles.map((file) => [file, contentChangeFilter(join(root, file))]));
   const rootWatcher = watch(root, (_eventType, filename) => {
-    if (filename && watchedFiles.includes(filename.toString()))
+    if (filename && changedFiles.get(filename.toString())?.(null))
       scheduleBuild("app");
   });
   rootWatcher.on("error", reportWatcherError);

@@ -343,8 +343,8 @@ impl CodexDriver {
                     "id": 0,
                     "params": {
                         "clientInfo": {
-                            "name": "waku",
-                            "title": "Waku",
+                            "name": "ion",
+                            "title": "ion",
                             "version": env!("CARGO_PKG_VERSION")
                         },
                         "capabilities": {

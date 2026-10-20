@@ -1,4 +1,4 @@
-; Waku's Windows installer.
+; ion's Windows installer.
 ;
 ; Per-user by design: %LOCALAPPDATA%\Programs needs no elevation, which is
 ; what lets the in-app updater re-run this silently without a UAC prompt.
@@ -41,7 +41,7 @@ AppPublisher=ion
 DefaultDirName={autopf}\ion
 DefaultGroupName=ion
 UninstallDisplayName=ion
-UninstallDisplayIcon={app}\waku.exe
+UninstallDisplayIcon={app}\ion.exe
 LicenseFile={#StageDir}\LICENSE
 OutputDir={#OutputDir}
 OutputBaseFilename=ion-{#AppVersion}-{#Arch}-Setup
@@ -64,8 +64,8 @@ DisableReadyPage=yes
 ; The updater passes /DIR, and a manual reinstall should land where the
 ; previous one did rather than asking again.
 UsePreviousAppDir=yes
-; Waku persists continuously to SQLite, so closing it is safe; a silent
-; update cannot stop to ask, and a locked waku.exe would fail the install.
+; ion persists continuously to SQLite, so closing it is safe; a silent
+; update cannot stop to ask, and a locked ion.exe would fail the install.
 CloseApplications=force
 RestartApplications=no
 
@@ -73,7 +73,7 @@ RestartApplications=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#StageDir}\waku.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StageDir}\ion.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\waku-daemon.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\waku_js_repl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\waku_computer_use.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -83,13 +83,17 @@ Source: "{#StageDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignorevers
 Source: "{#StageDir}\nemo-speech\*"; DestDir: "{app}\nemo-speech"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StageDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+; Remove the previous main executable after CloseApplications closes it.
+Type: files; Name: "{app}\waku.exe"
+
 [Icons]
-Name: "{group}\ion"; Filename: "{app}\waku.exe"
-Name: "{userdesktop}\ion"; Filename: "{app}\waku.exe"; Tasks: desktopicon
+Name: "{group}\ion"; Filename: "{app}\ion.exe"
+Name: "{userdesktop}\ion"; Filename: "{app}\ion.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
 
 [Run]
-; No skipifsilent: this is also how the updater's silent run brings Waku back.
-Filename: "{app}\waku.exe"; Description: "{cm:LaunchProgram,ion}"; Flags: nowait postinstall
+; No skipifsilent: this is also how the updater's silent run brings ion back.
+Filename: "{app}\ion.exe"; Description: "{cm:LaunchProgram,ion}"; Flags: nowait postinstall

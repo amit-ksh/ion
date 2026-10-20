@@ -306,8 +306,8 @@ export function MobileComposer({
     setLocalError(null);
     const operation = attachmentImportTail.current.catch(() => {}).then(async () => {
       const client = daemon.client;
-      if (!client || daemon.phase !== "connected") {
-        throw new Error("Waku daemon is disconnected");
+      if (!client || daemon.phase !== 'connected') {
+        throw new Error('ion daemon is disconnected');
       }
       for (const file of files) {
         const imported = await importLocalAttachment(client, file);

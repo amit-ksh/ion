@@ -451,6 +451,57 @@ fn native_team_stop_before_tool_execution_cannot_publish_an_artifact() {
 }
 
 #[test]
+fn native_team_tool_failures_preserve_arguments_and_failed_activity() {
+    let f = Fixture::new(true);
+    let root = f.claim(f.run.work[0].id);
+    let (events, receiver) = crate::driver::test_event_channel();
+    let mut step = 0;
+    let mut source_ids = Vec::new();
+    let result = run_with_harness_and_apps(
+        &f.store,
+        NativeTeamStart::Fresh(root),
+        &f.workspace,
+        &events,
+        &AtomicBool::new(false),
+        ProviderKind::Nebius,
+        |model| Ok(ModelCallAllowance {
+            model: model.to_owned(),
+            max_input_tokens: 32768,
+            max_output_tokens: 4096,
+        }),
+        |_, _, messages, _| {
+            step += 1;
+            if step == 2 {
+                assert!(last_reply(messages)["error"].is_string());
+            }
+            let (text, calls) = match step {
+                1 => call("read_file", json!({"path":"missing-qa-file.txt"})),
+                2 => call("read_file", json!({"path":"README.md"})),
+                _ => call("report_blocker", json!({"reason":"QA checks complete"})),
+            };
+            source_ids.push(calls[0].activity_id.clone());
+            Ok(StreamCompletion { text, calls, usage: None, cost: None })
+        },
+        &ComposioApps,
+    ).unwrap();
+    assert_eq!(result, NativeTeamExit::Settled);
+    let activities: Vec<_> = receiver.try_iter().filter_map(|event| match event {
+        DriverEvent::RichActivity(item) if item.tool_name.as_deref() == Some("read_file") => Some(item),
+        _ => None,
+    }).collect();
+    assert_eq!(activities.len(), 2);
+    let failed = &activities[0];
+    assert!(failed.complete && failed.failed);
+    assert_eq!(failed.source_id.as_deref(), Some(source_ids[0].as_str()));
+    assert!(failed.arguments.as_ref().unwrap().contains("missing-qa-file.txt"));
+    assert!(failed.output.as_ref().unwrap().contains("error"));
+    let succeeded = &activities[1];
+    assert_eq!(succeeded.source_id.as_deref(), Some(source_ids[1].as_str()));
+    assert!(succeeded.complete && !succeeded.failed);
+    assert!(succeeded.output.as_ref().unwrap().contains("Actual project"));
+}
+
+#[test]
 fn native_team_reads_exclude_private_and_outside_paths_and_bound_escaped_replies() {
     let f = Fixture::new(true);
     fs::write(f.workspace.join("control.txt"), "\u{1}\"".repeat(4000)).unwrap();

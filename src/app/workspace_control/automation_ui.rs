@@ -1,5 +1,14 @@
 //! Cached controls over durable workflow/routine projections.
 use super::*;
+
+fn document_format_label(format: &str) -> String {
+    match format {
+        "md" => "Markdown".into(),
+        "txt" => "Text".into(),
+        "yml" => "YAML (.yml)".into(),
+        _ => format.to_uppercase(),
+    }
+}
 fn status(status: AutomationStatus) -> &'static str {
     match status {
         AutomationStatus::Running => "Running",
@@ -107,13 +116,7 @@ impl Waku {
                         let weak = weak.clone();
                         let format = *format;
                         MenuItem::new(
-                            match format {
-                                "md" => "Markdown",
-                                "txt" => "Text",
-                                "html" => "HTML",
-                                "csv" => "CSV",
-                                _ => "JSON",
-                            },
+                            document_format_label(format),
                             move |_, cx| {
                                 let _ = weak.update(cx, |this, cx| {
                                     if let Some(stage) = this.control_ui.stages.get_mut(index) {
@@ -501,5 +504,22 @@ impl Waku {
             )
             .child(actions)
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_supported_document_format_has_a_distinct_menu_label() {
+        let labels: Vec<_> = WORKFLOW_DOCUMENT_FORMATS
+            .iter()
+            .map(|format| document_format_label(format))
+            .collect();
+        assert_eq!(labels.iter().collect::<std::collections::HashSet<_>>().len(), labels.len());
+        for format in ["pdf", "svg", "xml", "yaml", "docx", "xlsx", "pptx", "png"] {
+            assert_eq!(document_format_label(format), format.to_uppercase());
+        }
     }
 }

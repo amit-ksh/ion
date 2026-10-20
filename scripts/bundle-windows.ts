@@ -167,8 +167,12 @@ try {
     join(packageDirectory, "resources"),
     "release",
   );
-  for (const file of ["waku.exe", "waku-daemon.exe"]) {
-    await copyFile(join(releaseDirectory, file), join(packageDirectory, file));
+  const executables = [
+    ["waku.exe", "ion.exe"],
+    ["waku-daemon.exe", "waku-daemon.exe"],
+  ] as const;
+  for (const [source, destination] of executables) {
+    await copyFile(join(releaseDirectory, source), join(packageDirectory, destination));
   }
   await bundleSpeech(packageDirectory, architecture);
   await copyFile(
@@ -188,7 +192,7 @@ try {
     await writeFile(certificate, Buffer.from(certificateData, "base64"));
     signtool = findSigntool();
     await sign(signtool, certificate, certificatePassword, [
-      join(packageDirectory, "waku.exe"),
+      join(packageDirectory, "ion.exe"),
       join(packageDirectory, "waku-daemon.exe"),
       join(packageDirectory, "waku_js_repl.exe"),
       join(packageDirectory, "waku_computer_use.exe"),

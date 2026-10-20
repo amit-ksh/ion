@@ -158,7 +158,7 @@ export function renderAppcast(arch: Architecture, items: AppcastItem[]): string 
   return `<?xml version="1.0" encoding="utf-8"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
-    <title>Waku (Windows ${arch})</title>
+    <title>ion (Windows ${arch})</title>
 ${entries}
   </channel>
 </rss>

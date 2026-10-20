@@ -11,6 +11,25 @@ pub mod scrollbar;
 pub mod text_field;
 pub mod tooltip;
 
+gpui::actions!(focus_navigation, [FocusNext, FocusPrevious]);
+
+pub fn init_focus_navigation(cx: &mut App) {
+    cx.bind_keys([
+        gpui::KeyBinding::new("tab", FocusNext, None),
+        gpui::KeyBinding::new("shift-tab", FocusPrevious, None),
+    ]);
+}
+
+/// Fallback traversal for every native surface. More specific picker/editor
+/// bindings keep their conventional Tab behavior.
+pub fn focus_navigation(content: AnyElement) -> Div {
+    div()
+        .size_full()
+        .on_action(|_: &FocusNext, window, cx| window.focus_next(cx))
+        .on_action(|_: &FocusPrevious, window, cx| window.focus_prev(cx))
+        .child(content)
+}
+
 use crate::model::{ActivityKind, ProviderKind, SessionStatus};
 use crate::theme::{Theme, sp};
 

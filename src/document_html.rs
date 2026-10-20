@@ -1,11 +1,32 @@
 //! A static document surface, isolated from normal browser profiles and app bridges.
 #[derive(Clone)]
 pub struct DocumentHtml {
-    pub html: String,
+    pub html: std::sync::Arc<str>,
     pub profile_dir: Option<std::path::PathBuf>,
+    pub navigation_payload: std::sync::Arc<str>,
+    pub resource_url: String,
+}
+impl DocumentHtml {
+    pub fn resource_navigation_allowed(&self, url: &str) -> bool {
+        url == self.resource_url
+            || url
+                .strip_prefix(self.resource_url.as_str())
+                .is_some_and(|suffix| suffix.starts_with('#'))
+    }
 }
 pub fn navigation_allowed(url: &str) -> bool {
     url == "about:blank" || url.starts_with("about:blank#")
+}
+// WebView2 exposes NavigateToString as a data navigation. Permit only the
+// verified document, never an arbitrary data link authored inside it.
+pub fn data_navigation_allowed(url: &str, payload: &str) -> bool {
+    [
+        "data:text/html;base64,",
+        "data:text/html;charset=utf-8;base64,",
+        "data:text/html;charset=UTF-8;base64,",
+    ]
+    .iter()
+    .any(|prefix| url.strip_prefix(prefix).is_some_and(|body| body == payload))
 }
 pub fn prepare(text: &str) -> anyhow::Result<DocumentHtml> {
     anyhow::ensure!(
@@ -27,7 +48,17 @@ pub fn prepare(text: &str) -> anyhow::Result<DocumentHtml> {
     };
     #[cfg(not(target_os = "windows"))]
     let profile_dir = None;
-    Ok(DocumentHtml { html, profile_dir })
+    use base64::Engine;
+    // Prepared on the document worker, not from render or a native callback.
+    let navigation_payload = base64::engine::general_purpose::STANDARD
+        .encode(html.as_bytes())
+        .into();
+    Ok(DocumentHtml {
+        html: html.into(),
+        profile_dir,
+        navigation_payload,
+        resource_url: format!("https://ion-document.invalid/{}", uuid::Uuid::new_v4()),
+    })
 }
 #[cfg(test)]
 mod tests {
@@ -49,6 +80,38 @@ mod tests {
         assert!(navigation_allowed("about:blank#section"));
     }
     #[test]
+    fn document_data_navigation_is_bound_to_verified_html() {
+        use base64::Engine;
+        let page = prepare("<h1>Verified report</h1>").unwrap();
+        let uri = format!("data:text/html;base64,{}", page.navigation_payload);
+        assert!(data_navigation_allowed(&uri, &page.navigation_payload));
+        assert!(data_navigation_allowed(
+            &uri.replacen(";base64", ";charset=utf-8;base64", 1),
+            &page.navigation_payload
+        ));
+        let other = base64::engine::general_purpose::STANDARD.encode("<h1>Other document</h1>");
+        assert!(!data_navigation_allowed(
+            &format!("data:text/html;base64,{other}"),
+            &page.navigation_payload
+        ));
+        assert!(!data_navigation_allowed(
+            &(uri.clone() + "#fragment"),
+            &page.navigation_payload
+        ));
+        assert!(!data_navigation_allowed(
+            &uri.replace("text/html", "image/svg+xml"),
+            &page.navigation_payload
+        ));
+        assert!(!data_navigation_allowed(
+            "https://example.test",
+            &page.navigation_payload
+        ));
+        assert!(page.resource_navigation_allowed(&page.resource_url));
+        assert!(page.resource_navigation_allowed(&(page.resource_url.clone() + "#section")));
+        assert!(!page.resource_navigation_allowed(&(page.resource_url.clone() + "/other")));
+        assert!(!page.resource_navigation_allowed("https://ion-document.invalid/other"));
+    }
+    #[test]
     fn document_html_policy_precedes_authored_markup_and_preserves_layout() {
         let original = "<style>.card{display:grid}</style><div class='card'>Readable</div><script>fetch('https://remote.test')</script>";
         let page = prepare(original).unwrap();
@@ -59,7 +122,12 @@ mod tests {
     }
     #[test]
     fn document_html_input_bound_is_utf8_byte_based() {
-        assert!(prepare(&"x".repeat(64 * 1024 + 1)).is_err());
-        assert!(prepare(&"語".repeat(64 * 1024)).is_err());
+        let limit = crate::document_render::MAX_DOCUMENT_BYTES;
+        // The publication/preview limit grew from 64 KiB to 16 MiB. Check
+        // both edges of the current contract rather than its former value.
+        assert!(prepare(&"x".repeat(limit)).is_ok());
+        assert!(prepare(&"x".repeat(limit + 1)).is_err());
+        assert!(prepare(&"語".repeat(limit / "語".len())).is_ok());
+        assert!(prepare(&"語".repeat(limit / "語".len() + 1)).is_err());
     }
 }

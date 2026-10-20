@@ -491,28 +491,62 @@ impl Waku {
             if response.await != Ok(1) {
                 return;
             }
+            let client = this
+                .update(cx, |this, cx| {
+                    let sessions = this
+                        .state
+                        .sessions
+                        .iter()
+                        .filter(|session| session.project_id == id)
+                        .map(|session| session.id)
+                        .collect::<Vec<_>>();
+                    if this
+                        .state
+                        .sessions
+                        .iter()
+                        .any(|session| session.project_id == id && session.is_busy())
+                        || sessions.iter().any(|id| {
+                            this.response_fork_preparations.contains_key(id)
+                                || this.submission_preparations.contains(id)
+                        })
+                    {
+                        this.show_toast("Stop the project's running tasks before removing it.");
+                        cx.notify();
+                        return None;
+                    }
+                    Some(this.daemon.client())
+                })
+                .ok()
+                .flatten();
+            let Some(client) = client else {
+                return;
+            };
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    smol::unblock(move || {
+                        client.request(
+                            Uuid::nil(),
+                            Uuid::nil(),
+                            waku_client::Command::RemoveProject { project_id: id },
+                        )
+                    })
+                    .await
+                })
+                .await;
             let _ = this.update(cx, |this, cx| {
+                if let Err(error) = result {
+                    this.show_toast(format!("Could not remove project: {error}"));
+                    cx.notify();
+                    return;
+                }
                 let sessions = this
                     .state
                     .sessions
                     .iter()
-                    .filter(|session| session.project_id == id)
-                    .map(|session| session.id)
+                    .filter(|s| s.project_id == id)
+                    .map(|s| s.id)
                     .collect::<Vec<_>>();
-                if this
-                    .state
-                    .sessions
-                    .iter()
-                    .any(|session| session.project_id == id && session.is_busy())
-                    || sessions.iter().any(|id| {
-                        this.response_fork_preparations.contains_key(id)
-                            || this.submission_preparations.contains(id)
-                    })
-                {
-                    this.show_toast("Stop the project's running tasks before removing it.");
-                    cx.notify();
-                    return;
-                }
                 // Clear selection first so removing the final chat cannot create
                 // a replacement draft in the project being removed.
                 if this.state.sessions.iter().any(|session| {

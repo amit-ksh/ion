@@ -640,6 +640,7 @@ pub struct TextInput {
     /// up to [`AUTO_HEIGHT_MAX`] before it scrolls; otherwise a
     /// multi-line field inherits the embedding view's metrics.
     auto_height: bool,
+    auto_height_max: Pixels,
     /// Image and file pastes surface as [`MediaPaste`] instead of being
     /// swallowed by the text path.
     accepts_media_paste: bool,
@@ -718,7 +719,7 @@ struct VerticalNavigation {
 
 impl TextInput {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let focus_handle = cx.focus_handle();
+        let focus_handle = cx.focus_handle().tab_index(0).tab_stop(true);
         let blink_cursor = cx.new(|_| BlinkCursor::new());
         let _subscriptions = vec![
             cx.observe(&blink_cursor, |_, _, cx| cx.notify()),
@@ -742,6 +743,7 @@ impl TextInput {
             read_only: false,
             submit_on_enter: false,
             auto_height: false,
+            auto_height_max: AUTO_HEIGHT_MAX,
             accepts_media_paste: false,
             clear_on_escape: false,
             select_all_on_focus_click: false,
@@ -876,8 +878,14 @@ impl TextInput {
     /// Let the field own its height and text metrics: it grows with its
     /// content up to [`AUTO_HEIGHT_MAX`], then scrolls under an overlay
     /// scrollbar that follows the caret.
-    pub fn auto_height(mut self) -> Self {
+    pub fn auto_height(self) -> Self {
+        self.auto_height_up_to(AUTO_HEIGHT_MAX)
+    }
+
+    /// Cap an embedded multi-line editor while retaining caret-following scroll.
+    pub fn auto_height_up_to(mut self, maximum: Pixels) -> Self {
         self.auto_height = true;
+        self.auto_height_max = maximum.max(px(24.));
         self
     }
 
@@ -2836,7 +2844,7 @@ impl Render for TextInput {
             .when(self.auto_height, |field| {
                 field
                     .min_h(px(24.0))
-                    .max_h(AUTO_HEIGHT_MAX)
+                    .max_h(self.auto_height_max)
                     .overflow_y_scroll()
                     .track_scroll(&scroll_handle)
                     .px(padding_x)
@@ -3139,6 +3147,86 @@ mod tests {
 
     struct ComposerHarness {
         composer: Entity<ComposerInput>,
+    }
+
+    struct FocusHarness {
+        first: Entity<TextInput>,
+        second: Entity<TextInput>,
+    }
+
+    impl Render for FocusHarness {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            crate::ui::focus_navigation(
+                div()
+                    .flex()
+                    .flex_col()
+                    .child(self.first.clone())
+                    .child(self.second.clone())
+                    .into_any_element(),
+            )
+        }
+    }
+
+    #[gpui::test]
+    fn native_form_fields_traverse_forward_and_backward_with_tab(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            super::init(cx);
+            crate::ui::init_focus_navigation(cx);
+        });
+        let (harness, cx) = cx.add_window_view(|window, cx| FocusHarness {
+            first: cx.new(|cx| TextInput::new(window, cx)),
+            second: cx.new(|cx| TextInput::new(window, cx).multi_line()),
+        });
+        let (first, second) = cx.read_entity(&harness, |harness, _| {
+            (harness.first.clone(), harness.second.clone())
+        });
+        cx.update(|window, cx| window.focus(&first.read(cx).focus(), cx));
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab");
+        cx.update(|window, cx| assert!(second.read(cx).focus().is_focused(window)));
+        cx.simulate_keystrokes("shift-tab");
+        cx.update(|window, cx| assert!(first.read(cx).focus().is_focused(window)));
+    }
+
+    #[gpui::test]
+    fn capped_embedded_instructions_scroll_to_both_ends(cx: &mut TestAppContext) {
+        cx.update(super::init);
+        let (harness, cx) = cx.add_window_view(|window, cx| {
+            let input = cx.new(|cx| {
+                let mut input = TextInput::new(window, cx)
+                    .multi_line()
+                    .auto_height_up_to(px(100.));
+                input.set_content("A long instruction line.\n".repeat(40), cx);
+                input
+            });
+            InputHarness {
+                input,
+                width: px(300.),
+            }
+        });
+        let input = cx.read_entity(&harness, |harness, _| harness.input.clone());
+        cx.update(|window, cx| {
+            window.focus(&input.read(cx).focus(), cx);
+            window.draw(cx);
+        });
+        cx.read_entity(&input, |input, _| {
+            assert_eq!(input.scroll_handle.bounds().size.height, px(100.));
+            assert!(input.scroll_handle.max_offset().y > px(0.));
+        });
+        cx.simulate_keystrokes("ctrl-end");
+        cx.update(|window, cx| {
+            window.draw(cx);
+        });
+        cx.read_entity(&input, |input, _| {
+            assert!(input.scroll_handle.offset().y < px(0.))
+        });
+        cx.simulate_keystrokes("ctrl-home");
+        cx.update(|window, cx| {
+            window.draw(cx);
+        });
+        cx.read_entity(&input, |input, _| {
+            assert_eq!(input.scroll_handle.offset().y, px(0.))
+        });
     }
 
     impl Render for ComposerHarness {

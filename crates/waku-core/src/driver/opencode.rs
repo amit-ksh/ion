@@ -1070,7 +1070,21 @@ fn handle_event(
             }
         }
         "session.error" => {
-            let _ = events.send(DriverEvent::Error(session_error_message(properties)));
+            let message = session_error_message(properties);
+            let _ = events.send(DriverEvent::Error(message.clone()));
+            // The provider follows API failures with session.idle. Settle the
+            // active turn now so that idle cannot overwrite failure as success.
+            state.reasoning_parts.clear();
+            let mut permissions = state.permissions.lock();
+            permissions.pending.clear();
+            permissions.responding.clear();
+            drop(permissions);
+            if std::mem::take(&mut *turn_active.lock()) {
+                let _ = events.send(DriverEvent::TurnFinished {
+                    success: false,
+                    summary: Some(message),
+                });
+            }
         }
         "session.updated" => {
             let title = properties
@@ -1855,6 +1869,37 @@ mod tests {
     fn session_errors_accept_a_flat_message() {
         let properties = json!({"error": {"message": "boom"}});
         assert_eq!(session_error_message(&properties), "boom");
+    }
+
+    #[test]
+    fn expired_key_then_idle_fails_once_and_a_later_turn_can_succeed() {
+        let (events, event_rx, commands, _command_rx, turn, mut state) = harness();
+        let idle = json!({"type":"session.idle","properties":{"sessionID":"ses_1"}});
+        handle_event(
+            &json!({"type":"session.error","properties":{"sessionID":"ses_1","error":{"name":"APIError","data":{"message":"API key expired.","statusCode":401,"isRetryable":false}}}}),
+            &events,
+            &commands,
+            &turn,
+            false,
+            &mut state,
+        );
+        handle_event(&idle, &events, &commands, &turn, false, &mut state);
+        let failed = event_rx.try_iter().collect::<Vec<_>>();
+        assert_eq!(failed.len(), 2);
+        assert!(matches!(&failed[0], DriverEvent::Error(message) if message == "API key expired."));
+        assert!(
+            matches!(&failed[1], DriverEvent::TurnFinished { success: false, summary: Some(message) } if message == "API key expired.")
+        );
+        assert!(!*turn.lock());
+
+        *turn.lock() = true;
+        handle_event(&idle, &events, &commands, &turn, false, &mut state);
+        let retry = event_rx.try_iter().collect::<Vec<_>>();
+        assert_eq!(retry.len(), 1);
+        assert!(matches!(
+            &retry[0],
+            DriverEvent::TurnFinished { success: true, .. }
+        ));
     }
 
     #[test]

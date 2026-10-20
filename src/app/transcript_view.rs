@@ -2153,17 +2153,18 @@ impl Waku {
                                 theme.text_tertiary,
                             ))
                         })
-                        .when(!has_detail && reasoning.is_none(), |element| {
-                            element
-                                .when(activity.failed, |element| {
-                                    element.child(
-                                        icon("icons/x.svg", 10.0, theme.danger).into_any_element(),
-                                    )
-                                })
-                                .when(!activity.complete && !activity.failed, |element| {
-                                    element.child(pulse_dot(5.0, theme.accent))
-                                })
+                        .when(activity.failed && reasoning.is_none(), |element| {
+                            element.child(
+                                icon("icons/x.svg", 10.0, theme.danger).into_any_element(),
+                            )
                         })
+                        .when(
+                            !has_detail
+                                && reasoning.is_none()
+                                && !activity.complete
+                                && !activity.failed,
+                            |element| element.child(pulse_dot(5.0, theme.accent)),
+                        )
                         .on_click(cx.listener(move |this, _, _, cx| {
                             if has_detail {
                                 this.toggle_activity_item(id, item_expanded, cx);

@@ -1,6 +1,6 @@
 # ion Mobile
 
-Expo client for connecting to one or more remote Waku daemons from iOS,
+Expo client for connecting to one or more remote ion daemons from iOS,
 Android.
 
 ## Run
@@ -15,7 +15,7 @@ bun --filter @waku/mobile android
 
 ## Connect
 
-In Waku Desktop, enable the remote daemon and copy its WebSocket address and
+In ion Desktop, enable the remote daemon and copy its WebSocket address and
 token. Add those values in the mobile app. Use `wss://` outside a trusted LAN
 or private tailnet; the token grants full control of the daemon host.
 
@@ -86,7 +86,7 @@ up signing credentials. Follow its build link to install on the phone. The
 [Expo internal distribution guide](https://docs.expo.dev/build/internal-distribution/)
 for platform requirements.
 
-Waku is licensed under the repository's GNU GPL v3.0-only license.
+ion is licensed under the repository's GNU GPL v3.0-only license.
 
 ## Managed Ion Cloud account
 

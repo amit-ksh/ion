@@ -89,7 +89,7 @@ fn app_server_request_in(binary: &Path, cwd: &Path, request: Value) -> anyhow::R
                 "id": 0,
                 "params": {
                     "clientInfo": {
-                        "name": "waku",
+                        "name": "ion",
                         "title": "ion",
                         "version": env!("CARGO_PKG_VERSION")
                     },

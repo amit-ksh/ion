@@ -2932,16 +2932,20 @@ impl Waku {
                     card.child(self.render_composer_attachments(cx))
                 })
                 .child(div().pt(px(2.0)).child(self.composer.clone()))
-                .when(self.speech_feedback.is_some(), |card| {
-                    card.child(
-                        div()
-                            .px(px(12.0))
-                            .pt(px(5.0))
-                            .text_size(sp(11.5))
-                            .text_color(theme.text_secondary)
-                            .child(self.speech_feedback.clone().unwrap_or_default()),
-                    )
-                })
+                .when(
+                    self.speech_feedback.is_some()
+                        && self.speech_session_owner == self.state.selected_session,
+                    |card| {
+                        card.child(
+                            div()
+                                .px(px(12.0))
+                                .pt(px(5.0))
+                                .text_size(sp(11.5))
+                                .text_color(theme.text_secondary)
+                                .child(self.speech_feedback.clone().unwrap_or_default()),
+                        )
+                    },
+                )
                 .when(
                     (self.speech_transcript.is_some() || self.speech_partial.is_some())
                         && self.speech_session_owner == self.state.selected_session,
@@ -2972,6 +2976,7 @@ impl Waku {
                         .mt(px(8.0))
                         .px(px(10.0))
                         .flex()
+                        .flex_wrap()
                         .items_center()
                         .gap(px(4.0))
                         .text_size(sp(12.5))

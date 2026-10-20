@@ -37,17 +37,51 @@ fn client() -> Result<Client> {
         .build()?)
 }
 fn payload(response: Response) -> Result<Value> {
-    if !response.status().is_success() {
-        bail!(
-            "Composio request failed (HTTP {}). Check your project key and app permissions.",
-            response.status()
-        );
-    }
+    let status = response.status();
+    let request_id = response
+        .headers()
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| identifier(value, 256))
+        .map(str::to_owned);
     use std::io::Read;
     let mut bytes = Vec::new();
     response.take(1_000_001).read_to_end(&mut bytes)?;
     if bytes.len() > 1_000_000 {
         bail!("Composio response is too large");
+    }
+    if !status.is_success() {
+        let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+        let mut diagnostic = Vec::new();
+        // Error messages and response envelopes can contain account data or secrets.
+        // Only bounded provider codes and correlation IDs may leave this boundary.
+        if let Some(code) = body["error"]["slug"]
+            .as_str()
+            .filter(|value| identifier(value, 128))
+        {
+            diagnostic.push(format!("code {code}"));
+        }
+        if let Some(id) = body["error"]["request_id"]
+            .as_str()
+            .filter(|value| identifier(value, 256))
+            .or(request_id.as_deref())
+        {
+            diagnostic.push(format!("request {id}"));
+        }
+        if let Some(id) = body["log_id"]
+            .as_str()
+            .filter(|value| identifier(value, 256))
+        {
+            diagnostic.push(format!("log {id}"));
+        }
+        let suffix = if diagnostic.is_empty() {
+            String::new()
+        } else {
+            format!("; {}", diagnostic.join("; "))
+        };
+        bail!(
+            "Composio request failed (HTTP {status}{suffix}). Check the provider log before submitting another action."
+        );
     }
     Ok(serde_json::from_slice(&bytes).context("Invalid Composio response")?)
 }
@@ -374,6 +408,10 @@ pub struct ComposioPreparedAction {
     body: Value,
     managed: Option<(String, String)>,
 }
+struct VerifiedComposioTool {
+    tool: ComposioTool,
+    user_id: String,
+}
 fn identifier(value: &str, maximum: usize) -> bool {
     !value.is_empty()
         && value.len() <= maximum
@@ -513,7 +551,8 @@ impl CredentialService {
                 "/v1/apps/actions/describe",json!({"accountId":account,"action":action,"version":version}))?);
         }
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
-        verified_tool(&client()?, &key, account, action, version)
+        verified_tool(&client()?, BASE, &key, account, action, version)
+            .map(|verified| verified.tool)
     }
     pub fn prepare_composio_action(
         &self,
@@ -543,25 +582,37 @@ impl CredentialService {
                 managed:Some((workspace,proposal)) });
         }
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
-        verified_tool(&client()?, &key, account, action, version)?;
-        Ok(ComposioPreparedAction {
-            key,
-            action: action.into(),
-            managed: None,
-            body: json!({"connected_account_id":account,"version":version,"arguments":arguments}),
-        })
+        prepare_action(&client()?, BASE, key, account, action, version, arguments)
     }
+}
+fn prepare_action(
+    client: &Client,
+    base: &str,
+    key: String,
+    account: &str,
+    action: &str,
+    version: &str,
+    arguments: &Value,
+) -> Result<ComposioPreparedAction> {
+    let verified = verified_tool(client, base, &key, account, action, version)?;
+    Ok(ComposioPreparedAction {
+        key,
+        action: action.into(),
+        managed: None,
+        body: json!({"connected_account_id":account,"user_id":verified.user_id,"version":version,"arguments":arguments}),
+    })
 }
 fn verified_tool(
     client: &Client,
+    base: &str,
     key: &str,
     account: &str,
     action: &str,
     version: &str,
-) -> Result<ComposioTool> {
+) -> Result<VerifiedComposioTool> {
     let account_data = payload(
         client
-            .get(format!("{BASE}/connected_accounts/{account}"))
+            .get(format!("{base}/connected_accounts/{account}"))
             .header("x-api-key", key)
             .send()
             .context("Could not verify app account")?,
@@ -573,9 +624,21 @@ fn verified_tool(
     {
         bail!("The exact connected app account is inactive or unavailable");
     }
+    // The selected connection owns this identity. It is transport context, never
+    // model-supplied arguments or a default that could select another account.
+    let user_id = account_data["user_id"]
+        .as_str()
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 256
+                && value.trim() == *value
+                && !value.chars().any(char::is_control)
+        })
+        .context("The connected app account has no valid user identity")?
+        .to_owned();
     let data = payload(
         client
-            .get(format!("{BASE}/tools/{action}"))
+            .get(format!("{base}/tools/{action}"))
             .query(&[("version", version)])
             .header("x-api-key", key)
             .send()
@@ -588,7 +651,7 @@ fn verified_tool(
     {
         bail!("App action version or connected account toolkit changed");
     }
-    Ok(tool)
+    Ok(VerifiedComposioTool { tool, user_id })
 }
 impl ComposioPreparedAction {
     /// Exactly one POST. Redirects/retries, proxy calls and authentication overrides are unavailable.
@@ -695,6 +758,112 @@ mod tests {
         let operation = app_operation_id().unwrap();
         assert_eq!(operation.len(),32);
         assert_ne!(operation, app_operation_id().unwrap());
+    }
+    #[test]
+    fn preparation_rejects_connection_without_user_identity() {
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = [0; 4096];
+            stream.read(&mut request).unwrap();
+            let body = r#"{"id":"ca_qa","status":"ACTIVE","toolkit":{"slug":"gmail"}}"#;
+            write!(stream,"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+        });
+        let error = prepare_action(
+            &client().unwrap(),
+            &format!("http://{address}"),
+            "private-key".into(),
+            "ca_qa",
+            "GMAIL_GET_PROFILE",
+            "20261018_00",
+            &json!({"user_id":"me"}),
+        )
+        .err()
+        .expect("Missing identity must fail before execution");
+        server.join().unwrap();
+        assert!(error.to_string().contains("no valid user identity"));
+    }
+    #[test]
+    fn preparation_binds_verified_account_user_without_overriding_tool_arguments() {
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            for (path, body) in [
+                (
+                    "/connected_accounts/ca_qa",
+                    json!({"id":"ca_qa","status":"ACTIVE","user_id":"ion-user-qa","toolkit":{"slug":"gmail"},"state":{"access_token":"private-value"}}),
+                ),
+                (
+                    "/tools/GMAIL_GET_PROFILE?version=20261018_00",
+                    json!({"slug":"GMAIL_GET_PROFILE","toolkit":{"slug":"gmail"},"version":"20261018_00","input_parameters":{"type":"object"}}),
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut bytes = [0; 4096];
+                let n = stream.read(&mut bytes).unwrap();
+                assert!(
+                    String::from_utf8_lossy(&bytes[..n])
+                        .starts_with(&format!("GET {path} HTTP/1.1"))
+                );
+                let body = body.to_string();
+                write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+            }
+        });
+        let prepared = prepare_action(
+            &client().unwrap(),
+            &format!("http://{address}"),
+            "private-key".into(),
+            "ca_qa",
+            "GMAIL_GET_PROFILE",
+            "20261018_00",
+            &json!({"user_id":"me"}),
+        )
+        .unwrap();
+        server.join().unwrap();
+        assert_eq!(prepared.body["user_id"], "ion-user-qa");
+        assert_eq!(prepared.body["arguments"]["user_id"], "me");
+        assert_eq!(prepared.body["connected_account_id"], "ca_qa");
+        assert_eq!(prepared.body["version"], "20261018_00");
+        assert!(
+            !prepared.body.to_string().contains("private-value")
+                && !prepared.body.to_string().contains("private-key")
+        );
+    }
+    #[test]
+    fn http_rejections_keep_safe_diagnostic_identity_without_provider_payloads() {
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = [0; 4096];
+            stream.read(&mut request).unwrap();
+            let body = r#"{"error":{"slug":"ToolVersionUnavailable","request_id":"req_qa_123","message":"private@example.test secret-value"},"access_token":"secret-value"}"#;
+            write!(stream, "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+        });
+        let response = client()
+            .unwrap()
+            .get(format!("http://{address}"))
+            .send()
+            .unwrap();
+        let error = payload(response).unwrap_err().to_string();
+        server.join().unwrap();
+        assert!(error.contains("400 Bad Request"));
+        assert!(error.contains("ToolVersionUnavailable"), "{error}");
+        assert!(error.contains("req_qa_123"), "{error}");
+        assert!(!error.contains("private@example.test") && !error.contains("secret-value"));
     }
     #[test]
     fn hosted_auth_only_accepts_composio_https() {

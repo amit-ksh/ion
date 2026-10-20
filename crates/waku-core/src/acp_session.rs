@@ -55,7 +55,7 @@ pub(crate) fn catalog_working_directory() -> anyhow::Result<PathBuf> {
 fn initialize_request() -> InitializeRequest {
     InitializeRequest::new(ProtocolVersion::V1)
         .client_capabilities(ClientCapabilities::new().terminal(false))
-        .client_info(Implementation::new("waku", env!("CARGO_PKG_VERSION")))
+        .client_info(Implementation::new("ion", env!("CARGO_PKG_VERSION")))
 }
 
 fn timestamp(value: Option<&str>) -> u64 {

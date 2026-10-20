@@ -238,7 +238,7 @@ describe("WakuClient", () => {
     const { client, sockets } = fixture();
     const firstConnection = client.connect();
     client.disconnect();
-    await expect(firstConnection).rejects.toThrow("Waku client disconnected");
+    await expect(firstConnection).rejects.toThrow("ion client disconnected");
 
     const secondConnection = client.connect();
     const second = sockets[1]!;
@@ -326,13 +326,13 @@ describe("WakuClient", () => {
   test("disconnected requests reject instead of throwing synchronously", async () => {
     const { client } = fixture();
     const request = client.request({ type: "getSettings" });
-    await expect(request).rejects.toThrow("Waku daemon is disconnected");
+    await expect(request).rejects.toThrow("ion daemon is disconnected");
   });
 
   test("disconnected notifications reject instead of throwing synchronously", async () => {
     const { client } = fixture();
     const notification = client.notify({ type: "refreshBackgroundWork" });
-    await expect(notification).rejects.toThrow("Waku daemon is disconnected");
+    await expect(notification).rejects.toThrow("ion daemon is disconnected");
   });
 
   test("notifications use the response-free nil request id", async () => {
@@ -438,7 +438,7 @@ describe("WakuClient connection failures", () => {
     await connect(client, sockets);
     await expect(
       client.request({ type: "getSettings" }, undefined, undefined, { timeoutMs: 1 }),
-    ).rejects.toThrow("timed out waiting for Waku daemon");
+    ).rejects.toThrow("timed out waiting for ion daemon");
   });
 
   test("settles requests and clears the socket before listeners hear a remote close", async () => {

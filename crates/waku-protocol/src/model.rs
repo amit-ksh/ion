@@ -77,7 +77,7 @@ impl ProviderKind {
             Self::OpenCode2 => "OpenCode 2",
             Self::Grok => "Grok Build",
             Self::Kimi => "Kimi Code",
-            Self::Nebius => "Nebius Nemotron",
+            Self::Nebius => "Nebius",
             Self::OhMyPi => "Oh My Pi",
             Self::Pi => "Pi",
         }

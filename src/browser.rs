@@ -543,7 +543,10 @@ mod host {
     /// The `ICoreWebView2` behind the surface, exposing the same handful of
     /// operations the macOS host does so the shared call sites in
     /// [`super::BrowserView`] stay platform-free.
-    pub(super) struct Webview(ICoreWebView2);
+    pub(super) struct Webview(
+        ICoreWebView2,
+        Rc<RefCell<Option<crate::document_html::DocumentHtml>>>,
+    );
 
     impl Webview {
         pub fn can_go_back(&self) -> windows::core::Result<bool> {
@@ -574,8 +577,21 @@ mod host {
             unsafe { self.0.Stop() }
         }
 
-        pub fn load_html(&self, html: &str) -> windows::core::Result<()> {
-            unsafe { self.0.NavigateToString(&HSTRING::from(html)) }
+        pub fn load_document(
+            &self,
+            document: &crate::document_html::DocumentHtml,
+        ) -> windows::core::Result<()> {
+            *self.1.borrow_mut() = Some(document.clone());
+            if document.html.len() > 1_000_000 {
+                // NavigateToString has a 2 MiB engine limit. The private
+                // resource handler supplies the verified bytes, without I/O.
+                unsafe { self.0.Navigate(&HSTRING::from(&document.resource_url)) }
+            } else {
+                unsafe {
+                    self.0
+                        .NavigateToString(&HSTRING::from(document.html.as_ref()))
+                }
+            }
         }
         pub fn load_url(&self, url: &str) -> windows::core::Result<()> {
             unsafe { self.0.Navigate(&HSTRING::from(url)) }
@@ -978,6 +994,8 @@ mod host {
         // including the status bar: it draws inside the page raster, so the
         // portal clips it along with everything else, and a link preview on
         // hover is worth having.
+        let document_payload: Rc<RefCell<Option<crate::document_html::DocumentHtml>>> =
+            Rc::default();
         if private {
             let settings = unsafe { webview.Settings() }?;
             unsafe {
@@ -996,8 +1014,31 @@ mod host {
                     COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL,
                 )
             }?;
+            let resource_document = document_payload.clone();
             let denied = WebResourceRequestedEventHandler::create(Box::new(move |_, args| {
                 if let Some(args) = args {
+                    let request = unsafe { args.Request() }?;
+                    let mut uri = PWSTR::null();
+                    unsafe { request.Uri(&mut uri) }?;
+                    let uri = take_pwstr(uri);
+                    let document = resource_document.borrow();
+                    if let Some(document) = document.as_ref().filter(|doc| uri == doc.resource_url)
+                    {
+                        let stream = unsafe {
+                            windows::Win32::UI::Shell::SHCreateMemStream(Some(
+                                document.html.as_bytes(),
+                            ))
+                        }
+                        .ok_or_else(|| windows::core::Error::from(E_FAIL))?;
+                        let response = unsafe {
+                            environment.CreateWebResourceResponse(
+                            &stream, 200, &HSTRING::from("OK"),
+                            &HSTRING::from("Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\n"),
+                        )
+                        }?;
+                        unsafe { args.SetResponse(&response) }?;
+                        return Ok(());
+                    }
                     let response = unsafe {
                         environment.CreateWebResourceResponse(
                             None::<&windows::Win32::System::Com::IStream>,
@@ -1054,12 +1095,22 @@ mod host {
 
         let started = NavigationStartingEventHandler::create(Box::new({
             let page_load = page_load.clone();
+            let document_payload = document_payload.clone();
             move |_, args| {
                 let mut uri = PWSTR::null();
                 if private {
                     if let Some(args) = args.as_ref() {
-                        let allowed = unsafe { args.Uri(&mut uri) }.is_ok()
-                            && crate::document_html::navigation_allowed(&take_pwstr(uri));
+                        let uri_ok = unsafe { args.Uri(&mut uri) }.is_ok();
+                        let target = take_pwstr(uri);
+                        let allowed = uri_ok
+                            && (crate::document_html::navigation_allowed(&target)
+                                || document_payload.borrow().as_ref().is_some_and(|document| {
+                                    document.resource_navigation_allowed(&target)
+                                        || crate::document_html::data_navigation_allowed(
+                                            &target,
+                                            &document.navigation_payload,
+                                        )
+                                }));
                         if !allowed {
                             unsafe { args.SetCancel(true) }?;
                             return Ok(());
@@ -1182,7 +1233,7 @@ mod host {
         unsafe { composition.add_CursorChanged(&cursor_event, &mut token) }?;
 
         Ok(Rc::new(WebviewHost {
-            webview: Webview(webview),
+            webview: Webview(webview, document_payload),
             controller,
             composition,
             surface,
@@ -1650,7 +1701,7 @@ impl BrowserView {
             Ok(host) => {
                 self.host = Some(host);
                 if let (Some(document), Some(host)) = (&self.document, &self.host) {
-                    if let Err(error) = host.webview.load_html(&document.html) {
+                    if let Err(error) = host.webview.load_document(document) {
                         self.host_error = Some(error.to_string());
                     }
                 }
@@ -2010,7 +2061,10 @@ impl BrowserView {
     fn reload(&mut self, _cx: &mut Context<Self>) {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         if let (Some(document), Some(host)) = (&self.document, &self.host) {
+            #[cfg(target_os = "macos")]
             let _ = host.webview.load_html(&document.html);
+            #[cfg(target_os = "windows")]
+            let _ = host.webview.load_document(document);
             _cx.notify();
             return;
         }

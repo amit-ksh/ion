@@ -1,7 +1,11 @@
 const DAEMON_DISCONNECT_MESSAGES = new Set([
+  // Existing saved errors retain the pre-ion text after an upgrade.
   'Waku daemon disconnected',
   'Waku daemon is disconnected',
   'Waku client disconnected',
+  'ion daemon disconnected',
+  'ion daemon is disconnected',
+  'ion client disconnected',
 ]);
 
 /** Connection loss is owned by the global reconnect banner. It must not

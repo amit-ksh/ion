@@ -325,7 +325,7 @@ function fileTypeIconName(path: string): FileTypeIconName {
 }
 
 const PROVIDER_ICONS: Record<ProviderKind, string> = {
-  antigravity: 'i-waku-sparkle',
+  antigravity: 'i-lucide-sparkles',
   amp: 'i-waku-provider-amp',
   claude: 'i-waku-provider-claude',
   codex: 'i-waku-provider-openai',
@@ -360,6 +360,7 @@ export const PROVIDERS: Array<{
   { id: 'nebius', name: 'Nebius Nemotron', shortName: 'Nebius', command: 'nebius-native' },
   { id: 'ohMyPi', name: 'Oh My Pi', shortName: 'Oh My Pi', command: 'omp' },
   { id: 'pi', name: 'Pi', shortName: 'Pi', command: 'pi' },
+  { id: 'antigravity', name: 'Antigravity', shortName: 'Antigravity', command: 'agy' },
 ]
 
 export const NEW_TASK_PROVIDERS = PROVIDERS.filter(({ id }) => id === 'nebius')
