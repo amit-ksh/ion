@@ -7,4 +7,4 @@ Ion converts upstream revision 431a349f3051ab85c22b9b7a2741b5fe77065665 to GGUF 
 
 The native runtime is NVIDIA NeMo-Speech.cpp, https://github.com/NVIDIA/NeMo-Speech.cpp , under Apache-2.0. Its bundled license/third-party notices remain included in the installed runtime. The manifest pins the converted artifact bytes and SHA-256.
 
-Ion publishes the converted artifact at https://huggingface.co/amit-ksh/ion-stt . The bundled manifest pins the immutable distribution revision, byte count and SHA-256; public download verification is recorded in the release acceptance documentation.
+Ion distributes the converted artifact through https://api.build-with-ion.tech/models/ion-parakeet-110m-tdt-q8-v1.gguf from private Cloudflare R2 storage. The bundled manifest pins the versioned filename, byte count and SHA-256. The identical artifact was originally published at https://huggingface.co/amit-ksh/ion-stt at revision e2d275da00383be64c0ee95f340ff37e3329c407, retained as distribution provenance. End users download from Ion without Hugging Face credentials. Full HTTPS download verification is recorded in the release acceptance documentation.

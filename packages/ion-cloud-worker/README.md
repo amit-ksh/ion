@@ -2,7 +2,7 @@
 
 Workers + SQLite Durable Objects + private R2. Reuses the existing account/device/relay and hosting protocols. No speech VM is involved; phone audio goes to the paired desktop's local Parakeet runtime.
 
-**Gateway-only pilot deployed; full storage/compute acceptance pending.** See [live deployment record](../../docs/ai-ide-plan/119-live-gateway-pilot.md). Owner permission switches default OFF and cannot enable an unconfigured service. The speech model is published on Hugging Face at an immutable revision; the native downloader and CPU runtime have passed real acceptance. See [speech release evidence](../../docs/ai-ide-plan/122-hugging-face-speech-release.md).
+**Private R2 storage and model download deployed; live publishing/compute acceptance pending.** See [R2 migration](../../docs/ai-ide-plan/128-r2-speech-and-publishing.md). Owner permission switches default OFF and cannot enable an unconfigured service. The speech model is distributed by Ion from private R2 storage; the earlier Hugging Face revision remains provenance. The native downloader and CPU runtime have passed real acceptance against that identical artifact.
 
 ## Local checks
 
@@ -26,7 +26,7 @@ bun run --cwd packages/ion-cloud-worker test
 
 Create the bucket with `wrangler r2 bucket create ion-private-objects`. Store the approved list with `wrangler secret put MEMBERS_JSON`. Review the configuration and set DNS/routes, then `bun run --cwd packages/ion-cloud-worker deploy`. These are operator instructions, not actions already performed.
 
-Both deployment configurations reserve only the `api.build-with-ion.tech` custom domain. Configure the publishing site hosts separately after enabling storage, preserving root/`www` website routes. A blanket wildcard Worker route without explicit website exclusions can intercept the download website; verify route precedence before enabling it. First-level 32-hex site hostnames are reserved for published documents/apps. Root/`www` and API names cannot become site IDs.
+The full configuration uses the `api.build-with-ion.tech` custom domain plus a proxied `*.build-with-ion.tech/*` publishing route. The zone has an explicit `www.build-with-ion.tech/*` route with **no script**, installed before the wildcard, so the website is excluded. The wildcard does not match the root domain. Preserve this exclusion and add exact routes/exclusions before assigning other website subdomains. The gateway-only fallback reserves only the API custom domain. First-level 32-hex site hostnames are reserved for published documents/apps; all other hosts are rejected by the Worker. Root/`www` and API names cannot become site IDs.
 
 ### Pilot without R2 activation
 
@@ -42,13 +42,14 @@ The script name, Durable Object classes, IDs and migration tag stay the same, so
 adding storage does not replace account or spending records. Verify the model
 and site routes before claiming first-use downloads or publishing work.
 
-## Optional API mirror of the speech model
+## Speech model distribution through private R2
 
-The active native manifest downloads directly from `amit-ksh/ion-stt` on Hugging Face.
-R2 activation is not required for dictation. The instructions below are optional
-API mirroring instructions; no mirror is currently enabled.
+The active native manifest downloads from Ion's HTTPS `/models/` endpoint. The
+Worker streams the exact object from the private bucket; public `r2.dev` access
+is disabled. Users need neither a Hugging Face account nor an R2 key. Speech
+inference remains local on the desktop; this endpoint distributes model weights.
 
-### R2 mirror upload
+### Versioned model upload
 
 The staged release directory is `D:/personal/apps/waku/dist/ion-speech-110m` on the current build machine. Verify the file against `resources/speech/parakeet-110m.json` before upload.
 

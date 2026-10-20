@@ -209,6 +209,7 @@ test("real Workers SQL: account isolation, single-use pairing and restart durabi
     ).json();
     assert.equal(manifest.bytes, 146029600);
     assert.equal(manifest.decoder, "tdt");
+    assert.equal(manifest.url, origin + "/models/" + manifest.filename);
     assert.match(manifest.attribution, /NVIDIA and Suno/);
     const invited = await call("owner", "/v1/owner/invites", "POST", {
       grants: ["inspect", "taskRead"],

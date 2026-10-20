@@ -363,6 +363,7 @@ mod tests {
         let m = manifest().unwrap();
         assert_eq!(m.model, "nvidia/parakeet-tdt_ctc-110m");
         assert_eq!(m.bytes, 146_029_600);
+        assert_eq!(m.url, format!("https://api.build-with-ion.tech/models/{}", m.filename));
     }
     #[test]
     fn model_sources_require_an_immutable_hub_revision_and_trusted_https_redirects() {

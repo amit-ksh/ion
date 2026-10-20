@@ -104,6 +104,14 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## 7. Speech model distribution and local dictation
 
+Latest user direction: use private R2 through Ion's API as the default download
+origin. Hugging Face publication below remains historical evidence for the same
+artifact. See [128](128-r2-speech-and-publishing.md).
+
+- [x] Migrate the verified model to private R2, switch the bundled manifest to
+  Ion's HTTPS endpoint, and verify full GET/HEAD plus real native first-download
+  and cache reuse. Preserve the original byte count, hash and model notices.
+
 - [x] Exact converted 110M Q8 model staged with known size/SHA-256.
 - [x] Bounded/cancellable/checksummed download and local runtime implemented.
 - [x] Publish the exact compatible GGUF with attribution to `amit-ksh/ion-stt`,
@@ -121,8 +129,8 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## 8. HTML and app publishing
 
-- [ ] Activate R2 or accept and implement a tested alternative for publishing
-  bundles/artifacts. Hugging Face model hosting does not replace app storage.
+- [x] Activate R2, create the private bucket and deploy the production storage
+  binding. Complete HTTPS model GET/HEAD passed exact size and SHA-256 checks.
 - [ ] Verify private storage bindings, bounded uploads, artifact ownership,
   HTML content isolation, preview and publishing/revocation URLs.
 - [ ] Configure the existing Ubuntu controller and a budget-approved isolated
@@ -152,7 +160,7 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## Operator participation still needed
 
-- R2 activation (or a separately agreed publishing-storage alternative).
+- R2 activation complete; real authenticated publication acceptance remains.
 - Hugging Face upload access supplied; model upload and native download are complete.
 - User authorization of their own app connection during real Composio acceptance.
 - Android login, microphone permission and physical Moto G32 checks.
@@ -171,6 +179,7 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 See [126](126-managed-native-execution.md) for persistent account ownership,
 chat app actions, managed remote execution and actual remaining operator gates.
-R2 is inactive, sandbox execution permissions are false, the native app is signed
-out, and Moto G32 is disconnected. These prevent live acceptance; none is recorded
+R2 is active and production model download is verified. Sandbox execution
+permissions remain false, the native app is signed out, and Moto G32 is connected
+and authorized. Remaining live gates are not recorded
 as a passed test. No billable Nebius resource was started for this increment.

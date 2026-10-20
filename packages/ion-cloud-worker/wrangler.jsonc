@@ -7,7 +7,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "routes": [
-    { "pattern": "api.build-with-ion.tech", "custom_domain": true }
+    { "pattern": "api.build-with-ion.tech", "custom_domain": true },
+    { "pattern": "*.build-with-ion.tech/*", "zone_id": "c380e60078acc00a4f87c2e00370c560" }
   ],
   "alias": {
     "bun:sqlite": "./src/sqlite-unavailable.ts",
