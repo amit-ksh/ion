@@ -63,22 +63,23 @@ pairing or recorded dictation. No screenshots or native visual tests were taken.
 
 | Workstream | Implementation | Acceptance |
 | --- | --- | --- |
-| Managed login/account isolation | Complete | Shared owner/judge checks passed earlier; rebuilt native checks open |
+| Managed login/account isolation | Complete | Real Rust callback/vault/refresh and scope checks passed; native GUI switching open |
 | Managed inference | Complete | One live request passed earlier; native streaming/tool/cancel checks open |
-| Composio connections/actions | Complete | Real user consent and approved provider action open |
+| Composio connections/actions | Complete | Owner Drive consent and approved read-only action passed; native chat/Teams UI open |
 | Budget/owner controls | Complete | Provider invoice reconciliation open |
 | Token Factory sandbox | Complete for configured targets | Access permissions, reviewed images and live lifecycle open |
 | Local speech/model validation | Complete | Fixed speech/silence and HF download passed; R2 HTTPS digest passed |
 | R2 migration | Private bucket, upload, binding and routes deployed | Full HTTPS and native first-download/cache checks passed; refreshed desktop release pending |
-| HTML publication | Complete | Real admitted-user publish/view/revoke acceptance awaiting login |
+| HTML publication | Complete | Real owner private/public publish, one-use view, revocation and cleanup passed; native interaction open |
 | App deployment/controller | Implemented; Linux SDK imports/native lock verified | Isolated host/image setup and real start/stop/charges open |
 | Windows installer | Packaging in progress | R2-enabled refresh and installation/runtime checks open |
-| Android APK | Packaging in progress | Device upgrade, login/pairing/microphone/dictation open |
+| Android APK | Built, signed test package verified | In-place upgrade, user login, cold start and microphone grant passed; pairing/dictation open |
 | QA handover | Prepared checklist | Conditional on agreed acceptance gates |
 
-1. **Publishing acceptance:** R2 is now active, the private production binding
-   is deployed, and full model download size/hash verification passes. Complete
-   the content routes and real authenticated publication/revocation checks.
+1. **Publishing acceptance:** R2 is active; private binding, routes, DNS/TLS,
+   model hash/native download and real owner private/public publication,
+   one-use viewing, replay denial, revocation and cleanup pass. Native publishing
+   interaction and a second-account live denial check remain open.
 2. **Sandbox access and images:** the saved key is accepted by `whoami`, but spawn,
    list, cancel and import permissions are false. Confirm the Token Factory Project settings ID (which must not be assumed from
    the Compute profile alone) and project/caller access,
@@ -89,9 +90,9 @@ pairing or recorded dictation. No screenshots or native visual tests were taken.
    required gVisor, quota-aware storage and networking, plus scoped controller
    credentials. Do not install the app worker on the user's computer. The Linux
    SDK prerequisite above is complete; provider start/stop/billing acceptance is not.
-4. **Real native accounts/apps:** sign in inside the rebuilt desktop and phone;
-   authorize one user-owned Composio connection and exercise an approved read-only
-   action with a real provider log ID. No credentials should be pasted into chat.
+4. **Native interactions:** real Rust PKCE/vault, refresh, managed controls/catalog,
+   owner Drive consent and one approved read-only provider action passed. Actual
+   chat/Teams/workflow UI and account-switch acceptance remain open; see [129](129-native-account-drive-and-android-acceptance.md).
 5. **User/device acceptance:** real microphone permission, recorded speech,
    paired-desktop dictation, installer clean-install/upgrade and account switching.
    Existing fixture tests and shared TypeScript Auth0 checks do not replace these.

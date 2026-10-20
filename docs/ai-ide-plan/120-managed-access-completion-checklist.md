@@ -54,8 +54,8 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 - [x] Backend regressions cover denial, modified arguments, foreign connection IDs,
   disconnects, provider errors, restart and duplicate submission. Native account
   replacement is rejected by the account-bound transport; actual UI acceptance remains.
-- [ ] Complete one authorized, read-only real provider tool call with a Composio
-  log ID. Metadata requests or a Connect Link alone do not satisfy this test.
+- [x] Complete one authorized, read-only real provider tool call with a Composio
+  log ID: owner-consented Drive quota action passed. See [129](129-native-account-drive-and-android-acceptance.md).
 - [x] Commit execution backend milestone: `b7ba442`; native routing/account binding
   is documented in [126](126-managed-native-execution.md).
 
@@ -162,8 +162,9 @@ artifact. See [128](128-r2-speech-and-publishing.md).
 
 - R2 activation complete; real authenticated publication acceptance remains.
 - Hugging Face upload access supplied; model upload and native download are complete.
-- User authorization of their own app connection during real Composio acceptance.
-- Android login, microphone permission and physical Moto G32 checks.
+- Owner Google Drive consent, real read-only action, native login/refresh and
+  Android login/upgrade/microphone permission are complete. Actual phone speech,
+  pairing and remaining native interactions still need acceptance.
 - Any paid resource action exceeding or materially changing the existing budget
   requires a concrete new authorization. Do not request secret values in chat.
 

@@ -72,10 +72,17 @@ DNS/TLS (404), rejection of an unassigned non-site hostname (404), and retention
 of the explicit `www` exclusion. Evidence: `ion-r2-routing-deploy.log` and
 `ion-r2-routes-acceptance.json` in the local cache.
 
-Private/public publication, ticket exchange, revocation and cross-account denial
-must also be exercised with a real admitted user session. The disposable HTML
-acceptance runner is prepared and awaiting Auth0 login. Storage activation alone
-does not satisfy that live acceptance gate.
+The owner completed fresh Auth0 PKCE sign-in for a live disposable HTML test.
+Production private creation, anonymous denial, idempotent upload, one-use ticket
+exchange, private content integrity, ticket replay denial, public content
+integrity, stop/revocation and deletion all passed. Cloud was initially OFF;
+Cloud, Token Factory and app-action controls remained unchanged. Cleanup
+succeeded and the ephemeral refresh token was revoked. No paid request or VM
+was started. Evidence: `.waku-cache/ion-live-r2-check.json`.
+
+This is real authenticated backend/content-host acceptance. Cross-account
+publication denial is covered by the local workerd suite, not by this single-user
+live run. Rebuilt desktop/mobile interaction acceptance remains separate.
 
 ## Remaining dependencies
 

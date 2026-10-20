@@ -824,3 +824,334 @@ fn live_managed_gateway_catalog_and_stop_controls() {
         );
     }
 }
+
+/// Explicit operator acceptance of the real Rust PKCE callback and OS vault.
+/// The operator opens the authorize URL; this does not inspect or drive native UI.
+/// On success the user's native account stays signed in, just like app sign-in.
+#[test]
+#[ignore = "requires explicit native sign-in acceptance and interactive Auth0 login"]
+fn live_native_sign_in_persists_only_in_os_vault() {
+    assert_eq!(
+        std::env::var("ION_NATIVE_LOGIN_ACCEPTANCE").as_deref(),
+        Ok("1")
+    );
+    let before = super::status().expect("Read current native account");
+    if !before.signed_in {
+        let path = PathBuf::from(
+            std::env::var_os("ION_NATIVE_LOGIN_URL_FILE")
+                .expect("Supply a fresh operator-only authorize URL file"),
+        );
+        let attempt = super::begin_sign_in().expect("Begin real native PKCE sign-in");
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options
+            .open(&path)
+            .expect("Create fresh authorize URL file");
+        use std::io::Write as _;
+        file.write_all(attempt.authorize_url().as_bytes())
+            .expect("Write authorize URL only");
+        drop(file);
+        struct RemoveUrl(PathBuf);
+        impl Drop for RemoveUrl {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let _remove = RemoveUrl(path);
+        eprintln!(
+            "Native PKCE sign-in is ready; open the operator authorize URL file. No tokens are logged."
+        );
+        let signed_in = attempt.finish().expect("Finish real native Auth0 callback");
+        assert!(signed_in.signed_in);
+    }
+    let verified = super::verified_status()
+        .expect("Reopen OS vault and verify the native account with the gateway");
+    assert!(verified.signed_in);
+    assert!(verified.workspace_id.as_deref().is_some_and(workspace));
+}
+
+#[test]
+#[ignore = "refreshes the explicitly authorized real native account; no paid effects"]
+fn live_native_refresh_preserves_original_account_scope() {
+    assert_eq!(std::env::var("ION_MANAGED_ACCEPTANCE").as_deref(), Ok("1"));
+    let account = super::account().expect("Open native account store");
+    let expected = {
+        let _guard = account.lock().expect("Lock native account");
+        let mut state = account.read().expect("Read OS vault");
+        let session = state.session.as_mut().expect("Sign in to native Ion first");
+        let expected = session.workspace_id.clone();
+        // This opt-in acceptance hook expires only the access-token timestamp;
+        // the normal request path must rotate/commit refresh credentials itself.
+        session.expires_at = 1;
+        account
+            .store()
+            .write(&state)
+            .expect("Persist expired access timestamp");
+        expected
+    };
+    let verified = super::verified_status().expect("Refresh and verify real native session");
+    assert!(verified.signed_in);
+    assert_eq!(verified.workspace_id.as_deref(), Some(expected.as_str()));
+    {
+        let _guard = account.lock().expect("Lock refreshed account");
+        let state = account.read().expect("Reopen committed OS vault");
+        let session = state.session.expect("Refreshed session remains signed in");
+        assert_eq!(session.workspace_id, expected);
+        assert!(session.expires_at > now_ms().unwrap());
+        assert!(!session.refreshing);
+    }
+    let foreign = if expected == "a".repeat(64) {
+        "b".repeat(64)
+    } else {
+        "a".repeat(64)
+    };
+    assert!(super::services::app_request(&foreign, "/v1/apps/catalog", json!({})).is_err());
+    assert_eq!(
+        super::status().unwrap().workspace_id.as_deref(),
+        Some(expected.as_str())
+    );
+}
+
+#[test]
+#[ignore = "requires explicit Google Drive consent through the native managed connection path"]
+fn live_native_managed_google_drive_connection() {
+    assert_eq!(
+        std::env::var("ION_MANAGED_APP_CONNECTION").as_deref(),
+        Ok("google-drive")
+    );
+    let workspace = super::verified_status()
+        .unwrap()
+        .workspace_id
+        .expect("Native signed-in account");
+    let catalog = || {
+        super::services::app_request(
+            &workspace,
+            "/v1/apps/catalog",
+            json!({"search":"Google Drive","connectedOnly":false}),
+        )
+        .expect("Load managed Drive catalog")
+    };
+    let page = catalog();
+    let app = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"].as_str() == Some("Google Drive"))
+        .expect("Discover the actual Google Drive toolkit");
+    let toolkit = app["toolkit"]
+        .as_str()
+        .expect("Discovered toolkit identity")
+        .to_owned();
+    assert_eq!(app["connectable"], true);
+    let already_connected = app["account"]["status"] == "ACTIVE";
+    if !already_connected {
+        let path = PathBuf::from(
+            std::env::var_os("ION_NATIVE_APP_CONNECT_URL_FILE")
+                .expect("Supply a fresh private Connect Link file"),
+        );
+        let url = crate::CredentialService::global()
+            .composio_connect_for(&format!("managed:{toolkit}"), "", Some(&workspace))
+            .expect("Prepare one native managed Connect Link");
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        use std::io::Write as _;
+        options
+            .open(&path)
+            .expect("Create private Connect Link file")
+            .write_all(url.as_bytes())
+            .unwrap();
+        struct RemoveUrl(PathBuf);
+        impl Drop for RemoveUrl {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let _remove = RemoveUrl(path);
+        eprintln!(
+            "Google Drive Connect Link is ready. Consent stays with the user; no app action is executed."
+        );
+        let deadline = std::time::Instant::now() + Duration::from_secs(300);
+        loop {
+            let page = catalog();
+            if page["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|row| row["toolkit"] == toolkit && row["account"]["status"] == "ACTIVE")
+            {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "Google Drive consent is not active yet; inspect connection status before any retry"
+            );
+            std::thread::sleep(Duration::from_secs(5));
+        }
+    }
+    let page = catalog();
+    let connected = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["toolkit"] == toolkit && row["account"]["status"] == "ACTIVE")
+        .unwrap();
+    let report = json!({"connected":true,"toolkit":toolkit,"accountId":connected["account"]["id"],"paidActions":0});
+    let report_path = PathBuf::from(
+        std::env::var_os("ION_NATIVE_APP_CONNECTION_REPORT")
+            .expect("Supply sanitized evidence path"),
+    );
+    std::fs::write(report_path, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+}
+
+#[test]
+#[ignore = "discovers real tools for the explicitly connected Drive account; no effects"]
+fn live_native_managed_drive_action_discovery() {
+    assert_eq!(
+        std::env::var("ION_MANAGED_APP_CONNECTION").as_deref(),
+        Ok("google-drive")
+    );
+    let workspace = super::verified_status().unwrap().workspace_id.unwrap();
+    let context: Value = serde_json::from_slice(
+        &std::fs::read(std::env::var_os("ION_NATIVE_APP_CONNECTION_REPORT").unwrap()).unwrap(),
+    )
+    .unwrap();
+    // Explicit managed acceptance preserves an optional personal project key.
+    // The ordinary credential facade can deliberately select that personal mode.
+    let page = super::services::app_request(
+        &workspace,
+        "/v1/apps/actions/tools",
+        json!({
+            "accountId":context["accountId"],
+        "query":std::env::var("ION_NATIVE_APP_TOOL_QUERY").unwrap_or_else(|_| "list".into())
+        }),
+    )
+    .unwrap();
+    let rows = page["items"].as_array().expect("Managed action catalog");
+    assert!(
+        rows.iter()
+            .all(|row| row["toolkit"]["slug"] == context["toolkit"])
+    );
+    std::fs::write(
+        std::env::var_os("ION_NATIVE_APP_TOOLS_REPORT").unwrap(),
+        serde_json::to_vec_pretty(&json!({"items":rows,"nextCursor":page["next_cursor"]})).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        !rows.is_empty(),
+        "No actual Drive tools matched the acceptance query"
+    );
+}
+
+#[test]
+#[ignore = "executes exactly one explicitly authorized read-only Drive quota action"]
+fn live_native_managed_drive_quota_action_once() {
+    assert_eq!(
+        std::env::var("ION_MANAGED_DRIVE_READ_ACCEPTANCE").as_deref(),
+        Ok("1")
+    );
+    let report_path = PathBuf::from(
+        std::env::var_os("ION_NATIVE_APP_ACTION_REPORT")
+            .expect("Fresh sanitized action receipt path"),
+    );
+    assert!(
+        !report_path.exists(),
+        "Do not repeat an attempted action; reconcile its saved receipt first"
+    );
+    let workspace = super::verified_status().unwrap().workspace_id.unwrap();
+    let context: Value = serde_json::from_slice(
+        &std::fs::read(std::env::var_os("ION_NATIVE_APP_CONNECTION_REPORT").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let catalog: Value = serde_json::from_slice(
+        &std::fs::read(std::env::var_os("ION_NATIVE_APP_TOOLS_REPORT").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let tool = catalog["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["slug"] == "GOOGLEDRIVE_GET_ABOUT")
+        .expect("Use the actually discovered read-only tool");
+    assert_eq!(tool["toolkit"]["slug"], context["toolkit"]);
+    assert_eq!(
+        tool["input_parameters"]["properties"]["fields"]["type"],
+        "string"
+    );
+    let controls = super::services::controls().unwrap();
+    assert!(controls.can_manage && controls.app_actions_available);
+    let proposal = super::services::app_request(&workspace, "/v1/apps/actions/prepare", json!({
+        "accountId":context["accountId"],"action":tool["slug"],"version":tool["version"],"arguments":{"fields":"storageQuota"}
+    })).unwrap();
+    let approved = super::services::app_request(
+        &workspace,
+        "/v1/apps/actions/approve",
+        json!({"proposalId":proposal["proposalId"],"allow":true}),
+    )
+    .unwrap();
+    assert_eq!(approved["state"], "approved");
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    use std::io::Write as _;
+    let mut intent = options.open(&report_path).unwrap();
+    intent.write_all(serde_json::to_string(&json!({"state":"dispatch-intent","action":tool["slug"],"version":tool["version"],"arguments":{"fields":"storageQuota"}})).unwrap().as_bytes()).unwrap();
+    intent.sync_all().unwrap();
+    drop(intent);
+    let outcome = (|| -> Result<Value> {
+        if !controls.app_actions {
+            super::services::set_control("appActions", true)?;
+        }
+        super::services::app_request(
+            &workspace,
+            "/v1/apps/actions/execute",
+            json!({"proposalId":proposal["proposalId"]}),
+        )
+    })();
+    // Restore before asserting on any network result. Never borrow another account.
+    let same_account =
+        super::status().ok().and_then(|s| s.workspace_id).as_deref() == Some(workspace.as_str());
+    let restored =
+        same_account && super::services::set_control("appActions", controls.app_actions).is_ok();
+    let report = match &outcome {
+        Ok(receipt) => {
+            json!({"state":"acknowledged","successful":receipt["successful"],"logId":receipt["log_id"],
+            "action":tool["slug"],"version":tool["version"],"arguments":{"fields":"storageQuota"},"controlsRestored":restored,
+            "dataKeys":receipt["data"].as_object().map(|o|o.keys().cloned().collect::<Vec<_>>()),"maximumReservedMicroUSD":1000})
+        }
+        Err(error) => {
+            json!({"state":"needs-reconciliation","failure":error.to_string(),"controlsRestored":restored,"maximumReservedMicroUSD":1000})
+        }
+    };
+    std::fs::write(&report_path, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    assert!(
+        restored,
+        "Restore owner app-action control before further work"
+    );
+    let receipt =
+        outcome.expect("Inspect saved intent and Composio logs before any further action");
+    assert_eq!(receipt["successful"], true);
+    assert!(receipt["log_id"].as_str().is_some_and(|id| !id.is_empty()));
+    assert!(
+        receipt["data"].is_object(),
+        "A provider result, not metadata alone, is required"
+    );
+    assert_eq!(super::services::controls().unwrap().cloud, controls.cloud);
+    assert_eq!(
+        super::services::controls().unwrap().token_factory,
+        controls.token_factory
+    );
+}
