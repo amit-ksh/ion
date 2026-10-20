@@ -136,6 +136,12 @@ remaining dependencies for this static release. Keep Token Factory inference
 and sandbox acceptance separate. See [130](130-cloudflare-app-deployment-feasibility.md)
 and [131](131-static-only-publishing.md).
 
+- [x] Enforce static-only publishing, review prebuilt desktop exports, reject
+  server runtimes/build commands/secrets and prevent legacy runtime activation.
+- [x] Verify static publication with Cloud OFF: service 44/44, workerd 7/7,
+  native export 3/3, and one real native-account production acceptance passed;
+  temporary site removed, all owner switches unchanged.
+
 
 - [x] Activate R2, create the private bucket and deploy the production storage
   binding. Complete HTTPS model GET/HEAD passed exact size and SHA-256 checks.

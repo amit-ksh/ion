@@ -81,3 +81,19 @@ The final source additionally removes unreachable server-build/proxy logic.
 Both service (44) and Worker (7) suites passed again. Deploy this final source,
 rerun the corrected opt-in live test and refresh the Windows/Android artifacts
 before claiming final release acceptance. The existing EXE/APK predate this UI.
+
+
+## Final backend acceptance
+
+The committed publisher was deployed successfully as Worker version
+`0f0f8849-6b69-4881-8e50-247d4bad145b`. The corrected opt-in native test then
+passed against the actual service using Windows Credential Manager's existing
+owner session: private denial, immutable idempotency, exact HTML/JS content,
+SPA fallback, server publishing denial, unpublish and republish. The temporary
+site was deleted successfully; Cloud, Token Factory and app-action switches
+were unchanged. No compute started. Evidence:
+`.waku-cache/ion-static-live-publication-final.json` and matching log.
+
+The backend static-publishing gate is passed. The rebuilt desktop/mobile visual
+interaction and refreshed EXE/APK gates remain separate; this check used the
+real native account transport and public DNS/TLS rather than a GUI click.
