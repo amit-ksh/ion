@@ -121,8 +121,9 @@ filled from the public project ID alone.
   first-use/cached model and Moto G32/iPhone 15 acceptance remain physical checks.
   iOS signing/build still requires the Apple toolchain/account.
 
-The candidate is not live and not merged into `ion-prod`. Its unrelated pending
-QA changes remain untouched. No unstarted harness adapters were added.
+The source was merged into `ion-prod` on 20 October 2026; see checkpoint 118
+for integration evidence. It is not live. Existing QA changes were preserved.
+No unstarted harness adapters were added.
 
 ## Operational limitations
 

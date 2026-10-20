@@ -31,3 +31,22 @@ account admission, composer references and verified 110M local speech source int
 See [117](117-managed-compute-and-inference.md) for operational prerequisites,
 accounting limits and implementation boundaries. These are not prerequisites for
 merging tested source, but must be satisfied before calling the release live.
+
+## Merge and restored workspace
+
+- Feature commit: `41eb1b1`; merge into `ion-prod`: `ccfd272`.
+- The existing website commit remains in history. Its animation dependency was
+  reconciled into the combined lockfile.
+- All 731 saved QA paths are present. The original QA work remains recoverable
+  in stash `805bed6a6d4459bd4b927c0cc69ed6a8783318cf`; it was not dropped.
+- Eight restoration conflicts were reconciled. Shared inference now retains the
+  QA live-catalog workflow model selection and explicit output bound. The 110M
+  Parakeet path retains microphone interruption handling; obsolete Nemotron
+  preview code was superseded by the requested local model architecture.
+- Restored `ion-prod` desktop/daemon compile and mobile/web/Worker/controller/
+  hosting type checks pass. Focused post-merge regressions: **47 passed, 246
+  assertions**. Real local workerd/SQLite/R2 integration: **3 passed**.
+- Worker tests now build their generated bundle before execution, so a fresh
+  checkout cannot silently rely on an old worktree's `dist` directory.
+- Existing unrelated QA edits and artifacts remain uncommitted in the primary
+  checkout. No cloud resource was started and no deployment was performed.

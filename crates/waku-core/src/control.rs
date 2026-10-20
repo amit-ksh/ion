@@ -650,15 +650,32 @@ pub fn validate(snapshot: &ControlSnapshot) -> Result<()> {
     Ok(())
 }
 
+fn workflow_model(ids: &[String]) -> Result<&str> {
+    for preferred in [
+        "nvidia/Nemotron-3_5-Lightning",
+        "nvidia/nemotron-3-super-120b-a12b",
+    ] {
+        if let Some(id) = ids.iter().find(|id| id.as_str() == preferred) {
+            return Ok(id);
+        }
+    }
+    ids.iter()
+        .find(|id| id.to_ascii_lowercase().contains("nemotron"))
+        .map(String::as_str)
+        .context("No NVIDIA Nemotron model is available; refresh AI providers")
+}
+
 pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
     ensure!(
         !prompt.trim().is_empty() && prompt.len() <= 16000,
         "Describe the workflow in at most 16000 characters"
     );
     let transport = waku_credentials::inference::Inference::runtime()?;
+    let models = waku_credentials::CredentialService::global().nebius_model_ids()?;
+    let model = workflow_model(&models)?;
     let client = reqwest::blocking::Client::builder().timeout(Duration::from_secs(90)).redirect(reqwest::redirect::Policy::none()).build()?;
     let response: serde_json::Value=transport.request(&client, "chat/completions")?
-        .json(&serde_json::json!({"model":"nvidia/NVIDIA-Nemotron-3-Super-120B-A12B","messages":[{"role":"system","content":"Design an editable forward-only workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv, json, pdf, svg, xml, yaml, yml, docx, xlsx, pptx and png, with no duplicates. Each stage may include transition: {type: next}, {type: goTo, target: {type: stage, index: zero-based-index} or {type: finish}}, or {type: documentCondition, document: exact-file.json, pointer: /ready, equals: JSON scalar, onMatch: target, onMismatch: target}. Links must target a later stage or finish. Every stage must be reachable from stage zero. Conditions require that stage to produce the exact named JSON document and the selected scalar pointer. Use next by default; no loops or parallel effects. Set inheritWorkspace: true on later stages only when they need the preceding completed stage's receipted code. Keep it false for the first stage and independent work. Code stays isolated until human source review. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
+        .json(&serde_json::json!({"model":model,"max_tokens":4096,"messages":[{"role":"system","content":"Design an editable forward-only workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv, json, pdf, svg, xml, yaml, yml, docx, xlsx, pptx and png, with no duplicates. Each stage may include transition: {type: next}, {type: goTo, target: {type: stage, index: zero-based-index} or {type: finish}}, or {type: documentCondition, document: exact-file.json, pointer: /ready, equals: JSON scalar, onMatch: target, onMismatch: target}. Links must target a later stage or finish. Every stage must be reachable from stage zero. Conditions require that stage to produce the exact named JSON document and the selected scalar pointer. Use next by default; no loops or parallel effects. Set inheritWorkspace: true on later stages only when they need the preceding completed stage's receipted code. Keep it false for the first stage and independent work. Code stays isolated until human source review. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
     let content = response["choices"][0]["message"]["content"]
         .as_str()
         .context("Model returned no workflow")?;
@@ -693,6 +710,18 @@ pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn workflow_generation_uses_only_a_live_catalog_model() {
+        let ids = vec![
+            "other/provider".to_owned(),
+            "nvidia/nemotron-3-super-120b-a12b".to_owned(),
+        ];
+        assert_eq!(workflow_model(&ids).unwrap(), ids[1]);
+        let ids = vec![ids[1].clone(), "nvidia/Nemotron-3_5-Lightning".to_owned()];
+        assert_eq!(workflow_model(&ids).unwrap(), ids[1]);
+        assert!(workflow_model(&[]).is_err());
+        assert!(workflow_model(&["other/provider".into()]).is_err());
+    }
     #[test]
     fn agent_proposals_survive_restart_and_stale_acceptance_is_rejected() {
         let directory = std::env::temp_dir().join(format!("ion-actions-{}", Uuid::new_v4()));
