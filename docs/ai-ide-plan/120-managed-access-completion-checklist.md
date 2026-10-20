@@ -18,12 +18,16 @@ Previously deferred/unstarted harness adapters also remain outside scope.
 - [x] One bounded shared inference request: 200, SSE completion, settled usage.
 - [x] Restore original switches; judge subsequently confirmed both switches OFF.
 - [x] Commit gateway milestone: `060a329`.
-- [ ] Actual rebuilt Windows app login, account switching and return visit.
-- [ ] Actual mobile-client Auth0 login/refresh/logout on Moto G32.
+- [x] Actual Rust PKCE callback, Windows credential-vault storage, rotating
+  refresh and managed desktop publish-only registration. See [129](129-native-account-drive-and-android-acceptance.md).
+- [ ] Rebuilt Windows GUI login/account switching and return visit.
+- [x] Owner-confirmed Android sign-in and nonvisual installed-app cold start on
+  authorized Moto G32.
+- [ ] Actual mobile refresh/logout and account switching on Moto G32.
 
 Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pilot.md).
 
-## 2. Shared Composio app connections — implementation complete, live OAuth pending
+## 2. Shared Composio app connections — initial provider acceptance complete
 
 - [x] Saved operator key verified against read-only toolkit, auth-config and
   connected-account endpoints (all 200). No credential/account state printed.
@@ -39,10 +43,14 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
   integration tests pass, including authenticated app identity and restart persistence.
 - [x] Install project key exclusively as a backend secret after verification.
 - [x] Connect native Apps UI and app mentions, with account-bound background loads.
-- [ ] Connect/disconnect/reconnect one real user-owned app and verify another Ion
-  account cannot discover, revoke or use it.
+- [x] Owner-consented real Google Drive connection and exact approved read-only
+  quota action, with provider log ID and restored owner controls.
+- [ ] Disconnect/reconnect acceptance and actual second-account live denial of
+  discovery, revocation and execution. Preserve the current working connection
+  while user interaction is unavailable.
 - [x] Commit connection implementation: `d05daf4`; deploy backend secret/session
-  catalog. Real OAuth and action acceptance remain pending. See [123](123-managed-app-connection-foundation.md).
+  catalog. Real owner OAuth/action acceptance now passes; native interaction and
+  second-account gates remain. See [129](129-native-account-drive-and-android-acceptance.md).
 
 ## 3. Approved app actions, teams and workflows
 
@@ -145,15 +153,19 @@ and [131](131-static-only-publishing.md).
 
 - [x] Activate R2, create the private bucket and deploy the production storage
   binding. Complete HTTPS model GET/HEAD passed exact size and SHA-256 checks.
-- [ ] Verify private storage bindings, bounded uploads, artifact ownership,
-  HTML content isolation, preview and publishing/revocation URLs.
-- [ ] Configure the existing Ubuntu controller and a budget-approved isolated
-  app build/runtime host, required images, DNS/TLS and networking.
-- [ ] Verify build logs, app health, runtime secrets, sleep/wake, cancellation,
-  idle/runtime limits, restart recovery and confirmed provider stop.
-- [ ] Test cross-account publication controls and isolation of deployed content
-  from the authenticated gateway. Verify charges retained after stopping compute.
-- [ ] Commit publishing milestone.
+- [x] Verify backend private storage bindings, bounded uploads, ownership,
+  content isolation and real publishing/revocation URLs. Native GUI preview and
+  publishing interactions remain in [132](132-physical-device-acceptance.md).
+- Deferred: Ubuntu controller and isolated app build/runtime host, images,
+  DNS/TLS and networking. Static publishing uses the existing Cloudflare path.
+- Deferred: server build logs, app health/secrets, compute sleep/wake and
+  lifecycle/provider-stop acceptance for backend app runtimes.
+- [x] Local workerd cross-account publication controls and content/gateway
+  isolation; real owner public/private access, DNS/TLS and revocation.
+- [ ] Actual second-account live publication denial and native interaction.
+  No app VM/disk was created; no retained app-host charge is assumed or invented.
+- [x] Commit R2/publishing and static-only enforcement: `f07a489`, `59218a1` and
+  live static acceptance `7ffbbdd`.
 
 ## 9. Managed onboarding, release and final acceptance
 
@@ -174,7 +186,8 @@ and [131](131-static-only-publishing.md).
 
 ## Operator participation still needed
 
-- R2 activation complete; real authenticated publication acceptance remains.
+- R2 activation and real native-account backend publication acceptance complete;
+  actual GUI and second-account checks remain.
 - Hugging Face upload access supplied; model upload and native download are complete.
 - Owner Google Drive consent, real read-only action, native login/refresh and
   Android login/upgrade/microphone permission are complete. Actual phone speech,
@@ -192,9 +205,22 @@ and [131](131-static-only-publishing.md).
 
 ## Latest independent verification
 
-See [126](126-managed-native-execution.md) for persistent account ownership,
-chat app actions, managed remote execution and actual remaining operator gates.
-R2 is active and production model download is verified. Sandbox execution
-permissions remain false, the native app is signed out, and Moto G32 is connected
-and authorized. Remaining live gates are not recorded
-as a passed test. No billable Nebius resource was started for this increment.
+See [129](129-native-account-drive-and-android-acceptance.md) for real native
+account/refresh/Drive and Android upgrade evidence, [131](131-static-only-publishing.md)
+for live static publishing, [132](132-physical-device-acceptance.md) for the
+remaining interaction checklist, and [133](133-backend-typecheck-acceptance.md)
+for clean backend/Worker type checks and 44 service / seven workerd tests.
+
+R2 model GET/hash and actual native first-download/cache checks passed. Both
+supplied project IDs were rechecked on 21 October: sandbox `whoami` returns 200
+with spawn/list/cancel/import false. No sandbox launch was attempted. The native
+owner login/vault/refresh and desktop publish grant passed; Moto G32 remains
+connected and its process was observed alive. Physical paired dictation and
+account-switch behavior are not inferred from these facts.
+
+Windows source `7ffbbdd` plus the preserved 111-file QA patch is rebuilding.
+A second compile is not started while its handle remains live. The source-guard
+caveat for later backend-only typing changes is documented in plan 133. No new
+Nebius compute or paid app action was started in these checks. The later
+read-only Compute inventory probe stalled and was cancelled locally; the prior
+post-create-denial inventories were empty, and no new inventory result is claimed.
