@@ -8,8 +8,9 @@ import {Budget} from "./budget";
 import type {Account} from "./auth";
 const image="10000000-0000-4000-8000-000000000001",operation="20000000-0000-4000-8000-000000000001",requestId="30000000-0000-4000-8000-000000000001";
 const account=(c="a"):Account=>({workspaceId:c.repeat(64),subject:c,issuer:"https://issuer/",scopes:new Set(["ion:gateway"])});
-const policy:SandboxPolicy={projectId:"project-fixture123",images:[{target:image,image,kind:"harness",manifest:{version:2,capabilities:[]}}],maximumOperationMicroUSD:10000,maximumUploadMicroUSD:1000,maxRuntimeSeconds:150,pricingReference:"https://pricing.fixture.invalid/verified",limits:{monthly:100000,lifetime:100000,accountLifetime:50000}};
-const body=()=>({image,hostname:"ion-"+requestId,command:"/usr/local/bin/ion-harness-worker",args:[],shell:false,env:{PATH:"/usr/local/bin:/usr/bin:/bin",HOME:"/home/ion"},cwd:"/ion/work",uid:1000,gid:1000,stdin:{value:Buffer.from(JSON.stringify({version:1,request_id:requestId})).toString("base64"),encoding:"base64",close:true},timeout:150,truncate_output_at:65536,disposable:true,preserve_env:false,resources_limits:{max_layer_bytes:268435456},networking:{enabled:true}});
+const capability={provider:"codex",model:"pinned",input_cap:32768,output_cap:4096},execution={uid:1000,gid:1000,home:"/home/ion"};
+const policy:SandboxPolicy={projectId:"project-fixture123",images:[{target:image,image,kind:"harness",manifest:{version:2,capabilities:[capability],execution}}],maximumOperationMicroUSD:10000,maximumUploadMicroUSD:1000,maxRuntimeSeconds:150,pricingReference:"https://pricing.fixture.invalid/verified",limits:{monthly:100000,lifetime:100000,accountLifetime:50000}};
+const body=()=>({image,hostname:"ion-"+requestId,command:"/usr/local/bin/ion-harness-worker",args:[],shell:false,env:{PATH:"/usr/local/bin:/usr/bin:/bin",HOME:"/home/ion"},cwd:"/ion/work",uid:1000,gid:1000,stdin:{value:Buffer.from(JSON.stringify({version:1,request_id:requestId,capability,execution,system:"Test",messages:[],tools:[]})).toString("base64"),encoding:"base64",close:true},timeout:150,truncate_output_at:65536,disposable:true,preserve_env:false,resources_limits:{max_layer_bytes:268435456},networking:{enabled:true}});
 const request=(path:string,method="GET",data?:unknown)=>new Request("https://api.example/v1/sandbox"+path,{method,...(data?{body:JSON.stringify(data)}:{})});
 async function fixture(run:(store:ServiceStore)=>Promise<void>){const dir=mkdtempSync(join(tmpdir(),"ion-sandbox-")),store=new ServiceStore(dir);try{await run(store);}finally{store.close();rmSync(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100});}}
 function provider(){
@@ -68,4 +69,34 @@ test("bounded uploaded files have account ownership; repeated confirmed upload i
  expect((await(await sandbox.handle(account(),request("/files/"+digest))).json()).sha256).toBe(digest);
  await expect(sandbox.handle(account("b"),request("/files/"+digest))).rejects.toThrow("unavailable");
  expect((await sandbox.handle(account(),upload())).status).toBe(201);
+}));
+
+
+test("lost sandbox acknowledgement recovers only its complete account-stamped provider witness",()=>fixture(async store=>{
+ const budget=new Budget(store),upstream=provider();upstream.fail();
+ const make=(p:SandboxPolicy|undefined=policy)=>new Sandbox(store,budget,()=>false,"server-only",p,upstream.send);
+ await expect(new Sandbox(store,budget,()=>true,"server-only",policy,upstream.send).handle(account(),request("/instances","POST",body()))).rejects.toThrow("saved request");
+ await expect(make().handle(account("b"),request("/recover","POST",{requestId,operationId:operation}))).rejects.toThrow("unavailable");
+ // A caller cannot steal a lost operation by submitting the same logical UUID and payload.
+ const original=store.get<any>("_operator","sandbox-request",account().workspaceId+":"+requestId)!;
+ store.put("_operator","sandbox-request",account("b").workspaceId+":"+requestId,{...original,workspace:account("b").workspaceId});
+ await expect(make().handle(account("b"),request("/recover","POST",{requestId,operationId:operation}))).rejects.toThrow("prove");
+ const recovered=await make().handle(account(),request("/recover","POST",{requestId,operationId:operation}));expect(recovered.status).toBe(200);
+ // Cleanup retains the original project even after removing its launch policy.
+ await new Sandbox(store,budget,()=>false,"server-only",undefined,upstream.send).maintenance();
+ const stopped=await(await make().handle(account(),request("/operations/"+operation))).json();
+ expect(stopped.status).toBe("CANCELLED");expect(stopped.metadata.hostname).toBe(body().hostname);
+ expect(upstream.launches).toBe(1);expect(budget.combined().total.held).toBe(10000);
+}));
+
+
+test("one sandbox target maps to a separate credential-free command image and fixed child policy",()=>fixture(async store=>{
+ const commandImage="40000000-0000-4000-8000-000000000001";
+ const manifest=await Bun.file(new URL("../../job-worker/job-host.json",import.meta.url)).json();
+ const commandPolicy={version:1,target:image,image:commandImage,credential_free:true,max_commands:2,max_seconds:30,max_layer_bytes:268435456,uid:1000,gid:1000,executables:["/usr/bin/python3"],resources:{version:1,cpu_seconds:10,address_space_bytes:268435456,max_file_bytes:1048576,processes:32,open_files:64}};
+ const registered=sandboxPolicy(JSON.stringify({...policy,images:[...policy.images,{target:image,image:commandImage,kind:"command",manifest,policy:commandPolicy}]}))!;
+ const sandbox=new Sandbox(store,new Budget(store),()=>false,"server-only",registered,async()=>Response.json(manifest));
+ const result=await(await sandbox.handle(account(),request("/images/"+image))).json();
+ expect(result.image).toBe(commandImage);expect(result.target).toBe(image);expect(result.credential_free).toBe(true);
+ for(const changed of [{credential_free:false},{uid:0}])expect(()=>sandboxPolicy(JSON.stringify({...registered,images:[registered.images[0],{...registered.images[1],policy:{...commandPolicy,...changed}}]}))).toThrow("boundary");
 }));

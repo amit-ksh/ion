@@ -4,7 +4,7 @@ import { ServiceStore, hash, readJson } from "./service-store";
 
 const base = "https://api.tokenfactory.nebius.com/sandboxes/v1";
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(v);
-interface Image { target: string; image: string; kind: "command" | "harness"; manifest: Record<string, unknown>; policy?: Record<string, unknown>; }
+interface Image { target: string; image: string; label?: string; kind: "command" | "harness"; manifest: Record<string, unknown>; policy?: Record<string, unknown>; }
 export interface SandboxPolicy {
   projectId: string;
   images: Image[];
@@ -14,12 +14,13 @@ export interface SandboxPolicy {
   pricingReference: string;
   limits: Limits;
 }
-interface Operation { workspace: string; request: string; body: any; signature: string; created: number;
+interface Operation { workspace: string; project: string; request: string; body: any; signature: string; created: number;
   reservation: string; operation?: string; receipt?: any; cancelRequested?: number; }
 interface FileRecord { sha256: string; size: number; uuid?: string; reservation?: string; }
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const canonical = (value:any):string => JSON.stringify(value,(_,v)=>v && typeof v === "object" && !Array.isArray(v)
   ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])) : v);
+const providerBody = (record:Operation) => ({...record.body,hostname:"ion-"+record.workspace.slice(0,22)+"-"+record.request});
 export function sandboxPolicy(raw?: string): SandboxPolicy | undefined {
   if (!raw) return;
   const p = JSON.parse(raw) as SandboxPolicy;
@@ -31,12 +32,16 @@ export function sandboxPolicy(raw?: string): SandboxPolicy | undefined {
   if(p.maximumUploadMicroUSD!==undefined){money(p.maximumUploadMicroUSD);if(!p.maximumUploadMicroUSD||p.maximumUploadMicroUSD>100_000)throw new Error("Verify the bounded upload and retention price ceiling");}
   if (!p.maximumOperationMicroUSD || p.maximumOperationMicroUSD > 100_000 || !p.limits.monthly || !p.limits.lifetime || !p.limits.accountLifetime)
     throw new Error("Set a positive sandbox price ceiling within the pilot budget");
-  const seen = new Set<string>();
+  const seen = new Set<string>(), images = new Set<string>();
   for (const i of p.images) {
-    if (!uuid(i.target) || !uuid(i.image) || seen.has(i.target) || !["command", "harness"].includes(i.kind) ||
-        !i.manifest || typeof i.manifest !== "object" || JSON.stringify(i).length > 64_000 || (i.kind === "command" && !i.policy))
+    if (!uuid(i.target) || !uuid(i.image) || seen.has(i.target+":"+i.kind) || images.has(i.image) || !["command", "harness"].includes(i.kind) ||
+        (i.label!==undefined && (typeof i.label!=="string" || i.label.length>160)) || (i.kind==="harness" && i.target!==i.image) ||
+        !i.manifest || typeof i.manifest !== "object" || JSON.stringify(i).length > 64_000 || (i.kind === "command" && (!i.policy || i.policy.target!==i.target || i.policy.image!==i.image)))
       throw new Error("Register exact immutable sandbox images and reviewed manifests");
-    seen.add(i.target);
+    if(i.kind==="command" && (i.policy?.credential_free!==true || !Number.isInteger(i.policy.uid)||Number(i.policy.uid)<1||!Number.isInteger(i.policy.gid)||Number(i.policy.gid)<1||
+        !i.policy.resources || i.manifest.version!==1 || i.manifest.worker!=="ion-job-worker/1" || i.manifest.credential_free!==true || i.manifest.network!=="disabled" ||
+        i.manifest.child!=="nonroot" || i.manifest.network_boundary!=="linux-seccomp-socket-deny/v1" || i.manifest.resource_boundary!=="linux-rlimit/v1"))throw new Error("Command images must enforce the reviewed credential-free nonroot child boundary");
+    seen.add(i.target+":"+i.kind); images.add(i.image);
   }
   return structuredClone(p);
 }
@@ -56,10 +61,11 @@ export class Sandbox {
     const id=record.workspace+":"+record.request, old=this.store.get<Operation>("_operator","sandbox-request",id);
     this.store.put("_operator", "sandbox-request",id,{...record,...(old?.receipt?{receipt:old.receipt}:{})});
   }
-  private async call(path: string, method = "GET", body?: BodyInit, type = "application/json") {
+  private async call(path: string, method = "GET", body?: BodyInit, type = "application/json", project=this.policy?.projectId) {
+    if(!this.key || !project)throw new CloudFailure(503,"Restore the original sandbox credentials before reconciliation");
     try {
       return await this.send(base + path, { method, body, redirect: "manual", signal: AbortSignal.timeout(20_000),
-        headers: { Authorization: "Bearer " + this.key!, Project: this.policy!.projectId, "Content-Type": type } });
+        headers: { Authorization: "Bearer " + this.key!, Project: project, "Content-Type": type } });
     } catch { throw new CloudFailure(503, "Sandbox response unavailable; inspect the saved request before retrying"); }
   }
   private async json(response: Response, maximum = 1_500_000): Promise<any> {
@@ -93,12 +99,34 @@ export class Sandbox {
     if (path === "/config" && request.method === "GET") {
       const available = this.configured && await this.access();
       return Response.json({configured:this.configured,available,enabled:this.enabled(),
-        ...(available ? {project:this.policy!.projectId,images:this.policy!.images.map(i=>({target:i.target,image:i.image,kind:i.kind}))} : {}),
+        ...(available ? {project:this.policy!.projectId,images:this.policy!.images.map(i=>({target:i.target,image:i.image,kind:i.kind,label:i.label??"Approved sandbox",
+          providers:i.kind==="harness"&&Array.isArray(i.manifest.capabilities)?[...new Set(i.manifest.capabilities.map((c:any)=>c.provider).filter((p:any)=>typeof p==="string"&&/^[a-zA-Z0-9_-]{1,64}$/.test(p)))]:[]}))} : {}),
         reason: available ? null : "Sandbox activation, permissions, reviewed images and verified pricing are required"},{headers});
+    }
+    if(path==="/recover" && request.method==="POST") {
+      const input=await readJson(request,1024);
+      if(!uuid(input?.requestId)||!uuid(input.operationId)||Object.keys(input).some(k=>!["requestId","operationId"].includes(k)))throw new CloudFailure(400,"Choose the original sandbox request and operation");
+      const record=this.store.get<Operation>("_operator","sandbox-request",account.workspaceId+":"+input.requestId);
+      if(!record || (record.operation && record.operation!==input.operationId))throw new CloudFailure(404,"Original sandbox request unavailable");
+      const collision=this.records().find(r=>r.operation===input.operationId && (r.workspace!==account.workspaceId||r.request!==input.requestId));
+      if(collision)throw new CloudFailure(404,"Original sandbox request unavailable");
+      const observed=await this.json(await this.call("/operations/"+input.operationId,"GET",undefined,"application/json",record.project));
+      if(observed.uuid!==input.operationId||observed.kind!=="instance"||observed.image_uuid!==record.body.image||
+         !observed.metadata||!Object.keys(record.body).every(k=>canonical(observed.metadata[k])===canonical(providerBody(record)[k])))
+        throw new CloudFailure(404,"Operation does not prove the original sandbox request");
+      record.operation=input.operationId;this.save(record);
+      return Response.json({uuid:record.operation},{headers});
+    }
+    const match = /^\/operations\/([0-9a-f-]{36})$/.exec(path);
+    if (match && ["GET","DELETE"].includes(request.method)) {
+      const record = this.records().find(r=>r.workspace === account.workspaceId && r.operation === match[1]);
+      if (!record) throw new CloudFailure(404,"Sandbox operation unavailable");
+      if (request.method === "DELETE") { await this.cancel(record); return new Response(null,{status:202,headers}); }
+      return Response.json(await this.observe(record),{headers});
     }
     if (!this.configured) throw new CloudFailure(503,"Managed sandbox activation, images and pricing are not configured");
     if (path.startsWith("/images/") && request.method === "GET") {
-      const image = this.policy!.images.find(i=>i.target === path.slice(8));
+      const image = this.policy!.images.find(i=>i.target === path.slice(8) && i.kind === "command");
       if (!image) throw new CloudFailure(404,"Registered sandbox image unavailable");
       return Response.json(image.policy ?? image.manifest,{headers});
     }
@@ -120,13 +148,6 @@ export class Sandbox {
       return Response.json({sha256:file.sha256,size:file.size,uuid:file.uuid},{headers});
     }
     if (path === "/instances" && request.method === "POST") return this.spawn(account,request);
-    const match = /^\/operations\/([0-9a-f-]{36})$/.exec(path);
-    if (match && ["GET","DELETE"].includes(request.method)) {
-      const record = this.records().find(r=>r.workspace === account.workspaceId && r.operation === match[1]);
-      if (!record) throw new CloudFailure(404,"Sandbox operation unavailable");
-      if (request.method === "DELETE") { await this.cancel(record); return new Response(null,{status:202,headers}); }
-      return Response.json(await this.observe(record),{headers});
-    }
     throw new CloudFailure(404,"Unsupported managed sandbox operation");
   }
   private async upload(account: Account, request: Request) {
@@ -192,8 +213,17 @@ export class Sandbox {
       if(body.command!=="/usr/local/bin/ion-harness-worker"||body.cwd!=="/ion/work"||body.uid!==1000||body.gid!==1000||body.env?.HOME!=="/home/ion"||
          body.env?.PATH!=="/usr/local/bin:/usr/bin:/bin"||Object.keys(body.env).some(k=>!["PATH","HOME"].includes(k))||body.networking?.enabled!==true)
         throw new CloudFailure(400,"Harness image identity policy changed");
+      const capabilities=image.manifest.capabilities;
+      if(Buffer.from(body.stdin.value,"base64").length>131072 || !Array.isArray(capabilities) ||
+         !capabilities.some((cap:any)=>canonical(cap)===canonical(input.capability)) ||
+         !Number.isInteger(input.capability?.input_cap)||input.capability.input_cap<1||input.capability.input_cap>131072 ||
+         !Number.isInteger(input.capability?.output_cap)||input.capability.output_cap<1||input.capability.output_cap>4096 ||
+         canonical(input.execution)!==canonical(image.manifest.execution)||typeof input.system!=="string"||input.system.length>32768 ||
+         !Array.isArray(input.messages)||input.messages.length>256||!Array.isArray(input.tools)||input.tools.length>64)
+        throw new CloudFailure(400,"Harness request differs from its reviewed model and usage capability");
     }
     if(!Array.isArray(body.args)||JSON.stringify(body.args)!==JSON.stringify(body.files?["--project-file","/ion/job-project.ion"] : []))throw new CloudFailure(400,"Worker arguments changed");
+    if(body.files && image.kind!=="command")throw new CloudFailure(400,"Harness workers cannot receive project-file arguments");
     if(body.files){
       const files=this.store.all<FileRecord>(account.workspaceId,"sandbox-file");
       if(Object.keys(body.files).length!==1||!files.some(f=>f.uuid&&f.uuid===body.files["/ion/job-project.ion"]?.uuid)||
@@ -208,9 +238,9 @@ export class Sandbox {
       const records=this.records(),pending=records.filter(r=>!r.receipt);
       if(records.length>=128||records.filter(r=>r.workspace===account.workspaceId).length>=32||pending.length>=3||pending.some(r=>r.workspace===account.workspaceId))throw new CloudFailure(429,"Sandbox concurrency or history limit reached");
       const reservation=this.budget.reserve("sandbox",account.workspaceId,this.policy!.maximumOperationMicroUSD,this.policy!.limits);
-      record={workspace:account.workspaceId,request:id!,signature,body,created:this.clock(),reservation};this.save(record);
+      record={workspace:account.workspaceId,project:this.policy!.projectId,request:id!,signature,body,created:this.clock(),reservation};this.save(record);
     });
-    const response=await this.call("/instances","POST",JSON.stringify(body)),value=await this.json(response,800_000);
+    const response=await this.call("/instances","POST",JSON.stringify(providerBody(record))),value=await this.json(response,800_000);
     if(response.status!==201||!uuid(value.uuid))throw new CloudFailure(502,"Sandbox launch acknowledgement is uncertain; no fallback or resubmission");
     if(this.records().some(r=>r.operation===value.uuid))throw new CloudFailure(502,"Sandbox operation identity already exists; owner reconciliation is required");
     record.operation=value.uuid;this.save(record);
@@ -219,26 +249,31 @@ export class Sandbox {
   private async cancel(record:Operation) {
     if(record.receipt)return;
     record.cancelRequested=this.clock();this.save(record);
-    const response=await this.call("/operations/"+record.operation,"DELETE");
+    const response=await this.call("/operations/"+record.operation,"DELETE",undefined,"application/json",record.project);
     if(![202,409].includes(response.status)){await response.body?.cancel();throw new CloudFailure(503,"Sandbox stop is not confirmed; inspect the original operation");}
     await response.body?.cancel();
   }
   private async observe(record:Operation):Promise<any> {
     if(record.receipt)return record.receipt;
-    const value=await this.json(await this.call("/operations/"+record.operation));
+    const value=await this.json(await this.call("/operations/"+record.operation,"GET",undefined,"application/json",record.project));
     if(value.uuid!==record.operation||value.kind!=="instance"||value.image_uuid!==record.body.image||
        !["PENDING","ASSIGNED","EXECUTING","SUCCESS","FAILED","CANCELLED"].includes(value.status))throw new CloudFailure(502,"Sandbox operation identity changed");
+    if(value.metadata?.hostname!==undefined && value.metadata.hostname!==providerBody(record).hostname)throw new CloudFailure(502,"Sandbox operation account witness changed");
     // Preserve the exact request witness for native recovery, never a provider credential.
     delete value.error;
     if(["SUCCESS","FAILED","CANCELLED"].includes(value.status)) {
+      if(value.metadata?.hostname!==providerBody(record).hostname)throw new CloudFailure(502,"Sandbox terminal account witness is missing");
       if(value.result_image_uuid || value.result?.image)throw new CloudFailure(502,"Disposable sandbox unexpectedly retained an image; owner review required");
-      record.receipt=value;this.save(record);
+      // Native protocols use the logical hostname; the provider witness has
+      // already been bound to this authenticated namespace above.
+      value.metadata.hostname=record.body.hostname;record.receipt=value;this.save(record);
       // Raw operation cost has unspecified units. Keep the full hold until billing reconciliation.
     }
+    if(value.metadata)value.metadata.hostname=record.body.hostname;
     return value;
   }
   async maintenance() {
-    if(!this.configured)return;
+    if(!this.key)return;
     for(const record of this.records().filter(r=>!r.receipt&&r.operation)) {
       try {
         if(!this.enabled()||this.clock()>=record.created+(record.body.timeout+15)*1000)await this.cancel(record);

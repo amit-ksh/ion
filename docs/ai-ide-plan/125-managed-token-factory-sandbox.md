@@ -30,7 +30,11 @@ Evidence: `.waku-cache/ion-sandbox-access.json`.
 - The request UUID, exact payload and full spending hold are committed before
   the only spawn POST. A lost acknowledgement blocks resubmission and local
   fallback. A confirmed UUID can be read again after restart without launching
-  another operation. Native recovery retains the original request witness.
+  another operation. Recovery requires the saved original payload and an account-
+  stamped provider hostname; a foreign account cannot claim a lost operation by
+  copying its logical request ID. Native recovery retains the original witness.
+  Status, cancellation and alarms retain the original project even after the
+  operator removes or replaces the launch policy.
 - Per-account/global concurrency, request rates, upload bytes and retained
   history are bounded. Project uploads are checksummed and owned by the caller;
   uncertain upload acknowledgements require reconciliation instead of replay.
@@ -56,19 +60,21 @@ policies come from the reviewed backend registry; personal operator configuratio
 remains compatible. The existing coordinator still owns exact command/project
 approvals, file snapshots, result receipts and recovery decisions.
 
-Native compilation/tests and direct solo-chat routing are recorded separately
-when their final gates pass. This document does not claim those gates or a new
-installer/device acceptance from backend tests alone.
+Native chat also offers exact approved command execution through the reviewed managed
+command registry. It uploads no project files. A real nonzero process exit is
+preserved as a failed command, even when the sandbox operation itself completes.
+Native compilation and account-scope results are recorded in [126](126-managed-native-execution.md).
+No live image, installed-app or physical-device acceptance is claimed by fixtures.
 
 ## Verification
 
-- Five backend tests, 53 assertions: disabled permission, cross-account reads,
+- Seven backend tests, 78 assertions: disabled permission, cross-account reads,
   spending reservation, restart, changed payloads, uncertain launch, owner stop,
   injected environment, retained images and owned file transfers.
 - Seven local workerd integration tests pass. The sandbox test uses real Worker
   authentication and SQLite, restarts the object, prevents a duplicate dispatch,
   turns Token Factory OFF and waits for its actual alarm-driven cancellation.
-- Full cloud backend suite: 41 tests, 419 assertions. Worker TypeScript passes.
+- Full cloud backend suite: 43 tests, 444 assertions. Worker TypeScript passes.
 - These use fixture sandbox responses. They are not live Nebius execution or
   invoice reconciliation.
 

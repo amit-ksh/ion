@@ -116,7 +116,7 @@ export default {
       if (url.pathname === "/v1/bootstrap" && request.method === "GET") {
         const capabilities = await env.PLATFORM.get(env.PLATFORM.idFromName("platform-v1")).fetch(
           new Request(env.PUBLIC_ORIGIN + "/internal/platform/capabilities"));
-        const ready = await capabilities.json() as { managedApps: boolean; htmlPublishing: boolean; appDeployment: boolean; sharedInference: boolean };
+        const ready = await capabilities.json() as { managedApps: boolean; managedSandbox: boolean; htmlPublishing: boolean; appDeployment: boolean; sharedInference: boolean };
         return json({
           version: 1,
           auth: {
@@ -142,6 +142,7 @@ export default {
             appDeployment: ready.appDeployment,
             sharedInference: ready.sharedInference,
             managedApps: ready.managedApps,
+            managedSandbox: ready.managedSandbox,
           },
           limits: { hostingBundleBytes: 20_000_000, hostingSites: 10 },
         });

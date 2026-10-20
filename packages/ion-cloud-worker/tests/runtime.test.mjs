@@ -41,7 +41,8 @@ const computePolicy = { instanceId: "computeinstance-fixture", projectId: "proje
 const inferencePolicy = { models: [{ id: "fixture-model", contextTokens: 4096, outputTokens: 10, inputMicroUSDPerMillion: 1_000_000,
   outputMicroUSDPerMillion: 1_000_000 }], limits: { monthly: 50000, lifetime: 50000, accountLifetime: 10000 } };
 const sandboxImage="10000000-0000-4000-8000-000000000001",sandboxOperation="20000000-0000-4000-8000-000000000001";
-const sandboxPolicy={projectId:"project-fixture123",images:[{target:sandboxImage,image:sandboxImage,kind:"harness",manifest:{version:2,capabilities:[]}}],maximumOperationMicroUSD:10000,maxRuntimeSeconds:150,pricingReference:"https://fixture.invalid/pricing",limits:{monthly:50000,lifetime:50000,accountLifetime:50000}};
+const sandboxCapability={provider:"codex",model:"pinned",input_cap:32768,output_cap:4096},sandboxExecution={uid:1000,gid:1000,home:"/home/ion"};
+const sandboxPolicy={projectId:"project-fixture123",images:[{target:sandboxImage,image:sandboxImage,kind:"harness",manifest:{version:2,capabilities:[sandboxCapability],execution:sandboxExecution}}],maximumOperationMicroUSD:10000,maxRuntimeSeconds:150,pricingReference:"https://fixture.invalid/pricing",limits:{monthly:50000,lifetime:50000,accountLifetime:50000}};
 const sandboxProvider={launches:0,cancels:0,body:null,terminal:false};
 const appSessions = new Map();
 function instance(directory, configured = false, storage = true, apps = false, sandbox = false) {
@@ -549,7 +550,7 @@ test("managed sandbox: authenticated bridge survives restart and alarm confirms 
   assert.equal((await call("judge","/v1/services/controls","PUT",{tokenFactory:true})).status,403);
   assert.equal((await call("owner","/v1/services/controls","PUT",{tokenFactory:true})).status,200);
   const id="30000000-0000-4000-8000-000000000001";
-  const body={image:sandboxImage,hostname:"ion-"+id,command:"/usr/local/bin/ion-harness-worker",args:[],shell:false,env:{PATH:"/usr/local/bin:/usr/bin:/bin",HOME:"/home/ion"},cwd:"/ion/work",uid:1000,gid:1000,stdin:{value:Buffer.from(JSON.stringify({version:1,request_id:id})).toString("base64"),encoding:"base64",close:true},timeout:150,truncate_output_at:65536,disposable:true,preserve_env:false,resources_limits:{max_layer_bytes:268435456},networking:{enabled:true}};
+  const body={image:sandboxImage,hostname:"ion-"+id,command:"/usr/local/bin/ion-harness-worker",args:[],shell:false,env:{PATH:"/usr/local/bin:/usr/bin:/bin",HOME:"/home/ion"},cwd:"/ion/work",uid:1000,gid:1000,stdin:{value:Buffer.from(JSON.stringify({version:1,request_id:id,capability:sandboxCapability,execution:sandboxExecution,system:"Test",messages:[],tools:[]})).toString("base64"),encoding:"base64",close:true},timeout:150,truncate_output_at:65536,disposable:true,preserve_env:false,resources_limits:{max_layer_bytes:268435456},networking:{enabled:true}};
   const start=await call("judge","/v1/sandbox/instances","POST",body);assert.equal(start.status,201,await start.clone().text());
   assert.equal((await call("owner","/v1/sandbox/operations/"+sandboxOperation)).status,404);
   await mf.dispose();mf=instance(directory,false,false,false,true);
