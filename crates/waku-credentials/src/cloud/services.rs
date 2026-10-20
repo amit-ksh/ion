@@ -104,6 +104,10 @@ pub(crate) fn speech_ticket(seconds: u64) -> Result<crate::speech::SpeechService
 pub struct ServiceControls {
     pub cloud: bool,
     pub token_factory: bool,
+    #[serde(default)]
+    pub app_actions: bool,
+    #[serde(default)]
+    pub app_actions_available: bool,
     pub can_manage: bool,
     #[serde(default)]
     pub cloud_available: bool,
@@ -119,7 +123,7 @@ pub fn controls() -> Result<ServiceControls> {
 }
 pub fn set_control(service: &str, enabled: bool) -> Result<ServiceControls> {
     ensure!(
-        ["cloud", "tokenFactory"].contains(&service),
+        ["cloud", "tokenFactory", "appActions"].contains(&service),
         "Invalid shared service"
     );
     let mut body = serde_json::Map::new();
@@ -146,7 +150,8 @@ pub(crate) fn inference_request(
 }
 impl<V: Vault, H: Http> Account<V, H> {
     pub(super) fn app_request(&self, expected_workspace: &str, path: &str, body: Value) -> Result<Value> {
-        ensure!(workspace(expected_workspace) && ["/v1/apps/catalog", "/v1/apps/connect", "/v1/apps/disconnect"].contains(&path), "Invalid managed app operation");
+        ensure!(workspace(expected_workspace) && ["/v1/apps/catalog", "/v1/apps/connect", "/v1/apps/disconnect",
+            "/v1/apps/actions/tools", "/v1/apps/actions/describe", "/v1/apps/actions/prepare", "/v1/apps/actions/approve", "/v1/apps/actions/execute", "/v1/apps/actions/status"].contains(&path), "Invalid managed app operation");
         let _guard = self.lock()?;
         let mut state = self.read()?;
         // Verify identity before refresh as well as after it.

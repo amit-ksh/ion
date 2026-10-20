@@ -34,7 +34,6 @@ export class Budget {
   }
   reserve(meter: Meter, workspace: string, maximum: number, limits: Limits): string {
     if (!meters.includes(meter)) throw new Error("Unknown controlled service meter");
-    if (!meters.includes(meter)) throw new Error("Unknown controlled service meter");
     money(maximum); Object.values(limits).forEach(money);
     if (!maximum) throw new Error("A positive reservation is required");
     const month = new Date(this.clock()).toISOString().slice(0, 7);

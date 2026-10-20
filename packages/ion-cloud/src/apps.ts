@@ -26,6 +26,9 @@ export class ManagedApps {
   private pending = new Map<string, Promise<string>>();
   constructor(private store: ServiceStore, private key?: string,
     private send: (input: string, init: RequestInit) => Promise<Response> = (input, init) => globalThis.fetch(input, init), private clock = Date.now) { this.available = !!key; }
+  // Server-to-server seams only. Public routes never accept arbitrary paths.
+  provider(path: string, method = "GET", body?: unknown) { return this.call(path, method, body); }
+  connection(account: Account, id: string) { return this.owned(account, id); }
   private rate(account: Account) {
     const window = Math.floor(this.clock() / 60_000);
     this.store.transaction(() => {

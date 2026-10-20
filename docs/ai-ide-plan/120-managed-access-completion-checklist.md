@@ -23,7 +23,7 @@ Previously deferred/unstarted harness adapters also remain outside scope.
 
 Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pilot.md).
 
-## 2. Shared Composio app connections — in progress
+## 2. Shared Composio app connections â€” in progress
 
 - [x] Saved operator key verified against read-only toolkit, auth-config and
   connected-account endpoints (all 200). No credential/account state printed.
@@ -37,22 +37,23 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
   owner-scoped session returned 201 and catalog returned 200 (50 items, no connections).
 - [x] Verify public Worker routing/isolation in real local workerd: five Worker
   integration tests pass, including authenticated app identity and restart persistence.
-- [ ] Install project key exclusively as a backend secret after verification.
-- [ ] Connect native Apps UI and app mentions, with account-bound background loads.
+- [x] Install project key exclusively as a backend secret after verification.
+- [x] Connect native Apps UI and app mentions, with account-bound background loads.
 - [ ] Connect/disconnect/reconnect one real user-owned app and verify another Ion
   account cannot discover, revoke or use it.
-- [ ] Commit completed connection milestone. The new backend changes are not
-  deployed or a complete managed Apps experience yet.
+- [x] Commit connection implementation: `d05daf4`; deploy backend secret/session
+  catalog. Real OAuth and action acceptance remain pending. See [123](123-managed-app-connection-foundation.md).
 
 ## 3. Approved app actions, teams and workflows
 
 - [ ] Extend existing exact approvals to managed session execution and pin the
   authenticated account, connected account, tool version and arguments.
-- [ ] Enforce ownership at discovery and again immediately before dispatch.
-- [ ] Persist dispatch/uncertain outcomes; reconcile instead of replaying effects.
+- [x] Enforce ownership at discovery and again immediately before dispatch.
+- [x] Persist dispatch/uncertain outcomes; reconcile instead of replaying effects.
 - [ ] Route normal chat, team grants and workflow actions through this boundary.
-- [ ] Test denial, modified arguments, foreign connection IDs, account switching,
-  disconnects, provider errors, restart and duplicate submission.
+- [x] Backend regressions cover denial, modified arguments, foreign connection IDs,
+  disconnects, provider errors, restart and duplicate submission. Native account
+  replacement is rejected by the account-bound transport; actual UI acceptance remains.
 - [ ] Complete one authorized, read-only real provider tool call with a Composio
   log ID. Metadata requests or a Connect Link alone do not satisfy this test.
 - [ ] Commit execution milestone.
@@ -69,7 +70,9 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## 5. Managed Token Factory sandboxes
 
-- [ ] Verify existing project key's sandbox access using read-only discovery.
+- [x] Verify existing project key's sandbox access using read-only discovery:
+  `whoami` accepted the key but all spawn/list/cancel/import permissions are false.
+  Activation or project authorization is required before live sandbox acceptance.
 - [ ] Select and verify compatible registered images for supported team harnesses.
 - [ ] Backend owns project credentials, provisioning, account-bound command
   approvals, bounded file transfer, status, results and artifact retrieval.

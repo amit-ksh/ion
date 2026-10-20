@@ -93,3 +93,19 @@ test("paid work defaults off; only owner can change switches; state survives res
     });
   }
 });
+
+
+test("app actions remain off across upgrades and only the owner can enable a configured service", async () => {
+ const directory=mkdtempSync(join(tmpdir(),"ion-app-controls-")), store=new ServiceStore(directory);
+ try {
+  store.put("_operator","controls","services",{version:1,cloud:false,tokenFactory:false,updated:1});
+  const controls=new Controls(store,policy,{cloud:false,tokenFactory:false,appActions:true});
+  expect(controls.get().appActions).toBe(false);
+  await expect(controls.handle(account("judge"),request({appActions:true}))).rejects.toThrow("Owner permission");
+  await expect(new Controls(store,policy).handle(account("owner"),request({appActions:true}))).rejects.toThrow("not configured");
+  await controls.handle(account("owner"),request({appActions:true}));
+  expect(new Controls(store,policy).get().appActions).toBe(true);
+  await controls.handle(account("owner"),request({appActions:false}));
+  expect(controls.get().appActions).toBe(false);
+ } finally { store.close();rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100}); }
+});

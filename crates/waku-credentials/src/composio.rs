@@ -372,6 +372,7 @@ pub struct ComposioPreparedAction {
     key: String,
     action: String,
     body: Value,
+    managed: Option<(String, String)>,
 }
 fn identifier(value: &str, maximum: usize) -> bool {
     !value.is_empty()
@@ -430,6 +431,26 @@ fn parse_tool(raw: &Value) -> Result<ComposioTool> {
     })
 }
 impl CredentialService {
+    /// Discovery is tied to the account selected in the background-loaded Apps catalog.
+    pub fn composio_tools_for(
+        &self, account: &str, toolkit: &str, query: &str, cursor: Option<&str>,
+        expected_workspace: Option<&str>,
+    ) -> Result<ComposioToolPage> {
+        if self.status(CredentialKind::ComposioScopedProjectKey) != CredentialStatus::Missing {
+            return self.composio_tools(toolkit, query, cursor);
+        }
+        let workspace = expected_workspace.context("Refresh connected apps before choosing actions")?;
+        let mut body = json!({"accountId":account,"query":query});
+        if let Some(cursor) = cursor { body["cursor"] = json!(cursor); }
+        let data = crate::cloud::services::app_request(workspace,"/v1/apps/actions/tools",body)?;
+        let rows = data["items"].as_array().context("Missing app action catalog")?;
+        anyhow::ensure!(rows.len() <= 20,"App action page exceeds its bound");
+        let items = rows.iter().map(parse_tool).collect::<Result<Vec<_>>>()?;
+        anyhow::ensure!(items.iter().all(|t| t.toolkit == toolkit),"App toolkit changed");
+        let next_cursor = data["next_cursor"].as_str().filter(|s| !s.is_empty()).map(str::to_owned);
+        anyhow::ensure!(next_cursor.as_ref().is_none_or(|s| s.len() <= 1024),"Invalid app cursor");
+        Ok(ComposioToolPage { items, next_cursor })
+    }
     pub fn composio_tools(
         &self,
         toolkit: &str,
@@ -480,6 +501,11 @@ impl CredentialService {
         version: &str,
     ) -> Result<ComposioTool> {
         validate_action_identity(account, action, version)?;
+        if self.status(CredentialKind::ComposioScopedProjectKey) == CredentialStatus::Missing {
+            let workspace = app_workspace(None)?;
+            return parse_tool(&crate::cloud::services::app_request(&workspace,
+                "/v1/apps/actions/describe",json!({"accountId":account,"action":action,"version":version}))?);
+        }
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
         verified_tool(&client()?, &key, account, action, version)
     }
@@ -494,11 +520,21 @@ impl CredentialService {
         if !arguments.is_object() || serde_json::to_vec(arguments)?.len() > 4096 {
             bail!("Approved app arguments must be an object no larger than 4 KiB");
         }
+        if self.status(CredentialKind::ComposioScopedProjectKey) == CredentialStatus::Missing {
+            let workspace = app_workspace(None)?;
+            let data = crate::cloud::services::app_request(&workspace,"/v1/apps/actions/prepare",
+                json!({"accountId":account,"action":action,"version":version,"arguments":arguments}))?;
+            let proposal = data["proposalId"].as_str().filter(|s| s.len()==43 && identifier(s,43))
+                .context("Invalid managed app proposal")?.to_owned();
+            return Ok(ComposioPreparedAction { key:String::new(),action:String::new(),body:Value::Null,
+                managed:Some((workspace,proposal)) });
+        }
         let key = self.secret(CredentialKind::ComposioScopedProjectKey)?;
         verified_tool(&client()?, &key, account, action, version)?;
         Ok(ComposioPreparedAction {
             key,
             action: action.into(),
+            managed: None,
             body: json!({"connected_account_id":account,"version":version,"arguments":arguments}),
         })
     }
@@ -544,6 +580,15 @@ fn verified_tool(
 impl ComposioPreparedAction {
     /// Exactly one POST. Redirects/retries, proxy calls and authentication overrides are unavailable.
     pub fn execute(self) -> Result<String> {
+        if let Some((workspace, proposal)) = self.managed {
+            // Only the coordinator's exact, approved effect consumes this value.
+            // Both calls reject replacement accounts and never replay a dispatch.
+            crate::cloud::services::app_request(&workspace,"/v1/apps/actions/approve",
+                json!({"proposalId":proposal,"allow":true}))?;
+            let receipt = crate::cloud::services::app_request(&workspace,"/v1/apps/actions/execute",
+                json!({"proposalId":proposal}))?;
+            return safe_receipt(receipt);
+        }
         let data = payload(
             client()?
                 .post(format!("{BASE}/tools/execute/{}", self.action))
@@ -563,7 +608,7 @@ fn safe_receipt(data: Value) -> Result<String> {
         .context("App action has no explicit acknowledgement")?;
     let mut result = data["data"].clone();
     redact_auth(&mut result);
-    let mut truncated = false;
+    let mut truncated = data["truncated"] == true;
     if serde_json::to_vec(&result)?.len() > 40 * 1024 {
         result = Value::Null;
         truncated = true;

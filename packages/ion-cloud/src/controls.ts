@@ -5,6 +5,7 @@ export interface ServiceControls {
   version: 1;
   cloud: boolean;
   tokenFactory: boolean;
+  appActions?: boolean;
   updated: number;
   cloudUpdated?: number;
 }
@@ -14,7 +15,7 @@ export class Controls {
   constructor(
     private readonly store: ServiceStore,
     private readonly admission: Admission,
-    private readonly available = { cloud: false, tokenFactory: false },
+    private readonly available: { cloud:boolean; tokenFactory:boolean; appActions?:boolean } = { cloud: false, tokenFactory: false },
   ) {}
   get(): ServiceControls {
     const saved = this.store.get<ServiceControls>(
@@ -23,7 +24,7 @@ export class Controls {
       "services",
     );
     if (!saved)
-      return { version: 1, cloud: false, tokenFactory: false, updated: 0 };
+      return { version: 1, cloud: false, tokenFactory: false, appActions: false, updated: 0 };
     if (
       saved.version !== 1 ||
       typeof saved.cloud !== "boolean" ||
@@ -32,7 +33,8 @@ export class Controls {
       saved.updated < 0
     )
       throw new CloudFailure(503, "Owner service controls need repair");
-    return saved;
+    if(saved.appActions!==undefined && typeof saved.appActions!=="boolean")throw new CloudFailure(503,"Owner app controls need repair");
+    return {...saved,appActions:saved.appActions??false};
   }
   get cloudAvailable() {
     return this.available.cloud;
@@ -45,6 +47,7 @@ export class Controls {
           ...this.get(),
           cloudAvailable: this.available.cloud,
           tokenFactoryAvailable: this.available.tokenFactory,
+          appActionsAvailable: this.available.appActions??false,
           canManage: this.admission.admit(account) === "owner",
         },
         { headers: { "Cache-Control": "no-store" } },
@@ -60,11 +63,11 @@ export class Controls {
       !Object.keys(input).length ||
       Object.keys(input).some(
         (k) =>
-          !["cloud", "tokenFactory"].includes(k) ||
+          !["cloud", "tokenFactory", "appActions"].includes(k) ||
           typeof input[k] !== "boolean",
       )
     )
-      throw new CloudFailure(400, "Set boolean cloud or tokenFactory switches");
+      throw new CloudFailure(400, "Set boolean shared service switches");
     if (input.cloud === true && !this.available.cloud)
       throw new CloudFailure(
         503,
@@ -76,6 +79,7 @@ export class Controls {
         "Shared Token Factory inference and spending controls are not configured yet",
       );
     const next = this.store.transaction(() => {
+      if(input.appActions===true&&!this.available.appActions)throw new CloudFailure(503,"Managed app actions are not configured");
       const saved = this.get();
       const next: ServiceControls = {
         ...saved,
@@ -93,6 +97,7 @@ export class Controls {
         ...next,
         cloudAvailable: this.available.cloud,
         tokenFactoryAvailable: this.available.tokenFactory,
+        appActionsAvailable: this.available.appActions??false,
         canManage: true,
         computeStopPending: !next.cloud,
       },

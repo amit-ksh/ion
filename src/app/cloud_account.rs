@@ -6,7 +6,7 @@ use std::sync::{
 };
 
 pub(super) struct CloudUiState {
-    focus: [FocusHandle; 8],
+    focus: [FocusHandle; 9],
     services: Option<cloud::services::ServiceControls>,
     pub(super) managed_apps: bool,
     shared_usage: Option<serde_json::Value>,
@@ -60,6 +60,7 @@ pub(super) enum CloudAction {
     Cancel,
     ToggleCloud,
     ToggleTokenFactory,
+    ToggleAppActions,
 }
 
 impl Waku {
@@ -209,7 +210,7 @@ impl Waku {
     pub(super) fn run_cloud_action(&mut self, action: CloudAction, cx: &mut Context<Self>) {
         if matches!(
             action,
-            CloudAction::ToggleCloud | CloudAction::ToggleTokenFactory
+            CloudAction::ToggleCloud | CloudAction::ToggleTokenFactory | CloudAction::ToggleAppActions
         ) {
             let Some(services) = self.cloud_ui.services.as_ref().filter(|s| s.can_manage) else {
                 return;
@@ -217,10 +218,10 @@ impl Waku {
             if self.cloud_ui.busy || self.cloud_ui.checking {
                 return;
             }
-            let (service, enabled) = if matches!(action, CloudAction::ToggleCloud) {
-                ("cloud", !services.cloud)
-            } else {
-                ("tokenFactory", !services.token_factory)
+            let (service, enabled) = match action {
+                CloudAction::ToggleCloud => ("cloud", !services.cloud),
+                CloudAction::ToggleAppActions => ("appActions", !services.app_actions),
+                _ => ("tokenFactory", !services.token_factory),
             };
             self.cloud_ui.busy = true;
             self.cloud_ui.generation = self.cloud_ui.generation.wrapping_add(1);
@@ -246,7 +247,7 @@ impl Waku {
         if matches!(action, CloudAction::Cancel) {
             if let Some(cancel) = &self.cloud_ui.cancel {
                 cancel.store(true, Ordering::Release);
-                self.cloud_ui.feedback = Some("Cancelling sign-in…".into());
+                self.cloud_ui.feedback = Some("Cancelling sign-inâ€¦".into());
             }
             cx.notify();
             return;
@@ -272,9 +273,9 @@ impl Waku {
         let generation = self.cloud_ui.generation;
         self.cloud_ui.feedback = Some(
             if matches!(action, CloudAction::SignIn) {
-                "Opening secure sign-in in your browser…"
+                "Opening secure sign-in in your browserâ€¦"
             } else {
-                "Updating cloud connection…"
+                "Updating cloud connectionâ€¦"
             }
             .into(),
         );
@@ -347,6 +348,7 @@ impl Waku {
                 .services
                 .as_ref()
                 .is_none_or(|s| !s.token_factory_available && !s.token_factory),
+            CloudAction::ToggleAppActions => self.cloud_ui.services.as_ref().is_none_or(|s| !s.app_actions_available && !s.app_actions),
             _ => false,
         };
         let disabled =
@@ -403,7 +405,7 @@ impl Waku {
             actions = actions.child(self.cloud_button("Retry", CloudAction::Refresh, cx));
         }
         let copy = if !self.cloud_ui.checked || self.cloud_ui.checking {
-            "Checking your account…"
+            "Checking your accountâ€¦"
         } else if !self.cloud_ui.status.configured {
             "Sign-in is not configured in this build. Install an updated Ion build connected to Ion Cloud."
         } else {
@@ -497,7 +499,7 @@ impl Waku {
                     .text_size(sp(12.5))
                     .text_color(theme.text_secondary)
                     .child(format!(
-                        "Shared Token Factory: ${:.4} used · ${:.4} reserved · Cloud: {vm}",
+                        "Shared Token Factory: ${:.4} used Â· ${:.4} reserved Â· Cloud: {vm}",
                         spent as f64 / 1_000_000.0,
                         held as f64 / 1_000_000.0
                     )),
@@ -610,6 +612,7 @@ impl Waku {
                             services.token_factory,
                             CloudAction::ToggleTokenFactory,
                         ),
+                        ("Shared app actions", services.app_actions, CloudAction::ToggleAppActions),
                     ] {
                         let mut row =
                             div()
@@ -625,11 +628,13 @@ impl Waku {
                                 if enabled {
                                     match action {
                                         CloudAction::ToggleCloud => "Turn Cloud off",
+                                        CloudAction::ToggleAppActions => "Turn app actions off",
                                         _ => "Turn Token Factory off",
                                     }
                                 } else {
                                     match action {
                                         CloudAction::ToggleCloud => "Turn Cloud on",
+                                        CloudAction::ToggleAppActions => "Turn app actions on",
                                         _ => "Turn Token Factory on",
                                     }
                                 },

@@ -69,6 +69,13 @@ function instance(directory, configured = false, storage = true, apps = false) {
             appSessions.set(id, { session_id: id, config });
             return Response.json(appSessions.get(id), { status: 201 });
           }
+          if (path === "/api/v3.1/connected_accounts/ca_managed") return Response.json({id:"ca_managed",user_id:"ion_"+workspace("judge"),status:"ACTIVE",toolkit:{slug:"fixture_app"}});
+          if (path === "/api/v3.1/tools/FIXTURE_READ") return Response.json({slug:"FIXTURE_READ",version:"20261020",toolkit:{slug:"fixture_app"},input_parameters:{type:"object"}});
+          if (path === "/api/v3.1/tools/execute/FIXTURE_READ") {
+            const body=await req.json();
+            assert.deepEqual(body,{connected_account_id:"ca_managed",user_id:"ion_"+workspace("judge"),version:"20261020",arguments:{query:"exact"}});
+            return Response.json({successful:true,log_id:"fixture_worker_log",data:{result:"bounded"}});
+          }
           const id = path.split("/")[5];
           if (path.endsWith("/toolkits")) return Response.json({ items: [
             { slug: "fixture_app", name: "Fixture App", composio_managed_auth_schemes: ["OAUTH2"],
@@ -262,9 +269,11 @@ test("real Workers SQL/R2: owner switches, private publication, idempotency and 
       version: 1,
       cloud: false,
       tokenFactory: false,
+      appActions: false,
       updated: 0,
       cloudAvailable: false,
       tokenFactoryAvailable: false,
+      appActionsAvailable: false,
       canManage: false,
     });
     assert.equal(
@@ -489,4 +498,28 @@ test("managed apps: verified JWT scopes session identity, hides operator connect
     assert.equal((await call("judge")).status, 200);
     assert.equal(appSessions.size, size);
   } finally { await mf.dispose(); rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+
+
+test("managed app effects: public JWT isolation, owner stop, exact approval and durable single dispatch",async()=>{
+ const directory=mkdtempSync(join(tmpdir(),"ion-worker-actions-"));let mf=instance(directory,false,false,true);
+ const call=async(subject,path,method="POST",body={})=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:"Bearer "+await token(subject),"Content-Type":"application/json"},...(method==="GET"?{}:{body:JSON.stringify(body)})});
+ const root="/v1/apps/actions/";
+ try{
+  const effect={accountId:"ca_managed",action:"FIXTURE_READ",version:"20261020",arguments:{query:"exact"}};
+  assert.equal((await call("owner",root+"prepare","POST",effect)).status,404);
+  const prepared=await call("judge",root+"prepare","POST",effect);assert.equal(prepared.status,200,await prepared.clone().text());
+  const {proposalId}=await prepared.json();
+  assert.equal((await call("owner",root+"approve","POST",{proposalId,allow:true})).status,404);
+  assert.equal((await call("judge",root+"approve","POST",{proposalId,allow:true})).status,200);
+  assert.equal((await call("judge",root+"execute","POST",{proposalId})).status,403);
+  assert.equal((await call("judge","/v1/services/controls","PUT",{appActions:true})).status,403);
+  assert.equal((await call("owner","/v1/services/controls","PUT",{appActions:true})).status,200);
+  const receipt=await call("judge",root+"execute","POST",{proposalId});assert.equal(receipt.status,200,await receipt.clone().text());
+  assert.equal((await receipt.json()).log_id,"fixture_worker_log");
+  await mf.dispose();mf=instance(directory,false,false,true);
+  assert.equal((await (await call("judge",root+"execute","POST",{proposalId})).json()).log_id,"fixture_worker_log");
+  const usage=await(await call("judge","/v1/services/usage","GET")).json();assert.equal(usage.combined.total.held,1000);
+  assert.equal((await call("owner","/v1/services/controls","PUT",{appActions:false})).status,200);
+ }finally{await mf.dispose();rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
 });
