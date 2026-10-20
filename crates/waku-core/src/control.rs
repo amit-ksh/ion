@@ -380,9 +380,18 @@ impl ControlStore {
             !matches!(record, ControlRecord::Artifact(_)),
             "Artifacts are published by agents; their original evidence cannot be edited by clients"
         );
-        self.save(revision, record)
+        let scope = waku_credentials::cloud::status()?.workspace_id;
+        self.save_for_account(revision, record, scope.as_deref())
     }
     pub fn save(&self, revision: u64, record: ControlRecord) -> Result<ControlSnapshot> {
+        self.save_for_account(revision, record, None)
+    }
+    pub(crate) fn save_for_account(
+        &self,
+        revision: u64,
+        record: ControlRecord,
+        scope: Option<&str>,
+    ) -> Result<ControlSnapshot> {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let mut snapshot = Self::read(&tx)?;
@@ -411,6 +420,30 @@ impl ControlStore {
         crate::cloud_spending::validate_change(&tx, &record)?;
         tx.execute("INSERT INTO ion_control_records VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![record.id().to_string(),record.kind(),serde_json::to_string(&record)?])?;
         crate::teams::sync_automation_definition(&tx, &record)?;
+        if let (ControlRecord::Routine(r), Some(scope)) = (&record, scope) {
+            ensure!(
+                scope.len() == 64
+                    && scope
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+                "Invalid routine account scope"
+            );
+            let original: Option<String> = tx
+                .query_row(
+                    "SELECT workspace FROM ion_routine_account_scopes WHERE id=?",
+                    [r.id.to_string()],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            ensure!(
+                original.as_deref().is_none_or(|owner| owner == scope),
+                "This routine belongs to another Ion account; restore its original login or create a new routine"
+            );
+            tx.execute(
+                "INSERT OR IGNORE INTO ion_routine_account_scopes VALUES(?,?)",
+                params![r.id.to_string(), scope],
+            )?;
+        }
         tx.execute(
             "UPDATE ion_control_revision SET revision=revision+1 WHERE id=1",
             [],
@@ -673,7 +706,10 @@ pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
     let transport = waku_credentials::inference::Inference::runtime()?;
     let models = waku_credentials::CredentialService::global().nebius_model_ids()?;
     let model = workflow_model(&models)?;
-    let client = reqwest::blocking::Client::builder().timeout(Duration::from_secs(90)).redirect(reqwest::redirect::Policy::none()).build()?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(90))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
     let response: serde_json::Value=transport.request(&client, "chat/completions")?
         .json(&serde_json::json!({"model":model,"max_tokens":4096,"messages":[{"role":"system","content":"Design an editable forward-only workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv, json, pdf, svg, xml, yaml, yml, docx, xlsx, pptx and png, with no duplicates. Each stage may include transition: {type: next}, {type: goTo, target: {type: stage, index: zero-based-index} or {type: finish}}, or {type: documentCondition, document: exact-file.json, pointer: /ready, equals: JSON scalar, onMatch: target, onMismatch: target}. Links must target a later stage or finish. Every stage must be reachable from stage zero. Conditions require that stage to produce the exact named JSON document and the selected scalar pointer. Use next by default; no loops or parallel effects. Set inheritWorkspace: true on later stages only when they need the preceding completed stage's receipted code. Keep it false for the first stage and independent work. Code stays isolated until human source review. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
     let content = response["choices"][0]["message"]["content"]

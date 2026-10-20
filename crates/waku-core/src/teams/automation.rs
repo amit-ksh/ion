@@ -18,6 +18,7 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS ion_automation_history_time ON ion_automation_runs(json_extract(body,'$.createdAt') DESC,id DESC);
         CREATE INDEX IF NOT EXISTS ion_automation_history_project ON ion_automation_runs(project_id,json_extract(body,'$.createdAt') DESC,id DESC);
         CREATE INDEX IF NOT EXISTS ion_automation_history_definition ON ion_automation_runs(definition_id,json_extract(body,'$.createdAt') DESC,id DESC);
+        CREATE TABLE IF NOT EXISTS ion_routine_account_scopes (id TEXT PRIMARY KEY,workspace TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_routine_schedule (
             id TEXT PRIMARY KEY,next_fire INTEGER NOT NULL,paused INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS ion_routine_due ON ion_routine_schedule(paused,next_fire,id);
@@ -33,6 +34,8 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
 }
 #[derive(Serialize, Deserialize)]
 struct Pinned {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    account_scope: Option<String>,
     workflow: Workflow,
     definitions: ControlSnapshot,
 }
@@ -183,6 +186,10 @@ pub(crate) fn sync_definition(tx: &Transaction<'_>, record: &ControlRecord) -> R
 pub(crate) fn remove_definition(tx: &Transaction<'_>, id: Uuid) -> Result<()> {
     schema(tx)?;
     tx.execute(
+        "DELETE FROM ion_routine_account_scopes WHERE id=?",
+        [id.to_string()],
+    )?;
+    tx.execute(
         "DELETE FROM ion_routine_schedule WHERE id=?",
         [id.to_string()],
     )?;
@@ -235,6 +242,7 @@ fn pin(mut definitions: ControlSnapshot, definition_id: Uuid) -> Result<Pinned> 
         );
     }
     let pinned = Pinned {
+        account_scope: None,
         workflow,
         definitions,
     };
@@ -250,13 +258,18 @@ fn create(
     definition_id: Uuid,
     expected: u64,
     scheduled: Option<u64>,
+    account_scope: Option<&str>,
     now: u64,
 ) -> Result<AutomationRun> {
     ensure!(
         !id.is_nil() && !definition_id.is_nil(),
         "Automation identities are required"
     );
-    let signature = serde_json::to_string(&(definition_id, expected, scheduled))?;
+    let signature = if account_scope.is_some() {
+        serde_json::to_string(&(definition_id, expected, scheduled, account_scope))?
+    } else {
+        serde_json::to_string(&(definition_id, expected, scheduled))?
+    };
     if let Some(old) = tx
         .query_row(
             "SELECT signature FROM ion_automation_runs WHERE id=?",
@@ -290,7 +303,8 @@ fn create(
             _ => None,
         })
     });
-    let pinned = pin(definitions, definition_id)?;
+    let mut pinned = pin(definitions, definition_id)?;
+    pinned.account_scope = account_scope.map(str::to_owned);
     let limits = pinned.workflow.limits.clone().unwrap_or_default();
     validate_limits(&limits)?;
     let stages = pinned
@@ -654,6 +668,7 @@ fn dispatch_next(
     TeamCoordinator::prepare_in_transaction(
         tx,
         PrepareRun {
+            account_scope: pinned.account_scope.clone(),
             id: stage.team_run_id,
             root_task_id: stage.task_id,
             project_id: run.project_id,
@@ -712,7 +727,8 @@ impl TeamCoordinator {
                 .context("Choose a workflow or routine")?;
             ensure!(projects.contains(&project), "Choose an existing project");
         }
-        self.start_automation(id, definition, expected, now)
+        let scope = waku_credentials::cloud::status()?.workspace_id;
+        self.start_automation_for_account(id, definition, expected, scope.as_deref(), now)
     }
     pub fn start_automation(
         &self,
@@ -721,9 +737,19 @@ impl TeamCoordinator {
         expected: u64,
         now: u64,
     ) -> Result<AutomationRun> {
+        self.start_automation_for_account(id, definition, expected, None, now)
+    }
+    pub(crate) fn start_automation_for_account(
+        &self,
+        id: Uuid,
+        definition: Uuid,
+        expected: u64,
+        scope: Option<&str>,
+        now: u64,
+    ) -> Result<AutomationRun> {
         let mut db = self.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let run = create(&tx, id, definition, expected, None, now)?;
+        let run = create(&tx, id, definition, expected, None, scope, now)?;
         tx.commit()?;
         Ok(run)
     }
@@ -937,7 +963,22 @@ impl TeamCoordinator {
                     let run_id = Uuid::new_v4();
                     // A broken definition pauses its timer rather than retrying the
                     // same billable job each tick. No task is launched on this error.
-                    match create(&tx, run_id, r.id, definitions.revision, Some(slot), now) {
+                    let scope: Option<String> = tx
+                        .query_row(
+                            "SELECT workspace FROM ion_routine_account_scopes WHERE id=?",
+                            [r.id.to_string()],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    match create(
+                        &tx,
+                        run_id,
+                        r.id,
+                        definitions.revision,
+                        Some(slot),
+                        scope.as_deref(),
+                        now,
+                    ) {
                         Ok(run) => {
                             tx.execute(
                                 "INSERT INTO ion_routine_fires VALUES(?,?,?)",

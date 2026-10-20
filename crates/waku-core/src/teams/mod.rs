@@ -57,6 +57,8 @@ pub struct TeamCoordinator {
 
 #[derive(Clone, Serialize)]
 pub struct PrepareRun {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) account_scope: Option<String>,
     pub id: Uuid,
     pub root_task_id: Uuid,
     pub project_id: Uuid,
@@ -250,6 +252,54 @@ fn text(value: &str, maximum: usize, label: &str) -> Result<()> {
 }
 
 impl TeamCoordinator {
+    pub(crate) fn account_scope(&self, run: Uuid) -> Result<Option<String>> {
+        let db = self.connect()?;
+        load(&db, run)?;
+        let scope: Option<String> = db
+            .query_row(
+                "SELECT workspace FROM ion_team_account_scopes WHERE run_id=?",
+                [run.to_string()],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(scope.filter(|s| s != "local"))
+    }
+    /// Pin the authenticated payer once for the entire team, including children.
+    /// A missing login must not turn a managed run into a personal-key run.
+    pub(crate) fn bind_account_scope(&self, run: Uuid, workspace: Option<&str>) -> Result<()> {
+        if let Some(value) = workspace {
+            ensure!(
+                value.len() == 64
+                    && value
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+                "Invalid Ion account scope"
+            );
+        }
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        load(&tx, run)?;
+        let existing: Option<String> = tx
+            .query_row(
+                "SELECT workspace FROM ion_team_account_scopes WHERE run_id=?",
+                [run.to_string()],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(existing) = existing {
+            ensure!(
+                existing == workspace.unwrap_or("local"),
+                "This team belongs to another Ion account; restore its original login or start a new task"
+            );
+        } else {
+            ensure!(
+                workspace.is_none(),
+                "This legacy team has no originating Ion login; start a new task in the intended account"
+            );
+        }
+        tx.commit()?;
+        Ok(())
+    }
     pub fn new(path: PathBuf) -> Self {
         Self {
             control: crate::control::ControlStore::new(path),
@@ -367,9 +417,35 @@ impl TeamCoordinator {
         access: AgentAccess,
         now: u64,
     ) -> Result<TeamRunSnapshot> {
+        self.queue_from_agent_with_access_scoped(
+            task_id,
+            project_id,
+            request_id,
+            team_id,
+            expected_definition_revision,
+            objective,
+            access,
+            None,
+            now,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn queue_from_agent_with_access_scoped(
+        &self,
+        task_id: Uuid,
+        project_id: Uuid,
+        request_id: String,
+        team_id: Uuid,
+        expected_definition_revision: u64,
+        objective: String,
+        access: AgentAccess,
+        account_scope: Option<String>,
+        now: u64,
+    ) -> Result<TeamRunSnapshot> {
         let objective = objective.trim().to_owned();
         self.queue_default_task(
             PrepareRun {
+                account_scope,
                 id: Uuid::new_v4(),
                 root_task_id: Uuid::new_v4(),
                 project_id,
@@ -613,6 +689,22 @@ impl TeamCoordinator {
         };
         tx.execute("INSERT INTO ion_team_runs(id,root_task_id,project_id,status,revision,request,body) VALUES(?,?,?,?,1,?,?)",
             params![run.id.to_string(),run.root_task_id.to_string(),run.project_id.to_string(),run_status(run.status),body,serde_json::to_string(&run)?])?;
+        if let Some(scope) = &request.account_scope {
+            ensure!(
+                scope.len() == 64
+                    && scope
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+                "Invalid team account scope"
+            );
+        }
+        tx.execute(
+            "INSERT INTO ion_team_account_scopes VALUES(?,?)",
+            params![
+                run.id.to_string(),
+                request.account_scope.as_deref().unwrap_or("local")
+            ],
+        )?;
         inputs::insert(
             &tx,
             run.id,

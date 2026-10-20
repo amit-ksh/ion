@@ -1541,3 +1541,63 @@ fn automation_pdf_contract_handoff_uses_labeled_summary_and_exact_file_evidence(
         AutomationStatus::Completed
     );
 }
+
+#[test]
+fn managed_account_scope_follows_workflow_stages_and_persists_routine_owner() {
+    let f = Fixture::new();
+    let owner = "a".repeat(64);
+    let other = "b".repeat(64);
+    let w = workflow(&f, &[false, false]);
+    let id = w.id;
+    let rev = save(&f, ControlRecord::Workflow(w));
+    let run = f
+        .store
+        .start_automation_for_account(Uuid::new_v4(), id, rev, Some(&owner), 100)
+        .unwrap();
+    tick(&f, 100);
+    let first = f.store.automation_run(run.id).unwrap().stages[0].team_run_id;
+    f.store.bind_account_scope(first, Some(&owner)).unwrap();
+    assert!(f.store.bind_account_scope(first, Some(&other)).is_err());
+    complete_stage(&f, run.id, 101);
+    tick(&f, 103);
+    let second = f.store.automation_run(run.id).unwrap().stages[1].team_run_id;
+    f.store.bind_account_scope(second, Some(&owner)).unwrap();
+    assert!(f.store.bind_account_scope(second, Some(&other)).is_err());
+    let mut r = routine(&f, None);
+    r.paused = false;
+    r.next_run = 120;
+    let rid = r.id;
+    f.definitions
+        .save_for_account(
+            f.definitions.load().unwrap().revision,
+            ControlRecord::Routine(r.clone()),
+            Some(&owner),
+        )
+        .unwrap();
+    let before = f.definitions.load().unwrap();
+    assert!(
+        f.definitions
+            .save_for_account(before.revision, ControlRecord::Routine(r), Some(&other))
+            .is_err()
+    );
+    assert_eq!(f.definitions.load().unwrap().revision, before.revision);
+    tick(&f, 120);
+    tick(&f, 121);
+    let runs = f
+        .store
+        .automation_runs(false, None, None, None, 64)
+        .unwrap();
+    let scheduled = runs
+        .runs
+        .iter()
+        .find(|r| r.routine_id == Some(rid))
+        .unwrap();
+    f.store
+        .bind_account_scope(scheduled.stages[0].team_run_id, Some(&owner))
+        .unwrap();
+    assert!(
+        f.store
+            .bind_account_scope(scheduled.stages[0].team_run_id, Some(&other))
+            .is_err()
+    );
+}

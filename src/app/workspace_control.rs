@@ -3129,6 +3129,63 @@ impl Waku {
                     "control-concurrency",
                 ));
             if environment == ExecutionEnvironment::NebiusSandbox {
+                let targets: Vec<_> = self
+                    .cloud_ui
+                    .sandbox_targets
+                    .iter()
+                    .filter(|(_, _, providers)| providers.contains(&self.control_ui.provider))
+                    .map(|(id, label, _)| (id.clone(), label.clone()))
+                    .collect();
+                if !targets.is_empty() {
+                    let current = self
+                        .control_ui
+                        .sandbox_target
+                        .read(cx)
+                        .content()
+                        .trim()
+                        .to_owned();
+                    let label = targets
+                        .iter()
+                        .find(|(id, _)| id == &current)
+                        .map(|(_, label)| label.clone())
+                        .unwrap_or_else(|| "Choose sandbox".into());
+                    let menu = self.menu_handle("control-managed-sandbox-menu", cx);
+                    let weak = cx.entity().downgrade();
+                    form = form.child(dropdown_menu(
+                        self.control_button("control-managed-sandbox", label, cx, |_, _, _| {}),
+                        "control-managed-sandbox-menu",
+                        &menu,
+                        MenuAlign::BelowLeft,
+                        move |_| {
+                            targets
+                                .iter()
+                                .map(|(id, label)| {
+                                    let id = id.clone();
+                                    let active = id == current;
+                                    let weak = weak.clone();
+                                    MenuItem::new(label.clone(), move |_, cx| {
+                                        let _ = weak.update(cx, |this, cx| {
+                                            this.control_ui
+                                                .sandbox_target
+                                                .update(cx, |input, cx| {
+                                                    input.set_content(id.clone(), cx)
+                                                });
+                                            cx.notify();
+                                        });
+                                    })
+                                    .selected(active)
+                                })
+                                .collect()
+                        },
+                    ));
+                } else if let Some(reason) = &self.cloud_ui.sandbox_reason {
+                    form = form.child(
+                        div()
+                            .text_size(sp(12.5))
+                            .text_color(theme.text_secondary)
+                            .child(reason.clone()),
+                    );
+                }
                 form=form.child(control_field("Sandbox target",self.control_ui.sandbox_target.clone(),"control-sandbox-target"))
                     .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child(if self.control_ui.execution.local_fallback {
                         "If the sandbox cannot start, use the same harness locally when its access and requirements can be satisfied."

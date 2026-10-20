@@ -455,6 +455,7 @@ fn assignment_pdf_normal_task_reads_only_its_completed_team_and_returns_labeled_
         )
         .unwrap();
     let context = WorkspaceContext {
+        account_scope: None,
         task_id: source,
         project_id: f.project,
         control_path: f.definitions.path(),

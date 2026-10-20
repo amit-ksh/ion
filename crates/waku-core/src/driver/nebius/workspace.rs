@@ -40,6 +40,13 @@ pub(super) fn tools(mut tools: Value, context: Option<&WorkspaceContext>) -> Val
     };
     let list = tools.as_array_mut().unwrap();
     list.extend(team_tools().as_array().unwrap().iter().cloned());
+    list.extend(
+        super::app_actions::tools()
+            .as_array()
+            .unwrap()
+            .iter()
+            .cloned(),
+    );
     list.push(json!({"type":"function","function":{"name":"request_decision","description":"Ask the user to approve or decline a decision before further task or workflow progress. Blocks until the user answers.","parameters":{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"}},"required":["title","detail"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"propose_task","description":"Extract a follow-up task for the user to accept or decline in Inbox. Does not execute the task.","parameters":{"type":"object","properties":{"title":{"type":"string"},"instructions":{"type":"string"}},"required":["title","instructions"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"save_document","description":"Publish a generated HTML, Markdown, text, CSV, JSON, SVG, XML or YAML document to the project's Artifacts collection.","parameters":{"type":"object","properties":{"name":{"type":"string"},"format":{"type":"string","enum":["html","md","txt","csv","json","svg","xml","yaml","yml"]},"content":{"type":"string"}},"required":["name","format","content"],"additionalProperties":false}}}));
@@ -197,8 +204,43 @@ pub(super) fn execute(
         "tokenfactory_exec" => {
             let session = context.sandbox_session()?;
             let argv = NemoClawAdapter::validate_args(args)?;
-            let detail = serde_json::to_string(&argv)?;
-            let _=events.send(DriverEvent::Permission { request_id:call.id.clone(), title:"Run in Token Factory sandbox?".into(), detail:format!("Session: {session}\nExact arguments: {detail}\nThe local project is not automatically uploaded."), options:vec![PermissionOption{id:"allow".into(),label:"Run in sandbox".into(),allow:true},PermissionOption{id:"reject".into(),label:"Decline".into(),allow:false}] });
+            let prepared = if std::env::var_os("ION_NEBIUS_SANDBOX_IAM_TOKEN").is_none() {
+                use sha2::{Digest, Sha256};
+                let digest =
+                    Sha256::digest(format!("{}:{}", journal_path.display(), call.id).as_bytes());
+                let mut bytes = [0u8; 16];
+                bytes.copy_from_slice(&digest[..16]);
+                Some(super::super::team_jobs::prepare_solo_command(
+                    argv.clone(),
+                    Uuid::from_bytes(bytes),
+                )?)
+            } else {
+                None
+            };
+            let detail = match &prepared {
+                Some(command) => command.description()?,
+                None => format!(
+                    "Personal session: {session}\nExact arguments: {}\nThe local project is not automatically uploaded.",
+                    serde_json::to_string(&argv)?
+                ),
+            };
+            let _ = events.send(DriverEvent::Permission {
+                request_id: call.id.clone(),
+                title: "Run in Token Factory sandbox?".into(),
+                detail,
+                options: vec![
+                    PermissionOption {
+                        id: "allow".into(),
+                        label: "Run in sandbox".into(),
+                        allow: true,
+                    },
+                    PermissionOption {
+                        id: "reject".into(),
+                        label: "Decline".into(),
+                        allow: false,
+                    },
+                ],
+            });
             loop {
                 if cancelled.load(Ordering::Relaxed) {
                     bail!("Task stopped");
@@ -224,7 +266,10 @@ pub(super) fn execute(
             );
             journal.pending_effect = Some(call.id.clone());
             persist(journal_path, journal)?;
-            let outcome = run_contree(&session, &argv, cancelled);
+            let outcome = match prepared {
+                Some(command) => command.execute(cancelled),
+                None => run_contree(&session, &argv, cancelled),
+            };
             if outcome.as_ref().err().is_some_and(|e| {
                 e.downcast_ref::<std::io::Error>()
                     .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
@@ -344,6 +389,7 @@ mod tests {
     #[test]
     fn team_tool_rejects_model_selected_task_or_project() {
         let context = WorkspaceContext {
+            account_scope: None,
             task_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),
             control_path: PathBuf::new(),
@@ -379,6 +425,7 @@ mod tests {
     fn sandbox_is_hidden_by_default_and_switch_is_read_live() {
         let path = std::env::temp_dir().join(format!("ion-sandbox-test-{}.json", Uuid::new_v4()));
         let context = WorkspaceContext {
+            account_scope: None,
             task_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),
             control_path: path.with_extension("db"),
@@ -442,6 +489,7 @@ mod tests {
         let task = Uuid::new_v4();
         let project = Uuid::new_v4();
         let mut context = WorkspaceContext {
+            account_scope: None,
             task_id: task,
             project_id: project,
             control_path: store.path(),

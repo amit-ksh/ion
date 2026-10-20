@@ -52,6 +52,7 @@ fn cursor_source_team_changed_callback_and_permission_revoke_pending_worker() {
             )
             .unwrap();
         let context = WorkspaceContext {
+            account_scope: None,
             task_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),
             control_path: store.path(),

@@ -20,6 +20,7 @@ use super::{DriverControl, DriverEventSender, DriverStartOptions, SessionOptions
 use crate::model::{ActivityKind, DriverEvent, PermissionOption, ProviderResumeCursor};
 use waku_credentials::inference::Inference;
 
+mod app_actions;
 mod nemoclaw;
 pub(super) mod team;
 mod workflow;
@@ -42,6 +43,8 @@ enum Command {
 #[derive(Default, Serialize, Deserialize)]
 struct Journal {
     messages: Vec<Value>,
+    #[serde(default)]
+    managed_workspace: Option<String>,
     /// Written before a workspace mutation. On restart, require review rather
     /// than guessing whether the effect happened and risking a duplicate.
     pending_effect: Option<String>,
@@ -97,9 +100,18 @@ impl NebiusDriver {
         } else {
             Journal::default()
         };
-        reconcile_incomplete_calls(&cwd, &journal_path, &mut journal)?;
-
         let key = Inference::runtime()?;
+        let account_scope = waku_credentials::cloud::status()
+            .ok()
+            .filter(|s| s.signed_in)
+            .and_then(|s| s.workspace_id);
+        bind_journal_account(
+            &mut journal,
+            key.workspace_id().or(account_scope.as_deref()),
+            resuming,
+        )?;
+        persist(&journal_path, &journal)?;
+        reconcile_incomplete_calls(&cwd, &journal_path, &mut journal)?;
         let client = reqwest::blocking::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(120))
@@ -385,7 +397,7 @@ fn completion(
     };
     let system = if workspace.is_some() {
         format!(
-            "{system} Publish generated reports and documents with save_document. Use list_teams and invoke_team when a saved team would help the current task. Team invocations inherit this project and the saved team lead’s configured access and execution limits. Supervised source tasks require approval for privileged team access; ready agents then delegate and execute independently through the daemon. Use get_team_runs or await_team to inspect progress without claiming queue acknowledgements are completion. Once the run completes, inspect its actual evidence with read_team_document before using the result. Never claim queued work has completed.  If you identify a follow-up task, use propose_task so the user can accept it in Inbox. Use request_decision when the user must choose before further progress; wait for the result. Token Factory sandbox commands need explicit approval and never receive local files automatically."
+            "{system} Publish generated reports and documents with save_document. Use list_teams and invoke_team when a saved team would help the current task. Team invocations inherit this project and the saved team lead’s configured access and execution limits. Supervised source tasks require approval for privileged team access; ready agents then delegate and execute independently through the daemon. Use get_team_runs or await_team to inspect progress without claiming queue acknowledgements are completion. Once the run completes, inspect its actual evidence with read_team_document before using the result. Never claim queued work has completed.  If you identify a follow-up task, use propose_task so the user can accept it in Inbox. Use request_decision when the user must choose before further progress; wait for the result. Token Factory sandbox commands need explicit approval and never receive local files automatically. Use list_connected_apps, search_app_actions and describe_app_action to discover a real connected account and pinned tool version. request_app_action always asks for exact approval, including reads. Never repeat declined or uncertain app effects automatically; cite their actual provider receipt."
         )
     } else {
         system.to_owned()
@@ -651,6 +663,18 @@ fn execute_tool(
     workspace: Option<&WorkspaceContext>,
 ) -> Result<String> {
     let args: Value = serde_json::from_str(&call.arguments).context("invalid tool arguments")?;
+    if app_actions::accepts(&call.name) {
+        anyhow::ensure!(workspace.is_some(), "Workspace app tools are unavailable");
+        return app_actions::execute(
+            receiver,
+            cancelled,
+            events,
+            journal_path,
+            journal,
+            call,
+            &args,
+        );
+    }
     if matches!(
         call.name.as_str(),
         "propose_task"
@@ -1013,6 +1037,8 @@ fn reconcile_incomplete_calls(cwd: &Path, path: &Path, journal: &mut Journal) ->
                 Some("nemoclaw_exec" | "tokenfactory_exec")
             ) {
                 "Sandbox command outcome is uncertain after interruption. Inspect the sandbox before requesting any follow-up; the command was not repeated.".to_owned()
+            } else if call["function"]["name"] == "request_app_action" {
+                "App action outcome is uncertain after interruption. Inspect its provider log and saved gateway proposal before any follow-up; no effect was repeated.".to_owned()
             } else if call["function"]["name"] == "invoke_team" {
                 "Team invocation was interrupted. Its durable queue may already exist. Use get_team_runs to inspect it before requesting another invocation. No team invocation was replayed.".to_owned()
             } else if call["function"]["name"] == "write_file" {
@@ -1064,6 +1090,22 @@ fn journal_path(id: Uuid) -> Result<PathBuf> {
     let directory = base.join("ion").join("nebius-sessions");
     fs::create_dir_all(&directory)?;
     Ok(directory.join(format!("{id}.json")))
+}
+
+fn bind_journal_account(
+    journal: &mut Journal,
+    workspace: Option<&str>,
+    resuming: bool,
+) -> Result<()> {
+    if resuming && (!journal.messages.is_empty() || journal.pending_effect.is_some()) {
+        anyhow::ensure!(
+            journal.managed_workspace.as_deref() == workspace,
+            "This conversation belongs to a different inference account; sign in to its original account or start a new task"
+        );
+    } else {
+        journal.managed_workspace = workspace.map(str::to_owned);
+    }
+    Ok(())
 }
 
 fn persist(path: &Path, journal: &Journal) -> Result<()> {
@@ -1316,4 +1358,23 @@ mod tests {
             fs::remove_dir_all(root).unwrap();
         }
     }
+}
+#[test]
+fn resumed_conversation_cannot_switch_managed_accounts_or_credentials() {
+    let mut journal = Journal::default();
+    let owner = "a".repeat(64);
+    let other = "b".repeat(64);
+    bind_journal_account(&mut journal, Some(&owner), false).unwrap();
+    journal
+        .messages
+        .push(json!({"role":"user","content":"private conversation"}));
+    let bytes = serde_json::to_vec(&journal).unwrap();
+    let mut journal: Journal = serde_json::from_slice(&bytes).unwrap();
+    bind_journal_account(&mut journal, Some(&owner), true).unwrap();
+    assert!(bind_journal_account(&mut journal, Some(&other), true).is_err());
+    assert!(bind_journal_account(&mut journal, None, true).is_err());
+    let mut legacy = Journal::default();
+    legacy.messages = journal.messages;
+    assert!(bind_journal_account(&mut legacy, Some(&owner), true).is_err());
+    bind_journal_account(&mut legacy, None, true).unwrap();
 }

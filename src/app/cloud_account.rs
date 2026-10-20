@@ -9,6 +9,8 @@ pub(super) struct CloudUiState {
     focus: [FocusHandle; 9],
     services: Option<cloud::services::ServiceControls>,
     pub(super) managed_apps: bool,
+    pub(super) sandbox_targets: Vec<(String, String, Vec<ProviderKind>)>,
+    pub(super) sandbox_reason: Option<String>,
     shared_usage: Option<serde_json::Value>,
     status_error: bool,
     checked: bool,
@@ -28,6 +30,8 @@ impl CloudUiState {
             focus: std::array::from_fn(|_| cx.focus_handle()),
             services: None,
             managed_apps: false,
+            sandbox_targets: Vec::new(),
+            sandbox_reason: None,
             shared_usage: None,
             status_error: false,
             checked: false,
@@ -116,9 +120,25 @@ impl Waku {
                     } else {
                         None
                     };
-                    let managed_apps = status.signed_in && cloud::services::bootstrap()
-                        .is_ok_and(|value| value["features"]["managedApps"] == true);
-                    anyhow::Ok((status, services, usage, managed_apps))
+                    let features=if status.signed_in {cloud::services::bootstrap().ok()}else{None};
+                    let managed_apps=features.as_ref().is_some_and(|v|v["features"]["managedApps"]==true);
+                    let mut sandbox_targets=Vec::new();
+                    let mut sandbox_reason=Some("Managed sandboxes are not configured.".to_owned());
+                    if features.as_ref().is_some_and(|v|v["features"]["managedSandbox"]==true) {
+                        if let Some(workspace)=&status.workspace_id {
+                            match cloud::services::sandbox_configuration(workspace) {
+                                Ok(config)=>{
+                                    sandbox_reason=config.reason;
+                                    if config.available {for image in config.images.into_iter().filter(|i|i.kind=="harness") {
+                                        let providers=image.providers.into_iter().filter_map(|p|serde_json::from_value(serde_json::Value::String(p)).ok()).collect();
+                                        sandbox_targets.push((image.target,image.label,providers));
+                                    }}
+                                }
+                                Err(_)=>sandbox_reason=Some("Sandbox status is unavailable. Refresh your account before starting remote work.".into()),
+                            }
+                        }
+                    }
+                    anyhow::Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason))
                 })
                 .await;
             let _ = view.update(cx, |this, cx| {
@@ -128,7 +148,9 @@ impl Waku {
                 this.cloud_ui.checking = false;
                 this.cloud_ui.checked = true;
                 match status {
-                    Ok((status, services, usage, managed_apps)) => {
+                    Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason)) => {
+                        this.cloud_ui.sandbox_targets = sandbox_targets;
+                        this.cloud_ui.sandbox_reason = sandbox_reason;
                         this.cloud_ui.managed_apps = managed_apps;
                         let refresh_models = this.cloud_ui.status.workspace_id
                             != status.workspace_id
@@ -150,6 +172,8 @@ impl Waku {
                     Err(error) => {
                         this.cloud_ui.services = None;
                         this.cloud_ui.managed_apps = false;
+                        this.cloud_ui.sandbox_targets.clear();
+                        this.cloud_ui.sandbox_reason = None;
                         this.invalidate_composio_apps();
                         this.cloud_ui.shared_usage = None;
                         this.cloud_ui.status_error = true;
@@ -188,6 +212,8 @@ impl Waku {
                     self.control_ui.clear_hosting_account(cx);
                     self.invalidate_composio_apps();
                     self.cloud_ui.managed_apps = false;
+                    self.cloud_ui.sandbox_targets.clear();
+                    self.cloud_ui.sandbox_reason = None;
                     self.cloud_ui.services = None;
                     self.cloud_ui.shared_usage = None;
                 }
@@ -210,7 +236,9 @@ impl Waku {
     pub(super) fn run_cloud_action(&mut self, action: CloudAction, cx: &mut Context<Self>) {
         if matches!(
             action,
-            CloudAction::ToggleCloud | CloudAction::ToggleTokenFactory | CloudAction::ToggleAppActions
+            CloudAction::ToggleCloud
+                | CloudAction::ToggleTokenFactory
+                | CloudAction::ToggleAppActions
         ) {
             let Some(services) = self.cloud_ui.services.as_ref().filter(|s| s.can_manage) else {
                 return;
@@ -247,7 +275,7 @@ impl Waku {
         if matches!(action, CloudAction::Cancel) {
             if let Some(cancel) = &self.cloud_ui.cancel {
                 cancel.store(true, Ordering::Release);
-                self.cloud_ui.feedback = Some("Cancelling sign-inâ€¦".into());
+                self.cloud_ui.feedback = Some("Cancelling sign-in…".into());
             }
             cx.notify();
             return;
@@ -273,9 +301,9 @@ impl Waku {
         let generation = self.cloud_ui.generation;
         self.cloud_ui.feedback = Some(
             if matches!(action, CloudAction::SignIn) {
-                "Opening secure sign-in in your browserâ€¦"
+                "Opening secure sign-in in your browser…"
             } else {
-                "Updating cloud connectionâ€¦"
+                "Updating cloud connection…"
             }
             .into(),
         );
@@ -348,7 +376,11 @@ impl Waku {
                 .services
                 .as_ref()
                 .is_none_or(|s| !s.token_factory_available && !s.token_factory),
-            CloudAction::ToggleAppActions => self.cloud_ui.services.as_ref().is_none_or(|s| !s.app_actions_available && !s.app_actions),
+            CloudAction::ToggleAppActions => self
+                .cloud_ui
+                .services
+                .as_ref()
+                .is_none_or(|s| !s.app_actions_available && !s.app_actions),
             _ => false,
         };
         let disabled =
@@ -405,7 +437,7 @@ impl Waku {
             actions = actions.child(self.cloud_button("Retry", CloudAction::Refresh, cx));
         }
         let copy = if !self.cloud_ui.checked || self.cloud_ui.checking {
-            "Checking your accountâ€¦"
+            "Checking your account…"
         } else if !self.cloud_ui.status.configured {
             "Sign-in is not configured in this build. Install an updated Ion build connected to Ion Cloud."
         } else {
@@ -487,23 +519,55 @@ impl Waku {
         let theme = Theme::current(cx);
         let mut content = div().flex().flex_col().gap(px(6.0));
         if let Some(usage) = &self.cloud_ui.shared_usage {
-            let spent = usage["tokenFactory"]["account"]["spent"]
-                .as_u64()
-                .unwrap_or(0);
-            let held = usage["tokenFactory"]["account"]["held"]
-                .as_u64()
-                .unwrap_or(0);
+            let totals = ["tokenFactory", "sandbox", "composio"].iter().try_fold(
+                (0u64, 0u64),
+                |(spent, held), meter| {
+                    Some((
+                        spent.checked_add(usage[*meter]["account"]["spent"].as_u64()?)?,
+                        held.checked_add(usage[*meter]["account"]["held"].as_u64()?)?,
+                    ))
+                },
+            );
             let vm = usage["compute"]["state"].as_str().unwrap_or("UNKNOWN");
+            let label = match totals {
+                Some((spent, held)) => format!(
+                    "Managed calls: ${:.6} reported · ${:.6} reserved · Cloud: {vm}",
+                    spent as f64 / 1_000_000.0,
+                    held as f64 / 1_000_000.0
+                ),
+                None => format!("Managed call costs unavailable · Cloud: {vm}"),
+            };
             content = content.child(
                 div()
                     .text_size(sp(12.5))
                     .text_color(theme.text_secondary)
-                    .child(format!(
-                        "Shared Token Factory: ${:.4} used Â· ${:.4} reserved Â· Cloud: {vm}",
-                        spent as f64 / 1_000_000.0,
-                        held as f64 / 1_000_000.0
-                    )),
+                    .child(label),
             );
+            if self
+                .cloud_ui
+                .services
+                .as_ref()
+                .is_some_and(|s| s.can_manage)
+            {
+                let combined = &usage["combined"];
+                if let (Some(spent), Some(held), Some(limit)) = (
+                    combined["monthly"]["spent"].as_u64(),
+                    combined["monthly"]["held"].as_u64(),
+                    combined["limits"]["monthly"].as_u64(),
+                ) {
+                    content = content.child(
+                        div()
+                            .text_size(sp(12.0))
+                            .text_color(theme.text_secondary)
+                            .child(format!(
+                                "Shared monthly budget: ${:.4} reported + ${:.4} reserved / ${:.2}",
+                                spent as f64 / 1_000_000.0,
+                                held as f64 / 1_000_000.0,
+                                limit as f64 / 1_000_000.0
+                            )),
+                    );
+                }
+            }
         }
         if let Some(note) = self
             .cloud_ui
@@ -612,7 +676,11 @@ impl Waku {
                             services.token_factory,
                             CloudAction::ToggleTokenFactory,
                         ),
-                        ("Shared app actions", services.app_actions, CloudAction::ToggleAppActions),
+                        (
+                            "Shared app actions",
+                            services.app_actions,
+                            CloudAction::ToggleAppActions,
+                        ),
                     ] {
                         let mut row =
                             div()

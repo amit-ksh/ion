@@ -23,7 +23,7 @@ Previously deferred/unstarted harness adapters also remain outside scope.
 
 Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pilot.md).
 
-## 2. Shared Composio app connections â€” in progress
+## 2. Shared Composio app connections — implementation complete, live OAuth pending
 
 - [x] Saved operator key verified against read-only toolkit, auth-config and
   connected-account endpoints (all 200). No credential/account state printed.
@@ -46,27 +46,29 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## 3. Approved app actions, teams and workflows
 
-- [ ] Extend existing exact approvals to managed session execution and pin the
+- [x] Extend existing exact approvals to managed session execution and pin the
   authenticated account, connected account, tool version and arguments.
 - [x] Enforce ownership at discovery and again immediately before dispatch.
 - [x] Persist dispatch/uncertain outcomes; reconcile instead of replaying effects.
-- [ ] Route normal chat, team grants and workflow actions through this boundary.
+- [x] Route normal chat, team grants and workflow actions through this boundary.
 - [x] Backend regressions cover denial, modified arguments, foreign connection IDs,
   disconnects, provider errors, restart and duplicate submission. Native account
   replacement is rejected by the account-bound transport; actual UI acceptance remains.
 - [ ] Complete one authorized, read-only real provider tool call with a Composio
   log ID. Metadata requests or a Connect Link alone do not satisfy this test.
-- [ ] Commit execution milestone.
+- [x] Commit execution backend milestone: `b7ba442`; native routing/account binding
+  is documented in [126](126-managed-native-execution.md).
 
 ## 4. Managed Nebius inference across existing execution paths
 
-- [ ] Audit native chat, team continuation/resume and workflow model calls for
+- [x] Audit native chat, team continuation/resume and workflow model calls for
   consistent managed-vs-personal selection and account binding.
-- [ ] Preserve optional existing personal credentials; label the usage source.
+- [x] Preserve optional existing personal credentials; label the usage source.
 - [ ] Verify real streaming, tool calls, cancellation, session expiry, service OFF,
   exhausted budget and account switching in actual native flows.
-- [ ] Keep unsupported/unstarted harness adapters outside scope.
-- [ ] Commit managed inference integration milestone.
+- [x] Keep unsupported/unstarted harness adapters outside scope.
+- [x] Commit native managed execution/account-binding milestone after passing
+  targeted native and credential regressions; see [126](126-managed-native-execution.md).
 
 ## 5. Managed Token Factory sandboxes
 
@@ -74,15 +76,16 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
   `whoami` accepted the key but all spawn/list/cancel/import permissions are false.
   Activation or project authorization is required before live sandbox acceptance.
 - [ ] Select and verify compatible registered images for supported team harnesses.
-- [ ] Backend owns project credentials, provisioning, account-bound command
+- [x] Backend owns project credentials, provisioning, account-bound command
   approvals, bounded file transfer, status, results and artifact retrieval.
-- [ ] Implement durable limits, runtime/idle deadlines, cancellation, recovery,
+- [x] Implement durable limits, runtime/idle deadlines, cancellation, recovery,
   owner stop and confirmed resource shutdown. Keep this separate from app-hosting VMs.
-- [ ] Test denied approvals, cross-account access, unavailable image, timeouts,
+- [x] Test denied approvals, cross-account access, unavailable image, timeouts,
   restart and uncertain command outcomes without duplicate effects.
 - [ ] Perform a short real sandbox lifecycle only after price/limit verification;
   verify stop/deletion and retained billable resources afterward.
-- [ ] Commit sandbox milestone.
+- [x] Commit sandbox backend milestone: `afe9b1e`; recovery hardening and native
+  routing are documented in [125](125-managed-token-factory-sandbox.md) and [126](126-managed-native-execution.md).
 
 ## 6. Combined spending enforcement
 
@@ -91,7 +94,7 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 - [x] Enforce a combined SQL envelope across inference, sandbox, app compute and
   Composio meters, including historical counters and a USD 3 retained-cost allowance.
 - [ ] Reconcile non-ledger provider charges and verify the updated envelope live.
-- [ ] Add Composio request/usage limits appropriate to its actual plan; keep
+- [x] Add Composio request/usage limits appropriate to its actual plan; keep
   Instant Tools disabled unless explicitly budgeted and authorized.
 - [x] Test combined reservations, historical counters, restart/month rollover,
   unknown holds, debt/exhaustion and transactional rollback: nine budget tests pass.
@@ -132,9 +135,9 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## 9. Managed onboarding, release and final acceptance
 
-- [ ] Make sign-in/model selection/user app connections the normal onboarding;
+- [x] Make sign-in/model selection/user app connections the normal onboarding;
   move personal provider keys to optional Advanced settings without deleting them.
-- [ ] Show accurate unavailable, disconnected, expired-session and budget states.
+- [x] Show accurate unavailable, disconnected, expired-session and budget states.
 - [ ] Preserve agreed Ion styling; validate keyboard operation, account-cache
   clearing, labels and Ion branding in rebuilt UI.
 - [ ] Run targeted regressions and the required release gates; reuse the existing
@@ -163,3 +166,11 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 - [Connected accounts](https://docs.composio.dev/reference/api-reference/connected-accounts)
 - [Scoped project keys](https://docs.composio.dev/reference/authenticating-to-composio/project-api-key-permissions)
 - [Hugging Face uploads](https://huggingface.co/docs/hub/models-uploading)
+
+## Latest independent verification
+
+See [126](126-managed-native-execution.md) for persistent account ownership,
+chat app actions, managed remote execution and actual remaining operator gates.
+R2 is inactive, sandbox execution permissions are false, the native app is signed
+out, and Moto G32 is disconnected. These prevent live acceptance; none is recorded
+as a passed test. No billable Nebius resource was started for this increment.

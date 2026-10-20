@@ -10,6 +10,7 @@ impl Fixture {
         let directory = std::env::temp_dir().join(format!("ion-native-usage-{}", Uuid::new_v4()));
         Self {
             scope: WorkspaceContext {
+                account_scope: None,
                 task_id: Uuid::new_v4(),
                 project_id: Uuid::new_v4(),
                 control_path: directory.join("control.db"),

@@ -56,5 +56,7 @@ envelope apply. This does not upgrade the operator's plan or enable paid add-ons
 
 Still required: authorize a real user-owned app, exercise its read-only action
 through Ion, record its actual Composio log ID, and verify account switching.
-Normal chat can invoke a configured team to use its granted app actions. Direct
-solo-chat action discovery/execution is a separate path and is not claimed here.
+Normal chat can invoke a configured team to use its granted app actions. Native
+Nebius chat now also has direct discovery, schema and exact-approval execution
+tools through the same boundary; see [126](126-managed-native-execution.md). Other
+existing harnesses can invoke saved teams. No deferred harness adapter was added.

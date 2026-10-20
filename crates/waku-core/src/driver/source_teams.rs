@@ -23,6 +23,7 @@ use uuid::Uuid;
 use waku_protocol::{control::*, model::RuntimeMode};
 #[derive(Clone)]
 pub(crate) struct WorkspaceContext {
+    pub account_scope: Option<String>,
     pub task_id: Uuid,
     pub project_id: Uuid,
     pub control_path: PathBuf,
@@ -41,6 +42,13 @@ pub(crate) fn execute(
     ) -> Result<waku_protocol::teams::AgentAccess>,
 ) -> Result<String> {
     anyhow::ensure!(!cancelled.load(Ordering::Acquire), "Source task stopped");
+    if let Some(expected) = &context.account_scope {
+        let current = waku_credentials::cloud::status()?;
+        anyhow::ensure!(
+            current.signed_in && current.workspace_id.as_ref() == Some(expected),
+            "This source task belongs to another Ion account; restore its original login"
+        );
+    }
     anyhow::ensure!(
         serde_json::to_vec(args)?.len() <= 40 * 1024,
         "Source team arguments exceed their limit"
@@ -273,7 +281,7 @@ fn invoke_team_authorized(
         crate::teams::intersect_access(&access, &profile.access) == access,
         "Source authorization exceeds the saved team lead access"
     );
-    let run = coordinator.queue_from_agent_with_access(
+    let run = coordinator.queue_from_agent_with_access_scoped(
         context.task_id,
         context.project_id,
         request_id.into(),
@@ -281,6 +289,7 @@ fn invoke_team_authorized(
         request.definition_revision,
         request.objective,
         access,
+        context.account_scope.clone(),
         crate::model::unix_time(),
     )?;
     Ok(team_summary(&run).to_string())

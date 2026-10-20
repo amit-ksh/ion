@@ -88,6 +88,7 @@ impl Fixture {
         let run = store
             .prepare(
                 PrepareRun {
+                    account_scope: None,
                     id: Uuid::new_v4(),
                     root_task_id: Uuid::new_v4(),
                     project_id: Uuid::new_v4(),
@@ -1136,6 +1137,7 @@ fn native_team_inputs_reach_real_child_tasks_and_survive_a_resumed_parent() {
         .store
         .prepare(
             PrepareRun {
+                account_scope: None,
                 id: Uuid::new_v4(),
                 root_task_id: Uuid::new_v4(),
                 project_id: f.run.project_id,

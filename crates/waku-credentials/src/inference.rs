@@ -12,6 +12,13 @@ enum Source {
     Managed(String),
 }
 impl Inference {
+    /// Non-secret identity used to bind persisted continuations to their payer.
+    pub fn workspace_id(&self) -> Option<&str> {
+        match &self.source {
+            Source::Managed(workspace) => Some(workspace),
+            Source::Personal(_) => None,
+        }
+    }
     pub fn personal(key: String) -> Result<Self> {
         ensure!(
             !key.is_empty() && key.len() <= 16384 && !key.contains(['\r', '\n']),

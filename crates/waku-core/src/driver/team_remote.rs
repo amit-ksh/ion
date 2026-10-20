@@ -73,13 +73,57 @@ pub(crate) struct WorkerResponse {
 pub(super) struct Client {
     http: reqwest::blocking::Client,
     token: String,
+    managed_workspace: Option<String>,
     pub(super) project: String,
     #[cfg(test)]
     base: String,
 }
 impl Client {
     pub(super) fn configured() -> Result<Self> {
-        let token=std::env::var("ION_NEBIUS_SANDBOX_IAM_TOKEN").context("Configure the sandbox IAM token on this owner; the inference key is a separate credential")?;
+        let token = match std::env::var("ION_NEBIUS_SANDBOX_IAM_TOKEN") {
+            Ok(token) => token,
+            Err(_) => {
+                let status = waku_credentials::cloud::status()?;
+                let workspace = status
+                    .workspace_id
+                    .filter(|_| status.signed_in)
+                    .context("Sign in to Ion to use managed sandboxes")?;
+                let http = reqwest::blocking::Client::builder()
+                    .redirect(reqwest::redirect::Policy::none())
+                    .connect_timeout(Duration::from_secs(3))
+                    .timeout(Duration::from_secs(20))
+                    .build()?;
+                let response = waku_credentials::cloud::services::sandbox_request(
+                    &http,
+                    reqwest::Method::GET,
+                    "/config",
+                    &workspace,
+                )?
+                .send()?;
+                ensure!(
+                    response.status().is_success(),
+                    "Managed sandbox configuration is unavailable"
+                );
+                let config = read_json(response, 64 * 1024)?;
+                ensure!(
+                    config["available"] == true,
+                    "Managed sandbox activation, permissions, reviewed images and pricing are required; Token Factory must be ON"
+                );
+                let project = config["project"]
+                    .as_str()
+                    .filter(|s| !s.is_empty() && s.len() <= 160)
+                    .context("Managed sandbox project missing")?
+                    .to_owned();
+                return Ok(Self {
+                    http,
+                    token: String::new(),
+                    managed_workspace: Some(workspace),
+                    project,
+                    #[cfg(test)]
+                    base: BASE.into(),
+                });
+            }
+        };
         let project = std::env::var("ION_NEBIUS_SANDBOX_PROJECT")
             .context("Configure the sandbox's Nebius project on this owner")?;
         ensure!(
@@ -93,6 +137,7 @@ impl Client {
                 .timeout(Duration::from_secs(8))
                 .build()?,
             token,
+            managed_workspace: None,
             project,
             #[cfg(test)]
             base: BASE.into(),
@@ -107,6 +152,7 @@ impl Client {
                 .build()
                 .unwrap(),
             token: "fixture-not-real".into(),
+            managed_workspace: None,
             project: project.into(),
             base: base.into(),
         }
@@ -125,18 +171,85 @@ impl Client {
         &self,
         method: reqwest::Method,
         path: &str,
-    ) -> reqwest::blocking::RequestBuilder {
-        self.http
+    ) -> Result<reqwest::blocking::RequestBuilder> {
+        if let Some(workspace) = &self.managed_workspace {
+            return waku_credentials::cloud::services::sandbox_request(
+                &self.http, method, path, workspace,
+            );
+        }
+        Ok(self
+            .http
             .request(method, format!("{}{path}", self.base()))
             .bearer_auth(&self.token)
-            .header("Project", &self.project)
+            .header("Project", &self.project))
+    }
+    pub(super) fn ensure_enabled(&self) -> Result<()> {
+        if self.managed_workspace.is_none() {
+            return Ok(());
+        }
+        let response = self.request(reqwest::Method::GET, "/config")?.send()?;
+        let config = read_json(response, 64 * 1024)?;
+        ensure!(
+            config["available"] == true && config["enabled"] == true,
+            "Managed sandbox is unavailable or Token Factory is OFF"
+        );
+        Ok(())
+    }
+    pub(super) fn recover_operation(&self, request: Uuid, operation: Uuid) -> Result<()> {
+        if self.managed_workspace.is_none() {
+            return Ok(());
+        }
+        let response = self
+            .request(reqwest::Method::POST, "/recover")?
+            .json(&json!({"requestId":request,"operationId":operation}))
+            .send()?;
+        ensure!(
+            response.status().is_success(),
+            "The gateway could not verify this original sandbox operation"
+        );
+        Ok(())
+    }
+    pub(super) fn command_policy(&self, target: Uuid) -> Result<Option<Value>> {
+        if self.managed_workspace.is_none() {
+            return Ok(None);
+        }
+        let response = self
+            .request(reqwest::Method::GET, &format!("/images/{target}"))?
+            .send()?;
+        ensure!(
+            response.status().is_success(),
+            "Managed command image is unavailable"
+        );
+        Ok(Some(read_json(response, 64 * 1024)?))
+    }
+    pub(super) fn default_command_target(&self) -> Result<Uuid> {
+        ensure!(
+            self.managed_workspace.is_some(),
+            "Use your explicitly configured personal sandbox transport"
+        );
+        let response = self.request(reqwest::Method::GET, "/config")?.send()?;
+        ensure!(
+            response.status().is_success(),
+            "Managed sandbox configuration is unavailable"
+        );
+        let config = read_json(response, 64 * 1024)?;
+        ensure!(
+            config["available"] == true && config["enabled"] == true,
+            "Managed sandbox is unavailable or Token Factory is OFF"
+        );
+        let target = config["images"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|i| i["kind"] == "command"))
+            .and_then(|i| i["target"].as_str())
+            .context("No credential-free command image is registered by the operator")?;
+        Ok(Uuid::parse_str(target)?)
     }
     fn operation(&self, id: Uuid, image: Uuid) -> Result<Value> {
         self.operation_bounded(id, image, 512 * 1024)
     }
     pub(super) fn operation_bounded(&self, id: Uuid, image: Uuid, limit: usize) -> Result<Value> {
         let response = self
-            .request(reqwest::Method::GET, &format!("/operations/{id}"))
+            .request(reqwest::Method::GET, &format!("/operations/{id}"))?
             .send()
             .context("Sandbox operation status is unavailable; outcome remains unresolved")?;
         ensure!(
@@ -162,7 +275,7 @@ impl Client {
     }
     pub(super) fn cancel(&self, id: Uuid) -> Result<()> {
         let response = self
-            .request(reqwest::Method::DELETE, &format!("/operations/{id}"))
+            .request(reqwest::Method::DELETE, &format!("/operations/{id}"))?
             .send()?;
         ensure!(
             matches!(response.status().as_u16(), 202 | 409),
@@ -197,6 +310,7 @@ pub(crate) fn ready(settings: &DaemonSettings, profile: &AgentProfile) -> Result
         "Token Factory sandbox is off in Settings"
     );
     let client = Client::configured()?;
+    client.ensure_enabled()?;
     capability(&client, profile)?;
     Ok(())
 }
@@ -225,7 +339,7 @@ fn capability(client: &Client, profile: &AgentProfile) -> Result<RegisteredHost>
         .context("Pinned harness model missing")?;
     let image = image(profile)?;
     let response = client
-        .request(reqwest::Method::GET, &format!("/inspect/{image}/download"))
+        .request(reqwest::Method::GET, &format!("/inspect/{image}/download"))?
         .query(&[("path", "/ion/host.json")])
         .send()
         .context("Registered sandbox image is unavailable before execution")?;
@@ -296,13 +410,14 @@ fn run_with_client(
     let image = image(&profile)?;
     let host = capability(client, &profile)?;
     let cap = host.capability;
-    super::nebius::team::run_with_remote_harness(
+    super::nebius::team::run_with_remote_harness_bound(
         coordinator,
         start,
         workspace,
         events,
         cancelled,
         profile.provider,
+        client.managed_workspace.as_deref(),
         |model| {
             Ok(ModelCallAllowance {
                 model: model.into(),
@@ -377,7 +492,7 @@ fn execute(
     }
     // The image supplies a credential bootstrap outside the prompt. No owner
     // credentials, repository walk, env dump, app tokens or vault files are sent.
-    let response=client.request(reqwest::Method::POST,"/instances").json(&body).send().context("Sandbox spawn acknowledgement lost; no local fallback or repeated submission is allowed")?;
+    let response=client.request(reqwest::Method::POST,"/instances")?.json(&body).send().context("Sandbox spawn acknowledgement lost; no local fallback or repeated submission is allowed")?;
     if matches!(response.status().as_u16(), 400 | 401 | 403) {
         coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
         anyhow::bail!(
@@ -591,6 +706,7 @@ fn bind_recovered_with(
     );
     let saved=coordinator.remote_input(request)?.context("Legacy request lacks an exact input witness; operator inspection cannot automatically bind it")?;
     let expected: Value = serde_json::from_str(&saved)?;
+    client.recover_operation(request, operation)?;
     let value = client.operation(operation, call.image)?;
     verify_original_request(&value, call.image, request, &expected)?;
     coordinator.bind_recovered_remote_operation(
@@ -823,6 +939,7 @@ mod lifecycle_tests {
             let run = owner
                 .prepare(
                     PrepareRun {
+                        account_scope: None,
                         id: Uuid::new_v4(),
                         root_task_id: Uuid::new_v4(),
                         project_id: Uuid::new_v4(),
@@ -905,6 +1022,7 @@ mod lifecycle_tests {
                 .build()
                 .unwrap(),
             token: "fixture-IAM-not-real".into(),
+            managed_workspace: None,
             project: "fixture-project".into(),
             base: server.url.clone(),
         }

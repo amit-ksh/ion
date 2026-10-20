@@ -123,6 +123,7 @@ impl Fixture {
         let run = store
             .prepare(
                 PrepareRun {
+                    account_scope: None,
                     id: Uuid::new_v4(),
                     root_task_id: Uuid::new_v4(),
                     project_id: Uuid::new_v4(),

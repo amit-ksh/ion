@@ -102,7 +102,7 @@ impl Waku {
                                     .text_size(sp(11.5))
                                     .text_color(theme.text_secondary)
                                     .child(format!(
-                                        "{} Â· {}",
+                                        "{} · {}",
                                         grant.account_id,
                                         if grant.version.is_empty() {
                                             "Reselect a version"
@@ -126,7 +126,7 @@ impl Waku {
         panel = panel.child(self.control_button(
             "agent-app-load",
             if self.control_ui.apps_busy {
-                "Loading appsâ€¦"
+                "Loading apps…"
             } else {
                 "Load connected apps"
             },
@@ -147,7 +147,7 @@ impl Waku {
         let label = accounts
             .iter()
             .find(|a| Some(&a.0) == selected.as_ref())
-            .map(|(id, toolkit)| format!("{} Â· {}", app_name(toolkit), id))
+            .map(|(id, toolkit)| format!("{} · {}", app_name(toolkit), id))
             .unwrap_or_else(|| "Choose connected account".into());
         let weak = cx.entity().downgrade();
         let menu = self.menu_handle("agent-app-account-menu", cx);
@@ -163,7 +163,7 @@ impl Waku {
                         let weak = weak.clone();
                         let id = id.clone();
                         let active = Some(&id) == selected.as_ref();
-                        MenuItem::new(format!("{} Â· {}", app_name(toolkit), id), move |_, cx| {
+                        MenuItem::new(format!("{} · {}", app_name(toolkit), id), move |_, cx| {
                             let _ = weak.update(cx, |this, cx| {
                                 this.control_ui.app_action_account = Some(id.clone());
                                 this.load_agent_app_actions(None, cx);
@@ -186,7 +186,7 @@ impl Waku {
             .child(self.control_button(
                 "agent-app-action-search",
                 if self.control_ui.app_action_busy {
-                    "Searchingâ€¦"
+                    "Searching…"
                 } else {
                     "Search actions"
                 },
@@ -215,7 +215,7 @@ impl Waku {
                         div()
                             .text_size(sp(11.5))
                             .text_color(theme.text_secondary)
-                            .child(format!("{} Â· {}", tool.slug, tool.version)),
+                            .child(format!("{} · {}", tool.slug, tool.version)),
                     )
                     .child(self.control_button(
                         format!("agent-app-action-{index}"),

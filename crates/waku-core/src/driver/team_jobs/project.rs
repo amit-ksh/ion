@@ -38,7 +38,7 @@ fn file_identity(value: &Value, facts: &ProjectSnapshot) -> Result<Uuid> {
 }
 fn lookup(client: &Client, facts: &ProjectSnapshot) -> Result<Option<Uuid>> {
     let response = client
-        .request(reqwest::Method::GET, &format!("/files/{}", facts.sha256))
+        .request(reqwest::Method::GET, &format!("/files/{}", facts.sha256))?
         .send()?;
     if response.status().as_u16() == 404 {
         return Ok(None);
@@ -58,7 +58,7 @@ fn upload(client: &Client, facts: &ProjectSnapshot, data: &[u8]) -> Result<Uuid>
         return Ok(id);
     }
     let response = client
-        .request(reqwest::Method::POST, "/files")
+        .request(reqwest::Method::POST, "/files")?
         .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
         .timeout(Duration::from_secs(60))
         .body(data.to_vec())
@@ -91,7 +91,14 @@ pub(crate) fn run_project(
         request_id,
         args,
         cancelled,
-        |target| Ok((policy(target)?, Client::configured()?)),
+        |target| {
+            let client = Client::configured()?;
+            let policy = match client.command_policy(target)? {
+                Some(p) => serde_json::from_value(p)?,
+                None => policy(target)?,
+            };
+            Ok((policy, client))
+        },
     )
 }
 #[allow(clippy::too_many_arguments)]

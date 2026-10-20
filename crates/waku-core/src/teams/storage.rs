@@ -8,6 +8,8 @@ pub(super) fn schema(db: &Connection) -> Result<()> {
             id TEXT PRIMARY KEY, root_task_id TEXT NOT NULL UNIQUE, project_id TEXT NOT NULL,
             status TEXT NOT NULL, revision INTEGER NOT NULL, request TEXT NOT NULL, body TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS ion_team_project ON ion_team_runs(project_id,status);
+        CREATE TABLE IF NOT EXISTS ion_team_account_scopes (
+            run_id TEXT PRIMARY KEY REFERENCES ion_team_runs(id), workspace TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS ion_team_work (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES ion_team_runs(id),
             task_id TEXT NOT NULL UNIQUE, agent_id TEXT NOT NULL, parent_id TEXT,

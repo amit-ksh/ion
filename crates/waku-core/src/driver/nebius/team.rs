@@ -9,6 +9,21 @@ use crate::teams::{
 use std::io::Read;
 use waku_protocol::{model::ProviderKind, teams::*};
 
+fn caller_scope(coordinator: &TeamCoordinator, start: &NativeTeamStart) -> Result<Option<String>> {
+    let claim = match start {
+        NativeTeamStart::Fresh(c) => c,
+        NativeTeamStart::Resumed(c) => &c.claimed,
+    };
+    let scope = coordinator.account_scope(claim.lease.run_id())?;
+    if let Some(expected) = &scope {
+        let current = waku_credentials::cloud::status()?;
+        anyhow::ensure!(
+            current.signed_in && current.workspace_id.as_ref() == Some(expected),
+            "This team belongs to another Ion account; restore its original login"
+        );
+    }
+    Ok(scope)
+}
 const MAX_TEAM_STEPS: u16 = 16;
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 const MAX_REPLY_BYTES: usize = 12 * 1024;
@@ -41,6 +56,8 @@ struct TeamJournal {
     steps: u16,
     messages: Vec<Value>,
     pending: Vec<PendingCall>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    managed_workspace: Option<String>,
 }
 impl TeamJournal {
     fn new(objective: &str) -> Self {
@@ -49,6 +66,7 @@ impl TeamJournal {
             steps: 0,
             messages: vec![json!({"role":"user","content":objective})],
             pending: vec![],
+            managed_workspace: None,
         }
     }
     fn encode(&self) -> Result<String> {
@@ -262,12 +280,14 @@ pub fn run_native_team_assignment(
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(120))
         .build()?;
+    let account_scope = caller_scope(coordinator, &start)?;
     run_with_completion(
         coordinator,
         start,
         workspace,
         events,
         cancelled,
+        key.workspace_id().or(account_scope.as_deref()),
         |model| model_allowance(&client, &key, model),
         |model, system, messages, tools| {
             let mut request = vec![json!({"role":"system","content":system})];
@@ -416,10 +436,11 @@ fn run_with_completion(
     workspace: &Path,
     events: &DriverEventSender,
     cancelled: &AtomicBool,
+    managed_workspace: Option<&str>,
     allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
     completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
 ) -> Result<NativeTeamExit> {
-    run_with_harness(
+    run_on_host(
         coordinator,
         start,
         workspace,
@@ -428,6 +449,9 @@ fn run_with_completion(
         ProviderKind::Nebius,
         allowance,
         completion,
+        &ComposioApps,
+        ExecutionEnvironment::Local,
+        managed_workspace,
     )
 }
 
@@ -443,7 +467,8 @@ pub(in crate::driver) fn run_with_harness(
     allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
     completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
 ) -> Result<NativeTeamExit> {
-    run_with_harness_and_apps(
+    let scope = caller_scope(coordinator, &start)?;
+    run_on_host(
         coordinator,
         start,
         workspace,
@@ -453,6 +478,8 @@ pub(in crate::driver) fn run_with_harness(
         allowance,
         completion,
         &ComposioApps,
+        ExecutionEnvironment::Local,
+        scope.as_deref(),
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -478,6 +505,7 @@ pub(in crate::driver) fn run_with_harness_and_apps(
         completion,
         apps,
         ExecutionEnvironment::Local,
+        None,
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -491,6 +519,31 @@ pub(in crate::driver) fn run_with_remote_harness(
     allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
     completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
 ) -> Result<NativeTeamExit> {
+    run_with_remote_harness_bound(
+        coordinator,
+        start,
+        workspace,
+        events,
+        cancelled,
+        harness,
+        None,
+        allowance,
+        completion,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(in crate::driver) fn run_with_remote_harness_bound(
+    coordinator: &TeamCoordinator,
+    start: NativeTeamStart,
+    workspace: &Path,
+    events: &DriverEventSender,
+    cancelled: &AtomicBool,
+    harness: ProviderKind,
+    managed_source: Option<&str>,
+    allowance: impl FnMut(&str) -> Result<ModelCallAllowance>,
+    completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
+) -> Result<NativeTeamExit> {
+    let scope = caller_scope(coordinator, &start)?;
     run_on_host(
         coordinator,
         start,
@@ -502,6 +555,7 @@ pub(in crate::driver) fn run_with_remote_harness(
         completion,
         &ComposioApps,
         ExecutionEnvironment::NebiusSandbox,
+        managed_source.or(scope.as_deref()),
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -516,7 +570,14 @@ fn run_on_host(
     mut completion: impl FnMut(&str, &str, &[Value], Value) -> Result<StreamCompletion>,
     apps: &dyn TeamApps,
     environment: ExecutionEnvironment,
+    managed_workspace: Option<&str>,
 ) -> Result<NativeTeamExit> {
+    let scoped_apps = crate::driver::team_apps::ScopedApps {
+        inner: apps,
+        workspace: managed_workspace,
+    };
+    let apps: &dyn TeamApps = &scoped_apps;
+    let resuming = matches!(&start, NativeTeamStart::Resumed(_));
     let (mut claimed, mut journal, children, decision, recovery_note, gpu_result) = match start {
         NativeTeamStart::Fresh(claimed) => {
             let journal = TeamJournal::new(&claimed.assignment.objective);
@@ -539,6 +600,15 @@ fn run_on_host(
             )
         }
     };
+    if resuming {
+        anyhow::ensure!(
+            journal.managed_workspace.as_deref() == managed_workspace,
+            "This team continuation belongs to a different managed inference account; restore the original Ion account"
+        );
+    } else {
+        journal.managed_workspace = managed_workspace.map(str::to_owned);
+    }
+    coordinator.bind_account_scope(claimed.lease.run_id(), managed_workspace)?;
     // The opaque lease selects authoritative pinned definitions. Caller-side
     // projections can never substitute a profile, objective or tool grant.
     coordinator.renew(&claimed.lease, crate::model::unix_time(), 180)?;

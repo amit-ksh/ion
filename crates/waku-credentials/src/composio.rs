@@ -500,9 +500,15 @@ impl CredentialService {
         action: &str,
         version: &str,
     ) -> Result<ComposioTool> {
+        self.composio_tool_for(account, action, version, None)
+    }
+    pub fn composio_tool_for(
+        &self, account: &str, action: &str, version: &str, expected_workspace: Option<&str>,
+    ) -> Result<ComposioTool> {
+        if let Some(expected) = expected_workspace { app_workspace(Some(expected))?; }
         validate_action_identity(account, action, version)?;
         if self.status(CredentialKind::ComposioScopedProjectKey) == CredentialStatus::Missing {
-            let workspace = app_workspace(None)?;
+            let workspace = app_workspace(expected_workspace)?;
             return parse_tool(&crate::cloud::services::app_request(&workspace,
                 "/v1/apps/actions/describe",json!({"accountId":account,"action":action,"version":version}))?);
         }
@@ -516,12 +522,19 @@ impl CredentialService {
         version: &str,
         arguments: &Value,
     ) -> Result<ComposioPreparedAction> {
+        self.prepare_composio_action_for(account, action, version, arguments, None)
+    }
+    pub fn prepare_composio_action_for(
+        &self, account: &str, action: &str, version: &str, arguments: &Value,
+        expected_workspace: Option<&str>,
+    ) -> Result<ComposioPreparedAction> {
+        if let Some(expected) = expected_workspace { app_workspace(Some(expected))?; }
         validate_action_identity(account, action, version)?;
         if !arguments.is_object() || serde_json::to_vec(arguments)?.len() > 4096 {
             bail!("Approved app arguments must be an object no larger than 4 KiB");
         }
         if self.status(CredentialKind::ComposioScopedProjectKey) == CredentialStatus::Missing {
-            let workspace = app_workspace(None)?;
+            let workspace = app_workspace(expected_workspace)?;
             let data = crate::cloud::services::app_request(&workspace,"/v1/apps/actions/prepare",
                 json!({"accountId":account,"action":action,"version":version,"arguments":arguments}))?;
             let proposal = data["proposalId"].as_str().filter(|s| s.len()==43 && identifier(s,43))

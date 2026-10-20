@@ -407,6 +407,7 @@ impl Backend for WakuBackend {
                 };
                 let snapshot = self.teams.queue_default_task(
                     crate::teams::PrepareRun {
+                        account_scope: waku_credentials::cloud::status()?.workspace_id,
                         id: run_id,
                         root_task_id: session_id,
                         project_id,
@@ -502,6 +503,7 @@ impl Backend for WakuBackend {
                 };
                 let snapshot = self.teams.prepare(
                     crate::teams::PrepareRun {
+                        account_scope: waku_credentials::cloud::status()?.workspace_id,
                         id: run_id,
                         root_task_id: root.id,
                         project_id: root.project_id,
@@ -1628,7 +1630,9 @@ impl Backend for WakuBackend {
                     .iter()
                     .find(|s| s.id == session_id)
                     .map(|s| s.project_id);
+                let account_scope = waku_credentials::cloud::status()?.workspace_id;
                 let workspace = project_id.map(|project_id| driver::WorkspaceContext {
+                    account_scope: account_scope.clone(),
                     task_id: session_id,
                     project_id,
                     control_path: self.control.path(),

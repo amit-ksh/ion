@@ -60,6 +60,114 @@ struct ResourceGroupLimits {
     memory_bytes: u64,
     processes: u32,
 }
+
+/// Prepared only from the reviewed managed registry; consumed after the native
+/// chat asks the user to approve these exact arguments and image.
+pub(super) struct PreparedSoloCommand {
+    client: Client,
+    policy: Policy,
+    request: JobRequest,
+}
+pub(super) fn prepare_solo_command(argv: Vec<String>, id: Uuid) -> Result<PreparedSoloCommand> {
+    let client = Client::configured()?;
+    let target = client.default_command_target()?;
+    let policy: Policy = serde_json::from_value(
+        client
+            .command_policy(target)?
+            .context("Managed command policy unavailable")?,
+    )?;
+    validate_policy(&policy)?;
+    ensure!(
+        policy.resources.is_some(),
+        "Command resource policy is unavailable"
+    );
+    let timeout = policy.max_seconds.min(120);
+    validate_args(
+        &policy,
+        &CommandArgs {
+            argv: argv.clone(),
+            input_paths: vec![],
+            output_paths: vec![],
+            timeout_seconds: timeout,
+        },
+    )?;
+    manifest(&client, &policy)?;
+    Ok(PreparedSoloCommand {
+        client,
+        policy,
+        request: JobRequest {
+            version: 1,
+            request_id: id,
+            argv,
+            timeout_seconds: timeout,
+            inputs: vec![],
+            output_paths: vec![],
+            project_snapshot: None,
+        },
+    })
+}
+impl PreparedSoloCommand {
+    pub(super) fn description(&self) -> Result<String> {
+        Ok(format!(
+            "Image: {}\nExact arguments: {}\nMaximum runtime: {} seconds\nNo local project files or credentials are uploaded.",
+            self.policy.image,
+            serde_json::to_string(&self.request.argv)?,
+            self.request.timeout_seconds
+        ))
+    }
+    pub(super) fn execute(self, cancelled: &AtomicBool) -> Result<String> {
+        ensure!(
+            !cancelled.load(Ordering::Acquire),
+            "Stopped before sandbox submission"
+        );
+        let response=self.client.request(reqwest::Method::POST,"/instances")?.json(&body(&self.policy,&self.request)?).send()
+            .with_context(||format!("Sandbox request {} has an uncertain acknowledgement; inspect it before further work",self.request.request_id))?;
+        ensure!(
+            response.status().as_u16() == 201,
+            "Sandbox request {} was not acknowledged; no local fallback or resubmission",
+            self.request.request_id
+        );
+        let value = read_json(response, 64 * 1024)?;
+        let operation = Uuid::parse_str(
+            value["uuid"]
+                .as_str()
+                .context("Sandbox operation acknowledgement missing")?,
+        )?;
+        let deadline =
+            Instant::now() + Duration::from_secs(u64::from(self.request.timeout_seconds) + 15);
+        let mut stopping = false;
+        loop {
+            if !stopping && (cancelled.load(Ordering::Acquire) || Instant::now() >= deadline) {
+                self.client.cancel(operation)?;
+                stopping = true;
+            }
+            let value =
+                self.client
+                    .operation_bounded(operation, self.policy.image, 3 * 1024 * 1024)?;
+            if matches!(
+                value["status"].as_str(),
+                Some("SUCCESS" | "FAILED" | "CANCELLED")
+            ) {
+                ensure!(
+                    !stopping,
+                    "Sandbox operation {operation} is confirmed stopped after cancellation"
+                );
+                ensure!(
+                    value["status"] == "SUCCESS",
+                    "Sandbox operation {operation} stopped without a successful worker receipt"
+                );
+                let mut result = receipt(&value, &self.request)?.summary()?;
+                result["operation_id"] = json!(operation);
+                return Ok(result.to_string());
+            }
+            ensure!(
+                Instant::now() < deadline + Duration::from_secs(15),
+                "Sandbox operation {operation} stop is unconfirmed; its spending hold remains"
+            );
+            thread::sleep(Duration::from_millis(500));
+        }
+    }
+}
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CommandArgs {
@@ -185,7 +293,7 @@ fn manifest(client: &Client, p: &Policy) -> Result<Value> {
         .request(
             reqwest::Method::GET,
             &format!("/inspect/{}/download", p.image),
-        )
+        )?
         .query(&[("path", "/ion/job-host.json")])
         .send()?;
     ensure!(
@@ -306,7 +414,7 @@ fn execute_with(
         coordinator.reject_job(request.request_id)?;
         anyhow::bail!("Stopped before command submission");
     }
-    let response=client.request(reqwest::Method::POST,"/instances").json(&project::body_for(coordinator,p,request)?).send()
+    let response=client.request(reqwest::Method::POST,"/instances")?.json(&project::body_for(coordinator,p,request)?).send()
         .context("Command spawn acknowledgement lost; observe this request before continuing; no retry or local fallback")?;
     if matches!(response.status().as_u16(), 400 | 401 | 403) {
         coordinator.reject_job(request.request_id)?;
@@ -377,7 +485,14 @@ pub(crate) fn run(
         request_id,
         args,
         cancelled,
-        |target| Ok((policy(target)?, Client::configured()?)),
+        |target| {
+            let client = Client::configured()?;
+            let policy = match client.command_policy(target)? {
+                Some(p) => serde_json::from_value(p)?,
+                None => policy(target)?,
+            };
+            Ok((policy, client))
+        },
     )
 }
 
@@ -547,6 +662,7 @@ fn bind_recovered_with(
     validate_policy(&policy)?;
     ensure!(policy.image == record.image, "Stored command image changed");
     let expected = project::body_for(coordinator, &policy, &record.request)?;
+    client.recover_operation(request, operation)?;
     let observed = client.operation_bounded(operation, record.image, 3 * 1024 * 1024)?;
     verify_original_command(&observed, &expected)?;
     coordinator.bind_recovered_job_operation(
@@ -738,6 +854,7 @@ mod tests {
             let run = store
                 .prepare(
                     PrepareRun {
+                        account_scope: None,
                         id: Uuid::new_v4(),
                         root_task_id: Uuid::new_v4(),
                         project_id: Uuid::new_v4(),
@@ -2010,6 +2127,46 @@ mod tests {
         reply.outputs.clear();
         reply.stdout.bytes = 1;
         assert!(validate_receipt(&reply, &f.request).is_err());
+    }
+    #[test]
+    fn managed_solo_command_preserves_actual_exit_receipt_and_exact_argv() {
+        for code in [0, 7] {
+            let mut f = Fixture::new(true, true);
+            f.policy.resources = Some(child_limits());
+            let operation = Uuid::new_v4();
+            let reply = response(&f.request, code);
+            let server = Server::new(vec![
+                (201, bytes(json!({"uuid":operation}))),
+                (200, bytes(terminal(&f, operation, &reply))),
+            ]);
+            let command = PreparedSoloCommand {
+                client: Client::fixture(&server.url, "fixture-project"),
+                policy: f.policy.clone(),
+                request: f.request.clone(),
+            };
+            assert!(
+                command
+                    .description()
+                    .unwrap()
+                    .contains(&f.policy.image.to_string())
+            );
+            let result: Value =
+                serde_json::from_str(&command.execute(&AtomicBool::new(false)).unwrap()).unwrap();
+            assert_eq!(result["exit_code"], code);
+            assert_eq!(result["operation_id"], operation.to_string());
+            let requests = server.finish();
+            assert_eq!(requests.len(), 2);
+            assert!(requests[0].line.starts_with("POST /instances "));
+            let submitted = &requests[0].body;
+            assert_eq!(submitted["networking"]["enabled"], false);
+            assert_eq!(submitted["disposable"], true);
+            let input = STANDARD
+                .decode(submitted["stdin"]["value"].as_str().unwrap())
+                .unwrap();
+            let input: Value = serde_json::from_slice(&input).unwrap();
+            assert_eq!(input["argv"], json!(f.request.argv));
+            assert_eq!(input["inputs"], json!([]));
+        }
     }
 }
 

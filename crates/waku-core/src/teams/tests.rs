@@ -87,6 +87,7 @@ impl Fixture {
     }
     fn request(&self) -> PrepareRun {
         PrepareRun {
+            account_scope: None,
             id: Uuid::new_v4(),
             root_task_id: Uuid::new_v4(),
             project_id: self.project,
@@ -4602,3 +4603,16 @@ fn remote_inventory_cursor_survives_terminal_state_change() {
 
 #[path = "gateway_pdf_tests.rs"]
 mod gateway_pdf_tests;
+
+#[test]
+fn managed_account_scope_is_pinned_with_creation_and_survives_restart() {
+    let f=Fixture::new();let owner="a".repeat(64);let other="b".repeat(64);
+    let mut request=f.request();request.account_scope=Some(owner.clone());
+    let run=f.store.prepare(request.clone(),100).unwrap();
+    let restarted=TeamCoordinator::new(f.definitions.path());
+    restarted.bind_account_scope(run.id,Some(&owner)).unwrap();
+    assert!(restarted.bind_account_scope(run.id,Some(&other)).is_err());
+    assert!(restarted.bind_account_scope(run.id,None).is_err());
+    request.account_scope=Some(other);
+    assert!(restarted.prepare(request,101).is_err());
+}

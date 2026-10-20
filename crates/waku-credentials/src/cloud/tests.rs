@@ -703,6 +703,7 @@ fn managed_inference_refreshes_and_never_borrows_a_replacement_accounts_token() 
     );
     let mut changed = account.read().unwrap();
     changed.session.as_mut().unwrap().workspace_id = "b".repeat(64);
+    changed.session.as_mut().unwrap().expires_at = 1;
     account.store().write(&changed).unwrap();
     assert!(
         account
@@ -715,6 +716,11 @@ fn managed_inference_refreshes_and_never_borrows_a_replacement_accounts_token() 
             .unwrap_err()
             .to_string()
             .contains("account changed")
+    );
+    assert_eq!(
+        account.http.refreshes.load(Ordering::SeqCst),
+        1,
+        "An old task must not refresh the replacement account"
     );
     account.store().write(&State::empty().unwrap()).unwrap();
     assert!(
@@ -730,20 +736,91 @@ fn managed_apps_bind_identity_before_refresh_and_never_dispatch_for_another_acco
     let account = fixture();
     seed(&account, true, false);
     let expected = "a".repeat(64);
-    let page = account.app_request(&expected, "/v1/apps/catalog", json!({})).unwrap();
+    let page = account
+        .app_request(&expected, "/v1/apps/catalog", json!({}))
+        .unwrap();
     assert_eq!(page["managed"], true);
     assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
     let count = account.http.calls.lock().unwrap().len();
-    assert!(account.app_request(&expected, "/v1/apps/../services/controls", json!({})).is_err());
+    assert!(
+        account
+            .app_request(&expected, "/v1/apps/../services/controls", json!({}))
+            .is_err()
+    );
     let mut state = account.read().unwrap();
     let session = state.session.as_mut().unwrap();
     session.workspace_id = "b".repeat(64);
     session.expires_at = 1;
     account.store().write(&state).unwrap();
-    assert!(account.app_request(&expected, "/v1/apps/connect", json!({})).unwrap_err().to_string().contains("account changed"));
+    assert!(
+        account
+            .app_request(&expected, "/v1/apps/connect", json!({}))
+            .unwrap_err()
+            .to_string()
+            .contains("account changed")
+    );
     assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
     assert_eq!(account.http.calls.lock().unwrap().len(), count);
     account.store().write(&State::empty().unwrap()).unwrap();
-    assert!(account.app_request(&expected, "/v1/apps/disconnect", json!({})).is_err());
+    assert!(
+        account
+            .app_request(&expected, "/v1/apps/disconnect", json!({}))
+            .is_err()
+    );
     clean(account);
+}
+
+/// Uses the already-signed-in native account. No browser, service enablement,
+/// provider tool effect or inference request is permitted by this check.
+#[test]
+#[ignore = "requires the operator's admitted native Ion login and explicit live-check environment"]
+fn live_managed_gateway_catalog_and_stop_controls() {
+    assert_eq!(std::env::var("ION_MANAGED_ACCEPTANCE").as_deref(), Ok("1"));
+    let status = super::status().expect("Read native Ion account");
+    assert!(
+        status.signed_in,
+        "Sign in to the rebuilt Ion app before native gateway acceptance"
+    );
+    let workspace = status.workspace_id.expect("Native workspace");
+    let controls =
+        super::services::controls().expect("Read live owner controls without changing them");
+    let page = super::services::app_request(
+        &workspace,
+        "/v1/apps/catalog",
+        json!({"search":"","connectedOnly":true}),
+    )
+    .expect("Load only this admitted account's connected app catalog");
+    assert_eq!(page["managed"], true);
+    assert!(page["items"].is_array());
+    let usage = super::services::request("GET", "/v1/services/usage", None)
+        .expect("Read combined spending");
+    assert_eq!(usage["combined"]["unit"], "microUSD");
+    assert!(
+        usage["combined"]["total"]["spent"]
+            .as_u64()
+            .is_some_and(|n| n <= 12_000_000)
+    );
+    if !controls.token_factory {
+        let response = super::services::inference_request(
+            &reqwest::blocking::Client::new(),
+            reqwest::Method::GET,
+            "models",
+            &workspace,
+        )
+        .unwrap()
+        .send()
+        .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+    }
+    if !controls.app_actions {
+        // An invalid proposal is not an authorization to dispatch anything.
+        assert!(
+            super::services::app_request(
+                &workspace,
+                "/v1/apps/actions/execute",
+                json!({"proposalId":"invalid"})
+            )
+            .is_err()
+        );
+    }
 }
