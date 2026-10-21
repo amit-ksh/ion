@@ -8,16 +8,23 @@ and static-publishing evidence. iOS and deferred harness adapters are excluded.
 
 - Owner native Auth0 login, Windows Credential Manager refresh and managed
   publish-only desktop registration passed. The desktop account remains signed in.
-- Moto G32 is authorized over USB. The owner confirmed Android sign-in; upgrade,
-  cold start and the primary user's microphone permission passed nonvisually.
+- The owner previously authorized Moto G32 USB access and confirmed Android
+  sign-in; upgrade, cold start and the primary user's microphone permission
+  passed nonvisually. At 08:42 IST the device reported offline. A scoped host-side
+  reconnect did not restore it; subsequent reads report device not found.
+  Device acceptance now requires a working USB connection. No shared ADB server
+  restart, screenshots, microphone capture or phone-data changes were performed.
+  Evidence: `.waku-cache/ion-account-bound-moto-availability.json`.
 - Owner Google Drive connection and one approved read-only quota action passed.
   Do not repeat that provider effect just to replace already recorded evidence.
 - Cloud, Token Factory and app-action spending switches remain OFF. Static
   publishing works with Cloud OFF; it does not need a Nebius VM or controller.
 - The exact R2 model bytes and packaged CPU runtime passed synthetic speech and
   silence. These checks do not establish physical microphone behavior.
-- The new Windows package is building. Existing EXE/APK files predate the latest
-  static-publishing UI; use the refreshed, hash-recorded artifacts for acceptance.
+- The Windows refresh containing the account-bound publication fix is building;
+  the daemon binary has been refreshed but this is not whole-package acceptance.
+  Follow plans 134–136 for exact source and earlier candidate evidence. Use the
+  refreshed, hash-recorded Windows and Android artifacts for acceptance.
 
 ## Windows release installation
 
