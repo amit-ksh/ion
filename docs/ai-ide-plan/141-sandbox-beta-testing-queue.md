@@ -41,6 +41,12 @@ assumed to grant Token Factory sandbox access. See the
 
 ## Ordered tasks
 
+Local worker follow-up: [147](147-local-command-image-reacceptance.md) records
+the stale cached-image findings, current-source build, exact-kernel refusal and
+local reacceptance (13 CLI cases passed, one optional case skipped, one kernel
+refusal passed). All owned containers were removed. This advances SBX-02 but
+does not pass provider-kernel/image registration, harness login or pricing gates.
+
 ### Confirmed beta project (13:32 IST)
 
 The owner supplied **`aiproject-e00h49rtswkv9bz46s`**. With the existing saved
@@ -71,7 +77,7 @@ service-switch change or paid resource was issued during these checks.
 | ID | Task | Status | Dependency and required evidence |
 | --- | --- | --- | --- |
 | SBX-01 | Verify beta access for the intended key/project | Passed | Owner-supplied `aiproject-e00h49rtswkv9bz46s` returns 200 with all six permissions true using the saved key. |
-| SBX-02 | Discover and inspect compatible worker images | In progress: public discovery passed; worker inspection pending | SBX-01; immutable image UUID, exact manifest/worker entrypoint, supported harness and reviewed network/resource policy. |
+| SBX-02 | Discover and inspect compatible worker images | In progress: current command image accepted locally; provider/harness registration pending | See plan 147; still requires immutable provider image UUID, exact provider-compatible manifest/kernel, supported harness authentication and reviewed network/resource policy. |
 | SBX-03 | Verify price, retention and combined-budget bounds | Queued | Provider-confirmed operation/upload/retention units and ceilings; current durable usage and unknown holds; stay below the existing $10 target/$15 cumulative ceiling. |
 | SBX-04 | Enable only the reviewed managed sandbox registry | Queued | SBX-02–03; backend-only credentials, bounded production policy, correct account-bound native config. Save initial service controls for restoration. |
 | SBX-05 | Run one short exact-approved command | Queued | SBX-04; real dispatch receipt, output and process exit. Verify refusal/changed arguments cause no dispatch, foreign account cannot access results, and nonzero exit remains a failure. |

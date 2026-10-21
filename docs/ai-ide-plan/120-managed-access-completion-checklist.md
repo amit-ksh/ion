@@ -97,6 +97,9 @@ acceptance remain pending. See plan 141 for the exact evidence and queue.
   `aiproject-e00h49rtswkv9bz46s` has spawn/list/cancel/import permissions.
   Reviewed images and verified pricing are still required before dispatch.
 - [ ] Select and verify compatible registered images for supported team harnesses.
+  Current command-worker local reacceptance is recorded in
+  [147](147-local-command-image-reacceptance.md); provider-kernel/image UUID and
+  configured harness acceptance remain pending. No cloud launch occurred.
 - [x] Backend owns project credentials, provisioning, account-bound command
   approvals, bounded file transfer, status, results and artifact retrieval.
 - [x] Implement durable limits, runtime/idle deadlines, cancellation, recovery,
