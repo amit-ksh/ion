@@ -48,3 +48,17 @@ Verification: build and behavior checks are separate from visual acceptance. Cap
 4. Android shell, navigation, controls, forms, and states.
 5. Reproducible Ion vector identity and platform icon assets.
 6. Meaningful verification, bounded UX audit/fixes, documentation, commits.
+
+## Result and evidence
+
+Implementation milestones were committed in `a2e4f3f` (native workbench and
+identity) and `98f48cb` (Android navigation, Work, Apps and revision-safe editors).
+Final workbench, composer target-spacing and Linux icon coverage is in `7753631`.
+The inherited QA snapshot remains separate in `c9d94d4`.
+
+The final [UX audit](ux-audit.md) records implemented coverage, meaningful checks,
+the reviewer's seven resolved source findings, a freshly reproduced-and-fixed
+Teams crash, and unavailable device/visual acceptance. The formal visual verdict
+is **recapture**, not whole-surface approval. `validation.json` contains sanitized
+artifact hashes and export source-inclusion checks; bulky build logs remain in
+the ignored worktree cache. The source-derived design system is `DESIGN.md`.
