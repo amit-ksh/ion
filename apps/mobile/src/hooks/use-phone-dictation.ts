@@ -1,19 +1,19 @@
 import { cloudAccount } from "@/lib/cloud-account";
-import type { WakuClient } from '@waku/client';
+import type { WakuClient } from "@waku/client";
 import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioStream,
-} from 'expo-audio';
-import * as Crypto from 'expo-crypto';
-import { File, Paths } from 'expo-file-system';
-import { useEffect, useRef, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+} from "expo-audio";
+import * as Crypto from "expo-crypto";
+import { File, Paths } from "expo-file-system";
+import { useEffect, useRef, useState } from "react";
+import { AppState, Platform } from "react-native";
 
-import { transcribePhoneWav } from '@/lib/daemon-api';
-import { phoneDictationWav } from '@/lib/phone-dictation-wav';
+import { transcribePhoneWav } from "@/lib/daemon-api";
+import { phoneDictationWav } from "@/lib/phone-dictation-wav";
 
-type Phase = 'idle' | 'preparing' | 'recording' | 'transcribing';
+type Phase = "idle" | "preparing" | "recording" | "transcribing";
 type Capture = {
   client: WakuClient;
   contextKey: string;
@@ -30,14 +30,14 @@ export function usePhoneDictation(
   onPreview?: (text: string | null) => void,
 ) {
   useEffect(() => cloudAccount.onSignOut(() => discard()), []);
-  const [phase, setPhase] = useState<Phase>('idle');
-  const phaseRef = useRef<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>("idle");
+  const phaseRef = useRef<Phase>("idle");
   const changePhase = (next: Phase) => {
     phaseRef.current = next;
     if (mounted.current) setPhase(next);
   };
   const [error, setError] = useState<string | null>(null);
-  const owner = useRef(Symbol('phone dictation'));
+  const owner = useRef(Symbol("phone dictation"));
   const ownsMicrophone = () => microphoneOwner === owner.current;
   const releaseMicrophone = () => {
     if (!ownsMicrophone()) return;
@@ -77,7 +77,7 @@ export function usePhoneDictation(
     currentContext.current === capture.contextKey;
 
   const { stream } = useAudioStream({
-    encoding: 'int16',
+    encoding: "int16",
     channels: 1,
     sampleRate: 16_000,
     onBuffer: (buffer) => {
@@ -97,7 +97,7 @@ export function usePhoneDictation(
       ) {
         failCapture(
           destination,
-          'Microphone format changed. Try recording again.',
+          "Microphone format changed. Try recording again.",
         );
         return;
       }
@@ -109,7 +109,7 @@ export function usePhoneDictation(
       ) {
         failCapture(
           destination,
-          'Recording reached the 60-second limit. Start a shorter dictation.',
+          "Recording reached the 60-second limit. Start a shorter dictation.",
         );
         return;
       }
@@ -118,7 +118,7 @@ export function usePhoneDictation(
       } catch (cause) {
         failCapture(
           destination,
-          cause instanceof Error ? cause.message : 'Speech streaming failed',
+          cause instanceof Error ? cause.message : "Speech streaming failed",
         );
       }
     },
@@ -132,12 +132,24 @@ export function usePhoneDictation(
     abort.current = null;
     const wasActive = active.current;
     active.current = false;
-    if (wasActive) stream.stop();
+    let stopFailed = false;
+    if (wasActive) {
+      try {
+        stream.stop();
+      } catch {
+        stopFailed = true;
+      }
+    }
     clearTimer();
     chunks.current = [];
     releaseMicrophone();
-    changePhase('idle');
-    if (mounted.current) setError(null);
+    changePhase("idle");
+    if (mounted.current)
+      setError(
+        stopFailed
+          ? "Microphone could not stop. Close and reopen this screen before recording again."
+          : null,
+      );
     onPreviewRef.current?.(null);
   }
   function failCapture(capture: Capture, message: string) {
@@ -149,23 +161,23 @@ export function usePhoneDictation(
   useEffect(() => {
     mounted.current = true;
     const status = stream.addListener(
-      'audioStreamStatus',
+      "audioStreamStatus",
       ({ isStreaming }) => {
         if (
           !isStreaming &&
           active.current &&
-          phaseRef.current === 'recording' &&
+          phaseRef.current === "recording" &&
           target.current
         ) {
           failCapture(
             target.current,
-            'Microphone stopped. Audio was discarded.',
+            "Microphone stopped. Audio was discarded.",
           );
         }
       },
     );
-    const app = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') discard();
+    const app = AppState.addEventListener("change", (state) => {
+      if (state !== "active") discard();
     });
     return () => {
       mounted.current = false;
@@ -175,25 +187,29 @@ export function usePhoneDictation(
     };
   }, [stream]);
   useEffect(() => {
-    if (phaseRef.current !== 'idle') discard();
+    if (phaseRef.current !== "idle") discard();
   }, [client, contextKey]);
 
   async function start() {
     if (
-      Platform.OS === 'web' ||
+      Platform.OS === "web" ||
       !client ||
-      phaseRef.current !== 'idle' ||
+      phaseRef.current !== "idle" ||
       starting.current !== null
     )
       return;
     if (microphoneOwner !== null)
-      throw new Error('Another dictation is already using the microphone');
+      throw new Error("Another dictation is already using the microphone");
+    if (stream.isStreaming)
+      throw new Error(
+        "Microphone is still active. Close and reopen this screen before recording again.",
+      );
     microphoneOwner = owner.current;
     const operation = ++generation.current;
     starting.current = operation;
     const controller = new AbortController();
     abort.current = controller;
-    changePhase('preparing');
+    changePhase("preparing");
     setError(null);
     onPreviewRef.current?.(null);
     const valid = () =>
@@ -205,7 +221,7 @@ export function usePhoneDictation(
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted)
-        throw new Error('Microphone permission is required for dictation');
+        throw new Error("Microphone permission is required for dictation");
       if (!valid()) return;
       const destination: Capture = { client, contextKey, controller };
       target.current = destination;
@@ -228,7 +244,7 @@ export function usePhoneDictation(
         stream.stop();
         return;
       }
-      changePhase('recording');
+      changePhase("recording");
       durationTimer.current = setTimeout(() => {
         if (current(destination) && active.current)
           void stopRef.current().catch(() => {});
@@ -240,7 +256,7 @@ export function usePhoneDictation(
           setError(
             cause instanceof Error
               ? cause.message
-              : 'Could not start dictation',
+              : "Could not start dictation",
           );
         throw cause;
       }
@@ -248,16 +264,26 @@ export function usePhoneDictation(
       if (starting.current === operation) starting.current = null;
       if (
         operation === generation.current &&
-        (phaseRef.current as Phase) === 'preparing'
+        (phaseRef.current as Phase) === "preparing"
       )
         discard();
     }
   }
 
   async function stop() {
-    if (!active.current || phaseRef.current !== 'recording') return;
+    if (!active.current || phaseRef.current !== "recording") return;
     active.current = false;
-    stream.stop();
+    try {
+      stream.stop();
+    } catch {
+      // Native finalization failed: never upload partial audio or strand the
+      // UI/timer/shared audio mode in its recording state.
+      discard();
+      const message =
+        "Microphone could not stop. Close and reopen this screen before recording again.";
+      if (mounted.current) setError(message);
+      throw new Error(message);
+    }
     clearTimer();
     releaseMicrophone();
     const destination = target.current;
@@ -265,7 +291,7 @@ export function usePhoneDictation(
       discard();
       return;
     }
-    changePhase('transcribing');
+    changePhase("transcribing");
     let file: File | null = null;
     const timeout = setTimeout(() => destination.controller.abort(), 750_000);
     try {
@@ -275,7 +301,8 @@ export function usePhoneDictation(
       file.create();
       file.write(wav);
       const base64 = await file.base64();
-      if (!current(destination) || destination.controller.signal.aborted) return;
+      if (!current(destination) || destination.controller.signal.aborted)
+        return;
       const transcript = await transcribePhoneWav(destination.client, base64);
       if (!current(destination) || destination.controller.signal.aborted)
         return;
@@ -286,7 +313,7 @@ export function usePhoneDictation(
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Speech transcription failed',
+            : "Speech transcription failed",
         );
         throw cause;
       }
@@ -301,7 +328,7 @@ export function usePhoneDictation(
         chunks.current = [];
         target.current = null;
         abort.current = null;
-        changePhase('idle');
+        changePhase("idle");
         onPreviewRef.current?.(null);
       }
     }
@@ -313,6 +340,6 @@ export function usePhoneDictation(
     start,
     stop,
     discard,
-    available: Platform.OS !== 'web' && !!stream,
+    available: Platform.OS !== "web" && !!stream,
   };
 }

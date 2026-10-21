@@ -146,6 +146,9 @@ artifact. See [128](128-r2-speech-and-publishing.md).
 - [ ] Test desktop microphone permissions and actual recorded dictation.
 - [ ] Test phone dictation relayed to the paired desktop. Phone inference remains
   on the paired desktop for this release.
+  Native Stop/Discard exception cleanup is fixed and covered by ten isolated
+  hook lifecycle scenarios in [143](143-phone-dictation-stop-recovery.md).
+  The separate emulator startup symptom and real recording remain unverified.
 - [x] Commit speech distribution milestone: `d9e93b5`. See [122](122-hugging-face-speech-release.md).
 
 ## 8. HTML and app publishing

@@ -50,6 +50,12 @@ from main-branch ARM64 release artifacts and is not a physical-device pass.
 
 ## Completion rule
 
+RD-02 source hardening: [143](143-phone-dictation-stop-recovery.md) records a
+separately reproduced native Stop/Discard exception cleanup defect and its fix.
+Ten isolated hook lifecycle scenarios and mobile TypeScript pass. The emulator
+startup return-to-idle symptom and actual recording/transcription remain open;
+these fixtures do not establish its cause or pass device acceptance.
+
 Track RD-01–05 in `.waku-cache/ion-managed-task-queue.json`. Reuse the
 [completion checklist](120-managed-access-completion-checklist.md) and
 [device/interaction checklist](132-physical-device-acceptance.md) for shared
