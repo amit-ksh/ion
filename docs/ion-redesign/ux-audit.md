@@ -5,6 +5,14 @@ release certification. The source reviewer scored all seven identified fixes
 resolved. Its formal visual disposition remains **recapture** because the full
 desktop/Android theme, viewport and state matrix is unavailable in this session.
 
+## Updated follow-up status — 21 October 2026
+
+The isolated Android APK has since built, installed and launched successfully.
+The owner signed in and targeted phone/compact device interactions were checked.
+The build failure and absent-emulator statements below describe the initial
+attempt. Current receipts, the requested refinements and the precise remaining
+acceptance limits are in [refinement-audit.md](refinement-audit.md).
+
 ## Delivered
 
 | Area | Implemented result | Evidence and limit |
@@ -13,9 +21,9 @@ desktop/Android theme, viewport and state matrix is unavailable in this session.
 | Shared surfaces | Neutral charcoal and soft light layers, restrained lime primary actions, readable semantic foregrounds, consistent rounded control groups. | Native/mobile token source and automated AA checks. Composited/disabled/device states remain visual checks. |
 | Desktop shell and Work | Grouped Work/Workspace navigation, compact object cards, contextual actions, shared workbench controls and primary action treatment. | Fresh Windows debug build and Teams capture. Existing virtualized lists remain in place. Full light/narrow/native macOS matrix is outstanding. |
 | Desktop chat and settings | Bounded composer, accessible send/stop/queue activation and visible focus, clearer selected settings/navigation. | Native build and source review. End-to-end keyboard traversal and provider streaming are not certified by the isolated empty-workspace check. |
-| Android navigation | Labelled Chat, Work, Artifacts and Settings destinations; compact bottom bar and an actual rail from 600dp; detail routes keep normal Back behavior. | TypeScript and source-inclusive Android export. No phone/tablet hardware or emulator rendering was available. |
+| Android navigation | Labelled Chat, Work, Artifacts and Settings destinations; compact bottom bar and an actual rail from 600dp; detail routes keep normal Back behavior. | TypeScript and source-inclusive Android export. Initial source receipt; later emulator evidence is recorded in the refinement audit. Hardware remains unverified. |
 | Android Work | Real Tasks, Projects, Teams and Decisions; project picker, pending solo approvals/questions, team decisions and workspace proposals. | Existing daemon data/commands and source checks. No synthetic dashboard metrics; Dashboard/Inbox remain absent from primary navigation. |
-| Agent/team editing | Required instructions, explicit per-agent harness/model and Local/Nebius selection, reporting hierarchy, one lead, bounded parallelism, revision-bound drafts and explicit reload recovery. | Graph/concurrency tests and source reviewer. Device focus/IME and a live desktop-to-phone edit conflict remain unverified. |
+| Agent/team editing | Required instructions, explicit per-agent harness/model selection, with desktop cloud definitions inspectable and local execution on mobile, reporting hierarchy, one lead, bounded parallelism, revision-bound drafts and explicit reload recovery. | Graph/concurrency tests and source reviewer. Device focus/IME and a live desktop-to-phone edit conflict remain unverified. |
 | Apps | Existing managed catalog/connect/disconnect routes, bounded account-scoped results, safe sign-in links, pending sign-in state, retry identity and disconnect confirmation. | Actual controller boundary tests plus catalog tests. Live OAuth/account mutations were not performed. |
 | Android composer and onboarding | Opaque Android surfaces, primary action styling, 48dp shared targets, recording control spacing, scrollable new-task setup, refreshed sign-in/onboarding treatment. | Source and contrast checks. 320dp/large-text/IME/recording layout still needs Android capture. |
 | Existing product flows | Routines/workflows, artifacts/document previews, static-only publishing, account/usage/budget/harness behavior remain attached to their existing runtime paths. | Existing regression suite and shared component/token adoption. Those services and publication were not executed as redesign acceptance. |
