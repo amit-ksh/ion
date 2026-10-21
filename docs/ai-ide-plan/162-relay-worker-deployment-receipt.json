@@ -1,0 +1,113 @@
+{
+  "observedAt": "2026-10-21T18:05:48.278Z",
+  "sourceCommit": "fd9a36a0b9a6511230873e55fb11718d0ad83ef2",
+  "priorVersion": "d948eb00-1607-497d-9dd8-9e7dc75dbcbb",
+  "deploymentAttempted": true,
+  "deployed": true,
+  "passed": true,
+  "needsReconciliation": false,
+  "paidWorkloadsStarted": 0,
+  "secretsWritten": false,
+  "serviceSwitchesWritten": false,
+  "permissionsExpanded": false,
+  "testedRuntimeLogSha256": "aaefe8ec9a3d76bdc2b004ba9a1f65d0ee8efc1a53db8cd20d1fd4083c3d6490",
+  "testedSqlReportSha256": "3802c0267d8560cc1758bce5faae90f56d1776833cc3a83cb41301a3c77d9f64",
+  "secretNamesSha256": "4e2d4370d0953300f3f133840566aa24e7fbba680f685f343fe8a86d797055ea",
+  "routesBefore": {
+    "hash": "d2249aa79c519465d81f878ca133fdb08abe90f956ae5122972af105cc1b6c17",
+    "count": 2,
+    "wwwExclusionPresent": true,
+    "wildcardPointsToIon": true
+  },
+  "publicBefore": [
+    {
+      "path": "/v1/health",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/bootstrap",
+      "method": "GET",
+      "status": 200,
+      "managedSandbox": false,
+      "staticPublishing": true
+    },
+    {
+      "path": "/v1/services/controls",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/tasks/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/models/ion-parakeet-110m-tdt-q8-v1.gguf",
+      "method": "HEAD",
+      "status": 200
+    }
+  ],
+  "versionId": "8c731253-d440-4129-bf00-0c6da5ef6c2c",
+  "bundleSha256": "9d946b238a7702a242b419a12b473d86845a7071ab90c47d87acb06443c4e641",
+  "publicAfter": [
+    {
+      "path": "/v1/health",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/bootstrap",
+      "method": "GET",
+      "status": 200,
+      "managedSandbox": false,
+      "staticPublishing": true
+    },
+    {
+      "path": "/v1/services/controls",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/tasks/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/models/ion-parakeet-110m-tdt-q8-v1.gguf",
+      "method": "HEAD",
+      "status": 200
+    }
+  ],
+  "routesAfter": {
+    "hash": "d2249aa79c519465d81f878ca133fdb08abe90f956ae5122972af105cc1b6c17",
+    "count": 2,
+    "wwwExclusionPresent": true,
+    "wildcardPointsToIon": true
+  },
+  "secretNamesUnchanged": true,
+  "finishedAt": "2026-10-21T18:06:35.566Z",
+  "nativeReadOnlyAcceptance": {
+    "passed": 1,
+    "failed": 0,
+    "unitTestExecutableSha256": "494553775b324e91473660b9a55081463d39de512aaab8006c483bfb86f6fb7a",
+    "testSourceUnchangedFromPriorRelease": true,
+    "logSha256": "d6a0d607fbbacf140f18be6d4c8797c42210acc330d6ccfa55a808b3cfdd6fef",
+    "newScopeHelperNotExercised": true
+  },
+  "acceptedAt": "2026-10-21T18:13:41.105929+00:00",
+  "originalReceiptPreserved": "ion-scoped-worker-deployment.json",
+  "profileLockRetry": "First local test failed before network at the protected account lock; identical reviewed binary passed via the permission system.",
+  "nativeClientPackageRefreshed": false,
+  "liveReductionMeasured": false
+}
