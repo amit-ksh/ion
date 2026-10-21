@@ -8,7 +8,7 @@ import type {
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -223,6 +223,9 @@ export function MobileComposer({
     ? null
     : runtimeError;
   const visibleError = visibleLocalError || visibleRuntimeError;
+  const errorSummary = useMemo(() => visibleError && /<(?:!doctype|html)(?:\s|>)/i.test(visibleError)
+    ? 'Your agent couldn’t connect. Check its setup on your desktop, then try again.'
+    : visibleError, [visibleError]);
   const queued = session.queued_messages ?? [];
   const taskState = useTaskState();
   const project = taskState.data?.projects.find((item) => item.id === session.project_id,
@@ -467,8 +470,8 @@ export function MobileComposer({
         <View
           accessibilityLiveRegion="polite"
           style={[styles.errorBanner, { backgroundColor: theme.dangerSoft }]}>
-          <Text style={[styles.errorText, { color: theme.danger }]}>
-            {visibleError}
+          <Text numberOfLines={3} style={[styles.errorText, { color: theme.danger }]}>
+            {errorSummary}
           </Text>
           <Pressable
             accessibilityLabel="Dismiss error"
