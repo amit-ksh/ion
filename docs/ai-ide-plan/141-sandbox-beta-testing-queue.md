@@ -41,6 +41,12 @@ assumed to grant Token Factory sandbox access. See the
 
 ## Ordered tasks
 
+The AI-project parser fix is now deployed in gateway version
+`b20ab52f-1155-424b-af51-eedc9957cd0f`; see
+[148](148-ai-project-worker-deployment.md). Seven real local workerd tests pass.
+Production sandbox policy remains absent and dispatch unavailable. This removes
+the backend ID-format gap without bypassing worker/pricing acceptance.
+
 Local worker follow-up: [147](147-local-command-image-reacceptance.md) records
 the stale cached-image findings, current-source build, exact-kernel refusal and
 local reacceptance (13 CLI cases passed, one optional case skipped, one kernel

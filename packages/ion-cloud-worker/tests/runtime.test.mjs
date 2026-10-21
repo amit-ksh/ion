@@ -42,7 +42,7 @@ const inferencePolicy = { models: [{ id: "fixture-model", contextTokens: 4096, o
   outputMicroUSDPerMillion: 1_000_000 }], limits: { monthly: 50000, lifetime: 50000, accountLifetime: 10000 } };
 const sandboxImage="10000000-0000-4000-8000-000000000001",sandboxOperation="20000000-0000-4000-8000-000000000001";
 const sandboxCapability={provider:"codex",model:"pinned",input_cap:32768,output_cap:4096},sandboxExecution={uid:1000,gid:1000,home:"/home/ion"};
-const sandboxPolicy={projectId:"project-fixture123",images:[{target:sandboxImage,image:sandboxImage,kind:"harness",manifest:{version:2,capabilities:[sandboxCapability],execution:sandboxExecution}}],maximumOperationMicroUSD:10000,maxRuntimeSeconds:150,pricingReference:"https://fixture.invalid/pricing",limits:{monthly:50000,lifetime:50000,accountLifetime:50000}};
+const sandboxPolicy={projectId:"aiproject-fixture123",images:[{target:sandboxImage,image:sandboxImage,kind:"harness",manifest:{version:2,capabilities:[sandboxCapability],execution:sandboxExecution}}],maximumOperationMicroUSD:10000,maxRuntimeSeconds:150,pricingReference:"https://fixture.invalid/pricing",limits:{monthly:50000,lifetime:50000,accountLifetime:50000}};
 const sandboxProvider={launches:0,cancels:0,body:null,terminal:false};
 const appSessions = new Map();
 function instance(directory, configured = false, storage = true, apps = false, sandbox = false) {
@@ -565,11 +565,12 @@ test("managed app effects: public JWT isolation, owner stop, exact approval and 
 });
 
 
-test("managed sandbox: authenticated bridge survives restart and alarm confirms owner stop",async()=>{
+test("managed sandbox AI project: authenticated bridge survives restart and alarm confirms owner stop",async()=>{
  const directory=mkdtempSync(join(tmpdir(),"ion-worker-sandbox-"));let mf=instance(directory,false,false,false,true);
  const call=async(subject,path,method="GET",body)=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:"Bearer "+await token(subject),"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
  try{
-  const config=await(await call("judge","/v1/sandbox/config")).json();assert.equal(config.available,true);assert.equal(config.enabled,false);
+  const configResponse=await call("judge","/v1/sandbox/config"),configBody=await configResponse.text();assert.equal(configResponse.status,200,configBody);
+  const config=JSON.parse(configBody);assert.equal(config.available,true);assert.equal(config.enabled,false);assert.equal(config.project,sandboxPolicy.projectId);
   assert.equal((await call("judge","/v1/services/controls","PUT",{tokenFactory:true})).status,403);
   assert.equal((await call("owner","/v1/services/controls","PUT",{tokenFactory:true})).status,200);
   const id="30000000-0000-4000-8000-000000000001";
