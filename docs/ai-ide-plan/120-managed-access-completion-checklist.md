@@ -8,6 +8,33 @@ Active goal scope: Windows desktop, Android (Moto G32), shared backend services
 and deployments. iOS implementation, builds, signing and acceptance are excluded.
 Previously deferred/unstarted harness adapters also remain outside scope.
 
+## Current status — 22 October
+
+This summary supersedes historical device, permission and build observations
+later in this document; completed checks retain their original source scope.
+
+- The separate redesign is merged into `ion-prod` with QA preservation verified
+  in [157](157-redesign-integration.md). Its original worktree remains intact.
+- Current reviewed code fd9a36a passes the 20 native regression cases, combined
+  desktop/core/client check and generated protocol check in
+  [165](165-native-gates-passed-release-awaits-approval.md). Local fixture success
+  does not complete native UI, physical microphone or actual-account acceptance.
+- The scoped relay Worker is deployed and verified in
+  [162](162-relay-recovery-rollout-and-release-gates.md). New-client traffic
+  reduction and the original Cloudflare meter/billing interpretation remain open.
+- Approval access returned. The guarded Windows/ARM64 continuation is launched,
+  initially waiting for memory, as recorded in
+  [166](166-release-approval-restored.md). No fresh package or install pass is
+  claimed until the actual run and package verifiers finish.
+- Sandbox access passed for `aiproject-e00h49rtswkv9bz46s`. Provider-compatible
+  immutable image/kernel/harness, price bounds and real lifecycle remain open.
+  No sandbox was launched; production sandbox policy remains unavailable.
+- The last physical-device inventory found only an emulator. Historical Moto
+  installation/sign-in passes do not establish current connectivity or speech.
+- Remaining native UI/account-switch, spoken TalkBack, microphone and paired
+  phone checks still require the existing interaction/device authorization.
+  The final QA handoff has not been sent.
+
 Priority follow-up: [154](154-durable-object-usage-investigation.md) tracks
 the reported AccountRelay usage, required before/after instrumentation,
 adaptive synchronization fix and security/recovery regressions. The live
@@ -196,20 +223,25 @@ and [131](131-static-only-publishing.md).
 
 ## 9. Managed onboarding, release and final acceptance
 
-- [ ] Complete the six user-requested UI follow-ups in
+- [x] Implement the six user-requested UI follow-ups in
   [146](146-requested-sidebar-and-artifact-ui-tasks.md): artifact deployment
   entry point, identified Android connection, mention-placeholder guidance,
   visible project ellipsis/Edit/Delete icons, simplified Work navigation and
-  bottom Settings icon/text. These extend existing redesign acceptance.
+  bottom Settings icon/text. Source integration is recorded in plan 157.
+- [ ] Verify those controls in the rebuilt native applications under the existing
+  visual/device testing scope; source integration alone is not a UI pass.
 
 Redesign follow-up RD-01–05 is recorded in
 [142](142-redesign-remaining-acceptance.md). It extends the UI, speech, integration
 and release checks below without duplicating passed evidence. Desktop visual/
-keyboard acceptance is unverified after the Computer Use helper failure;
-Android recording lifecycle and GitLab MCP HTTP 422 need diagnosis. Codex chat
-itself completed. The source-only MCP warning correction awaits the next
-independently authorized refresh; the redesign's one-APK/emulator-only scope
-does not authorize another build, merge or Moto test. Spoken TalkBack and long
+keyboard acceptance is unverified after the Computer Use helper failure.
+Android Stop/Discard exception cleanup is fixed with ten hook scenarios passing;
+the original return-to-idle symptom and physical recording remain unverified.
+GitLab MCP HTTP 422 is diagnosed separately from the successful Codex chat;
+its endpoint/authentication correction needs the existing owner authorization.
+The concise warning correction is integrated into the current package candidate.
+The user subsequently authorized the redesign merge (plan 157); that merge does
+not expand the redesign's emulator-only device/visual testing allowance. Spoken TalkBack and long
 transcript/tool/reasoning states remain open; macOS/Linux are outside this goal.
 
 - [x] Make sign-in/model selection/user app connections the normal onboarding;
