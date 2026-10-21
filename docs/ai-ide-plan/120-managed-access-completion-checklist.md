@@ -84,8 +84,10 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 queues live sandbox testing. Follow [141](141-sandbox-beta-testing-queue.md)
 (SBX-01–09) for access verification, image/pricing review, exact approvals,
 bounded execution/transfers, cancellation/recovery, owner stop and confirmed
-cleanup. The fresh saved-key observation is still unresolved (one project denies
-execution permissions; the other returned 500). Do not treat the earlier denial
+cleanup. The initial saved-key observation returned false execution permissions
+for one project and 500 for the other. A bounded follow-up returned 200 with
+false permissions for the latter too; confirm the beta-enabled project and
+caller/key authorization. Do not treat the earlier denial
 as permanent, or beta approval alone as successful live acceptance.
 
 - [x] Verify existing project key's sandbox access using read-only discovery:

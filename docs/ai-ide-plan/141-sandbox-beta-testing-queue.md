@@ -24,11 +24,26 @@ maximum timeout. Those provider limits neither authorize a launch nor set Ion's
 pilot spending policy. No image import, upload or sandbox operation was issued.
 Sanitized evidence: `.waku-cache/ion-sandbox-beta-access-20261021.json`.
 
+At **13:22 IST**, one bounded follow-up of the project that returned 500
+returned HTTP 200, with all six permissions above false. Both configured
+projects therefore currently accept the saved key for introspection but do not
+grant sandbox execution/list/cancel access. The follow-up is preserved as
+`.waku-cache/ion-sandbox-beta-access-followup-20261021.json`; the earlier 500
+report is not overwritten. No operation or import was attempted.
+
+The provider's access guide describes this state as `inactive`: project
+activation or caller authorization may be missing. Confirm which project
+received beta access and whether the locally saved key belongs to that project.
+If an administrator or Nebius must resolve activation, provide the project ID
+and inactive status, never the key. A general compute-VM Editor role is not
+assumed to grant Token Factory sandbox access. See the
+[provider access guide](https://docs.tokenfactory.nebius.com/sandboxes/start/set-up-access).
+
 ## Ordered tasks
 
 | ID | Task | Status | Dependency and required evidence |
 | --- | --- | --- | --- |
-| SBX-01 | Verify beta access for the intended key/project | In progress; access unresolved | Confirm actual `spawn_disposable`, `list` and `cancel`; inspect the transient 500 separately. Preserve existing credentials. |
+| SBX-01 | Verify beta access for the intended key/project | Blocked on intended project/key authorization | Both configured projects now return 200 with execution/list/cancel false. Confirm the enabled project and caller, then repeat discovery after an actual access/key change. Preserve existing credentials. |
 | SBX-02 | Discover and inspect compatible worker images | Queued | SBX-01; immutable image UUID, exact manifest/worker entrypoint, supported harness and reviewed network/resource policy. |
 | SBX-03 | Verify price, retention and combined-budget bounds | Queued | Provider-confirmed operation/upload/retention units and ceilings; current durable usage and unknown holds; stay below the existing $10 target/$15 cumulative ceiling. |
 | SBX-04 | Enable only the reviewed managed sandbox registry | Queued | SBX-02–03; backend-only credentials, bounded production policy, correct account-bound native config. Save initial service controls for restoration. |
