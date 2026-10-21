@@ -8,7 +8,7 @@ import type {
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -51,6 +51,7 @@ import { composerProviderPrompt } from "@/lib/composer-completion";
 import { modelHasConfigurableTraits } from "@/lib/model-traits";
 import { useRuntime } from "@/lib/runtime-context";
 import { isDaemonDisconnectError } from "@/lib/runtime-errors";
+import { summarizeRuntimeError } from "@/lib/runtime-error-summary";
 
 /**
  * The composer surface shared by the session screen and the new-task screen:
@@ -232,6 +233,10 @@ export function MobileComposer({
     ? null
     : runtimeError;
   const visibleError = visibleLocalError || visibleRuntimeError;
+  const errorSummary = useMemo(
+    () => visibleError ? summarizeRuntimeError(visibleError) : visibleError,
+    [visibleError],
+  );
   const queued = session.queued_messages ?? [];
   const taskState = useTaskState();
   const project = taskState.data?.projects.find((item) => item.id === session.project_id,
@@ -477,7 +482,7 @@ export function MobileComposer({
           accessibilityLiveRegion="polite"
           style={[styles.errorBanner, { backgroundColor: theme.dangerSoft }]}>
           <Text style={[styles.errorText, { color: theme.danger }]}>
-            {visibleError}
+            {errorSummary}
           </Text>
           <Pressable
             accessibilityLabel="Dismiss error"
