@@ -21,6 +21,7 @@ export function createCloudAccount(options: {
   deletePairing(): Promise<void>;
   clearTasks(): Promise<void>;
   send?: typeof fetch;
+  cloudServicesEnabled?: boolean;
 }) {
   const origin = options.origin;
   const send = options.send ?? fetch;
@@ -91,6 +92,8 @@ export function createCloudAccount(options: {
   }
   const actions: CloudAccountActions = {
     async request(path, method = "GET", body) {
+      if (options.cloudServicesEnabled === false && (path.startsWith('/v1/services/') || path.startsWith('/v1/hosting/') || path === '/v1/speech/sessions'))
+        throw new Error('Cloud services are disabled in this app.');
       if (
         !(
           path === "/v1/bootstrap" ||

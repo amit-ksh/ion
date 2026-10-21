@@ -1,170 +1,46 @@
-import * as Haptics from "expo-haptics";
-import { router, Stack, type Href } from "expo-router";
-import { navigateBack } from "@/components/screen-header";
-import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-
-import { AppSymbol } from "@/components/app-symbol";
-import { CloudAccountSection } from "@/components/cloud-account-section";
-import { ConnectionBanner } from "@/components/connection-banner";
-import { DaemonList } from "@/components/daemon-list";
-import { NativeTint } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
-import { useDaemon } from "@/lib/daemon-context";
-import type { DaemonProfile } from "@/lib/daemon-profile";
+import { router, Stack } from 'expo-router';
+import { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ConnectionBanner } from '@/components/connection-banner';
+import { DaemonList } from '@/components/daemon-list';
+import { HeaderAction, useScreenHeaderInset } from '@/components/screen-header';
+import { Sheet, SheetRow } from '@/components/sheet';
+import { WorkbenchButton, WorkbenchState } from '@/components/workbench';
+import { useTheme } from '@/hooks/use-theme';
+import { useDaemon } from '@/lib/daemon-context';
+import type { DaemonProfile } from '@/lib/daemon-profile';
 
 export default function DaemonsScreen() {
-  const theme = useTheme();
-  const daemon = useDaemon();
-  const [selectingId, setSelectingId] = useState<string | null>(null);
-
+  const theme = useTheme(); const daemon = useDaemon(); const header = useScreenHeaderInset();
+  const [selected, setSelected] = useState<DaemonProfile | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   async function select(profile: DaemonProfile) {
-    if (selectingId) return;
-    if (profile.id === daemon.activeProfile?.id) {
-      navigateBack();
-      return;
-    }
-    setSelectingId(profile.id);
-    try {
-      await Haptics.selectionAsync();
-      const connected = await daemon.selectProfile(profile.id);
-      if (connected) navigateBack();
-      else
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setSelectingId(null);
-    }
+    if (busy) return;
+    setBusy(profile.id); setError(null);
+    try { if (await daemon.selectProfile(profile.id)) router.back(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not connect.'); }
+    finally { setBusy(null); }
   }
-
-  return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      <Stack.Screen
-        options={{
-          headerRight: () => (
-            <Pressable
-              accessibilityLabel="Add daemon"
-              accessibilityRole="button"
-              hitSlop={10}
-              onPress={() => router.push("/daemon-editor")}
-            >
-              <AppSymbol
-                name={{ ios: "plus", android: "add", web: "add" }}
-                size={21}
-                tintColor={NativeTint}
-              />
-            </Pressable>
-          ),
-          unstable_headerRightItems: () => [
-            {
-              type: "button",
-              accessibilityLabel: "Add daemon",
-              icon: { type: "sfSymbol", name: "plus" },
-              label: "Add daemon",
-              onPress: () => router.push("/daemon-editor"),
-            },
-          ],
-        }}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <ConnectionBanner />
-        <CloudAccountSection />
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push("/gateway")}
-          style={[styles.gatewayLink, { borderColor: theme.borderStrong }]}
-        >
-          <Text style={{ color: theme.text, fontWeight: "600" }}>
-            Personal gateway approvals
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push("/speech" as Href)}
-          style={[styles.gatewayLink, { borderColor: theme.borderStrong }]}
-        >
-          <Text style={{ color: theme.text }}>Dictation</Text>
-        </Pressable>
-        {daemon.profiles.length ? (
-          <>
-            <Text style={[styles.sectionTitle, { color: theme.textTertiary }]}>
-              Daemons
-            </Text>
-            <DaemonList
-              selectingId={selectingId}
-              onEdit={(profile) => {
-                router.push({
-                  pathname: "/daemon-editor",
-                  params: { id: profile.id },
-                });
-              }}
-              onSelect={(profile) => void select(profile)}
-            />
-            <View style={styles.footer}>
-              <AppSymbol
-                name={{ ios: "key.horizontal", android: "key", web: "key" }}
-                size={14}
-                tintColor={theme.textTertiary}
-              />
-              <Text style={[styles.footerText, { color: theme.textTertiary }]}>
-                Only the selected daemon stays connected. Credentials are
-                protected by the device keychain and never pass through a ion
-                service.
-              </Text>
-            </View>
-          </>
-        ) : (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              No saved daemons
-            </Text>
-            <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-              Add the address and token shown in ion Desktop’s Daemon settings.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
-    </View>
-  );
+  return <View style={[styles.screen, { backgroundColor: theme.background }]}>
+    <Stack.Screen options={{ title: 'Paired desktops', headerLargeTitle: false, headerRight: () => <HeaderAction
+      label="Pair desktop" icon={{ ios: 'plus', android: 'add', web: 'add' }} onPress={() => router.push('/daemon-editor')} /> }} />
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: header + 16, gap: 16 }}>
+      <ConnectionBanner />
+      {error && <Text accessibilityRole="alert" style={{ color: theme.danger }}>{error}</Text>}
+      {daemon.profiles.length ? <DaemonList selectingId={busy} onSelect={profile => void select(profile)} onEdit={setSelected} />
+        : <WorkbenchState title="Pair your desktop"><WorkbenchButton label="Pair desktop" primary onPress={() => router.push('/daemon-editor')} /></WorkbenchState>}
+    </ScrollView>
+    <Sheet visible={Boolean(selected)} onDismiss={() => setSelected(null)} title={selected?.name}>
+      <SheetRow label="Edit connection" onPress={() => { const id = selected!.id; setSelected(null); router.push({ pathname: '/daemon-editor', params: { id } }); }} />
+      {selected?.id === daemon.activeProfile?.id && <SheetRow label="Reconnect" onPress={() => { setSelected(null); void daemon.reconnect(); }} />}
+      {selected?.id === daemon.activeProfile?.id && <SheetRow label="Disconnect" onPress={() => { setSelected(null); daemon.disconnect(); }} />}
+      <SheetRow label="Remove desktop" destructive onPress={() => {
+        const profile = selected!; setSelected(null);
+        Alert.alert(`Remove ${profile.name}?`, 'You can pair it again later.', [{ text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', style: 'destructive', onPress: () => { void daemon.removeProfile(profile.id).catch(() => setError('Could not remove desktop. Try again.')); } }]);
+      }} />
+    </Sheet>
+  </View>;
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  listContent: { paddingBottom: 36, paddingHorizontal: 16 },
-  gatewayLink: {
-    borderWidth: 1,
-    borderRadius: 9,
-    minHeight: 46,
-    justifyContent: "center",
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "500",
-    marginBottom: 7,
-    marginLeft: 12,
-    marginTop: 14,
-    textTransform: "uppercase",
-  },
-  footer: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 8,
-    marginHorizontal: 12,
-    marginTop: 14,
-  },
-  footerText: { flex: 1, fontSize: 12, lineHeight: 17 },
-  empty: { alignItems: "center", paddingHorizontal: 40, paddingTop: 100 },
-  emptyTitle: { fontSize: 18, fontWeight: "700" },
-  emptyBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-    maxWidth: 320,
-    textAlign: "center",
-  },
-});
+const styles = StyleSheet.create({ screen: { flex: 1 } });

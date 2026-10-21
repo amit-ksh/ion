@@ -3,6 +3,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppSymbol } from './app-symbol';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+export function EditorFooter({ busy, disabled, onSave, onClose }: {
+  busy: boolean; disabled: boolean; onSave: () => void; onClose: () => void;
+}) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  return <View style={{ flexDirection: 'row', gap: 8, padding: 16, paddingBottom: Math.max(insets.bottom, 16),
+    backgroundColor: theme.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }}>
+    <View style={{ flex: 1 }}><WorkbenchButton label={busy ? 'Saving…' : 'Save'} primary disabled={disabled} onPress={onSave} /></View>
+    <View style={{ flex: 1 }}><WorkbenchButton label="Close" onPress={onClose} /></View>
+  </View>;
+}
 
 export function WorkbenchButton({ label, onPress, primary = false, disabled = false, destructive = false }: {
   label: string; onPress: () => void; primary?: boolean; disabled?: boolean; destructive?: boolean;

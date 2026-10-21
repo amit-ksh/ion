@@ -204,7 +204,7 @@ Ion is a native workbench: quiet charcoal or warm pale surfaces, compact context
 
 Desktop uses GPUI; Android uses React Native and Expo. Their shared palette and vocabulary establish one product while their control sizes and navigation remain native. The independent dotted-stem-and-loop Ion mark is canonical in `assets/icons/ion.svg`; `scripts/assets/ion-icon.py` produces platform assets with lime on charcoal.
 
-This is a source-extracted record of the implemented redesign, not a visual acceptance record. The session was code led; there is no approved comp. Committed visual evidence is limited to a Windows native dark Teams capture (`docs/ion-redesign/evidence/desktop-teams-dark.png`); the earlier local home capture is not final-build acceptance evidence. Teams supplies narrow runtime proof that its prior hover-registration crash is fixed. Desktop light and broader interaction coverage, Android phone/tablet themes and states, and hardware validation remain incomplete. Formal visual disposition is **recapture**; the seven source findings resolved in `docs/ion-redesign/reviewer-verdict.md` do not establish full parity or visual acceptance. See `docs/ion-redesign/ux-audit.md` for the complete evidence boundary.
+This is a source-extracted record of the implemented redesign, not a visual acceptance record. The session was code led; there is no approved comp. Fresh native evidence now covers the desktop agent model menu, fixed equal-width Save/Close footer, scrolling and outside dismissal in dark mode, plus Appearance and home in light mode (`docs/ion-redesign/evidence/refinement/`). The original System theme preference was restored. Earlier Teams evidence proves its crash correction. Broader desktop provider/state coverage and Android phone/tablet runtime acceptance remain incomplete. Formal visual disposition is **recapture**; the seven source findings resolved in `docs/ion-redesign/reviewer-verdict.md` do not establish full parity or visual acceptance. See `docs/ion-redesign/ux-audit.md` for the complete evidence boundary.
 
 **Key Characteristics:**
 
@@ -301,7 +301,7 @@ GPUI's `overflow_hidden` clips to a rectangle. Descendant fills, images, and hov
 
 ### Buttons
 
-Compact and explicit. Desktop `control_button` uses a 32px height, 12px horizontal inset, 8px corners, and a strong 1px stroke. Primary create/open controls use lime, dark ink, and semibold text; hover and press reduce opacity. Secondary controls use the raised layer and neutral hover/pressed fills.
+Compact and explicit. Desktop `control_button` uses a 32px height, 12px horizontal inset, 8px corners, and a strong 1px stroke. Primary create/open/save controls use lime, dark ink, and semibold text; hover and press reduce opacity. Secondary controls use the raised layer and neutral hover/pressed fills.
 
 Android `WorkbenchButton` uses a minimum height of 48dp, medium corners, 14dp horizontal and 10dp vertical padding, and a 2dp focus border. Primary uses lime/dark ink; secondary uses muted surface; destructive secondary labels use danger. Pressed opacity is 0.75 and disabled opacity 0.45. The focused border uses the current accent.
 
@@ -332,6 +332,14 @@ Android destination items pair icons and labels. The selected item has a soft-ac
 A distinct action surface. Desktop has 16px corners, a strong stroke, theme composer fill, and 10px vertical padding within the conversation width. Android uses the same corner role, an opaque composer fill and hairline stroke, with a multiline input above a wrapping toolbar. Controls expose accessible names; send displays busy/disabled state. The visible context hint is `@ context · @@ teams · @@@ apps`.
 
 Keep model, harness, and environment context explicit. Dictation has visible state and local actions. Preserve attachment, queue, approval, question, stop, and recovery behavior; do not substitute fictional progress or new animation.
+
+### Definition editors and device management
+
+Desktop model selection is a dropdown over cached provider models, including Harness default. Form fields scroll independently of a fixed bottom footer: primary Save and secondary Close divide its width equally, separated by an 8px gap. The footer uses 20px insets and a top hairline. Outside click and Escape dismiss the editor; an open dropdown handles its own dismissal first. Do not put these actions back inside the scrolling field column.
+
+Android agent/team editors use the same action hierarchy with a fixed surface footer, 16dp insets, safe-area bottom padding and equal flexible columns. Models use the native picker rather than arbitrary model-ID entry. Cloud definitions remain inspectable but must be managed on desktop; mobile never silently changes a saved cloud agent's environment.
+
+Android home is a conversation surface: a model selector, open space for the current conversation, a compact project/desktop setup entry and the composer. Configuration is disclosed in a sheet; repeated syntax tutorials do not occupy the chat canvas. Paired desktop rows expose one options button; connection editing, reconnect, disconnect and removal live in its action sheet. Account identity remains in Settings. Shared service switches and cloud compute/billing/gateway destinations are absent from mobile.
 
 ### Empty, recovery, and conflict states
 

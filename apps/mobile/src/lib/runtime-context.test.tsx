@@ -25,7 +25,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function fixture(options: { attached?: boolean; loseFollowupAck?: boolean } = {}) {
+function fixture(options: { attached?: boolean; loseFollowupAck?: boolean; cloudTeam?: boolean } = {}) {
   let nextId = 0;
   const clock = {
     nowSeconds: () => 100,
@@ -67,7 +67,8 @@ function fixture(options: { attached?: boolean; loseFollowupAck?: boolean } = {}
       commands.push(command);
       switch (command.type) {
         case 'getTeamRun':
-          return { type: 'teamRun', snapshot: { id: 'run', revision: 7, rootTaskId: history.id } } as ResponsePayload;
+          return { type: 'teamRun', snapshot: { id: 'run', revision: 7, rootTaskId: history.id,
+            profiles: [{ provider: options.cloudTeam ? 'nebius' : 'codex', execution: { environment: 'local' } }] } } as ResponsePayload;
         case 'queueTeamFollowUp':
           if (options.loseFollowupAck && followupRequests++ === 0) throw new Error('Lost acknowledgement');
           return { type: 'teamFollowUpQueued', snapshot: {
@@ -139,6 +140,12 @@ function fixture(options: { attached?: boolean; loseFollowupAck?: boolean } = {}
 }
 
 describe('mobile runtime history', () => {
+  test('blocks cloud inference task creation before sending any daemon command', async () => {
+    const f = fixture({ attached: false });
+    const before = f.commands.length;
+    await expect(f.runtime.createTask('project', 'nebius', false, 'Use cloud inference')).rejects.toThrow('Cloud inference is disabled');
+    expect(f.commands).toHaveLength(before);
+  });
   test('creates a task with expanded provider text while retaining its slash command for display', async () => {
     const f = fixture({ attached: false });
     const session = await f.runtime.createTask('project', 'codex', false, '/deploy production', {}, '$deploy production');
@@ -276,6 +283,16 @@ describe('mobile Teams follow-ups', () => {
   });
 })
 
+
+test('mobile refuses a cloud team follow-up before durable queueing while retaining stop controls', async () => {
+  const f = fixture({ attached: false, cloudTeam: true });
+  f.history.team_assignment = { runId: 'run', assignmentId: 'work', teamName: 'Engineering' };
+  f.queryClient.setQueryData(f.key, f.history);
+  await expect(f.runtime.sendPrompt(f.history, 'Continue')).rejects.toThrow('cloud inference');
+  expect(f.commands.some(command => command.type === 'queueTeamFollowUp')).toBe(false);
+  await f.runtime.cancel(f.history.id);
+  expect(f.commands.some(command => command.type === 'stopTeamRun')).toBe(true);
+});
 
 test('mobile can stop a queued team with no attached solo runtime', async () => {
   const f = fixture({ attached: false });

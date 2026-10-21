@@ -7,14 +7,14 @@ import { AutomationChoice, AutomationField, AutomationToggle } from '@/component
 import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
 import { ModelPickerSheet } from '@/components/session-option-sheets';
-import { WorkbenchButton, WorkbenchCard, WorkbenchState } from '@/components/workbench';
+import { EditorFooter, WorkbenchButton, WorkbenchCard, WorkbenchState } from '@/components/workbench';
 import { useWorkspaceDefinition } from '@/hooks/use-workspace-definition';
 import { useTheme } from '@/hooks/use-theme';
 import { providerLabel } from '@/lib/session-presentation';
+import { MOBILE_HARNESSES, mobileHarness } from '@/lib/mobile-capabilities';
 
 const initialAccess: AgentAccess = { workspaceRead: true, workspaceWrite: false, shell: false, network: false, appActions: [] };
-const harnesses: ProviderKind[] = ['nebius', 'codex', 'claude', 'openCode', 'openCode2', 'amp', 'antigravity', 'cursor', 'deepSeek', 'fx', 'grok', 'kimi', 'ohMyPi', 'pi'];
-const nebiusProviders: ProviderKind[] = ['nebius'];
+const harnesses = MOBILE_HARNESSES;
 export default function AgentEditor() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const state = useWorkspaceDefinition(id);
@@ -48,8 +48,8 @@ export default function AgentEditor() {
     hydrateDraft(state.data);
   }, [state.fresh, state.scope, id, original]);
   const maxParallel = Number(parallel);
-  const valid = name.trim() && instructions.trim() && provider && Number.isInteger(maxParallel) && maxParallel >= 1 && maxParallel <= 16
-    && (!access.workspaceWrite || access.workspaceRead) && (environment === 'local' || target.trim());
+  const valid = name.trim() && instructions.trim() && mobileHarness(provider) && Number.isInteger(maxParallel) && maxParallel >= 1 && maxParallel <= 16
+    && (!access.workspaceWrite || access.workspaceRead) && environment === 'local';
   async function save() {
     if (!valid || !provider) return;
     const saved = await state.save({ kind: 'agent', id: id ?? draftId, name: name.trim(), expertise: expertise.trim(),
@@ -60,7 +60,7 @@ export default function AgentEditor() {
   if (!state.data) return <WorkbenchState title={state.query.isError ? 'Could not load agent' : 'Loading agent…'}
     detail={state.query.error?.message}><WorkbenchButton label="Retry" onPress={() => void state.query.refetch()} /></WorkbenchState>;
   if (id && !original) return <WorkbenchState title="Agent unavailable" detail="It may have been removed on another device." />;
-  return <ScrollView keyboardShouldPersistTaps="handled" style={{ backgroundColor: theme.background }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}>
+  return <View style={{ flex: 1, backgroundColor: theme.background }}><ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}>
     <ConnectionBanner />
     <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{id ? 'Edit agent' : 'New agent'}</Text>
     <WorkbenchCard>
@@ -74,11 +74,10 @@ export default function AgentEditor() {
       <AutomationChoice label="Harness" value={provider ?? ''} disabled={state.busy}
         options={[{ value: '', label: 'Choose harness' }, ...harnesses.map(value => ({ value, label: providerLabel(value) }))]}
         onChange={value => { setProvider(value as ProviderKind || null); setModel(null); }} />
-      {provider === 'nebius' ? <WorkbenchButton label={`Model: ${model ?? 'Default model'}`} onPress={() => setPicker(true)} disabled={!state.fresh || state.busy} />
-        : provider && <AutomationField label="Model ID (optional)" value={model ?? ''} onChangeText={value => setModel(value.trim() || null)} autoCapitalize="none" editable={!state.busy} />}
+      <WorkbenchButton label={`Model: ${model ?? 'Harness default'}`} onPress={() => setPicker(true)} disabled={!mobileHarness(provider) || !state.fresh || state.busy} />
       <AutomationChoice label="Environment" value={environment} onChange={value => setEnvironment(value as typeof environment)} disabled={state.busy}
-        options={[{ value: 'local', label: 'Local' }, { value: 'nebiusSandbox', label: 'Nebius' }]} />
-      {environment === 'nebiusSandbox' && <AutomationField label="Existing Nebius target" value={target} onChangeText={setTarget} autoCapitalize="none" editable={!state.busy} />}
+        options={[{ value: 'local', label: 'Paired desktop' }]} />
+      {(environment !== 'local' || provider === 'nebius') && <Text style={{ color: theme.warning }}>Cloud agents are managed on desktop. Choose a local harness and environment to save here.</Text>}
       <AutomationField label="Parallel tasks (1–16)" value={parallel} onChangeText={setParallel} keyboardType="number-pad" editable={!state.busy} />
     </WorkbenchCard>
     <WorkbenchCard>
@@ -91,10 +90,11 @@ export default function AgentEditor() {
     </WorkbenchCard>
     {state.error && <Text accessibilityLiveRegion="polite" style={{ color: theme.danger }}>{state.error}</Text>}
     {state.conflict && <Text accessibilityLiveRegion="polite" style={{ color: theme.warning }}>Workspace changed. Reload from desktop to review it. Your draft is kept until you reload.</Text>}
-    <View style={styles.actions}><WorkbenchButton label={state.busy ? 'Saving…' : 'Save agent'} primary disabled={!valid || !state.fresh || state.busy || state.conflict} onPress={() => void save()} />
-      <WorkbenchButton label="Reload from desktop" disabled={state.busy || state.query.isFetching} onPress={() => void state.reloadDraft(hydrateDraft)} /></View>
-    <ModelPickerSheet visible={picker} onDismiss={() => setPicker(false)} provider={provider} model={model} providers={nebiusProviders}
+    {state.conflict && <WorkbenchButton label="Reload from desktop" disabled={state.busy || state.query.isFetching} onPress={() => void state.reloadDraft(hydrateDraft)} />}
+  </ScrollView>
+    <EditorFooter busy={state.busy} disabled={!valid || !state.fresh || state.busy || state.conflict} onSave={() => void save()} onClose={() => router.back()} />
+    <ModelPickerSheet visible={picker} onDismiss={() => setPicker(false)} provider={provider} model={model} providers={harnesses}
       onApply={selection => { setProvider(selection.provider); setModel(selection.model); setPicker(false); }} />
-  </ScrollView>;
+  </View>;
 }
 const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, gap: 20, paddingBottom: 32 }, title: { fontSize: 26, fontWeight: '600' }, section: { fontSize: 17, fontWeight: '600' }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });

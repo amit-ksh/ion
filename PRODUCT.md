@@ -16,15 +16,15 @@ Turn requests into reviewable work through explicit harness and environment choi
 
 ## Operating Context
 
-Desktop uses Rust and GPUI. Android uses React Native and Expo. Existing Token Factory inference, harness adapters, local Parakeet speech, accounts, and connected Apps remain functional. The Android client connects to selected desktop runtimes.
+Desktop uses Rust and GPUI. Android uses React Native and Expo. Existing desktop Token Factory inference, harness adapters, local Parakeet speech, accounts, and connected Apps remain functional. The Android client connects to selected desktop runtimes and offers local harnesses. Token Factory inference, Nebius compute and Shared/gateway destinations are disabled in the mobile app by the user's refinement request; Ion account authentication and managed Apps connections remain.
 
 ## Capabilities and Constraints
 
 - Dashboard and Inbox remain hidden. Decisions lives in Work; usage lives in Settings.
 - `@` includes files, teams, and apps; `@@` filters teams; `@@@` filters apps.
-- Harness selection stays per agent. Local and Nebius are explicit choices; there is no automatic environment mode.
+- Harness selection stays per agent. Desktop keeps explicit Local/Nebius choices. Mobile offers the paired desktop environment and preserves existing cloud definitions for desktop management; it does not silently convert them to local agents.
 - Publishing is static only through the existing Cloudflare Worker and private R2. Local build/export and review precede upload.
-- No new adapters, backend hosting, cloud builds, paid resources, iOS implementation, or release/signing/device changes.
+- No new adapters, backend hosting, cloud builds, paid resources, iOS implementation, or production release/signing changes. User-authorized Android validation uses a separate review package and isolated emulator; the physical device and ion-prod session stay untouched.
 - Virtualization, stream cadence, background work, reduced motion, and readable light/dark themes are product requirements.
 
 ## Brand Commitments

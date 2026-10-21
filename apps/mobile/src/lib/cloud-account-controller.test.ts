@@ -21,7 +21,7 @@ beforeAll(async () => {
 afterEach(async () => {
   for (const close of cleanup.splice(0)) await close();
 });
-function fixture(origin = "https://cloud.example") {
+function fixture(origin = "https://cloud.example", cloudServicesEnabled = true) {
   const directory = mkdtempSync(join(tmpdir(), "ion-mobile-account-"));
   const server = createCloudHandler({
     config: { ...ionAuth0, publicOrigin: "https://cloud.example" },
@@ -85,6 +85,7 @@ function fixture(origin = "https://cloud.example") {
   }) as typeof fetch;
   const controller = createCloudAccount({
     origin,
+    cloudServicesEnabled,
     send,
     vault: {
       read: async () => raw,
@@ -158,6 +159,13 @@ function fixture(origin = "https://cloud.example") {
     },
   };
 }
+test('disabled mobile cloud services reject compute, speech and hosting before network or account access', async () => {
+  const f = fixture('https://cloud.example', false);
+  for (const path of ['/v1/services/controls', '/v1/services/usage', '/v1/speech/sessions', '/v1/hosting/releases'])
+    await expect(f.controller.request(path, 'POST', {})).rejects.toThrow('Cloud services are disabled');
+  expect(f.network).toHaveLength(0);
+});
+
 describe("native phone managed-account workflow", () => {
   test('permits exactly the managed app connection routes while refusing unrelated app capabilities', async () => {
     const f = fixture();

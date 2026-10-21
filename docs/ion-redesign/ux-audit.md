@@ -111,3 +111,10 @@ still require native/device checks.
 
 No cloud publication, paid resource, subscription, security grant, new adapter or
 release installation is part of these receipts. No merge into `ion-prod` was made.
+
+## Requested follow-up refinements
+
+The subsequent model-menu, editor-footer, mobile simplification and cloud-policy
+changes have their own source, test and fresh-device receipts in
+[refinement-audit.md](refinement-audit.md). Outstanding items above are not
+automatically promoted to passes by those focused checks.

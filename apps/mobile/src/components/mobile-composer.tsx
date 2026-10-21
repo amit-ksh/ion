@@ -92,16 +92,6 @@ export function ComposerCard({
         <View style={styles.toolbarSpacer} />
         <View style={styles.cluster}>{right}</View>
       </View>
-    <Text
-        style={{
-          color: theme.textSecondary,
-          fontSize: 12,
-          paddingHorizontal: 12,
-          paddingBottom: 6,
-        }}
-      >
-        @ context · @@ teams · @@@ apps
-      </Text>
     </GlassSurface>
   );
 }

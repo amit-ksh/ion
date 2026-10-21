@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { assertMobileProfiles, assertMobileTeam, mobileHarness } from './mobile-capabilities';
 import type {
   AgentSession,
   GoalOperation,
@@ -546,11 +547,15 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     // still in flight; building the turn on that would persist a transcript
     // with only the new messages. Always start from the full session.
     let current = await loadFullSession(inputSession.id);
+    if (!mobileHarness(current.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
     if (current.team_assignment) {
       if (!prompt || new TextEncoder().encode(prompt).length > 4096 || attachments.length > 0
         || providerPrompt !== prompt) {
         throw new Error('Team follow-ups support plain text up to 4 KiB. Use New task for additional files or commands.');
       }
+      const run = await client.request({ type: 'getTeamRun', runId: current.team_assignment.runId });
+      if (run.type !== 'teamRun') throw new Error('Could not verify the team. Refresh before sending.');
+      assertMobileProfiles(run.snapshot.profiles);
       const previous = teamFollowupRequests.current.get(current.id);
       const message: QueuedMessage = previous?.content === prompt ? previous : {
         id: Crypto.randomUUID(), content: prompt, display_content: null,
@@ -575,7 +580,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       setErrors((values) => removeKey(values, current.id));
       return current;
     }
-    const team = await queueComposerTeam(client, current, prompt, attachments);
+    const team = await queueComposerTeam(client, current, prompt, attachments, assertMobileTeam);
     if (team) { cacheSession(team); return team; }
     if (sessionBusy(current)) {
       const queued = queueSubmission(current, prompt, clock, attachments, providerPrompt);
@@ -727,6 +732,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     options: NewSessionOptions = {},
     providerPromptOverride?: string,
   ): Promise<AgentSession> => {
+    if (!mobileHarness(provider)) throw new Error('Choose a local desktop harness. Cloud inference is disabled in this app.');
     const profileId = daemon.activeProfile?.id;
     if (!profileId || !daemon.client || daemon.phase !== 'connected') {
       throw new Error('ion daemon is disconnected');
@@ -748,6 +754,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
    * a user prompt. A fresh task still needs a subscribed provider runtime;
    * its goalUpdated/turnStarted events supply the authoritative state. */
   const sendGoalOperation = useCallback(async (inputSession: AgentSession, operation: GoalOperation) => {
+    if (!mobileHarness(inputSession.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
     const client = daemon.client;
     if (!client || daemon.phase !== 'connected') throw new Error('ion daemon is disconnected');
     let current = await loadFullSession(inputSession.id);

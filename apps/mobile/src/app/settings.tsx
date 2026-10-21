@@ -14,18 +14,14 @@ export default function SettingsScreen() {
     <View style={styles.group}>
       <Text accessibilityRole="header" style={[styles.section, { color: theme.text }]}>Workspace</Text>
       <WorkbenchCard>
-        <WorkbenchRow label="Paired desktops" detail="Connections and host selection" icon={{ android: 'devices', web: 'devices' }} onPress={() => router.push('/daemons')} />
-        <WorkbenchRow label="Apps" detail="Connected accounts and app access" icon={{ android: 'extension', web: 'extension' }} onPress={() => router.push('/apps')} />
-        <WorkbenchRow label="Dictation" detail="Local Parakeet speech on your desktop" icon={{ android: 'mic', web: 'mic' }} onPress={() => router.push('/speech')} />
+        <WorkbenchRow label="Paired desktops" icon={{ android: 'devices', web: 'devices' }} onPress={() => router.push('/daemons')} />
+        <WorkbenchRow label="Apps" icon={{ android: 'extension', web: 'extension' }} onPress={() => router.push('/apps')} />
+        <WorkbenchRow label="Dictation" icon={{ android: 'mic', web: 'mic' }} onPress={() => router.push('/speech')} />
       </WorkbenchCard>
     </View>
     <View style={styles.group}>
-      <Text accessibilityRole="header" style={[styles.section, { color: theme.text }]}>Usage & resources</Text>
       <WorkbenchCard>
-        <WorkbenchRow label="Usage" detail="Tokens and task activity" icon={{ android: 'bar_chart', web: 'bar_chart' }} onPress={() => router.push('/usage')} />
-        <WorkbenchRow label="GPU budgets" icon={{ android: 'account_balance_wallet', web: 'account_balance_wallet' }} onPress={() => router.push('/cloud-budgets')} />
-        <WorkbenchRow label="Cloud billing" icon={{ android: 'receipt_long', web: 'receipt_long' }} onPress={() => router.push('/cloud-billing')} />
-        <WorkbenchRow label="Remote executions" icon={{ android: 'dns', web: 'dns' }} onPress={() => router.push('/remote-executions')} />
+        <WorkbenchRow label="Usage" icon={{ android: 'bar_chart', web: 'bar_chart' }} onPress={() => router.push('/usage')} />
       </WorkbenchCard>
     </View>
   </ScrollView>;

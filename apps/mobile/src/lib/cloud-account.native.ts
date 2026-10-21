@@ -12,6 +12,7 @@ import {
 import { clearCachedGatewayTasks } from "./gateway-cache";
 const key = "ion.mobile.account.v1";
 export const cloudAccount = createCloudAccount({
+  cloudServicesEnabled: false,
   origin: process.env.EXPO_PUBLIC_ION_CLOUD_ORIGIN?.trim() || ionCloudOrigin,
   vault: {
     read: () => SecureStore.getItemAsync(key),

@@ -314,6 +314,7 @@ export async function queueComposerTeam(
   session: import('./generated').AgentSession,
   prompt: string,
   attachments: import('./generated').MessageAttachment[],
+  validate?: (team: Team, snapshot: import('./generated').ControlSnapshot) => void,
 ): Promise<import('./generated').AgentSession | null> {
   if (!/^\s*(@@(?!@)|#team:|@team:)/u.test(prompt)) return null
   if (
@@ -344,6 +345,7 @@ export async function queueComposerTeam(
   )
   if (matches.length !== 1)
     throw new Error('This team is unavailable or ambiguous. Choose it from @@ suggestions.')
+  validate?.(matches[0]!, response.snapshot)
   const queued = await client.request(
     {
       type: 'queueTeamTask',

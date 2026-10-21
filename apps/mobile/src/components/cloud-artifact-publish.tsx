@@ -6,7 +6,11 @@ import { AutomationButton } from "./automation-controls";
 import { useTheme } from "@/hooks/use-theme";
 import { cloudAccount } from "@/lib/cloud-account";
 import { prepareHtmlPublication } from "@/lib/cloud-hosting";
-export function CloudArtifactPublish({
+import { MOBILE_CLOUD_SERVICES } from '@/lib/mobile-capabilities';
+export function CloudArtifactPublish(props: Parameters<typeof EnabledCloudArtifactPublish>[0]) {
+  return MOBILE_CLOUD_SERVICES ? <EnabledCloudArtifactPublish {...props} /> : null;
+}
+function EnabledCloudArtifactPublish({
   client,
   document,
   bytes,

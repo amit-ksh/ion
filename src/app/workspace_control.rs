@@ -1000,7 +1000,10 @@ impl Waku {
         let action = Rc::new(action);
         let click = action.clone();
         let id = id.into();
-        let primary = matches!(id.as_ref(), "workspace-create" | "workspace-open-project");
+        let primary = matches!(
+            id.as_ref(),
+            "workspace-create" | "workspace-open-project" | "save-control-definition"
+        );
         div()
             .id(id)
             .tab_index(0)
@@ -1758,7 +1761,10 @@ impl Waku {
                 "workspace-create",
                 label,
                 cx,
-                move |this, _, cx| this.begin_control_form(kind, cx),
+                move |this, window, cx| {
+                    this.begin_control_form(kind, cx);
+                    this.control_ui.name.read(cx).focus().focus(window, cx);
+                },
             ));
         }
         if page == Page::Teams {
@@ -1766,7 +1772,10 @@ impl Waku {
                 "workspace-new-agent",
                 "New agent",
                 cx,
-                |this, _, cx| this.begin_control_form(FormKind::Agent, cx),
+                |this, window, cx| {
+                    this.begin_control_form(FormKind::Agent, cx);
+                    this.control_ui.name.read(cx).focus().focus(window, cx);
+                },
             ));
         }
         if page == Page::Projects {
@@ -2155,6 +2164,17 @@ impl Waku {
         let weak = cx.entity().downgrade();
         let mut content = div()
             .track_focus(&self.control_ui.focus)
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                if this.control_ui.form.is_some()
+                    && event.keystroke.key == "escape"
+                    && !this.menus.borrow().values().any(|menu| menu.is_open())
+                {
+                    this.control_ui.editor_generation += 1;
+                    this.control_ui.form = None;
+                    cx.stop_propagation();
+                    cx.notify();
+                }
+            }))
             .tab_group()
             .flex_1()
             .min_h_0()
@@ -2517,7 +2537,18 @@ impl Waku {
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .child(icon("icons/package.svg", 20.0, theme.accent)),
+                                .child(icon(
+                                    match config.toolkit.as_str() {
+                                        "github" => "icons/github.svg",
+                                        "gitlab" => "icons/file-types/gitlab.svg",
+                                        "googledocs" | "googlesheets" | "notion" => {
+                                            "icons/file.svg"
+                                        }
+                                        _ => "icons/package.svg",
+                                    },
+                                    20.0,
+                                    theme.accent,
+                                )),
                         )
                         .child(
                             div()
@@ -3023,7 +3054,10 @@ impl Waku {
                         format!("record-edit-{id}"),
                         "Edit",
                         cx,
-                        move |this, _, cx| this.edit_control_record(edit.clone(), cx),
+                        move |this, window, cx| {
+                            this.edit_control_record(edit.clone(), cx);
+                            this.control_ui.name.read(cx).focus().focus(window, cx);
+                        },
                     ));
                 }
                 (name, detail, icon_path)
@@ -3074,27 +3108,11 @@ impl Waku {
         let theme = Theme::workspace(cx);
         let kind = self.control_ui.form.unwrap();
         let mut form = div()
-            .id("workspace-definition-editor")
-            .when(
-                f32::from(window.viewport_size().width)
-                    - self.sidebar_rendered_width
-                    - self.right_panel_rendered_width
-                    < 900.0,
-                |form| form.w_full(),
-            )
-            .when(
-                f32::from(window.viewport_size().width)
-                    - self.sidebar_rendered_width
-                    - self.right_panel_rendered_width
-                    >= 900.0,
-                |form| form.w(px(420.0)),
-            )
-            .min_w(px(280.0))
-            .h_full()
+            .id("workspace-definition-fields")
+            .flex_1()
+            .min_h_0()
             .overflow_y_scroll()
             .p(px(20.0))
-            .rounded(px(12.0))
-            .bg(theme.raised)
             .flex()
             .flex_col()
             .gap(px(14.0));
@@ -3177,6 +3195,7 @@ impl Waku {
                                                 .update(cx, |input, cx| input.set_content("", cx));
                                         }
                                         this.control_ui.provider = kind;
+                                        this.request_provider_model_discovery(kind);
                                         cx.notify();
                                     });
                                 })
@@ -3187,14 +3206,59 @@ impl Waku {
                 ));
         }
         if kind == FormKind::Agent {
+            let provider = self.control_ui.provider;
+            let selected_model = self.control_ui.model.read(cx).content().trim().to_owned();
+            let model_label = self
+                .provider_probe(provider)
+                .and_then(|probe| probe.models.iter().find(|model| model.id == selected_model))
+                .map(|model| model.name.clone())
+                .unwrap_or_else(|| {
+                    if selected_model.is_empty() {
+                        "Harness default".to_owned()
+                    } else {
+                        selected_model.clone()
+                    }
+                });
+            let weak_models = cx.entity().downgrade();
+            let model_menu = self.menu_handle("control-model-menu", cx);
             let environment = self.control_ui.execution.environment;
             let weak = cx.entity().downgrade();
             let menu = self.menu_handle("control-environment-menu", cx);
             form = form
-                .child(control_field(
-                    "Model",
-                    self.control_ui.model.clone(),
-                    "control-model",
+                .child(div().text_size(sp(12.5)).child("Model"))
+                .child(dropdown_menu(
+                    self.control_button("control-model", model_label, cx, |_, _, _| {})
+                        .w_full(),
+                    "control-model-menu",
+                    &model_menu,
+                    MenuAlign::BelowLeft,
+                    move |cx| {
+                        let models = weak_models
+                            .upgrade()
+                            .and_then(|entity| {
+                                entity
+                                    .read(cx)
+                                    .provider_probe(provider)
+                                    .map(|probe| probe.models.clone())
+                            })
+                            .unwrap_or_default();
+                        std::iter::once((String::new(), "Harness default".to_owned()))
+                            .chain(models.into_iter().map(|model| (model.id, model.name)))
+                            .map(|(id, name)| {
+                                let weak = weak_models.clone();
+                                let selected = id == selected_model;
+                                MenuItem::new(name, move |_, cx| {
+                                    let _ = weak.update(cx, |this, cx| {
+                                        this.control_ui.model.update(cx, |input, cx| {
+                                            input.set_content(id.clone(), cx)
+                                        });
+                                        cx.notify();
+                                    });
+                                })
+                                .selected(selected)
+                            })
+                            .collect()
+                    },
                 ))
                 .child(control_field(
                     "Expected output",
@@ -3582,29 +3646,76 @@ impl Waku {
                 },
             ));
         }
-        form = form.child(
-            div()
-                .flex()
-                .gap(px(8.0))
-                .child(self.control_button(
-                    "save-control-definition",
-                    if self.control_ui.busy {
-                        "Saving…"
-                    } else {
-                        "Save"
-                    },
-                    cx,
-                    |this, _, cx| this.save_control_form(cx),
-                ))
-                .child(
+        let footer = div()
+            .flex()
+            .flex_shrink_0()
+            .p(px(20.0))
+            .border_t_1()
+            .border_color(theme.border)
+            .gap(px(8.0))
+            .child(
+                div().flex_1().min_w_0().child(
+                    self.control_button(
+                        "save-control-definition",
+                        if self.control_ui.busy {
+                            "Saving…"
+                        } else {
+                            "Save"
+                        },
+                        cx,
+                        |this, _, cx| this.save_control_form(cx),
+                    )
+                    .w_full()
+                    .justify_center(),
+                ),
+            )
+            .child(
+                div().flex_1().min_w_0().child(
                     self.control_button("cancel-control-editor", "Close", cx, |this, _, cx| {
                         this.control_ui.editor_generation += 1;
                         this.control_ui.form = None;
                         cx.notify();
-                    }),
+                    })
+                    .w_full()
+                    .justify_center(),
                 ),
-        );
-        form.into_any_element()
+            );
+        // A menu may extend beyond the sheet. Its own outside handler gets
+        // the first dismissal, without also discarding the editor beneath it.
+        let menu_open = self.menus.borrow().values().any(|menu| menu.is_open());
+        div()
+            .id("workspace-definition-editor")
+            .when(
+                f32::from(window.viewport_size().width)
+                    - self.sidebar_rendered_width
+                    - self.right_panel_rendered_width
+                    < 900.0,
+                |sheet| sheet.w_full(),
+            )
+            .when(
+                f32::from(window.viewport_size().width)
+                    - self.sidebar_rendered_width
+                    - self.right_panel_rendered_width
+                    >= 900.0,
+                |sheet| sheet.w(px(420.0)),
+            )
+            .min_w(px(280.0))
+            .h_full()
+            .flex()
+            .flex_col()
+            .rounded(px(12.0))
+            .bg(theme.raised)
+            .overflow_hidden()
+            .on_mouse_down_out(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                if !menu_open && event.button == MouseButton::Left {
+                    this.control_ui.editor_generation += 1;
+                    this.control_ui.form = None;
+                    cx.notify();
+                }
+            }))
+            .child(form)
+            .child(footer)
+            .into_any_element()
     }
 }
 fn control_field(

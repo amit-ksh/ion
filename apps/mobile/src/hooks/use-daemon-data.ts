@@ -17,8 +17,9 @@ import {
 import { persistentStorageSync } from '@/lib/composer-preferences-store';
 import { useDaemon } from '@/lib/daemon-context';
 import { providerLabel } from '@/lib/session-presentation';
+import { MOBILE_HARNESSES, mobileHarness } from '@/lib/mobile-capabilities';
 
-const PROVIDERS: ProviderKind[] = ['nebius'];
+const PROVIDERS = MOBILE_HARNESSES;
 
 export function useTaskState() {
   const { activeProfile, client, phase } = useDaemon();
@@ -100,13 +101,14 @@ function providerModelsQuery(
 export function useProviderModels(provider: ProviderKind | null) {
   const daemon = useDaemon();
   const settings = useDaemonSettings();
-  return useQuery(providerModelsQuery(daemon, settings, provider === 'nebius' ? provider : 'nebius'));
+  const query = providerModelsQuery(daemon, settings, mobileHarness(provider) ? provider : PROVIDERS[0]!);
+  return useQuery({ ...query, enabled: query.enabled && mobileHarness(provider) });
 }
 
 /** Model discovery across every given provider, cache-shared with
  * useProviderModels. Backs the cross-provider model picker. */
 export function useAllProviderModels(providers: ProviderKind[]) {
-  const visibleProviders = providers.filter((provider) => provider === 'nebius');
+  const visibleProviders = providers.filter(mobileHarness);
   const daemon = useDaemon();
   const settings = useDaemonSettings();
   const queries = useQueries({

@@ -732,7 +732,20 @@
         "value": "900px remaining content width",
         "purpose": "Workspace definition form switches from full width to 420px; sidebar/right panel widths are subtracted first."
       }
-    ]
+    ],
+    "refinement": {
+      "editorFooter": {
+        "desktopPadding": 20,
+        "mobilePadding": 16,
+        "gap": 8,
+        "equalColumns": true,
+        "savePrimary": true,
+        "outsideClickDismiss": true
+      },
+      "mobileHome": "Model selector, contextual setup entry, conversation and composer.",
+      "mobileCloudServices": false,
+      "source": "docs/ion-redesign/refinement-audit.md"
+    }
   },
   "components": [
     {
@@ -812,13 +825,13 @@
       "kind": "custom",
       "refersTo": "mobile-composer-dark",
       "description": "ComposerCard opaque Android fallback: 16dp corners, hairline, 16/21 multiline text, a 48dp circular send control and visible context hint. This snippet illustrates the composer/send primitive, not every attachment, dictation, approval, or streaming state. Arrow path comes from assets/icons/arrow-up.svg as an illustrative equivalent of Android's arrow_upward symbol. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<section class=\"ds-composer\"><textarea class=\"ds-composer-input\" aria-label=\"Message\" placeholder=\"Ask Ion to work on a task\"></textarea><div class=\"ds-composer-toolbar\"><button class=\"ds-composer-send\" aria-label=\"Send message\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/></svg></button></div><span class=\"ds-composer-hint\">@ context · @@ teams · @@@ apps</span></section>",
+      "html": "<section class=\"ds-composer\"><textarea class=\"ds-composer-input\" aria-label=\"Message\" placeholder=\"Ask Ion to work on a task\"></textarea><div class=\"ds-composer-toolbar\"><button class=\"ds-composer-send\" aria-label=\"Send message\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/></svg></button></div><span class=\"ds-composer-hint\"></span></section>",
       "css": ".ds-composer {font-family:system-ui,sans-serif;padding:6px 10px 8px;border:1px solid hsla(220,10%,90%,.07);border-radius:16px;background:#222623;color:#f2f4ef;} .ds-composer-input {font-family:system-ui,sans-serif;display:block;width:calc(100% - 12px);min-height:42px;max-height:120px;padding:8px 6px;border:0;resize:none;background:transparent;color:#f2f4ef;font-size:16px;line-height:21px;} .ds-composer-input::placeholder {color:#abb3a8;} .ds-composer-input:focus-visible {outline:auto;outline-color:#3b82f6;} .ds-composer-toolbar {display:flex;justify-content:flex-end;align-items:flex-end;gap:8px;margin-top:2px;} .ds-composer-send {width:48px;height:48px;margin-left:4px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:#c2ef68;color:#1b2510;} .ds-composer-send:hover {background:#c2ef68;} .ds-composer-send:active {opacity:.6;} .ds-composer-send:focus-visible {outline:auto;} .ds-composer-send:disabled {background:#272b28;color:#abb3a8;} .ds-composer-hint {display:block;padding:0 12px 6px;color:#c2c8c0;font-size:12px;}"
     }
   ],
   "narrative": {
     "northStar": "Operate",
-    "overview": "Ion is a native workbench: quiet charcoal or warm pale surfaces, compact contextual controls, and a restrained lime signal for the next useful action. Alignment and readable hierarchy do most of the work. Rounded groups hold an object, editor, or composer without turning every region into a card.\n\nDesktop uses GPUI; Android uses React Native and Expo. Their shared palette and vocabulary establish one product while their control sizes and navigation remain native. The independent dotted-stem-and-loop Ion mark is canonical in `assets/icons/ion.svg`; `scripts/assets/ion-icon.py` produces platform assets with lime on charcoal.\n\nThis is a source-extracted record of the implemented redesign, not a visual acceptance record. The session was code led; there is no approved comp. Committed visual evidence is limited to a Windows native dark Teams capture (`docs/ion-redesign/evidence/desktop-teams-dark.png`); the earlier local home capture is not final-build acceptance evidence. Teams supplies narrow runtime proof that its prior hover-registration crash is fixed. Desktop light and broader interaction coverage, Android phone/tablet themes and states, and hardware validation remain incomplete. Formal visual disposition is **recapture**; the seven source findings resolved in `docs/ion-redesign/reviewer-verdict.md` do not establish full parity or visual acceptance. See `docs/ion-redesign/ux-audit.md` for the complete evidence boundary.",
+    "overview": "Ion is a native workbench: quiet charcoal or warm pale surfaces, compact contextual controls, and a restrained lime signal for the next useful action. Alignment and readable hierarchy do most of the work. Rounded groups hold an object, editor, or composer without turning every region into a card.\n\nDesktop uses GPUI; Android uses React Native and Expo. Their shared palette and vocabulary establish one product while their control sizes and navigation remain native. The independent dotted-stem-and-loop Ion mark is canonical in `assets/icons/ion.svg`; `scripts/assets/ion-icon.py` produces platform assets with lime on charcoal.\n\nThis is a source-extracted record of the implemented redesign, not a visual acceptance record. The session was code led; there is no approved comp. Fresh native evidence now covers the desktop agent model menu, fixed equal-width Save/Close footer, scrolling and outside dismissal in dark mode, plus Appearance and home in light mode (`docs/ion-redesign/evidence/refinement/`). The original System theme preference was restored. Earlier Teams evidence proves its crash correction. Broader desktop provider/state coverage and Android phone/tablet runtime acceptance remain incomplete. Formal visual disposition is **recapture**; the seven source findings resolved in `docs/ion-redesign/reviewer-verdict.md` do not establish full parity or visual acceptance. See `docs/ion-redesign/ux-audit.md` for the complete evidence boundary.",
     "keyCharacteristics": [
       "Neutral surfaces with selective lime emphasis.",
       "Compact desktop controls and larger Android touch targets.",

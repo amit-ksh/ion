@@ -27,6 +27,7 @@ import { WorkbenchNavigation } from "@/components/workbench-navigation";
 import { DaemonProvider, useDaemon } from "@/lib/daemon-context";
 import { RuntimeProvider } from "@/lib/runtime-context";
 import { listenForGatewayNotifications } from "@/lib/gateway-notifications";
+import { MOBILE_CLOUD_SERVICES } from '@/lib/mobile-capabilities';
 
 /** Deep links and state restores keep the new-task home as the stack anchor. */
 export const unstable_settings = { anchor: "index" };
@@ -111,14 +112,14 @@ function WorkbenchShell() {
 function AppNavigator() {
   useEffect(
     () =>
-      listenForGatewayNotifications((destination) => {
+      MOBILE_CLOUD_SERVICES ? listenForGatewayNotifications((destination) => {
         if (destination.scope === "inbox") router.push("/gateway-portfolio");
         else
           router.push({
             pathname: "/gateway-task/[id]",
             params: { id: destination.taskId },
           });
-      }),
+      }) : undefined,
     [],
   );
   const [cloudEpoch, setCloudEpoch] = useState(0);
@@ -172,7 +173,7 @@ function AppNavigator() {
         name="index"
         options={
           daemonRoutesAvailable
-            ? { ...drawerHeader, title: "New Task" }
+            ? { ...drawerHeader, title: "Ion" }
             : { headerShown: false, title: "ion" }
         }
       />
@@ -201,10 +202,14 @@ function AppNavigator() {
           name="inbox-source"
           options={{ ...floatingHeader, title: "Review" }}
         />
+        <Stack.Protected guard={MOBILE_CLOUD_SERVICES}>
+        <Stack.Screen name="cloud-billing" options={{ title: 'Cloud billing' }} />
+        <Stack.Screen name="cloud-deployments" options={{ title: 'Deployments' }} />
         <Stack.Screen
           name="cloud-budgets"
           options={{ ...floatingHeader, title: "GPU budgets" }}
         />
+        </Stack.Protected>
         <Stack.Screen
           name="inbox"
           options={{ ...drawerHeader, title: "Inbox" }}
@@ -223,11 +228,11 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="daemons"
-          options={{ headerLargeTitle: true, title: "Daemons" }}
+          options={{ ...floatingHeader, title: "Paired desktops" }}
         />
         <Stack.Screen
           name="new-task"
-          options={{ ...drawerHeader, title: "New Task" }}
+          options={{ ...drawerHeader, title: "Ion" }}
         />
         <Stack.Screen
           name="session/[id]"
@@ -246,6 +251,7 @@ function AppNavigator() {
           title: "Add Daemon",
         }}
       />
+      <Stack.Protected guard={MOBILE_CLOUD_SERVICES}>
       <Stack.Screen name="gateway" options={{ title: "Personal gateway" }} />
       <Stack.Screen
         name="remote-executions"
@@ -287,6 +293,7 @@ function AppNavigator() {
         name="gateway-task/[id]"
         options={{ title: "Gateway task" }}
       />
+      </Stack.Protected>
     </Stack>
   );
 }

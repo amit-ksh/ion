@@ -391,13 +391,12 @@ export function ModelPickerSheet({
                 )}
                 showsVerticalScrollIndicator={false}
                 style={{ height: listHeight }}
-                ListEmptyComponent={(
-                  <Text style={[styles.note, { color: theme.textTertiary }]}>
-                    {search.trim()
-                      ? 'No models match your search.'
-                      : 'This agent doesn’t expose a model list; it will use its own default.'}
-                  </Text>
-                )}
+                ListHeaderComponent={!search.trim() && browsing ? <SheetRow label="Harness default"
+                  selected={provider === browsing && !model} onPress={() => {
+                    onApply({ provider: browsing, model: null, reasoningEffort: null, serviceTier: null, contextWindow: null });
+                    onDismiss();
+                  }} /> : null}
+                ListEmptyComponent={search.trim() ? <Text style={[styles.note, { color: theme.textTertiary }]}>No models match.</Text> : null}
               />
             )}
           </View>
