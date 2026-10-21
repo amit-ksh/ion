@@ -320,7 +320,7 @@ mod static_export_tests {
             .unwrap()
             .workspace_id
             .unwrap();
-        let controls = super::super::services::controls().unwrap();
+        let controls = super::super::services::controls(&workspace).unwrap();
         assert!(!controls.cloud, "This check must run with Nebius Cloud OFF");
         assert_eq!(
             super::super::services::bootstrap().unwrap()["features"]["appDeployment"],
@@ -436,7 +436,7 @@ mod static_export_tests {
             .as_ref()
             .and_then(|site| site["id"].as_str())
             .is_some_and(|id| call("DELETE", &format!("/v1/hosting/sites/{id}"), None).is_ok());
-        let after = super::super::services::controls().unwrap();
+        let after = super::super::services::controls(&workspace).unwrap();
         let unchanged = after.cloud == controls.cloud
             && after.token_factory == controls.token_factory
             && after.app_actions == controls.app_actions;

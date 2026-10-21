@@ -3,6 +3,9 @@ export const cloudAccount: CloudAccountActions = {
   request: async () => {
     throw new Error("Managed services require the native app.");
   },
+  serviceRequest: async () => {
+    throw new Error("Managed services require the native app.");
+  },
   hostingRequest: async () => {
     throw new Error("Managed services require the native app.");
   },

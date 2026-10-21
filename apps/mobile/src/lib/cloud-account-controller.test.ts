@@ -38,7 +38,8 @@ function fixture(origin = "https://cloud.example") {
     cancel = false,
     offline = false,
     wrongBootstrap = false,
-    mockHosting = false;
+    mockHosting = false,
+    mockServices = false;
   let browserCalls = 0,
     clears = 0,
     resets = 0;
@@ -77,6 +78,17 @@ function fixture(origin = "https://cloud.example") {
     }
     if (wrongBootstrap && url.endsWith("/bootstrap"))
       return Response.json({ auth: { issuer: "https://attacker.example/" } });
+    if (mockServices && url.includes("/v1/services/")) {
+      expect(new Headers(init?.headers).get("Authorization")).toStartWith(
+        "Bearer ",
+      );
+      expect(init?.redirect).toBe("error");
+      return Response.json({
+        cloud: false,
+        tokenFactory: false,
+        canManage: true,
+      });
+    }
     if (mockHosting && url.includes("/v1/hosting/")) {
       expect(new Headers(init?.headers).get("Authorization")).toStartWith(
         "Bearer ",
@@ -159,12 +171,80 @@ function fixture(origin = "https://cloud.example") {
     setMockHosting: () => {
       mockHosting = true;
     },
+    setMockServices: () => {
+      mockServices = true;
+    },
     setPairing: (value: GatewayPairing) => {
       pairing = value;
     },
   };
 }
 describe("native phone managed-account workflow", () => {
+  test("service controls cannot dispatch through an unbound delayed settings request", async () => {
+    const f = fixture();
+    await f.controller.signIn();
+    // A settings callback from the previous account must not borrow this login.
+    f.setSubject("auth0|two");
+    await f.controller.signIn();
+    const calls = f.network.length;
+    await expect(
+      f.controller.request("/v1/services/controls", "PUT", {
+        tokenFactory: true,
+      }),
+    ).rejects.toThrow("Invalid managed service request");
+    expect(f.network.length).toBe(calls);
+  });
+  test("service controls and usage retain the displayed account across replacement and logout", async () => {
+    const f = fixture();
+    f.setMockServices();
+    await f.controller.signIn();
+    const workspace = (await f.controller.status()).workspaceId!;
+    expect(
+      await f.controller.serviceRequest(workspace, "/v1/services/controls"),
+    ).toEqual({ cloud: false, tokenFactory: false, canManage: true });
+    await f.controller.serviceRequest(
+      workspace,
+      "/v1/services/controls",
+      "PUT",
+      { cloud: false },
+    );
+    f.setSubject("auth0|two");
+    await f.controller.signIn();
+    const calls = f.network.length;
+    await expect(
+      f.controller.serviceRequest(workspace, "/v1/services/controls", "PUT", {
+        cloud: true,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      f.controller.serviceRequest(workspace, "/v1/services/usage"),
+    ).rejects.toThrow();
+    expect(f.network.length).toBe(calls);
+    const replacement = (await f.controller.status()).workspaceId!;
+    await f.controller.serviceRequest(replacement, "/v1/services/usage");
+    const validCalls = f.network.length;
+    for (const path of [
+      "/v1/services/controls?x=1",
+      "/v1/services/../hosting/sites",
+      "/v1/hosting/sites",
+    ])
+      await expect(
+        f.controller.serviceRequest(replacement, path),
+      ).rejects.toThrow("Invalid account-bound");
+    await expect(
+      f.controller.serviceRequest(replacement, "/v1/services/usage", "PUT", {}),
+    ).rejects.toThrow("Invalid account-bound");
+    await expect(
+      f.controller.serviceRequest("", "/v1/services/controls"),
+    ).rejects.toThrow("Invalid account-bound");
+    expect(f.network.length).toBe(validCalls);
+    await f.controller.signOut();
+    const signedOutCalls = f.network.length;
+    await expect(
+      f.controller.serviceRequest(replacement, "/v1/services/controls"),
+    ).rejects.toThrow();
+    expect(f.network.length).toBe(signedOutCalls);
+  });
   test("publishing pins the reviewed identity and rejects stale account actions before dispatch", async () => {
     const f = fixture();
     f.setMockHosting();

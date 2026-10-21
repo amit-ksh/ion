@@ -93,15 +93,35 @@ export function createCloudAccount(options: {
     async request(path, method = "GET", body) {
       if (
         !(
-          path === "/v1/bootstrap" ||
-          path === "/v1/speech/sessions" ||
-          ["/v1/services/controls", "/v1/services/usage"].includes(path)
+          (path === "/v1/bootstrap" && method === "GET") ||
+          (path === "/v1/speech/sessions" && method === "POST")
         ) ||
         /[?#\\]/.test(path) ||
         path.split("/").some((v) => v === "." || v === "..")
       )
         throw new Error("Invalid managed service request");
       const auth = await account().authorization();
+      return requestJson<any>(send, configuredOrigin() + path, {
+        method,
+        redirect: "error",
+        headers: {
+          Authorization: "Bearer " + auth.token,
+          "Content-Type": "application/json",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    },
+    async serviceRequest(workspaceId, path, method = "GET", body) {
+      if (
+        !/^[a-f0-9]{64}$/.test(workspaceId) ||
+        !(
+          (path === "/v1/services/controls" &&
+            ["GET", "PUT"].includes(method)) ||
+          (path === "/v1/services/usage" && method === "GET")
+        )
+      )
+        throw new Error("Invalid account-bound service operation");
+      const auth = await account().authorization(workspaceId);
       return requestJson<any>(send, configuredOrigin() + path, {
         method,
         redirect: "error",

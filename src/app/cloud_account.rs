@@ -110,13 +110,13 @@ impl Waku {
                 .background_executor()
                 .spawn(async {
                     let status = cloud::verified_status()?;
-                    let services = if status.signed_in {
-                        cloud::services::controls().ok()
+                    let services = if let Some(workspace) = status.workspace_id.as_deref() {
+                        cloud::services::controls(workspace).ok()
                     } else {
                         None
                     };
-                    let usage = if status.signed_in {
-                        cloud::services::request("GET", "/v1/services/usage", None).ok()
+                    let usage = if let Some(workspace) = status.workspace_id.as_deref() {
+                        cloud::services::request(workspace, "GET", "/v1/services/usage", None).ok()
                     } else {
                         None
                     };
@@ -138,6 +138,10 @@ impl Waku {
                             }
                         }
                     }
+                    let latest = cloud::status()?;
+                    anyhow::ensure!(latest.workspace_id == status.workspace_id
+                        && latest.signed_in == status.signed_in,
+                        "The Ion account changed while refreshing Settings. Retry.");
                     anyhow::Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason))
                 })
                 .await;
@@ -251,20 +255,30 @@ impl Waku {
                 CloudAction::ToggleAppActions => ("appActions", !services.app_actions),
                 _ => ("tokenFactory", !services.token_factory),
             };
+            let Some(workspace) = self.cloud_ui.status.workspace_id.clone() else {
+                return;
+            };
             self.cloud_ui.busy = true;
             self.cloud_ui.generation = self.cloud_ui.generation.wrapping_add(1);
             let generation = self.cloud_ui.generation;
             cx.spawn(async move |view, cx| {
-                let result = cx.background_executor().spawn(async move { cloud::services::set_control(service, enabled) }).await;
+                let expected_workspace = workspace.clone();
+                let result = cx.background_executor().spawn(async move { cloud::services::set_control(&expected_workspace, service, enabled) }).await;
                 let _ = view.update(cx, |this, cx| {
-                    if this.cloud_ui.generation != generation { return; }
+                    if this.cloud_ui.generation != generation
+                        || this.cloud_ui.status.workspace_id.as_deref() != Some(workspace.as_str()) { return; }
                     this.cloud_ui.busy = false;
                     match result {
                         Ok(services) => {
                             this.cloud_ui.services = Some(services);
                             this.cloud_ui.feedback = Some(if service == "cloud" && !enabled { "Cloud work is blocked. VM shutdown still needs confirmation from the controller." } else { "Shared service permission updated." }.into());
                         }
-                        Err(error) => { this.cloud_ui.feedback = Some(error.to_string()); }
+                        Err(error) => {
+                            this.cloud_ui.services = None;
+                            this.cloud_ui.shared_usage = None;
+                            this.cloud_ui.feedback = Some(error.to_string());
+                            this.refresh_cloud_account(cx);
+                        }
                     }
                     cx.notify();
                 });

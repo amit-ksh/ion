@@ -61,6 +61,14 @@ impl Http for FakeHttp {
             assert!(token.is_some());
             return Ok(json!({"managed":true,"items":[],"nextCursor":null}));
         }
+        if url.ends_with("/v1/services/controls") {
+            assert!(token.is_some());
+            return Ok(json!({"cloud":false,"tokenFactory":false,"canManage":true}));
+        }
+        if url.ends_with("/v1/services/usage") {
+            assert!(token.is_some());
+            return Ok(json!({"combined":{"unit":"microUSD"}}));
+        }
         if url.ends_with("/invites") {
             assert_eq!(body.unwrap()["grants"], json!(["publish"]));
             return Ok(json!({"invite":"one-use-invite"}));
@@ -857,6 +865,96 @@ fn publishing_rejects_a_different_identity_returned_by_refresh() {
     clean(account);
 }
 
+#[test]
+fn service_controls_pin_the_displayed_account_before_refresh_and_dispatch() {
+    let account = fixture();
+    seed(&account, true, false);
+    let expected = "a".repeat(64);
+    account
+        .service_request(&expected, "GET", "/v1/services/controls", None)
+        .unwrap();
+    account
+        .service_request(
+            &expected,
+            "PUT",
+            "/v1/services/controls",
+            Some(json!({"tokenFactory":true})),
+        )
+        .unwrap();
+    assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
+    let calls = account.http.calls.lock().unwrap().len();
+    for (method, path) in [
+        ("POST", "/v1/services/controls"),
+        ("PUT", "/v1/services/usage"),
+        ("GET", "/v1/services/controls?workspace=x"),
+        ("PUT", "/v1/services/../hosting/sites"),
+    ] {
+        assert!(
+            account
+                .service_request(&expected, method, path, None)
+                .is_err()
+        );
+    }
+    let mut state = account.read().unwrap();
+    state.session.as_mut().unwrap().workspace_id = "b".repeat(64);
+    state.session.as_mut().unwrap().expires_at = 1;
+    account.store().write(&state).unwrap();
+    for (method, path) in [
+        ("GET", "/v1/services/usage"),
+        ("PUT", "/v1/services/controls"),
+    ] {
+        assert!(
+            account
+                .service_request(&expected, method, path, None)
+                .unwrap_err()
+                .to_string()
+                .contains("account changed")
+        );
+    }
+    assert_eq!(
+        account.http.refreshes.load(Ordering::SeqCst),
+        1,
+        "An old settings view must not refresh the replacement account"
+    );
+    assert_eq!(account.http.calls.lock().unwrap().len(), calls);
+    account.store().write(&State::empty().unwrap()).unwrap();
+    assert!(
+        account
+            .service_request(&expected, "GET", "/v1/services/controls", None)
+            .is_err()
+    );
+    clean(account);
+}
+
+#[test]
+fn service_controls_reject_a_foreign_refresh_identity_before_any_service_call() {
+    let account = fixture();
+    seed(&account, true, false);
+    account.http.foreign.store(true, Ordering::SeqCst);
+    assert!(
+        account
+            .service_request(
+                &"a".repeat(64),
+                "PUT",
+                "/v1/services/controls",
+                Some(json!({"cloud":true}))
+            )
+            .is_err()
+    );
+    assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
+    assert!(account.read().unwrap().session.is_none());
+    assert!(
+        account
+            .http
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(_, url, _)| !url.contains("/v1/services/"))
+    );
+    clean(account);
+}
+
 /// Uses the already-signed-in native account. No browser, service enablement,
 /// provider tool effect or inference request is permitted by this check.
 #[test]
@@ -869,8 +967,8 @@ fn live_managed_gateway_catalog_and_stop_controls() {
         "Sign in to the rebuilt Ion app before native gateway acceptance"
     );
     let workspace = status.workspace_id.expect("Native workspace");
-    let controls =
-        super::services::controls().expect("Read live owner controls without changing them");
+    let controls = super::services::controls(&workspace)
+        .expect("Read live owner controls without changing them");
     let page = super::services::app_request(
         &workspace,
         "/v1/apps/catalog",
@@ -879,7 +977,7 @@ fn live_managed_gateway_catalog_and_stop_controls() {
     .expect("Load only this admitted account's connected app catalog");
     assert_eq!(page["managed"], true);
     assert!(page["items"].is_array());
-    let usage = super::services::request("GET", "/v1/services/usage", None)
+    let usage = super::services::request(&workspace, "GET", "/v1/services/usage", None)
         .expect("Read combined spending");
     assert_eq!(usage["combined"]["unit"], "microUSD");
     assert!(
@@ -1174,7 +1272,7 @@ fn live_native_managed_drive_quota_action_once() {
         tool["input_parameters"]["properties"]["fields"]["type"],
         "string"
     );
-    let controls = super::services::controls().unwrap();
+    let controls = super::services::controls(&workspace).unwrap();
     assert!(controls.can_manage && controls.app_actions_available);
     let proposal = super::services::app_request(&workspace, "/v1/apps/actions/prepare", json!({
         "accountId":context["accountId"],"action":tool["slug"],"version":tool["version"],"arguments":{"fields":"storageQuota"}
@@ -1200,7 +1298,7 @@ fn live_native_managed_drive_quota_action_once() {
     drop(intent);
     let outcome = (|| -> Result<Value> {
         if !controls.app_actions {
-            super::services::set_control("appActions", true)?;
+            super::services::set_control(&workspace, "appActions", true)?;
         }
         super::services::app_request(
             &workspace,
@@ -1211,8 +1309,8 @@ fn live_native_managed_drive_quota_action_once() {
     // Restore before asserting on any network result. Never borrow another account.
     let same_account =
         super::status().ok().and_then(|s| s.workspace_id).as_deref() == Some(workspace.as_str());
-    let restored =
-        same_account && super::services::set_control("appActions", controls.app_actions).is_ok();
+    let restored = same_account
+        && super::services::set_control(&workspace, "appActions", controls.app_actions).is_ok();
     let report = match &outcome {
         Ok(receipt) => {
             json!({"state":"acknowledged","successful":receipt["successful"],"logId":receipt["log_id"],
@@ -1236,9 +1334,12 @@ fn live_native_managed_drive_quota_action_once() {
         receipt["data"].is_object(),
         "A provider result, not metadata alone, is required"
     );
-    assert_eq!(super::services::controls().unwrap().cloud, controls.cloud);
     assert_eq!(
-        super::services::controls().unwrap().token_factory,
+        super::services::controls(&workspace).unwrap().cloud,
+        controls.cloud
+    );
+    assert_eq!(
+        super::services::controls(&workspace).unwrap().token_factory,
         controls.token_factory
     );
 }

@@ -124,38 +124,15 @@ pub fn bootstrap() -> Result<Value> {
     );
     Ok(value)
 }
-pub fn request(method: &str, path: &str, body: Option<Value>) -> Result<Value> {
-    ensure!(
-        [
-            "/v1/speech/sessions",
-            "/v1/services/controls",
-            "/v1/services/usage"
-        ]
-        .contains(&path),
-        "Unsupported managed service route"
-    );
-    let account = account()?;
-    let _guard = account.lock()?;
-    let mut state = account.read()?;
-    account.authorize(&mut state)?;
-    let token = &state
-        .session
-        .as_ref()
-        .context("Sign in to Ion Cloud")?
-        .access_token;
-    let mut pending = Network::client()?
-        .request(
-            method.parse()?,
-            format!("{}{}", account.config.origin, path),
-        )
-        .bearer_auth(token);
-    if let Some(body) = body {
-        pending = pending.json(&body);
-    }
-    let response = pending
-        .send()
-        .map_err(|_| anyhow::anyhow!("Could not reach Ion Cloud"))?;
-    decode_service_response(response)
+/// Capture the workspace when the service view/action is created. A queued
+/// switch or usage read must not adopt another process's replacement login.
+pub fn request(
+    expected_workspace: &str,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value> {
+    account()?.service_request(expected_workspace, method, path, body)
 }
 /// Publishing is bound to the account which opened the review, including
 /// delayed uploads and refreshes after a mutation.
@@ -206,7 +183,11 @@ pub(crate) fn speech() -> Result<Option<crate::speech::SpeechService>> {
     )))
 }
 pub(crate) fn speech_ticket(seconds: u64) -> Result<crate::speech::SpeechService> {
+    let workspace = super::status()?
+        .workspace_id
+        .context("Sign in to Ion Cloud")?;
     let value = request(
+        &workspace,
         "POST",
         "/v1/speech/sessions",
         Some(json!({"maximumSeconds":seconds})),
@@ -237,14 +218,19 @@ pub struct ServiceControls {
     #[serde(default)]
     pub token_factory_available: bool,
 }
-pub fn controls() -> Result<ServiceControls> {
+pub fn controls(expected_workspace: &str) -> Result<ServiceControls> {
     Ok(serde_json::from_value(request(
+        expected_workspace,
         "GET",
         "/v1/services/controls",
         None,
     )?)?)
 }
-pub fn set_control(service: &str, enabled: bool) -> Result<ServiceControls> {
+pub fn set_control(
+    expected_workspace: &str,
+    service: &str,
+    enabled: bool,
+) -> Result<ServiceControls> {
     ensure!(
         ["cloud", "tokenFactory", "appActions"].contains(&service),
         "Invalid shared service"
@@ -252,6 +238,7 @@ pub fn set_control(service: &str, enabled: bool) -> Result<ServiceControls> {
     let mut body = serde_json::Map::new();
     body.insert(service.to_owned(), Value::Bool(enabled));
     Ok(serde_json::from_value(request(
+        expected_workspace,
         "PUT",
         "/v1/services/controls",
         Some(Value::Object(body)),
@@ -272,6 +259,45 @@ pub(crate) fn inference_request(
     account()?.inference_request(client, method, path, expected_workspace)
 }
 impl<V: Vault, H: Http> Account<V, H> {
+    pub(super) fn service_request(
+        &self,
+        expected_workspace: &str,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<Value> {
+        ensure!(
+            workspace(expected_workspace)
+                && matches!(
+                    (method, path),
+                    ("GET" | "PUT", "/v1/services/controls")
+                        | ("GET", "/v1/services/usage")
+                        | ("POST", "/v1/speech/sessions")
+                ),
+            "Invalid account-bound service operation"
+        );
+        let _guard = self.lock()?;
+        let mut state = self.read()?;
+        ensure!(
+            state
+                .session
+                .as_ref()
+                .is_some_and(|s| s.workspace_id == expected_workspace),
+            "The service account changed; reopen Settings in the intended account"
+        );
+        self.authorize(&mut state)?;
+        let session = state.session.as_ref().context("Sign in to Ion Cloud")?;
+        ensure!(
+            session.workspace_id == expected_workspace,
+            "The service account changed; reopen Settings in the intended account"
+        );
+        self.http.json(
+            method,
+            &format!("{}{path}", self.config.origin),
+            Some(&session.access_token),
+            body,
+        )
+    }
     pub(super) fn hosting_request(
         &self,
         client: &reqwest::blocking::Client,

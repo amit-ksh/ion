@@ -189,6 +189,9 @@ and [131](131-static-only-publishing.md).
   [138](138-account-bound-android-release-acceptance.md).
 - [ ] Verify refreshed Android account restoration/login/refresh/logout/switching,
   desktop pairing and actual microphone/dictation interactions.
+- [ ] Refresh Windows/Android packages after the additional service-control
+  account-boundary fix in [140](140-service-control-account-boundary.md).
+  Earlier package acceptance remains valid only for its recorded source.
 - [ ] Stop all resources started for acceptance and record the actual result.
 - [ ] Commit each completed milestone and provide exact evidence/blockers to
   **Test and fix Ion** when the agreed handover conditions are satisfied.
