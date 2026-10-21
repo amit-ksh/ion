@@ -49,6 +49,16 @@ results, but did not themselves bind the authenticated outbound effect.
 - The isolated real Windows Credential Manager test subsequently passed under
   restored host access: one test, dummy entries only, automatic namespace cleanup.
   Evidence: `.waku-cache/ion-account-bound-native-vault.log` and exit marker.
+- A subsequent live native managed-service check passed after the hosting routes
+  were removed from the generic transport. It read the signed-in account's
+  connected-app catalog, service controls and combined usage, checked the combined
+  micro-USD representation and recorded spending below the implementation ceiling.
+  Its conditional OFF-denial checks ran according to the controls returned; the
+  test does not print those controls, so this result alone is not a new snapshot
+  asserting every switch is OFF. No service was enabled, no provider tool was
+  executed and no model generation or compute launch was requested. Evidence:
+  `.waku-cache/ion-account-bound-managed-service-read.log` and exit marker,
+  one ignored opt-in test passed. Provider invoice reconciliation remains open.
 - Refreshed Windows release packaging and interactive account-switch acceptance
   remain pending. No approval bypass was attempted.
 
