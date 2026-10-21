@@ -1530,7 +1530,37 @@ impl Waku {
                             .flex()
                             .items_center()
                             .gap(px(2.0))
-                            .child(div().min_w_0().truncate().child(label))
+                            .child(match group {
+                                SidebarGroup::Project(id) if self.project_rename == Some(id) => {
+                                    div()
+                                        .id("project-rename-field")
+                                        .key_context(SESSION_RENAME_PARENT_CONTEXT)
+                                        .on_action(cx.listener(
+                                            |this, _: &CancelSessionRename, window, cx| {
+                                                this.cancel_session_rename(window, cx)
+                                            },
+                                        ))
+                                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                            cx.stop_propagation()
+                                        })
+                                        .on_click(|_, _, cx| cx.stop_propagation())
+                                        .on_mouse_down_out(cx.listener(move |this, _, _, cx| {
+                                            if this.project_rename == Some(id) {
+                                                this.commit_session_rename(cx);
+                                            }
+                                        }))
+                                        .h(px(24.0))
+                                        .min_w(px(90.0))
+                                        .flex_1()
+                                        .border_1()
+                                        .border_color(theme.accent)
+                                        .rounded(px(4.0))
+                                        .bg(theme.inset)
+                                        .child(self.session_rename_input.clone())
+                                        .into_any_element()
+                                }
+                                _ => div().min_w_0().truncate().child(label).into_any_element(),
+                            })
                             .when_some(updated_chevron, |element, chevron| element.child(chevron)),
                     )
                     .child(div().flex_1()),
@@ -1541,30 +1571,7 @@ impl Waku {
                     SidebarGroup::Project(id) => Some(id),
                     _ => None,
                 },
-                |element, id| {
-                    element.child(
-                        self.control_button(
-                            format!("sidebar-remove-project-{id}"),
-                            "",
-                            cx,
-                            move |this, window, cx| {
-                                cx.stop_propagation();
-                                this.request_remove_project(id, window, cx);
-                            },
-                        )
-                        .size(px(24.0))
-                        .p_0()
-                        .border_0()
-                        .justify_center()
-                        .tooltip(Tooltip::text("Remove project from Ion"))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(icon(
-                            "icons/trash.svg",
-                            13.0,
-                            theme.text_secondary,
-                        )),
-                    )
-                },
+                |element, id| element.child(self.render_sidebar_project_menu(id, cx)),
             )
             .when(first, |element| {
                 element.child(self.render_sidebar_header_actions(cx))
@@ -1775,6 +1782,7 @@ impl Waku {
             return;
         };
 
+        self.project_rename = None;
         self.session_rename = Some(session_id);
         self.session_rename_input.update(cx, |input, cx| {
             input.set_content(title, cx);
@@ -1786,6 +1794,27 @@ impl Waku {
     }
 
     pub(super) fn commit_session_rename(&mut self, cx: &mut Context<Self>) {
+        if let Some(project_id) = self.project_rename.take() {
+            let name = self
+                .session_rename_input
+                .read(cx)
+                .content()
+                .trim()
+                .to_owned();
+            if !name.is_empty()
+                && let Some(project) = self
+                    .state
+                    .projects
+                    .iter_mut()
+                    .find(|project| project.id == project_id)
+            {
+                project.name = name.chars().take(160).collect();
+                self.control_ui.invalidate_artifact_labels();
+                self.save();
+            }
+            cx.notify();
+            return;
+        }
         let Some(session_id) = self.session_rename.take() else {
             return;
         };
@@ -1815,7 +1844,8 @@ impl Waku {
     }
 
     fn cancel_session_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session_rename.take().is_none() {
+        let project = self.project_rename.take();
+        if self.session_rename.take().is_none() && project.is_none() {
             return;
         }
         let focus = self.composer_focus(cx);
@@ -2268,6 +2298,95 @@ impl Waku {
                     .child(self.render_right_panel_toggle(cx))
             })
             .children(right_window_controls)
+    }
+
+    fn render_sidebar_project_menu(&self, id: Uuid, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::current(cx);
+        let handle = self.menu_handle(format!("sidebar-project-options-{id}"), cx);
+        let weak = cx.entity().downgrade();
+        dropdown_menu(
+            div()
+                .id(SharedString::from(format!("project-options-{id}")))
+                .size(px(24.0))
+                .rounded(px(4.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .focus_visible(|style| style.border_1().border_color(theme.accent))
+                .hover(|style| style.bg(theme.overlay))
+                .tooltip(Tooltip::text("Project details and actions"))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(icon(
+                    "icons/ellipsis-vertical.svg",
+                    14.0,
+                    theme.text_secondary,
+                )),
+            SharedString::from(format!("project-options-menu-{id}")),
+            &handle,
+            MenuAlign::BelowLeft,
+            move |cx| {
+                let Some(entity) = weak.upgrade() else {
+                    return Vec::new();
+                };
+                let this = entity.read(cx);
+                let Some(project) = this.state.projects.iter().find(|p| p.id == id) else {
+                    return Vec::new();
+                };
+                let count = this
+                    .state
+                    .sessions
+                    .iter()
+                    .filter(|session| session.project_id == id && session.has_started())
+                    .count();
+                let name = project.display_name();
+                let path = project.path.display().to_string();
+                let rename = weak.clone();
+                let remove = weak.clone();
+                vec![
+                    MenuItem::new(name, |_, _| {})
+                        .disabled(true)
+                        .icon("icons/folder.svg"),
+                    MenuItem::new(
+                        if count == 1 {
+                            "1 chat".into()
+                        } else {
+                            format!("{count} chats")
+                        },
+                        |_, _| {},
+                    )
+                    .disabled(true),
+                    MenuItem::new(path, |_, _| {}).disabled(true),
+                    MenuItem::Separator,
+                    MenuItem::new("Edit project name", move |window, cx| {
+                        let _ = rename.update(cx, |this, cx| {
+                            let Some(name) = this
+                                .state
+                                .projects
+                                .iter()
+                                .find(|p| p.id == id)
+                                .map(|p| p.name.clone())
+                            else {
+                                return;
+                            };
+                            this.session_rename = None;
+                            this.project_rename = Some(id);
+                            this.session_rename_input.update(cx, |input, cx| {
+                                input.set_content(name, cx);
+                                input.select_all_text(cx);
+                            });
+                            let focus = this.session_rename_input.read(cx).focus();
+                            window.on_next_frame(move |window, cx| window.focus(&focus, cx));
+                            cx.notify();
+                        });
+                    }).icon("icons/pencil.svg"),
+                    MenuItem::new("Delete project…", move |window, cx| {
+                        let _ = remove
+                            .update(cx, |this, cx| this.request_remove_project(id, window, cx));
+                    }).icon("icons/trash.svg"),
+                ]
+            },
+        )
+        .into_any_element()
     }
 
     // ── Empty states ───────────────────────────────────────────────────────

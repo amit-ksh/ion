@@ -1614,9 +1614,9 @@ impl Waku {
             .justify_end()
             .max_w(gpui::relative(1.0))
             .gap(px(8.0));
-        if page == Page::Projects {
+        if page == Page::Artifacts {
             actions = actions.child(self.control_button(
-                "project-deployment-library",
+                "artifact-deployment-library",
                 "Deployments",
                 cx,
                 |this, _, cx| this.open_hosting_library(cx),
@@ -2675,12 +2675,6 @@ impl Waku {
                 let Some(project) = self.state.projects.iter().find(|p| p.id == id) else {
                     return div().into_any_element();
                 };
-                actions = actions.child(self.control_button(
-                    format!("project-deploy-{id}"),
-                    "Deploy",
-                    cx,
-                    move |this, _, cx| this.open_project_hosting(id, cx),
-                ));
                 actions = actions.child(self.control_button(
                     format!("project-open-{id}"),
                     "New task",

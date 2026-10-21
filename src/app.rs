@@ -1350,6 +1350,7 @@ pub struct Waku {
     session_navigation: SessionNavigation,
     /// Sidebar task currently showing its inline rename field.
     session_rename: Option<Uuid>,
+    project_rename: Option<Uuid>,
     /// One stable field reused across sidebar rows so virtualization never
     /// replaces the focused editor while a rename is in progress.
     session_rename_input: Entity<TextInput>,
@@ -2716,7 +2717,7 @@ impl Waku {
                 &session_rename_input,
                 |this: &mut Self, _, event: &InputEvent, cx| match event {
                     InputEvent::Submit(_) => this.commit_session_rename(cx),
-                    InputEvent::Edited if this.session_rename.is_some() => cx.notify(),
+                    InputEvent::Edited if this.session_rename.is_some() || this.project_rename.is_some() => cx.notify(),
                     _ => {}
                 },
             )
@@ -3058,6 +3059,7 @@ impl Waku {
                 transcript_control_focuses: RefCell::new(HashMap::new()),
                 session_navigation,
                 session_rename: None,
+                project_rename: None,
                 session_rename_input,
                 sidebar_collapsed_groups: HashSet::new(),
                 sidebar_project_reveal_counts: HashMap::new(),

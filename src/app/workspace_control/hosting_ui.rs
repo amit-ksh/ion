@@ -181,7 +181,7 @@ impl Waku {
         self.prepare_hosting(Some(Source::Artifact(artifact)), cx);
     }
     pub(in crate::app) fn open_hosting_library(&mut self, cx: &mut Context<Self>) {
-        self.control_ui.page = Some(Page::Projects);
+        self.control_ui.page = Some(Page::Artifacts);
         self.prepare_hosting(None, cx);
     }
     fn prepare_hosting(&mut self, source: Option<Source>, cx: &mut Context<Self>) {

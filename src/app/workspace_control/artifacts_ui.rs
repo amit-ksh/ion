@@ -435,7 +435,7 @@ impl Waku {
                     .flex()
                     .flex_wrap()
                     .gap(px(8.0))
-                    .when(a.format.eq_ignore_ascii_case("html") && a.evidence.is_some(), |row| row.child(self.control_button(format!("artifact-publish-{id}"), "Publish HTML", cx, move|this,_,cx|this.open_artifact_hosting(publish.clone(),cx))))
+                    .when(a.format.eq_ignore_ascii_case("html") && a.evidence.is_some(), |row| row.child(self.control_button(format!("artifact-publish-{id}"), "Deploy", cx, move|this,_,cx|this.open_artifact_hosting(publish.clone(),cx)).child(icon("icons/cloud-upload.svg", 14.0, theme.text_secondary))))
                     .child(self.control_button(
                         format!("artifact-open-{id}"),
                         "Open",

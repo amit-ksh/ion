@@ -3,7 +3,9 @@
 21 October 2026. User-requested additions to the active implementation/testing
 queue. UI-03, UI-05 and UI-06 are now implemented in source in
 [151](151-sidebar-and-composer-refinement.md), with native acceptance pending.
-UI-01, UI-02 and UI-04 remain queued. Reference: the supplied project popover screenshot.
+UI-01 and UI-04 are implemented in source in
+[152](152-artifact-deploy-and-project-menu.md), with native acceptance pending.
+UI-02 remains queued. Reference: the supplied project popover screenshot.
 
 | ID | Requested change | Acceptance |
 | --- | --- | --- |
