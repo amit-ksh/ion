@@ -13,6 +13,7 @@ import {
 import { AppState, Platform, type AppStateStatus } from "react-native";
 
 import { daemonKeys } from "./daemon-api";
+import { mobileDeviceLabel } from "./device-presence";
 import { hydratePersistentStorage } from "./composer-preferences-store";
 import { DaemonLink, type DaemonOutage } from "./daemon-link";
 import {
@@ -100,7 +101,7 @@ function createNativeDaemonSocket(url: string): WebSocketLike {
     ): WebSocketLike;
   };
   return new NativeWebSocket(url, null, {
-    headers: { "X-Waku-Client": "native" },
+    headers: { "X-Waku-Client": "native", "X-Waku-Device-Name": mobileDeviceLabel(Platform.OS, Platform.constants) },
   });
 }
 

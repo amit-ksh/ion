@@ -2286,6 +2286,28 @@ impl Waku {
                     cx,
                 ),
             )
+            .when(!self.connected_mobile_devices.is_empty(), |header| {
+                let label = if self.connected_mobile_devices.len() == 1 {
+                    format!("{} connected", self.connected_mobile_devices[0])
+                } else {
+                    format!("{} mobile devices connected", self.connected_mobile_devices.len())
+                };
+                header.child(
+                    div()
+                        .id("connected-mobile-devices")
+                        .max_w(px(180.0))
+                        .min_w_0()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .px(px(8.0))
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .tooltip(Tooltip::text(label.clone()))
+                        .child(icon("icons/smartphone.svg", 14.0, theme.success))
+                        .child(div().min_w_0().truncate().child(label)),
+                )
+            })
             .children(self.render_setup_indicator(cx))
             .when(self.control_ui.page.is_none(), |element| {
                 element.child(self.render_background_work_summary(cx))
@@ -2298,6 +2320,51 @@ impl Waku {
                     .child(self.render_right_panel_toggle(cx))
             })
             .children(right_window_controls)
+    }
+
+    pub(super) fn start_mobile_device_watch(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            loop {
+                let Ok(client) = this.update(cx, |this, _| this.daemon.client()) else {
+                    break;
+                };
+                let observed_client = client.clone();
+                let response = cx
+                    .background_executor()
+                    .spawn(async move {
+                        client.request(
+                            Uuid::nil(),
+                            Uuid::nil(),
+                            waku_client::Command::ListConnectedMobileDevices,
+                        )
+                    })
+                    .await;
+                let devices = match response {
+                    Ok(waku_client::ResponsePayload::ConnectedMobileDevices { devices }) => devices,
+                    _ => Vec::new(),
+                };
+                if this
+                    .update(cx, |this, cx| {
+                        if !this.daemon.client().same_connection(&observed_client) {
+                            if !this.connected_mobile_devices.is_empty() {
+                                this.connected_mobile_devices.clear();
+                                cx.notify();
+                            }
+                            return;
+                        }
+                        if this.connected_mobile_devices != devices {
+                            this.connected_mobile_devices = devices;
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+                cx.background_executor().timer(Duration::from_secs(3)).await;
+            }
+        })
+        .detach();
     }
 
     fn render_sidebar_project_menu(&self, id: Uuid, cx: &mut Context<Self>) -> AnyElement {

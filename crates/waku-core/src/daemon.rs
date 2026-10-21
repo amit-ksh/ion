@@ -312,6 +312,9 @@ impl Backend for WakuBackend {
         let session_id = request.session_id;
         let runtime_id = request.runtime_id;
         match request.command {
+            Command::ListConnectedMobileDevices => {
+                anyhow::bail!("connection presence is served by the transport")
+            }
             Command::QueueTeamTask {
                 run_id,
                 project_id,
@@ -2656,6 +2659,7 @@ fn handle_driver_command(
     command: Command,
 ) -> anyhow::Result<ResponsePayload> {
     match command {
+        Command::ListConnectedMobileDevices => anyhow::bail!("connection presence is not a driver command"),
         Command::Prompt { prompt, .. } => driver.prompt(prompt),
         Command::Steer { prompt } => driver.steer(prompt),
         Command::Cancel => driver.cancel(),

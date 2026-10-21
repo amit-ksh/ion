@@ -5,7 +5,9 @@ queue. UI-03, UI-05 and UI-06 are now implemented in source in
 [151](151-sidebar-and-composer-refinement.md), with native acceptance pending.
 UI-01 and UI-04 are implemented in source in
 [152](152-artifact-deploy-and-project-menu.md), with native acceptance pending.
-UI-02 remains queued. Reference: the supplied project popover screenshot.
+UI-02 is implemented in source in [153](153-authenticated-device-presence.md).
+All six now await their applicable native acceptance; source implementation is
+not an installed-package or visual pass. Reference: the supplied project popover screenshot.
 
 | ID | Requested change | Acceptance |
 | --- | --- | --- |

@@ -1351,6 +1351,7 @@ pub struct Waku {
     /// Sidebar task currently showing its inline rename field.
     session_rename: Option<Uuid>,
     project_rename: Option<Uuid>,
+    connected_mobile_devices: Vec<String>,
     /// One stable field reused across sidebar rows so virtualization never
     /// replaces the focused editor while a rename is in progress.
     session_rename_input: Entity<TextInput>,
@@ -3060,6 +3061,7 @@ impl Waku {
                 session_navigation,
                 session_rename: None,
                 project_rename: None,
+                connected_mobile_devices: Vec::new(),
                 session_rename_input,
                 sidebar_collapsed_groups: HashSet::new(),
                 sidebar_project_reveal_counts: HashMap::new(),
@@ -3229,6 +3231,7 @@ impl Waku {
         entity.update(cx, |this, cx| {
             this.start_account_gate(cx);
             this.restart_task_state_sync();
+            this.start_mobile_device_watch(cx);
             this.initialize_onboarding(window, cx);
             for session_id in startup_live_session_ids {
                 this.start_runtime_attachment(session_id, cx);
