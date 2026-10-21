@@ -12,31 +12,36 @@ and static-publishing evidence. iOS and deferred harness adapters are excluded.
   sign-in; upgrade, cold start and the primary user's microphone permission
   passed nonvisually. At 08:42 IST the device reported offline. A scoped host-side
   reconnect did not restore it; subsequent reads report device not found.
-  Device acceptance now requires a working USB connection. No shared ADB server
-  restart, screenshots, microphone capture or phone-data changes were performed.
-  Evidence: `.waku-cache/ion-account-bound-moto-availability.json`.
+  That failure is preserved in `.waku-cache/ion-account-bound-moto-availability.json`.
+  At 11:15 IST the phone was reachable again. The refreshed APK subsequently
+  passed a replacement install, exact installed hash and nonvisual cold start;
+  its existing microphone permission remained granted. No screenshots,
+  microphone capture or app-data clearing were performed. Physical dictation
+  and account interactions remain open; see plan 138.
 - Owner Google Drive connection and one approved read-only quota action passed.
   Do not repeat that provider effect just to replace already recorded evidence.
 - Cloud, Token Factory and app-action spending switches remain OFF. Static
   publishing works with Cloud OFF; it does not need a Nebius VM or controller.
 - The exact R2 model bytes and packaged CPU runtime passed synthetic speech and
   silence. These checks do not establish physical microphone behavior.
-- The Windows refresh containing the account-bound publication fix is building;
-  the daemon binary has been refreshed but this is not whole-package acceptance.
-  Follow plans 134–136 for exact source and earlier candidate evidence. Use the
-  refreshed, hash-recorded Windows and Android artifacts for acceptance.
+- Windows and Android packages containing the account-bound publishing fixes
+  passed packaging and nonvisual upgrade checks. Follow plans 137–138 for the
+  current hashes and exact source/QA provenance. The separate redesign is excluded.
 
 ## Windows release installation
 
-- [ ] Record completed installer/ZIP hashes and source provenance. Preserve the
+- [x] Record completed installer/ZIP hashes and source provenance. Preserve the
   existing 111-file QA patch; this is not represented as a pristine checkout.
-- [ ] Install the refreshed per-user EXE, preserving the existing user data and
+- [x] Install the refreshed per-user EXE, preserving the existing user data and
   credential vault. Verify actual installed file versions and package membership.
 - [ ] Open Ion and verify login returns to the existing account. Confirm the
   managed connection and user-owned projects/chats are retained after upgrade.
+  The launched process and retention of all original chat/project/message IDs
+  passed nonvisually. Native admitted-account service reads also passed; actual
+  account restoration/connection display in the GUI remains open.
 - [ ] Exit normally and reopen; verify account/session restoration and no stale
   publishing operation is replayed. Do not stop another task's development watcher.
-- [ ] Verify the refreshed portable ZIP's bundled speech helper and notices,
+- [x] Verify the refreshed portable ZIP's bundled speech helper and notices,
   model manifest URL/size/hash and fixed speech/silence results.
 
 ## Real desktop and paired-phone dictation

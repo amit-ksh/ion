@@ -31,9 +31,11 @@ could therefore use a replacement account after that earlier check.
 - Mobile TypeScript check passed after the final source changes.
 - Evidence: `.waku-cache/ion-mobile-publishing-account-tests.log` and
   `ion-mobile-publishing-account-final-typecheck.log`, with exit markers.
-- These are local transport/session tests. Rebuilt APK and real Moto account
-  switching, confirmation dialogs and publication controls remain acceptance
-  gates. No new phone login, provider app effect or paid compute was performed.
+- These are local transport/session tests. The rebuilt APK, signature, installed
+  hash and nonvisual Moto upgrade/cold start subsequently passed in
+  [138](138-account-bound-android-release-acceptance.md). Real account switching,
+  confirmation dialogs and publication controls remain acceptance gates. No new
+  phone login, provider app effect or paid compute was performed.
 
 The Windows release refresh started from `d7e69ad` before these mobile-only source
-changes. Keep its exact provenance; the Android refresh must include this milestone.
+changes. Keep its exact provenance; the Android refresh in plan 138 includes this milestone.

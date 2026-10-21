@@ -183,8 +183,12 @@ and [131](131-static-only-publishing.md).
 - [x] Verify the real per-user upgrade, installed file hashes, process launch and
   preservation of all original database IDs. Post-upgrade native account reads pass.
 - [ ] Verify clean install/fresh-user state, actual GUI account restore and return visit.
-- [ ] Build Android only from the merged/verified source; test on authorized Moto
-  G32, including native login, pairing and microphone acceptance.
+- [x] Build Android from merged/verified source `65a36d6` plus preserved QA inputs;
+  verify its unchanged signing identity and exact installed bytes on Moto G32.
+  Replacement install and nonvisual cold start passed; see
+  [138](138-account-bound-android-release-acceptance.md).
+- [ ] Verify refreshed Android account restoration/login/refresh/logout/switching,
+  desktop pairing and actual microphone/dictation interactions.
 - [ ] Stop all resources started for acceptance and record the actual result.
 - [ ] Commit each completed milestone and provide exact evidence/blockers to
   **Test and fix Ion** when the agreed handover conditions are satisfied.
@@ -229,8 +233,8 @@ acceptance passed; see plan 134. A later account-bound publication fix (plan 135
 passes 20 account fixture tests, desktop compilation and real native-account
 static publication through the bound transport. Approval access returned at the
 7:05 AM continuation; the disposable live site was removed, controls stayed
-unchanged and no paid compute was called. The installer predates this fix and
-has now been refreshed and passed nonvisual upgrade/data-retention checks in
+unchanged and no paid compute was called. The earlier installer predated this fix.
+Its replacement has passed nonvisual upgrade/data-retention checks in
 plan 137. Actual GUI account-switch acceptance remains open. The earlier backend-only
 source reconciliation remains documented in plan 133. No new
 Nebius compute or paid app action was started in these checks. The later
@@ -240,5 +244,6 @@ post-create-denial inventories were empty, and no new inventory result is claime
 The corresponding mobile publication transport now pins the reviewed account,
 rejects generic hosting requests and invalidates old views without requiring a
 gateway pairing. Sixteen controller/session regressions and the mobile TypeScript
-check passed; see [136](136-mobile-publishing-account-boundary.md). Actual device
-account-switch and refreshed APK acceptance remain open.
+check passed; see [136](136-mobile-publishing-account-boundary.md). The refreshed
+APK, signature and actual Moto replacement install/cold start passed in plan 138.
+Actual device account switching, pairing and physical dictation remain open.
