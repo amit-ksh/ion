@@ -36,3 +36,14 @@ or mean that the planned sandbox/app-hosting services are deployed.
 
 No additional paid resource was started to implement or test this envelope.
 Deployment and verification of the updated live gateway remain acceptance gates.
+
+## Later release verification
+
+On 21 October the same two local suites passed **nine tests, 71 assertions**
+against the current source (`.waku-cache/ion-account-bound-budget-recheck.log`,
+exit 0). Subsequent native service reads against the deployed gateway accepted
+the combined micro-USD usage representation and recorded spending below the
+implementation ceiling. No model generation, provider tool effect or compute
+launch was requested by those reads. These checks do not reconcile provider
+invoices or release the Drive action's unknown-cost reservation; those gates
+remain open. Current package/upgrade evidence is in plans 137–138.

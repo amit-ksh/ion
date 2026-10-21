@@ -222,7 +222,9 @@ for clean backend/Worker type checks and 44 service / seven workerd tests.
 
 R2 model GET/hash and actual native first-download/cache checks passed. Both
 supplied project IDs were rechecked on 21 October: sandbox `whoami` returns 200
-with spawn/list/cancel/import false. No sandbox launch was attempted. The native
+with spawn/list/cancel/import false, including a fresh **11:27 IST** read-only
+check saved as `.waku-cache/ion-account-bound-sandbox-access-recheck.json`.
+No sandbox launch was attempted. The native
 owner login/vault/refresh and desktop publish grant passed; Moto G32 remains
 connected and its process was observed alive. Physical paired dictation and
 account-switch behavior are not inferred from these facts.
