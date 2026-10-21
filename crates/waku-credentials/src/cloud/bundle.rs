@@ -331,7 +331,7 @@ mod static_export_tests {
                 super::super::status()?.workspace_id.as_deref() == Some(workspace.as_str()),
                 "The native account changed"
             );
-            super::super::services::request(method, path, body)
+            super::super::services::hosting_request(&workspace, method, path, body)
         };
         let operation = format!(
             "static-acceptance-{}",

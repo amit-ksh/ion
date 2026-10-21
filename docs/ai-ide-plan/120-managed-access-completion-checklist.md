@@ -176,8 +176,10 @@ and [131](131-static-only-publishing.md).
   clearing, labels and Ion branding in rebuilt UI.
 - [ ] Run targeted regressions and the required release gates; reuse the existing
   watcher. No native visual test unless directly authorized for this session.
-- [ ] Build and test a new installer; verify clean install, launch, upgrade and
-  bundled speech runtime. Record source revision and artifact hashes.
+- [x] Build refreshed Windows EXE/ZIP, record exact source/QA provenance and
+  artifact hashes, verify package assets/R2 manifests and actual bundled CPU
+  speech/silence fixtures. See [134](134-windows-static-publishing-release.md).
+- [ ] Verify installer clean install/upgrade, actual launch and account restore.
 - [ ] Build Android only from the merged/verified source; test on authorized Moto
   G32, including native login, pairing and microphone acceptance.
 - [ ] Stop all resources started for acceptance and record the actual result.
@@ -218,9 +220,15 @@ owner login/vault/refresh and desktop publish grant passed; Moto G32 remains
 connected and its process was observed alive. Physical paired dictation and
 account-switch behavior are not inferred from these facts.
 
-Windows source `7ffbbdd` plus the preserved 111-file QA patch is rebuilding.
-A second compile is not started while its handle remains live. The source-guard
-caveat for later backend-only typing changes is documented in plan 133. No new
+Windows source `7ffbbdd` plus the preserved 111-file QA patch built successfully.
+Package assets, licenses, R2 manifest embedding and bundled CPU speech/silence
+acceptance passed; see plan 134. A later account-bound publication fix (plan 135)
+passes 20 account fixture tests, desktop compilation and real native-account
+static publication through the bound transport. Approval access returned at the
+7:05 AM continuation; the disposable live site was removed, controls stayed
+unchanged and no paid compute was called. The installer predates this fix and
+must be refreshed before final account-switch acceptance. The earlier backend-only
+source reconciliation remains documented in plan 133. No new
 Nebius compute or paid app action was started in these checks. The later
 read-only Compute inventory probe stalled and was cancelled locally; the prior
 post-create-denial inventories were empty, and no new inventory result is claimed.

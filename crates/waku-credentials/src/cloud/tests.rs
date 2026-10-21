@@ -770,6 +770,93 @@ fn managed_apps_bind_identity_before_refresh_and_never_dispatch_for_another_acco
     clean(account);
 }
 
+#[test]
+fn publishing_pins_the_review_account_before_refresh_and_rejects_route_escapes() {
+    let account = fixture();
+    seed(&account, true, false);
+    let expected = "a".repeat(64);
+    let client = reqwest::blocking::Client::new();
+    let request = account
+        .hosting_request(&client, "POST", "/v1/hosting/releases", &expected)
+        .unwrap()
+        .build()
+        .unwrap();
+    assert!(request.url().as_str().ends_with("/v1/hosting/releases"));
+    assert!(
+        request
+            .headers()
+            .contains_key(reqwest::header::AUTHORIZATION)
+    );
+    assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
+    for (method, path) in [
+        ("PUT", "/v1/hosting/releases"),
+        ("POST", "/v1/services/controls"),
+        ("GET", "/v1/hosting/../services/usage"),
+        ("GET", "/v1/hosting/%2e%2e/services/usage"),
+        ("GET", "/v1/hosting/sites?token=x"),
+        ("GET", "/v1/hosting//sites"),
+    ] {
+        assert!(
+            account
+                .hosting_request(&client, method, path, &expected)
+                .is_err()
+        );
+    }
+    let calls = account.http.calls.lock().unwrap().len();
+    let mut state = account.read().unwrap();
+    state.session.as_mut().unwrap().workspace_id = "b".repeat(64);
+    state.session.as_mut().unwrap().expires_at = 1;
+    account.store().write(&state).unwrap();
+    for method in ["GET", "POST", "DELETE"] {
+        assert!(
+            account
+                .hosting_request(&client, method, "/v1/hosting/sites", &expected)
+                .unwrap_err()
+                .to_string()
+                .contains("account changed")
+        );
+    }
+    assert_eq!(
+        account.http.refreshes.load(Ordering::SeqCst),
+        1,
+        "Publishing must not refresh the replacement account"
+    );
+    assert_eq!(account.http.calls.lock().unwrap().len(), calls);
+    account.store().write(&State::empty().unwrap()).unwrap();
+    assert!(
+        account
+            .hosting_request(&client, "GET", "/v1/hosting/sites", &expected)
+            .is_err()
+    );
+    clean(account);
+}
+
+#[test]
+fn publishing_rejects_a_different_identity_returned_by_refresh() {
+    let account = fixture();
+    seed(&account, true, false);
+    account.http.foreign.store(true, Ordering::SeqCst);
+    let client = reqwest::blocking::Client::new();
+    assert!(
+        account
+            .hosting_request(&client, "POST", "/v1/hosting/releases", &"a".repeat(64))
+            .is_err()
+    );
+    assert_eq!(account.http.refreshes.load(Ordering::SeqCst), 1);
+    assert!(account.read().unwrap().session.is_none());
+    assert!(
+        account
+            .http
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(_, url, _)| !url.contains("/v1/hosting/")),
+        "Foreign refresh identity must never dispatch the reviewed upload"
+    );
+    clean(account);
+}
+
 /// Uses the already-signed-in native account. No browser, service enablement,
 /// provider tool effect or inference request is permitted by this check.
 #[test]

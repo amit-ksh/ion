@@ -126,15 +126,13 @@ pub fn bootstrap() -> Result<Value> {
 }
 pub fn request(method: &str, path: &str, body: Option<Value>) -> Result<Value> {
     ensure!(
-        path.starts_with("/v1/hosting/")
-            || path == "/v1/speech/sessions"
-            || path == "/v1/services/controls"
-            || path == "/v1/services/usage",
+        [
+            "/v1/speech/sessions",
+            "/v1/services/controls",
+            "/v1/services/usage"
+        ]
+        .contains(&path),
         "Unsupported managed service route"
-    );
-    ensure!(
-        !path.contains(['?', '#', '\\']) && !path.split('/').any(|v| v == "." || v == ".."),
-        "Invalid managed service path"
     );
     let account = account()?;
     let _guard = account.lock()?;
@@ -157,6 +155,28 @@ pub fn request(method: &str, path: &str, body: Option<Value>) -> Result<Value> {
     let response = pending
         .send()
         .map_err(|_| anyhow::anyhow!("Could not reach Ion Cloud"))?;
+    decode_service_response(response)
+}
+/// Publishing is bound to the account which opened the review, including
+/// delayed uploads and refreshes after a mutation.
+pub fn hosting_request(
+    expected_workspace: &str,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value> {
+    let account = account()?;
+    let mut pending =
+        account.hosting_request(&Network::client()?, method, path, expected_workspace)?;
+    if let Some(body) = body {
+        pending = pending.json(&body);
+    }
+    let response = pending
+        .send()
+        .map_err(|_| anyhow::anyhow!("Could not reach Ion Cloud"))?;
+    decode_service_response(response)
+}
+fn decode_service_response(response: reqwest::blocking::Response) -> Result<Value> {
     ensure!(
         response.status().is_success(),
         "Cloud service request failed (HTTP {})",
@@ -252,6 +272,43 @@ pub(crate) fn inference_request(
     account()?.inference_request(client, method, path, expected_workspace)
 }
 impl<V: Vault, H: Http> Account<V, H> {
+    pub(super) fn hosting_request(
+        &self,
+        client: &reqwest::blocking::Client,
+        method: &str,
+        path: &str,
+        expected_workspace: &str,
+    ) -> Result<reqwest::blocking::RequestBuilder> {
+        ensure!(
+            workspace(expected_workspace)
+                && ["GET", "POST", "DELETE"].contains(&method)
+                && path.starts_with("/v1/hosting/")
+                && path.len() <= 240
+                && path.split('/').skip(1).all(|part| !part.is_empty()
+                    && part
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')),
+            "Invalid account-bound publishing operation"
+        );
+        let _guard = self.lock()?;
+        let mut state = self.read()?;
+        ensure!(
+            state
+                .session
+                .as_ref()
+                .is_some_and(|s| s.workspace_id == expected_workspace),
+            "The publishing account changed; reopen publishing in the intended account"
+        );
+        self.authorize(&mut state)?;
+        let session = state.session.as_ref().context("Sign in to Ion Cloud")?;
+        ensure!(
+            session.workspace_id == expected_workspace,
+            "The publishing account changed; reopen publishing in the intended account"
+        );
+        Ok(client
+            .request(method.parse()?, format!("{}{path}", self.config.origin))
+            .bearer_auth(&session.access_token))
+    }
     pub(super) fn app_request(
         &self,
         expected_workspace: &str,

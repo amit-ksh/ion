@@ -15,6 +15,7 @@ pub(super) struct HostingUi {
     busy: bool,
     generation: u64,
     source: Option<Source>,
+    workspace: Option<String>,
     bundle: Option<Arc<Bundle>>,
     sites: Vec<serde_json::Value>,
     error: Option<String>,
@@ -34,6 +35,7 @@ impl HostingUi {
             busy: false,
             generation: 0,
             source: None,
+            workspace: None,
             bundle: None,
             sites: vec![],
             error: None,
@@ -202,6 +204,8 @@ impl Waku {
         ui.busy = true;
         ui.generation += 1;
         ui.source = source.clone();
+        ui.workspace = self.cloud_ui.status.workspace_id.clone();
+        let expected_workspace = ui.workspace.clone();
         ui.bundle = None;
         ui.sites.clear();
         ui.error = None;
@@ -232,7 +236,12 @@ impl Waku {
                         Some(Source::Artifact(a)) => artifact_bundle(client, a).map(Some),
                         None => Ok(None),
                     };
-                    let sites = services::request("GET", "/v1/hosting/sites", None);
+                    let sites = expected_workspace
+                        .as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("Sign in to Ion before publishing"))
+                        .and_then(|workspace| {
+                            services::hosting_request(workspace, "GET", "/v1/hosting/sites", None)
+                        });
                     (bundle, sites)
                 })
                 .await;
@@ -337,6 +346,11 @@ impl Waku {
         cx: &mut Context<Self>,
     ) {
         let ui = &mut self.control_ui.hosting;
+        let Some(workspace) = ui.workspace.clone() else {
+            ui.error = Some("Reopen publishing in the intended Ion account.".into());
+            cx.notify();
+            return;
+        };
         ui.busy = true;
         ui.error = None;
         ui.generation += 1;
@@ -352,8 +366,9 @@ impl Waku {
                     } else {
                         body
                     };
-                    let response = services::request(method, &path, body)?;
-                    let sites = services::request("GET", "/v1/hosting/sites", None)?;
+                    let response = services::hosting_request(&workspace, method, &path, body)?;
+                    let sites =
+                        services::hosting_request(&workspace, "GET", "/v1/hosting/sites", None)?;
                     anyhow::Ok((response, sites))
                 })
                 .await;
@@ -686,5 +701,9 @@ impl ControlUi {
         self.hosting.generation += 1;
         self.hosting.busy = false;
         self.hosting.sites.clear();
+        self.hosting.workspace = None;
+        self.hosting.bundle = None;
+        self.hosting.source = None;
+        self.hosting.open = false;
     }
 }
