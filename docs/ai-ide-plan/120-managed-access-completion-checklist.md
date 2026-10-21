@@ -8,6 +8,11 @@ Active goal scope: Windows desktop, Android (Moto G32), shared backend services
 and deployments. iOS implementation, builds, signing and acceptance are excluded.
 Previously deferred/unstarted harness adapters also remain outside scope.
 
+Priority follow-up: [154](154-durable-object-usage-investigation.md) tracks
+the reported AccountRelay usage, required before/after instrumentation,
+adaptive synchronization fix and security/recovery regressions. The live
+meter's exact metric and time range remain unverified.
+
 ## 1. Gateway, admission and login
 
 - [x] Deploy gateway-only Cloudflare Worker at `api.build-with-ion.tech`.
