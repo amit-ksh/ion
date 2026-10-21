@@ -59,10 +59,11 @@ results, but did not themselves bind the authenticated outbound effect.
   executed and no model generation or compute launch was requested. Evidence:
   `.waku-cache/ion-account-bound-managed-service-read.log` and exit marker,
   one ignored opt-in test passed. Provider invoice reconciliation remains open.
-- Refreshed Windows release packaging and interactive account-switch acceptance
-  remain pending. No approval bypass was attempted.
+- Refreshed Windows release packaging and nonvisual upgrade acceptance passed;
+  see [137](137-account-bound-windows-release-acceptance.md). Interactive
+  account-switch acceptance remains pending. No approval bypass was attempted.
 
-The package in plan 134 predates this change. Keep its hashes/source record and
-refresh it after committing the verified fix. Live backend publishing was already
+The package in plan 134 predates this change and is preserved with its original
+hashes/source record. Plan 137 contains the refreshed candidate. Live backend publishing was already
 accepted in plan 131; the subsequent live test above verifies the newly edited
 native request path. The mobile counterpart is recorded in plan 136.

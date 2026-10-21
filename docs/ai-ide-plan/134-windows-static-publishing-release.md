@@ -24,7 +24,10 @@ acceptance remain open; these results do not stand in for those gates.
 | `ion-0.1.24-x86_64-Setup.exe` | 33715456 | `c2ca09edeb27e77fd0e1b0cfb9917ad5aac508e43aa56eb721f6c78cc24af16a` |
 | `ion-0.1.24-x86_64-pc-windows-msvc.zip` | 48677952 | `35d95ba9f6399363d3227163b68edf5bb0b73a1e42772c27d6ce391977b2ef49` |
 
-Artifacts are under `target/release`. No Authenticode certificate is configured;
+These earlier artifacts are now preserved under
+`.waku-cache/ion-pre-account-binding-windows-20261021`; current files under
+`target/release` are the newer candidate in [137](137-account-bound-windows-release-acceptance.md).
+No Authenticode certificate is configured;
 this is an **unsigned test release**, so Windows trust warnings may appear.
 Neither certificate installation nor application installation was performed.
 
@@ -70,6 +73,7 @@ remains unchanged while the account-bound release refresh is prepared.
 A later source audit found a queued native publishing request could select the
 account signed in after its review opened. An account-bound transport and view
 invalidation fix is being verified in plan 135. The EXE/ZIP above predates that
-fix: its verified packaging/runtime results remain valid for its recorded source,
-but it is not the final account-switch acceptance candidate. Refresh the package
-after that fix is committed; do not claim the old artifact contains new source.
+fix: its verified packaging/runtime results remain valid for its recorded source.
+The refreshed package and actual upgrade acceptance are now recorded in plan 137.
+Actual GUI account switching remains open; do not claim the old artifact contains
+new source.
