@@ -1,6 +1,6 @@
-# Releasing Waku
+# Releasing ion
 
-Waku ships signed in-app updates on macOS, Linux, and Windows. Releases live in
+ion ships signed in-app updates on macOS, Linux, and Windows. Releases live in
 a **Cloudflare R2** bucket served at **`https://releases.waku.sh`**. macOS uses
 [Sparkle](https://sparkle-project.org), including binary deltas when available;
 the native Linux and Windows updaters read architecture-specific feeds and
@@ -47,7 +47,7 @@ The release runs on [Bun](https://bun.sh) and needs
 Updates are signed with an ed25519 key; the private half stays in the login
 keychain and the public half ships in Info.plist as `SUPublicEDKey`.
 
-**This Mac already has the key** — Waku signs with the same default-account
+**This Mac already has the key** — ion signs with the same default-account
 Sparkle key as kero, and the matching public key is already in Info.plist.
 Nothing to do.
 
@@ -65,7 +65,7 @@ build, or download the release from
 > ⚠️ Lose the private key and existing installs can never update again. Keep
 > the backup current.
 
-To split Waku onto its own key later: `generate_keys --account waku`, put the
+To split ion onto its own key later: `generate_keys --account waku`, put the
 new public key in Info.plist, and pass `--account waku` through to
 `generate_appcast` in `scripts/appcast.ts`. Users on old builds only trust the
 old key, so do this on a release that still signs with the old key… in other
@@ -213,7 +213,7 @@ rolls back if the replacement cannot open its main window.
 
 Both Linux jobs run on **Ubuntu 22.04**, and that choice is load-bearing: the
 binaries link against the build machine's glibc, so the runner sets the oldest
-distribution Waku can start on (2.35 — Ubuntu 22.04, Debian 12, Fedora 36).
+distribution ion can start on (2.35 — Ubuntu 22.04, Debian 12, Fedora 36).
 Moving those jobs to a newer runner silently drops support for everything
 older.
 
@@ -276,7 +276,7 @@ secrets first:
   at the DMG.
 - **Debug builds never update themselves.** `Updater::init` returns `None`
   under `debug_assertions`, so the dev watcher's app can't offer to replace
-  itself with a production Waku. Set `WAKU_FORCE_UPDATER=1` to exercise the
+  itself with a production ion. Set `WAKU_FORCE_UPDATER=1` to exercise the
   real Sparkle flow from a debug bundle anyway. A bare `cargo run` binary has
   no embedded framework and also degrades to no updater. For UI-only testing,
   start the watcher with `WAKU_PREVIEW_UPDATE=1`; the sidebar immediately
@@ -293,7 +293,7 @@ secrets first:
 - **First-run consent:** Sparkle shows its one-time "check automatically?"
   prompt on the second launch. The Settings → General toggle reads and writes
   the same persisted value.
-- **Waku isn't sandboxed**, so Sparkle's XPC services are unnecessary;
+- **ion isn't sandboxed**, so Sparkle's XPC services are unnecessary;
   `bundle.sh` strips them (plus headers/modules) from the embedded framework
   and re-signs the rest with the app's identity — hardened-runtime library
   validation requires the identities to match.

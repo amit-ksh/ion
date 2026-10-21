@@ -67,13 +67,12 @@ export function DaemonList({
               </Pressable>
               {onEdit && (
                 <Pressable
-                  accessibilityLabel={`Edit ${profile.name}`}
+                  accessibilityLabel={`Options for ${profile.name}`}
                   accessibilityRole="button"
-                  hitSlop={6}
                   onPress={() => onEdit(profile)}
                   style={({ pressed }) => [styles.infoButton, { opacity: pressed ? 0.45 : 1 }]}>
                   <AppSymbol
-                    name={{ ios: 'info.circle', android: 'info', web: 'info' }}
+                    name={{ ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' }}
                     size={20}
                     tintColor={NativeTint}
                   />
@@ -110,6 +109,6 @@ const styles = StyleSheet.create({
   nameLine: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   name: { flexShrink: 1, fontSize: 16, fontWeight: '500' },
   host: { fontSize: 12.5, marginTop: 3 },
-  infoButton: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 13 },
+  infoButton: { alignItems: 'center', justifyContent: 'center', minWidth: 48, minHeight: 48, marginLeft: 8 },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 60 },
 });

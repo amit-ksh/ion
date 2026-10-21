@@ -607,7 +607,7 @@ mod macos {
                         .to_string_lossy()
                         .into_owned()
                 };
-                eprintln!("Waku updater: failed to load Sparkle: {reason}");
+                eprintln!("ion updater: failed to load Sparkle: {reason}");
                 return None;
             }
 
@@ -656,7 +656,7 @@ mod macos {
                 ]
             };
             if !started {
-                eprintln!("Waku updater: Sparkle rejected its updater configuration");
+                eprintln!("ion updater: Sparkle rejected its updater configuration");
                 return None;
             }
 
@@ -1042,7 +1042,7 @@ mod windows {
                 return None;
             }
             if verifying_key().is_none() {
-                eprintln!("Waku updater: SUPublicEDKey is not a valid ed25519 key");
+                eprintln!("ion updater: SUPublicEDKey is not a valid ed25519 key");
                 return None;
             }
 
@@ -1143,7 +1143,7 @@ mod windows {
                             if report {
                                 let _ = events.try_send(UpdaterEvent::Failed(error.to_string()));
                             } else {
-                                eprintln!("Waku updater: {error}");
+                                eprintln!("ion updater: {error}");
                             }
                         }
                     }

@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { assertMobileProfiles, assertMobileTeam, mobileHarness } from './mobile-capabilities';
 import type {
   AgentSession,
   GoalOperation,
@@ -209,7 +210,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const loadFullSession = useCallback(async (sessionId: string): Promise<AgentSession> => {
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
-    if (!client || !profileId) throw new Error('Waku daemon is disconnected');
+    if (!client || !profileId) throw new Error('ion daemon is disconnected');
     const cached = queryClient.getQueryData<AgentSession>(
       daemonKeys.session(profileId, sessionId),
     ) ?? entries.current.get(sessionId)?.session;
@@ -227,7 +228,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const persistOrdered = useCallback((session: AgentSession): Promise<AgentSession> => {
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
-    if (!client || !profileId) return Promise.reject(new Error('Waku daemon is disconnected'));
+    if (!client || !profileId) return Promise.reject(new Error('ion daemon is disconnected'));
     const generation = cacheGenerations.current.get(session.id);
     const previous = persistTails.current.get(session.id);
     const operation = (previous ?? Promise.resolve(session))
@@ -320,7 +321,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   ): RuntimeEntry => {
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
-    if (!client || !profileId) throw new Error('Waku daemon is disconnected');
+    if (!client || !profileId) throw new Error('ion daemon is disconnected');
     const existing = entries.current.get(session.id);
     if (existing) return existing;
 
@@ -535,7 +536,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
     if (!client || !profileId || daemon.phase !== 'connected') {
-      throw new Error('Waku daemon is disconnected');
+      throw new Error('ion daemon is disconnected');
     }
     const prompt = rawPrompt.trim();
     if (!prompt && attachments.length === 0) return inputSession;
@@ -546,11 +547,15 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     // still in flight; building the turn on that would persist a transcript
     // with only the new messages. Always start from the full session.
     let current = await loadFullSession(inputSession.id);
+    if (!mobileHarness(current.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
     if (current.team_assignment) {
       if (!prompt || new TextEncoder().encode(prompt).length > 4096 || attachments.length > 0
         || providerPrompt !== prompt) {
         throw new Error('Team follow-ups support plain text up to 4 KiB. Use New task for additional files or commands.');
       }
+      const run = await client.request({ type: 'getTeamRun', runId: current.team_assignment.runId });
+      if (run.type !== 'teamRun') throw new Error('Could not verify the team. Refresh before sending.');
+      assertMobileProfiles(run.snapshot.profiles);
       const previous = teamFollowupRequests.current.get(current.id);
       const message: QueuedMessage = previous?.content === prompt ? previous : {
         id: Crypto.randomUUID(), content: prompt, display_content: null,
@@ -575,7 +580,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       setErrors((values) => removeKey(values, current.id));
       return current;
     }
-    const team = await queueComposerTeam(client, current, prompt, attachments);
+    const team = await queueComposerTeam(client, current, prompt, attachments, assertMobileTeam);
     if (team) { cacheSession(team); return team; }
     if (sessionBusy(current)) {
       const queued = queueSubmission(current, prompt, clock, attachments, providerPrompt);
@@ -700,8 +705,9 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     const providerPrompt = providerPromptOverride === undefined
       ? providerPromptForSubmission(prompt, attachments)
       : providerPromptOverride.trim();
-    if (!client || daemon.phase !== 'connected') throw new Error('Waku daemon is disconnected');
+    if (!client || daemon.phase !== 'connected') throw new Error('ion daemon is disconnected');
     const runtime = entries.current.get(session.id);
+    if (!mobileHarness(runtime?.session.provider ?? session.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
     if (session.team_assignment || runtime?.session.team_assignment) {
       await sendPrompt(session, prompt, attachments, providerPrompt);
       return;
@@ -727,9 +733,10 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     options: NewSessionOptions = {},
     providerPromptOverride?: string,
   ): Promise<AgentSession> => {
+    if (!mobileHarness(provider)) throw new Error('Choose a local desktop harness. Cloud inference is disabled in this app.');
     const profileId = daemon.activeProfile?.id;
     if (!profileId || !daemon.client || daemon.phase !== 'connected') {
-      throw new Error('Waku daemon is disconnected');
+      throw new Error('ion daemon is disconnected');
     }
     const draft = createSession(projectId, provider, isolated, clock, options);
     cacheSession(draft);
@@ -748,8 +755,9 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
    * a user prompt. A fresh task still needs a subscribed provider runtime;
    * its goalUpdated/turnStarted events supply the authoritative state. */
   const sendGoalOperation = useCallback(async (inputSession: AgentSession, operation: GoalOperation) => {
+    if (!mobileHarness(inputSession.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
     const client = daemon.client;
-    if (!client || daemon.phase !== 'connected') throw new Error('Waku daemon is disconnected');
+    if (!client || daemon.phase !== 'connected') throw new Error('ion daemon is disconnected');
     let current = await loadFullSession(inputSession.id);
     if (current.provider !== 'codex') throw new Error('Goals require Codex');
     if (!entries.current.has(current.id)) await attachSession(current);
@@ -800,7 +808,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
 
   const cancel = useCallback(async (sessionId: string) => {
     const client = daemon.client;
-    if (!client) throw new Error('Waku daemon is disconnected');
+    if (!client) throw new Error('ion daemon is disconnected');
     const current = await loadFullSession(sessionId);
     if (current.team_assignment) {
       const response = await client.request({ type: 'getTeamRun', runId: current.team_assignment.runId }, sessionId);
@@ -863,7 +871,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
     if (!client || !profileId || daemon.phase !== 'connected') {
-      throw new Error('Waku daemon is disconnected');
+      throw new Error('ion daemon is disconnected');
     }
     const current = await loadFullSession(sessionId);
     const next = applySessionOptions(current, changes, clock);
@@ -910,7 +918,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     const client = daemon.client;
     const profileId = daemon.activeProfile?.id;
     if (!client || !profileId || daemon.phase !== 'connected') {
-      throw new Error('Waku daemon is disconnected');
+      throw new Error('ion daemon is disconnected');
     }
     const runtime = entries.current.get(sessionId);
     if (runtime) {
@@ -935,7 +943,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
 
   const removeQueuedMessage = useCallback(async (sessionId: string, messageId: string) => {
     const profileId = daemon.activeProfile?.id;
-    if (!profileId) throw new Error('Waku daemon is disconnected');
+    if (!profileId) throw new Error('ion daemon is disconnected');
     const current = queryClient.getQueryData<AgentSession>(
       daemonKeys.session(profileId, sessionId),
     );

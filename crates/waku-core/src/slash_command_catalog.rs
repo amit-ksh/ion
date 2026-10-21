@@ -91,8 +91,8 @@ fn discover_codex(binary: &Path, project_root: &Path) -> Option<Vec<SlashCommand
         "id": 0,
         "params": {
             "clientInfo": {
-                "name": "waku",
-                "title": "Waku",
+                "name": "ion",
+                "title": "ion",
                 "version": env!("CARGO_PKG_VERSION")
             },
             "capabilities": {"experimentalApi": true}

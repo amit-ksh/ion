@@ -1,26 +1,65 @@
-"""Rasterize ion's code-authored geometric mark for platform packaging."""
+"""Build Ion platform assets from assets/icons/ion.svg. Requires Pillow.
+
+Run: python scripts/assets/ion-icon.py. Provider artwork is never modified.
+"""
 from pathlib import Path
-from PIL import Image, ImageDraw
+import xml.etree.ElementTree as ET
+from PIL import Image, ImageDraw, PngImagePlugin
 
 ROOT = Path(__file__).resolve().parents[2]
-size = 1024
-image = Image.new("RGB", (size, size))
-pixels = image.load()
-for y in range(size):
-    for x in range(size):
-        glow = max(0, 1 - ((x - 760) ** 2 + (y - 150) ** 2) ** .5 / 1050)
-        pixels[x, y] = (int(15 + 22 * glow), int(29 + 38 * glow), int(21 + 10 * glow))
-draw = ImageDraw.Draw(image)
-green = (194, 248, 123)
-draw.rounded_rectangle((260, 370, 420, 780), radius=70, fill=green)
-draw.ellipse((260, 180, 420, 340), fill=green)
-draw.rounded_rectangle((478, 370, 760, 780), radius=140, outline=green, width=92)
-image.save(ROOT / "apps/mobile/assets/images/icon.png")
-image.save(ROOT / "resources/windows/AppIcon.ico", sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
-image.save(ROOT / "resources/AppIcon.icns")
-image.save(ROOT / "resources/AppIconDev.icns")
-image.resize((256,256)).save(ROOT / "apps/mobile/assets/images/splash-icon.png")
-image.resize((64,64)).save(ROOT / "apps/mobile/assets/images/favicon.png")
-mark = Image.new("RGBA", (96,96), (0,0,0,0))
-ImageDraw.Draw(mark).polygon([(48,8),(59,37),(88,48),(59,59),(48,88),(37,59),(8,48),(37,37)], fill=(0,0,0,255))
-mark.save(ROOT / "apps/mobile/assets/images/providers/antigravity.png")
+MARK = ROOT / "assets/icons/ion.svg"
+BACKGROUND = "#181b19"
+LIME = "#c2ef68"
+ORIGIN = "Code-authored Ion mark; assets/icons/ion.svg; scripts/assets/ion-icon.py"
+
+
+def mark(size, color=LIME, scale=1.0):
+    factor = size * 4 / 24 * scale
+    offset = (size * 4 - 24 * factor) / 2
+    image = Image.new("RGBA", (size * 4, size * 4))
+    draw = ImageDraw.Draw(image)
+    for shape in ET.parse(MARK).getroot():
+        a = {k: float(v) for k, v in shape.attrib.items()
+             if k in ("x", "y", "width", "height", "rx", "cx", "cy", "r", "stroke-width")}
+        def box(x, y, w, h):
+            return tuple(offset + n * factor for n in (x, y, x + w, y + h))
+        if shape.tag.endswith("circle"):
+            draw.ellipse(box(a["cx"]-a["r"], a["cy"]-a["r"], a["r"]*2, a["r"]*2), fill=color)
+        elif shape.tag.endswith("rect"):
+            stroke = a.get("stroke-width", 0)
+            draw.rounded_rectangle(
+                box(a["x"]-stroke/2, a["y"]-stroke/2, a["width"]+stroke, a["height"]+stroke),
+                radius=(a["rx"]+stroke/2)*factor, fill=color)
+            if stroke:
+                draw.rounded_rectangle(
+                    box(a["x"]+stroke/2, a["y"]+stroke/2, a["width"]-stroke, a["height"]-stroke),
+                    radius=max(0, a["rx"]-stroke/2)*factor, fill=(0, 0, 0, 0))
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def png(image, path):
+    metadata = PngImagePlugin.PngInfo()
+    metadata.add_text("Source", ORIGIN)
+    image.save(ROOT / path, pnginfo=metadata)
+
+
+if __name__ == "__main__":
+    tile = Image.new("RGB", (1024, 1024), BACKGROUND)
+    artwork = mark(1024, scale=.76)
+    tile.paste(artwork, mask=artwork.getchannel("A"))
+    png(tile, "apps/mobile/assets/images/icon.png")
+    png(tile.resize((512, 512), Image.Resampling.LANCZOS), "website/public/app-icon.png")
+    png(mark(1024, scale=.60), "apps/mobile/assets/images/adaptive-foreground.png")
+    png(mark(1024, color="#ffffff", scale=.60), "apps/mobile/assets/images/adaptive-monochrome.png")
+    png(mark(256, scale=.90), "apps/mobile/assets/images/splash-icon.png")
+    png(tile.resize((64, 64), Image.Resampling.LANCZOS), "apps/mobile/assets/images/favicon.png")
+    tile.save(ROOT / "resources/windows/AppIcon.ico", sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+    tile.save(ROOT / "resources/AppIcon.icns")
+    dev = tile.copy()
+    draw = ImageDraw.Draw(dev)
+    draw.rounded_rectangle((640, 768, 944, 944), radius=56, fill=LIME)
+    draw.text((683, 814), "DEV", fill=BACKGROUND, font_size=72, stroke_width=1)
+    dev.save(ROOT / "resources/AppIconDev.icns")
+    (ROOT / "docs/ion-redesign").mkdir(parents=True, exist_ok=True)
+    png(tile.resize((256,256), Image.Resampling.LANCZOS), "docs/ion-redesign/icon-preview.png")
+    print("Built Ion desktop (macOS/Windows/Linux), Android adaptive/themed, splash and favicon assets from canonical SVG.")

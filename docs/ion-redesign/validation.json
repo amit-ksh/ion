@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-21T01:09:41.240Z",
+  "branch": "codex/ion-native-redesign",
+  "implementationCommit": "7753631",
+  "baseline": "59218a1",
+  "inheritedQaSnapshot": "c9d94d4",
+  "native": {
+    "cargoCheckExit": 0,
+    "watcherFinalBuildExit": 0,
+    "binary": ".waku-cache/native-target/debug/waku.exe",
+    "bytes": 49547264,
+    "sha256": "e8f77c4f6be605b1ee7ea15026b2ee6fddaea5bbdf369dbe05f91231934c3f35",
+    "observedInteraction": "Freshly launched Windows app: Work > Teams opens without the prior hover-registration panic."
+  },
+  "mobile": {
+    "typescriptExit": 0,
+    "androidPrebuildExit": 0,
+    "readableExport": {
+      "folder": ".waku-cache/android-source-final",
+      "bundle": ".waku-cache\\android-source-final\\_expo\\static\\js\\android\\entry-53de20365b1769cde3a8d17d977c1c98.js",
+      "bytes": 4423191,
+      "sha256": "4a067a384abdcb1ff1f9f581450078adaf890ee21adaef8c453a21265430bfe0",
+      "sourceMap": ".waku-cache\\android-source-final\\_expo\\static\\js\\android\\entry-53de20365b1769cde3a8d17d977c1c98.js.map",
+      "sourceMapSha256": "f9a373ddcb96fefb7d4da775464f1ef4554c421b71ddd570013c62588d732ace",
+      "modules": 2354,
+      "hermesBytecode": false,
+      "sources": [
+        {
+          "file": "apps/mobile/src/app/_layout.tsx",
+          "currentSource": true,
+          "sha256": "803c1289d4baeefa24d9c37d4830d8bc780a75021964a2e04b48120c32719643"
+        },
+        {
+          "file": "apps/mobile/src/app/work.tsx",
+          "currentSource": true,
+          "sha256": "dfa867d40a4cf30a9be2e4c0b64c74efe34b8c2f4692260c88549b6ad1bc9819"
+        },
+        {
+          "file": "apps/mobile/src/app/settings.tsx",
+          "currentSource": true,
+          "sha256": "519b73c95c5ea6c4f3f502abed24151d02818ab2674e73eea2af7918e0d4e8b6"
+        },
+        {
+          "file": "apps/mobile/src/app/apps.tsx",
+          "currentSource": true,
+          "sha256": "e3ca269c95e2903777838a54f707fd61ad60c8af56665e375cafd0ea2500223c"
+        },
+        {
+          "file": "apps/mobile/src/app/agent-editor.tsx",
+          "currentSource": true,
+          "sha256": "1303a6718c2701cd78bba0ab6d23881defbed81400bc2c1ac1b31fc017a0341b"
+        },
+        {
+          "file": "apps/mobile/src/app/team-editor.tsx",
+          "currentSource": true,
+          "sha256": "43b08ba55b14625fc623c6139fee3191eab22e94db8b1f98ef918514698b8dd9"
+        },
+        {
+          "file": "apps/mobile/src/app/new-task.tsx",
+          "currentSource": true,
+          "sha256": "616abb89fe29cb5184479d30abbe494e5b5070aca0449a67aa4b32d020e17444"
+        },
+        {
+          "file": "apps/mobile/src/components/workbench.tsx",
+          "currentSource": true,
+          "sha256": "d7a828836ed9e9422aae54fa32ab646a6ad41f93ad63a3ba41cc2139338338c7"
+        },
+        {
+          "file": "apps/mobile/src/components/workbench-navigation.tsx",
+          "currentSource": true,
+          "sha256": "727d2a5f1e9de373a85232da06f2428c897bceb8b84dfbbc8f2980c7cb08061a"
+        },
+        {
+          "file": "apps/mobile/src/components/mobile-composer.tsx",
+          "currentSource": true,
+          "sha256": "c602cabe7494956ba9c068b52463fd675b4d20c04df950888e305111dced997e"
+        },
+        {
+          "file": "apps/mobile/src/components/phone-dictation-control.tsx",
+          "currentSource": true,
+          "sha256": "3134c528d95c734b828b5161f91430c2c5ac2f5058ccf0dc031370fe79d94825"
+        },
+        {
+          "file": "apps/mobile/src/constants/theme.ts",
+          "currentSource": true,
+          "sha256": "ca49a15213a3b831341f23eb8752ed6f32c4581b0798c592ddc57daf487c3cc5"
+        },
+        {
+          "file": "apps/mobile/src/lib/definition-write.ts",
+          "currentSource": true,
+          "sha256": "01224ecec227a09dd4bf945dfb60eef3bb335f4b9d8aca5ab579d88f8d198dc5"
+        },
+        {
+          "file": "apps/mobile/src/lib/apps-catalog.ts",
+          "currentSource": true,
+          "sha256": "be88d67186193815337b77308b7a12e2ae54ae8df045b194efed7fcafbda1563"
+        },
+        {
+          "file": "apps/mobile/src/lib/cloud-account-controller.ts",
+          "currentSource": true,
+          "sha256": "2f5fdd3ed579cc65b506e25774a7ca8a4c53cb79088b1e318a8b0e257d9cad04"
+        },
+        {
+          "file": "apps/mobile/src/hooks/use-workspace-definition.ts",
+          "currentSource": true,
+          "sha256": "b5e9a051cae1f3c8e8f991308e7126c9a40adeb0113bc60f4e8a89e3e113f9c4"
+        }
+      ]
+    },
+    "hermesExport": {
+      "folder": ".waku-cache/android-export-verified",
+      "bundle": ".waku-cache\\android-export-verified\\_expo\\static\\js\\android\\entry-2b6d345c7001ef94869c6b32f86e711e.hbc",
+      "bytes": 5342780,
+      "sha256": "4fe355383cf327e4b2d27944a06fdb82bb39b948418c0c6bfb350dcdc110dc87",
+      "sourceMap": ".waku-cache\\android-export-verified\\_expo\\static\\js\\android\\entry-2b6d345c7001ef94869c6b32f86e711e.hbc.map",
+      "sourceMapSha256": "46ff88be6233c9c6cc480bf5a56a25e9fce3ba4613b658fc8000726370002edd",
+      "modules": 2328,
+      "hermesBytecode": true,
+      "sources": [
+        {
+          "file": "apps/mobile/src/app/_layout.tsx",
+          "currentSource": true,
+          "sha256": "803c1289d4baeefa24d9c37d4830d8bc780a75021964a2e04b48120c32719643"
+        },
+        {
+          "file": "apps/mobile/src/app/work.tsx",
+          "currentSource": true,
+          "sha256": "dfa867d40a4cf30a9be2e4c0b64c74efe34b8c2f4692260c88549b6ad1bc9819"
+        },
+        {
+          "file": "apps/mobile/src/app/settings.tsx",
+          "currentSource": true,
+          "sha256": "519b73c95c5ea6c4f3f502abed24151d02818ab2674e73eea2af7918e0d4e8b6"
+        },
+        {
+          "file": "apps/mobile/src/app/apps.tsx",
+          "currentSource": true,
+          "sha256": "e3ca269c95e2903777838a54f707fd61ad60c8af56665e375cafd0ea2500223c"
+        },
+        {
+          "file": "apps/mobile/src/app/agent-editor.tsx",
+          "currentSource": true,
+          "sha256": "1303a6718c2701cd78bba0ab6d23881defbed81400bc2c1ac1b31fc017a0341b"
+        },
+        {
+          "file": "apps/mobile/src/app/team-editor.tsx",
+          "currentSource": true,
+          "sha256": "43b08ba55b14625fc623c6139fee3191eab22e94db8b1f98ef918514698b8dd9"
+        },
+        {
+          "file": "apps/mobile/src/app/new-task.tsx",
+          "currentSource": true,
+          "sha256": "616abb89fe29cb5184479d30abbe494e5b5070aca0449a67aa4b32d020e17444"
+        },
+        {
+          "file": "apps/mobile/src/components/workbench.tsx",
+          "currentSource": true,
+          "sha256": "d7a828836ed9e9422aae54fa32ab646a6ad41f93ad63a3ba41cc2139338338c7"
+        },
+        {
+          "file": "apps/mobile/src/components/workbench-navigation.tsx",
+          "currentSource": true,
+          "sha256": "727d2a5f1e9de373a85232da06f2428c897bceb8b84dfbbc8f2980c7cb08061a"
+        },
+        {
+          "file": "apps/mobile/src/components/mobile-composer.tsx",
+          "currentSource": true,
+          "sha256": "c602cabe7494956ba9c068b52463fd675b4d20c04df950888e305111dced997e"
+        },
+        {
+          "file": "apps/mobile/src/components/phone-dictation-control.tsx",
+          "currentSource": true,
+          "sha256": "3134c528d95c734b828b5161f91430c2c5ac2f5058ccf0dc031370fe79d94825"
+        },
+        {
+          "file": "apps/mobile/src/constants/theme.ts",
+          "currentSource": true,
+          "sha256": "ca49a15213a3b831341f23eb8752ed6f32c4581b0798c592ddc57daf487c3cc5"
+        },
+        {
+          "file": "apps/mobile/src/lib/definition-write.ts",
+          "currentSource": true,
+          "sha256": "01224ecec227a09dd4bf945dfb60eef3bb335f4b9d8aca5ab579d88f8d198dc5"
+        },
+        {
+          "file": "apps/mobile/src/lib/apps-catalog.ts",
+          "currentSource": true,
+          "sha256": "be88d67186193815337b77308b7a12e2ae54ae8df045b194efed7fcafbda1563"
+        },
+        {
+          "file": "apps/mobile/src/lib/cloud-account-controller.ts",
+          "currentSource": true,
+          "sha256": "2f5fdd3ed579cc65b506e25774a7ca8a4c53cb79088b1e318a8b0e257d9cad04"
+        },
+        {
+          "file": "apps/mobile/src/hooks/use-workspace-definition.ts",
+          "currentSource": true,
+          "sha256": "b5e9a051cae1f3c8e8f991308e7126c9a40adeb0113bc60f4e8a89e3e113f9c4"
+        }
+      ]
+    },
+    "apkBuild": {
+      "verified": false,
+      "reason": "Isolated offline Gradle cache lacks org.gradle.toolchains.foojay-resolver-convention:1.0.0."
+    }
+  },
+  "tests": {
+    "general": {
+      "pass": 492,
+      "skip": 28,
+      "fail": 0,
+      "assertions": 7926
+    },
+    "finalFocused": {
+      "pass": 19,
+      "fail": 0,
+      "assertions": 213
+    }
+  },
+  "screenshot": {
+    "file": "docs/ion-redesign/evidence/desktop-teams-dark.png",
+    "sha256": "4c8fa683dafc86da38f1d9867cfffb142c8e29f40b0c4f22496aaf9e2439b6e6",
+    "viewport": [
+      1382,
+      864
+    ]
+  },
+  "verdict": {
+    "sevenSourceFindings": "resolved",
+    "teamsCrashPath": "verified",
+    "fullVisualDisposition": "recapture"
+  },
+  "limits": [
+    "No Android phone/tablet device or emulator validation.",
+    "No full desktop light/dark/narrow/populated state matrix.",
+    "No live Apps OAuth/account mutations, publishing, performance benchmark or provider acceptance in this redesign pass."
+  ]
+}

@@ -1,6 +1,6 @@
 [package]
 name = "waku"
-version = "0.1.22"
+version = "0.1.24"
 edition = "2024"
 description = "An AI work IDE that coordinates code, apps, and computers through reviewable tasks"
 license = "GPL-3.0-only"
@@ -181,6 +181,7 @@ windows = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Graphics_DirectComposition",
   "Win32_System_Com",
+  "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }
 windows-core = "0.61"

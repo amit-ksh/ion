@@ -63,8 +63,11 @@ Even this owner-only 50-user always-on scenario exceeds Free request allowance.
 - Actual cadence and OS-lock modules passed two isolated Rust tests. First
   harness invocation used a mismatched 1.97 compiler/1.98 dependency artifact;
   rerun with the matching installed stable compiler passed.
-- Native credential HTTP tests are compiling in the task-owned Cargo job;
-  no successful result or full core/package acceptance is claimed yet.
+- Three native credential HTTP regressions passed with the matching installed
+  stable toolchain (`cargo test --locked --offline --release -j 1 -p
+  waku-credentials gateway_sync --lib`): no cached effect grant, strict
+  authorization/foreign-batch rejection and changed-projection delivery.
+  Full owner/core/package acceptance is still pending.
 
 ## Remaining investigation and work
 

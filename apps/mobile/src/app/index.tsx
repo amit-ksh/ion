@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { router } from 'expo-router';
 
 import { DaemonOnboarding } from '@/components/daemon-onboarding';
 import { DaemonPickerSheet } from '@/components/daemon-picker-sheet';
@@ -20,7 +19,6 @@ export default function HomeScreen() {
       ) : (
         <DaemonOnboarding
           onAddDaemon={() => setDaemonPickerOpen(true)}
-          onPairGateway={() => router.push('/gateway')}
         />
       )}
       {(!daemon.profiles.length || daemonPickerOpen) && (

@@ -129,6 +129,8 @@ pub fn parse_allowed_origins(text: &str) -> anyhow::Result<Vec<String>> {
 pub struct DaemonProcess {
     client: DaemonClient,
     child: Child,
+    address: String,
+    token: String,
 }
 
 impl DaemonProcess {
@@ -224,7 +226,7 @@ impl DaemonProcess {
                 return Err(error);
             }
         };
-        let client = match DaemonClient::connect(&client_address, token) {
+        let client = match DaemonClient::connect(&client_address, token.clone()) {
             Ok(client) => client,
             Err(error) => {
                 let _ = child.kill();
@@ -232,7 +234,12 @@ impl DaemonProcess {
                 return Err(error);
             }
         };
-        Ok(Self { client, child })
+        Ok(Self {
+            client,
+            child,
+            address: client_address,
+            token,
+        })
     }
 
     pub fn client(&self) -> DaemonClient {
@@ -516,29 +523,48 @@ fn monitor_daemon(
         if !inner.running.load(Ordering::Acquire) {
             return;
         }
-        let remote_reconnect = {
-            let target = inner.target.lock();
-            match &*target {
+        let reconnect = {
+            let mut target = inner.target.lock();
+            match &mut *target {
                 DaemonTarget::Remote {
                     client,
                     address,
                     token,
                 } if client.is_disconnected() => Some((
+                    false,
                     client.clone(),
                     address.clone(),
                     token.clone(),
                     client.last_sequences(),
                 )),
+                DaemonTarget::Local(process) => {
+                    if process.client.is_disconnected() && !process.has_exited() {
+                        Some((
+                            true,
+                            process.client.clone(),
+                            process.address.clone(),
+                            process.token.clone(),
+                            process.client.last_sequences(),
+                        ))
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
             }
         };
-        if let Some((disconnected, address, token, resume_from)) = remote_reconnect {
+        if let Some((local, disconnected, address, token, resume_from)) = reconnect {
             let _restart = inner.restart.lock();
-            let still_current = matches!(
-                &*inner.target.lock(),
-                DaemonTarget::Remote { client, .. }
-                    if client.same_connection(&disconnected) && client.is_disconnected()
-            );
+            let still_current = match &*inner.target.lock() {
+                DaemonTarget::Local(process) if local => {
+                    process.client.same_connection(&disconnected)
+                        && process.client.is_disconnected()
+                }
+                DaemonTarget::Remote { client, .. } if !local => {
+                    client.same_connection(&disconnected) && client.is_disconnected()
+                }
+                _ => false,
+            };
             if !still_current {
                 continue;
             }
@@ -547,11 +573,20 @@ fn monitor_daemon(
             else {
                 continue;
             };
-            *inner.target.lock() = DaemonTarget::Remote {
-                client: replacement.clone(),
-                address,
-                token,
-            };
+            if local {
+                // A socket loss does not prove the child or its provider work
+                // exited. Reattach with replay cursors; never restart/reissue
+                // a task, model request, approval or external action here.
+                if let DaemonTarget::Local(process) = &mut *inner.target.lock() {
+                    process.client = replacement.clone();
+                }
+            } else {
+                *inner.target.lock() = DaemonTarget::Remote {
+                    client: replacement.clone(),
+                    address,
+                    token,
+                };
+            }
             inner
                 .client_updates
                 .lock()
@@ -689,6 +724,147 @@ fn persist_settings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_dropped_local_connection_reconnects_without_restarting_its_process() {
+        use waku_protocol::{ClientMessage, ResponseOutcome, ServerMessage};
+
+        fn handshake(stream: std::net::TcpStream) -> tungstenite::WebSocket<std::net::TcpStream> {
+            stream
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            let mut socket = tungstenite::accept(stream).unwrap();
+            let hello = socket.read().unwrap();
+            assert!(matches!(
+                serde_json::from_str::<ClientMessage>(hello.to_text().unwrap()).unwrap(),
+                ClientMessage::Hello { .. }
+            ));
+            socket
+                .send(tungstenite::Message::Text(
+                    serde_json::to_string(&ServerMessage::Hello {
+                        protocol_version: PROTOCOL_VERSION,
+                        daemon_version: "local-reconnect-fixture".into(),
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .unwrap();
+            socket
+        }
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let (close, should_close) = mpsc::sync_channel(1);
+        let server = std::thread::spawn(move || {
+            let socket = handshake(listener.accept().unwrap().0);
+            should_close.recv().unwrap();
+            drop(socket);
+            listener.set_nonblocking(true).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        stream.set_nonblocking(false).unwrap();
+                        let mut socket = handshake(stream);
+                        let request = socket.read().unwrap();
+                        let ClientMessage::Request(request) =
+                            serde_json::from_str::<ClientMessage>(request.to_text().unwrap())
+                                .unwrap()
+                        else {
+                            panic!("expected a read after reconnect")
+                        };
+                        assert!(matches!(request.command, Command::GetSettings));
+                        socket
+                            .send(tungstenite::Message::Text(
+                                serde_json::to_string(&ServerMessage::Response {
+                                    request_id: request.request_id,
+                                    outcome: ResponseOutcome::Ok {
+                                        payload: ResponsePayload::Settings {
+                                            settings: DaemonSettings::default(),
+                                        },
+                                    },
+                                })
+                                .unwrap()
+                                .into(),
+                            ))
+                            .unwrap();
+                        return true;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        if Instant::now() >= deadline {
+                            return false;
+                        }
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("fixture accept failed: {error}"),
+                }
+            }
+        });
+        let client = DaemonClient::connect(&address, "fixture".into()).unwrap();
+        #[cfg(windows)]
+        let child = {
+            use std::os::windows::process::CommandExt;
+            ProcessCommand::new("powershell.exe")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Start-Sleep -Seconds 30",
+                ])
+                .creation_flags(0x0800_0000)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap()
+        };
+        #[cfg(not(windows))]
+        let child = ProcessCommand::new("sleep").arg("30").spawn().unwrap();
+        let child_pid = child.id();
+        let supervisor = DaemonSupervisor::from_target(
+            DaemonTarget::Local(DaemonProcess {
+                client,
+                child,
+                address,
+                token: "fixture".into(),
+            }),
+            None,
+            None,
+            DaemonSettings::default(),
+        )
+        .unwrap();
+        let updates = supervisor.subscribe_clients();
+        let initial = updates.recv().unwrap();
+        let weak = Arc::downgrade(&supervisor.inner);
+        let monitor = std::thread::spawn(move || monitor_daemon(weak, None, false));
+        close.send(()).unwrap();
+        let replacement = updates.recv_timeout(Duration::from_secs(3));
+        if let Ok(ref replacement) = replacement {
+            assert!(!replacement.same_connection(&initial));
+            assert!(matches!(
+                replacement
+                    .request(Uuid::nil(), Uuid::nil(), Command::GetSettings)
+                    .unwrap(),
+                ResponsePayload::Settings { .. }
+            ));
+            let mut target = supervisor.inner.target.lock();
+            let DaemonTarget::Local(process) = &mut *target else {
+                panic!("local ownership must remain local")
+            };
+            assert_eq!(process.child.id(), child_pid);
+            assert!(!process.has_exited());
+        }
+        supervisor.inner.running.store(false, Ordering::Release);
+        monitor.join().unwrap();
+        assert!(
+            server.join().unwrap(),
+            "the live local daemon never received a reconnect"
+        );
+        assert!(
+            replacement.is_ok(),
+            "the supervisor did not publish a replacement connection"
+        );
+    }
 
     #[test]
     fn browser_origins_are_exact_and_deduplicated() {

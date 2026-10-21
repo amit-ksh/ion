@@ -2669,7 +2669,7 @@ impl Waku {
                 "right-panel-card-{}",
                 label.to_lowercase()
             )))
-            .h(px(112.0))
+            .min_h(px(112.0))
             .flex_1()
             .min_w_0()
             .p(px(14.0))

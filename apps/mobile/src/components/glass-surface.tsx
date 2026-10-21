@@ -33,7 +33,7 @@ export function GlassSurface({
     );
   }
   return (
-    <View style={[{ backgroundColor: fallbackColor ?? theme.overlayStrong }, style]}>
+    <View style={[{ backgroundColor: fallbackColor ?? theme.surfaceMuted }, style]}>
       {children}
     </View>
   );

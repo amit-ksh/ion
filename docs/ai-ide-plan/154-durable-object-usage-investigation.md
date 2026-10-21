@@ -48,8 +48,11 @@ of rows scanned. Stored bytes do not establish request or row-operation usage.
 First local baseline: [155](155-relay-sync-local-baseline.md) records 340
 handler calls, 4,422 SQL calls and 41 locally changed rows across 20 identical
 source-derived idle passes. These are not live Cloudflare billed counters.
-CF-02 is partial; the native loop, exact Cloudflare SQL cursor metrics and full
-active workload remain unmeasured. No optimization or after-result exists yet.
+CF-02 remains partial. The owner batching/idle milestone and before/after
+local measurements are recorded in [156](156-relay-sync-batching-progress.md).
+Native credential HTTP tests passed; full native owner execution, exact
+Cloudflare cursor metrics and the separate desktop task bridge remain open.
+Do not use the owner-only result as whole-app live attribution.
 
 - No Durable Object data deletion, paid-plan upgrade, expanded permissions,
   weakened security, unauthorized resources or spend.

@@ -318,7 +318,8 @@ impl Waku {
                         weak.upgrade()
                             .map(|entity| {
                                 entity.update(cx, |this, cx| {
-                                    let mut row = div().flex().gap(px(16.0)).pb(px(16.0));
+                                    let mut row =
+                                        div().w_full().min_w_0().flex().gap(px(16.0)).pb(px(16.0));
                                     for card in &rows[index] {
                                         row = row.child(this.render_artifact_card(card, cx));
                                     }

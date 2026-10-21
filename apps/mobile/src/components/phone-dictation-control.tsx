@@ -57,7 +57,7 @@ export function PhoneDictationControl({
     }
     Alert.alert(
       'Record on this phone?',
-      `Ion records up to 60 seconds, then sends it to ${host} for local Parakeet transcription. The first use may download about 146 MB on that desktop. Keep it online. Review the text before sending it to an agent.`,
+      'Record up to 60 seconds. Review the transcript before sending.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -159,17 +159,17 @@ export function PhoneDictationControl({
 }
 
 const styles = StyleSheet.create({
-  group: { flexDirection: 'row', alignItems: 'center' },
+  group: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 1, alignItems: 'center', gap: 8 },
   button: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
   state: { fontSize: 10, fontWeight: '600' },
   discard: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

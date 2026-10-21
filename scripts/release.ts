@@ -666,7 +666,7 @@ try {
     logStep("Uploading appcast.xml");
     await $`rclone copyto ${join(updatesDirectory, "appcast.xml")} ${`${r2Destination}/appcast.xml`} ${rcloneFlags} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
 
-    console.log(`\nWaku ${version} (build ${buildNumber}) is live:`);
+    console.log(`\nion ${version} (build ${buildNumber}) is live:`);
     console.log(`  download : ${downloadUrlPrefix}${dmgName}`);
     console.log(`  update   : ${downloadUrlPrefix}${zipName}`);
     console.log(`  feed     : ${downloadUrlPrefix}appcast.xml`);

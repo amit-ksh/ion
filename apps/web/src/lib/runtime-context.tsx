@@ -1474,7 +1474,6 @@ function providerName(provider: AgentSession['provider']) {
   return (
     {
       antigravity: 'Antigravity',
-      nebius: 'Nebius',
       amp: 'Amp',
       claude: 'Claude Code',
       codex: 'Codex',
@@ -1485,6 +1484,7 @@ function providerName(provider: AgentSession['provider']) {
       openCode2: 'OpenCode 2',
       grok: 'Grok',
       kimi: 'Kimi',
+      nebius: 'Nebius',
       ohMyPi: 'Oh My Pi',
       pi: 'Pi',
     } as const

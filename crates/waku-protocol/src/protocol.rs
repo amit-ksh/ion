@@ -417,6 +417,11 @@ pub enum Command {
     /// merge-only so a stale client snapshot cannot delete tasks another
     /// client just created.
     RemoveSession,
+    /// Explicitly remove an inactive project and its chats. Merge-only saves
+    /// cannot express removal by omission.
+    RemoveProject {
+        project_id: Uuid,
+    },
     HydrateSession {
         session_id: Uuid,
     },

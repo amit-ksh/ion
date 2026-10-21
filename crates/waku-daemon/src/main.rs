@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
     // environment.
     unsafe { std::env::remove_var(DAEMON_TOKEN_ENV) };
     let listener = TcpListener::bind(&arguments.bind)
-        .with_context(|| format!("could not bind Waku daemon to {}", arguments.bind))?;
+        .with_context(|| format!("could not bind ion daemon to {}", arguments.bind))?;
     let address = listener.local_addr()?;
     ensure_bind_allowed(address, arguments.allow_non_loopback)?;
     let ready = DaemonReady {
@@ -106,7 +106,7 @@ fn daemon_token() -> anyhow::Result<String> {
         unsafe { std::env::remove_var("WAKU_DAEMON_TOKEN_FILE") };
         return Ok(token.to_owned());
     }
-    std::env::var(DAEMON_TOKEN_ENV).context("Waku daemon authentication token is missing")
+    std::env::var(DAEMON_TOKEN_ENV).context("ion daemon authentication token is missing")
 }
 
 fn ensure_bind_allowed(address: SocketAddr, allow_non_loopback: bool) -> anyhow::Result<()> {

@@ -278,7 +278,7 @@ fn run(
         Client::builder(endpoint, website_id)
             .default_context(
                 Context::new()
-                    .hostname("waku.sh")
+                    .hostname("build-with-ion.tech")
                     .url("/desktop")
                     .title("ion")
                     .language(language)
@@ -286,7 +286,7 @@ fn run(
                     .device("desktop"),
             )
             .user_agent(format!(
-                "Waku/{} ({}; {})",
+                "ion/{} ({}; {})",
                 env!("CARGO_PKG_VERSION"),
                 std::env::consts::OS,
                 std::env::consts::ARCH

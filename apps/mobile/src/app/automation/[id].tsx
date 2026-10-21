@@ -80,7 +80,7 @@ export default function AutomationScreen() {
         <View style={styles.actions}>
           {stage.started && <AutomationButton label="Open task" onPress={() => router.push({ pathname: '/session/[id]', params: { id: stage.taskId } })} />}
           {run?.status === 'waitingDecision' && index === run.currentStage && <>
-            <AutomationButton label="Approve stage" disabled={!fresh || busy} onPress={() => void act(true)} />
+            <AutomationButton label="Approve on desktop" disabled={!fresh || busy} onPress={() => void act(true)} />
             <AutomationButton label="Decline stage" disabled={!fresh || busy} onPress={() => void act(false)} />
           </>}
         </View>

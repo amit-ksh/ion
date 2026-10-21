@@ -52,6 +52,7 @@ import { modelHasConfigurableTraits } from "@/lib/model-traits";
 import { useRuntime } from "@/lib/runtime-context";
 import { isDaemonDisconnectError } from "@/lib/runtime-errors";
 import { summarizeRuntimeError } from "@/lib/runtime-error-summary";
+import { mobileHarness } from "@/lib/mobile-capabilities";
 
 /**
  * The composer surface shared by the session screen and the new-task screen:
@@ -123,11 +124,11 @@ export function ComposerIconButton({
       style={({ pressed }) => [
         styles.iconButton,
         {
-          backgroundColor: active ? theme.overlayStrong : "transparent",
+          backgroundColor: active ? theme.accentSoft : "transparent",
           opacity: disabled ? 0.35 : pressed ? 0.55 : 1,
         },
       ]}>
-      <AppSymbol name={icon} size={19} tintColor={active ? NativeTint : theme.textSecondary} />
+      <AppSymbol name={icon} size={19} tintColor={active ? theme.accent : theme.textSecondary} />
     </Pressable>
   );
 }
@@ -152,6 +153,7 @@ export function SendButton({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled, busy }}
       disabled={disabled}
       hitSlop={4}
       onPress={onPress}
@@ -160,12 +162,12 @@ export function SendButton({
         {
           backgroundColor: disabled
             ? theme.surfaceMuted
-            : steering ? NativeTint : theme.inverse,
+            : theme.primary,
           opacity: pressed || busy ? 0.6 : 1,
         },
       ]}>
       {busy ? (
-        <ActivityIndicator color={disabled ? theme.textTertiary : theme.onInverse} size="small" />
+        <ActivityIndicator color={disabled ? theme.textTertiary : theme.onPrimary} size="small" />
       ) : (
         <AppSymbol
           name={queueing
@@ -174,8 +176,7 @@ export function SendButton({
             : { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward",
                 }}
           size={17}
-          tintColor={disabled ? theme.textTertiary : steering ? "#ffffff"
-                : theme.onInverse}
+          tintColor={disabled ? theme.textTertiary : theme.onPrimary}
         />
       )}
     </Pressable>
@@ -203,7 +204,7 @@ export function MobileComposer({
   const [speechPreview, setSpeechPreview] = useState<string | null>(null);
   const [traitsSheetOpen, setTraitsSheetOpen] = useState(false);
   const modelProbe = useProviderModels(session.provider);
-  const providerAvailable = session.provider === "nebius" || Boolean(session.team_assignment);
+  const providerAvailable = mobileHarness(session.provider);
   const models = modelProbe.data?.models ?? [];
   const activeModel = session.model
     ? models.find((item) => item.id === session.model)
@@ -302,8 +303,8 @@ export function MobileComposer({
     setLocalError(null);
     const operation = attachmentImportTail.current.catch(() => {}).then(async () => {
       const client = daemon.client;
-      if (!client || daemon.phase !== "connected") {
-        throw new Error("Waku daemon is disconnected");
+      if (!client || daemon.phase !== 'connected') {
+        throw new Error('ion daemon is disconnected');
       }
       for (const file of files) {
         const imported = await importLocalAttachment(client, file);
@@ -384,7 +385,7 @@ export function MobileComposer({
   async function submit() {
     if (!providerAvailable) {
       setLocalError(
-        "This historical provider is read-only in this ion distribution.",
+        "Cloud inference is disabled here. Open this task on desktop.",
       );
       return;
     }
@@ -472,7 +473,7 @@ export function MobileComposer({
         <View
           accessibilityLiveRegion="polite"
           style={[styles.errorBanner, { backgroundColor: theme.dangerSoft }]}>
-          <Text style={[styles.errorText, { color: theme.danger }]}>
+          <Text numberOfLines={3} style={[styles.errorText, { color: theme.danger }]}>
             {errorSummary}
           </Text>
           <Pressable
@@ -944,7 +945,7 @@ function RequestPanel({ borderColor, children,
 const styles = StyleSheet.create({
   shell: { paddingHorizontal: 12, paddingTop: 4 },
   card: {
-    borderRadius: 26,
+    borderRadius: Radius.large,
     paddingBottom: 8,
     paddingHorizontal: 10,
     paddingTop: 6,
@@ -969,23 +970,23 @@ const styles = StyleSheet.create({
     width: 80,
   },
   attachmentName: { fontSize: 11.5 },
-  toolbar: { alignItems: "center", flexDirection: "row", marginTop: 2 },
+  toolbar: { alignItems: "flex-end", flexDirection: "row", marginTop: 2 },
   toolbarSpacer: { flex: 1 },
-  cluster: { alignItems: "center", flexDirection: "row", gap: 2 },
+  cluster: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", flexShrink: 1, gap: 8 },
   iconButton: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 36,
+    height: 48,
     justifyContent: "center",
-    width: 36,
+    width: 48,
   },
   sendButton: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 36,
+    height: 48,
     justifyContent: "center",
     marginLeft: 4,
-    width: 36,
+    width: 48,
   },
   errorBanner: {
     alignItems: "center",

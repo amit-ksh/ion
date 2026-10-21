@@ -1711,8 +1711,8 @@ fn artifact_integrity_team_receipt_tampering_cannot_be_read_replayed_or_reported
             .is_err()
     );
     db.execute(
-        "UPDATE ion_team_document_receipts SET content=zeroblob(65537) WHERE artifact_id=?",
-        [artifact.id.to_string()],
+        "UPDATE ion_team_document_receipts SET content=zeroblob(?) WHERE artifact_id=?",
+        params![16 * 1024 * 1024 + 1, artifact.id.to_string()],
     )
     .unwrap();
     assert!(
@@ -2540,8 +2540,24 @@ fn review_revalidates_candidate_documents_before_acceptance() {
             104,
         )
         .unwrap();
-    f.definitions
-        .remove(f.definitions.load().unwrap().revision, document.id)
+    // Active publication evidence cannot be removed through the client API.
+    assert!(
+        f.definitions
+            .remove(f.definitions.load().unwrap().revision, document.id)
+            .is_err()
+    );
+    // Simulate storage corruption after submission, bypassing the protected
+    // API only inside this disposable fixture. Review must recheck the bytes.
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE ion_team_document_receipts SET content=? WHERE artifact_id=?",
+            params![
+                b"Changed after submission".as_slice(),
+                document.id.to_string()
+            ],
+        )
         .unwrap();
     let before = f.store.snapshot(run.id).unwrap();
     assert!(
@@ -4603,6 +4619,7 @@ fn remote_inventory_cursor_survives_terminal_state_change() {
 
 #[path = "gateway_pdf_tests.rs"]
 mod gateway_pdf_tests;
+
 
 #[test]
 fn managed_account_scope_is_pinned_with_creation_and_survives_restart() {

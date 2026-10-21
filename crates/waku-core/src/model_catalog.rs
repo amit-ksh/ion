@@ -358,7 +358,7 @@ fn discover_cursor_models_via_acp(binary: &Path) -> Vec<ProviderModel> {
                 .send_request(
                     InitializeRequest::new(ProtocolVersion::V1)
                         .client_capabilities(capabilities)
-                        .client_info(Implementation::new("waku", env!("CARGO_PKG_VERSION"))),
+                        .client_info(Implementation::new("ion", env!("CARGO_PKG_VERSION"))),
                 )
                 .block_task()
                 .await?;
@@ -1382,8 +1382,8 @@ fn discover_codex_models(binary: &Path) -> Vec<ProviderModel> {
         "id": 0,
         "params": {
             "clientInfo": {
-                "name": "waku",
-                "title": "Waku",
+                "name": "ion",
+                "title": "ion",
                 "version": env!("CARGO_PKG_VERSION")
             },
             "capabilities": {

@@ -1,36 +1,31 @@
-# Waku on Windows
+# ion on Windows
 
 ## Install
 
-Download `Waku-<version>-x86_64-Setup.exe` (or the `aarch64` installer on an
-Arm device) from [releases.waku.sh](https://releases.waku.sh) or the
-[GitHub release](https://github.com/egoist/waku/releases) and run it. It
-installs per-user into `%LOCALAPPDATA%\Programs\Waku`, so it never asks for
-administrator rights — which is also what lets Waku update itself later
-without a UAC prompt.
+Run the ion installer `ion-<version>-x86_64-Setup.exe` (or the `aarch64`
+installer on an Arm device) provided with your release. It installs per-user
+into `%LOCALAPPDATA%\Programs\ion`, without administrator rights.
 
 The installer includes the local NeMo-Speech.cpp CPU runtime for **Dictate**.
-No separate NeMo installation is needed. First use downloads the Nemotron 3.5
-speech model (about 742 MB) while online; later recordings can run offline.
-
-`https://releases.waku.sh/latest-windows.txt` names the current version if you
-want to script the download.
+No separate runtime installation is needed. First use downloads the Parakeet
+TDT-CTC 110M Q8 model (about 146 MB) from the configured ion service; subsequent
+recordings can run offline. Mobile dictation uses your selected paired desktop.
 
 ### Portable
 
-`waku-<version>-<target>.zip` is the same build without an installer. Unpack it
-anywhere and run `waku.exe`.
+`ion-<version>-<target>.zip` is the same build without an installer. Unpack it
+anywhere and run `ion.exe`.
 
-**Keep the installation folder intact.** Waku launches its daemon and
+**Keep the installation folder intact.** ion launches its daemon and
 Computer Use helpers from this directory and loads the bundled SDK DLL,
-`nemo-speech/`, and `resources/` files. Moving `waku.exe` out on its own leaves those unavailable.
+`nemo-speech/`, and `resources/` files. Moving `ion.exe` out on its own leaves those unavailable.
 A shortcut is fine.
 
 A portable copy still updates itself: the updater passes the running
 directory to the installer, so it replaces that copy in place rather than
 creating a second install.
 
-Waku expects:
+ion expects:
 
 - **Windows 10 version 1809 or newer**, or Windows 11.
 - **A Direct3D 11 driver at feature level 11_0 or newer.** GPUI renders
@@ -38,7 +33,7 @@ Waku expects:
   can run in a VM — see Troubleshooting if the window comes up black.
 - **x86_64 or aarch64.**
 
-Nothing else: Waku links the C runtime statically, so there is no Visual C++
+Nothing else: ion links the C runtime statically, so there is no Visual C++
 redistributable to install first. That matters most on Arm devices, which
 rarely have the arm64 redistributable already.
 
@@ -47,24 +42,25 @@ release was not code-signed. Choose **More info → Run anyway**.
 
 ## Updating
 
-Waku updates itself. It checks once per launch, and an available update
+ion updates itself. It checks once per launch, and an available update
 appears in the sidebar footer; clicking it downloads the installer, verifies
-its signature, and runs it. Waku closes, is replaced in place, and reopens.
+its signature, and runs it. ion closes, is replaced in place, and reopens.
 Turn the check off in **Settings → General → Automatic updates** — **Check for
 Updates…** in the app menu still works either way.
 
-Updates are the same signed feed macOS uses, with one appcast per
-architecture:
+Automatic update publishing requires an ion-owned signed release feed.
+Legacy `releases.waku.sh` feeds belong to the upstream project and must not be
+used to distribute ion releases. Use the supplied ion installer for pilot
+updates until production release publishing is configured.
 
-- `https://releases.waku.sh/appcast-windows-x86_64.xml`
-- `https://releases.waku.sh/appcast-windows-aarch64.xml`
-
-Every installer carries an EdDSA signature, and Waku refuses one that does not
-verify against the public key built into it — so a compromised mirror or a
+Published automatic updates require an EdDSA signature, and ion refuses an
+update that does not verify against the public key built into it — so a compromised mirror or a
 tampered download cannot install anything. The preference itself lives in
 `%LOCALAPPDATA%\Waku\updater.json`.
 
-## Where Waku keeps its data
+## Where ion keeps its data
+
+Existing data directories keep their legacy names for upgrade compatibility.
 
 | What | Path |
 | --- | --- |
@@ -76,7 +72,7 @@ Unpacking a new release over the old directory leaves all of it untouched.
 
 ## Agent CLIs
 
-Waku detects the provider CLIs on `PATH` and, because a fresh `PATH` may
+ion detects the provider CLIs on `PATH` and, because a fresh `PATH` may
 predate an install, also looks in the usual per-user prefixes:
 `%APPDATA%\npm`, `%USERPROFILE%\.bun\bin`, `%USERPROFILE%\.cargo\bin`,
 `%USERPROFILE%\scoop\shims`, and `%LOCALAPPDATA%\Microsoft\WindowsApps`.
@@ -100,7 +96,7 @@ The right panel's Browser tab runs on WebView2, which is in-box on Windows 11
 and evergreen-installed on Windows 10. Navigation, devtools, downloads, and
 pop-up handling behave as they do on macOS.
 
-Waku hosts it in *visual* mode rather than as a child window: the page renders
+ion hosts it in *visual* mode rather than as a child window: the page renders
 into a DirectComposition visual that GPUI hands out between its own content
 and its overlay plane, so menus, tooltips and dialogs composite above a live
 page instead of hiding it. That is also why the browser needs a working
@@ -114,7 +110,7 @@ Differences worth knowing:
   its devtools window is open, or to close it, so the shortcut only opens and
   refocuses it.
 - **Pen, touch and dragging files into the page are not wired up.** Visual
-  hosting delivers no input of its own; Waku forwards mouse, wheel, cursor and
+  hosting delivers no input of its own; ion forwards mouse, wheel, cursor and
   focus, and leaves `SendPointerInput` and the external drop target for later.
   Keyboard and IME are unaffected — those still reach the page directly once
   it holds focus.
@@ -139,18 +135,18 @@ The ARM and ATL Spectre components do not provide `lib/spectre/x64`.
 
 ## Troubleshooting
 
-**The window opens black, or the app exits at startup.** Waku needs a working
+**The window opens black, or the app exits at startup.** ion needs a working
 Direct3D 11 device. Update the GPU driver; in a VM, enable 3D acceleration.
 
 **A provider is listed as not installed.** Open a new PowerShell window and run
 the CLI by name. If the shell cannot find it either, the install did not put a
-shim on `PATH`. If the shell finds it but Waku does not, set the binary path in
+shim on `PATH`. If the shell finds it but ion does not, set the binary path in
 **Settings → Providers** and file an issue with the install method.
 
-**Git-backed features do nothing.** Waku shells out to `git`. Install Git for
+**Git-backed features do nothing.** ion shells out to `git`. Install Git for
 Windows and make sure `git --version` works in a new terminal.
 
-**The update never arrives.** Waku reaches the feed with the `curl.exe` in
+**The update never arrives.** ion reaches the feed with the `curl.exe` in
 System32; a proxy or filter that blocks `releases.waku.sh` blocks updates too.
 **Check for Updates…** reports the reason, where the once-per-launch check
 stays quiet. Downloading the installer by hand and running it is always

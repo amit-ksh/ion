@@ -20,7 +20,7 @@ export interface CloudAccountActions {
   serviceRequest(
     workspaceId: string,
     path: string,
-    method?: "GET" | "PUT",
+    method?: "GET" | "PUT" | "POST",
     body?: unknown,
   ): Promise<any>;
   hostingRequest(

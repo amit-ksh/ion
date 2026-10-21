@@ -21,7 +21,7 @@ beforeAll(async () => {
 afterEach(async () => {
   for (const close of cleanup.splice(0)) await close();
 });
-function fixture(origin = "https://cloud.example") {
+function fixture(origin = "https://cloud.example", cloudServicesEnabled = true) {
   const directory = mkdtempSync(join(tmpdir(), "ion-mobile-account-"));
   const server = createCloudHandler({
     config: { ...ionAuth0, publicOrigin: "https://cloud.example" },
@@ -96,10 +96,16 @@ function fixture(origin = "https://cloud.example") {
       expect(init?.redirect).toBe("error");
       return Response.json({ items: [] });
     }
+    if (/\/v1\/apps\/(catalog|connect|disconnect)$/.test(url)) {
+      expect(new Headers(init?.headers).get('Authorization')?.startsWith('Bearer ')).toBe(true);
+      expect(init?.redirect).toBe('error');
+      return Response.json({ path: new URL(url).pathname, method: init?.method });
+    }
     return server.fetch(new Request(url, init));
   }) as typeof fetch;
   const controller = createCloudAccount({
     origin,
+    cloudServicesEnabled,
     send,
     vault: {
       read: async () => raw,
@@ -179,6 +185,13 @@ function fixture(origin = "https://cloud.example") {
     },
   };
 }
+test('disabled mobile cloud services reject compute, speech and hosting before network or account access', async () => {
+  const f = fixture('https://cloud.example', false);
+  for (const path of ['/v1/services/controls', '/v1/services/usage', '/v1/speech/sessions', '/v1/hosting/releases'])
+    await expect(f.controller.request(path, 'POST', {})).rejects.toThrow('Cloud services are disabled');
+  expect(f.network).toHaveLength(0);
+});
+
 describe("native phone managed-account workflow", () => {
   test("service controls cannot dispatch through an unbound delayed settings request", async () => {
     const f = fixture();
@@ -299,6 +312,25 @@ describe("native phone managed-account workflow", () => {
       f.controller.request("/v1/hosting/releases", "POST", {}),
     ).rejects.toThrow("Invalid managed service");
     expect(f.network.length).toBe(calls);
+  });
+  test('permits exactly the managed app connection routes while refusing unrelated app capabilities', async () => {
+    const f = fixture();
+    expect(await f.controller.signIn()).toBe(true);
+    const workspace = (await f.controller.status()).workspaceId!;
+    for (const route of ['catalog', 'connect', 'disconnect']) {
+      const path = `/v1/apps/${route}`;
+      expect(await f.controller.serviceRequest(workspace, path, 'POST', {})).toEqual({ path, method: 'POST' });
+    }
+    const before = f.network.length;
+    for (const path of ['/v1/apps/actions/execute', '/v1/apps/catalog?extra=true', '/v1/apps/../bootstrap', '/v1/apps/catalog/extra'])
+      await expect(f.controller.serviceRequest(workspace, path, 'POST', {})).rejects.toThrow('Invalid account-bound');
+    expect(f.network.length).toBe(before);
+    await expect(f.controller.request('/v1/apps/connect', 'POST', {})).rejects.toThrow('Invalid managed service');
+    f.setSubject('auth0|two'); await f.controller.signIn();
+    const changed = f.network.length;
+    await expect(f.controller.serviceRequest(workspace, '/v1/apps/connect', 'POST', {})).rejects.toThrow();
+    await expect(f.controller.serviceRequest(workspace, '/v1/apps/disconnect', 'POST', {})).rejects.toThrow();
+    expect(f.network.length).toBe(changed);
   });
   test("unconfigured build and cancelled sign-in keep local mode and store no account", async () => {
     const unavailable = fixture("");

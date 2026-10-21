@@ -28,6 +28,7 @@ import {
 import { Drawer } from 'react-native-drawer-layout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { WorkbenchRow } from '@/components/workbench';
 import { AppSymbol } from '@/components/app-symbol';
 import { ConnectionBanner, useConnectionNotice } from '@/components/connection-banner';
 import { DaemonPickerSheet } from '@/components/daemon-picker-sheet';
@@ -235,7 +236,11 @@ function TaskDrawerContent({
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+    <View
+      accessibilityElementsHidden={!open}
+      importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      pointerEvents={open ? 'auto' : 'none'}
+      style={[styles.screen, { backgroundColor: theme.background }]}>
       <View
         pointerEvents="box-none"
         style={[styles.daemonFloat, { top: insets.top + 8 }]}>
@@ -281,30 +286,9 @@ function TaskDrawerContent({
         )}
         ListHeaderComponent={<>
           <ConnectionBanner />
-          <Pressable accessibilityRole="button" accessibilityLabel="Inbox"
-            onPress={() => { onClose(); router.push('/inbox'); }}
-            style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>
-            <AppSymbol name={{ ios: 'tray', android: 'inbox', web: 'inbox' }} size={18} tintColor={theme.textSecondary} />
-            <Text style={{ fontSize: 15, color: theme.text }}>Inbox</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Artifacts"
-            onPress={() => { onClose(); router.push('/artifacts'); }}
-            style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>
-            <AppSymbol name={{ ios: 'doc', android: 'description', web: 'description' }} size={18} tintColor={theme.textSecondary} />
-            <Text style={{ fontSize: 15, color: theme.text }}>Artifacts</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Usage"
-            onPress={() => { onClose(); router.push('/usage'); }}
-            style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>
-            <AppSymbol name={{ ios: 'chart.bar', android: 'bar_chart', web: 'bar_chart' }} size={18} tintColor={theme.textSecondary} />
-            <Text style={{ fontSize: 15, color: theme.text }}>Usage</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Workflows and routines"
-            onPress={() => { onClose(); router.push('/automations'); }}
-            style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: pressed ? theme.overlayStrong : 'transparent' })}>
-            <AppSymbol name={{ ios: 'arrow.triangle.branch', android: 'account_tree', web: 'account_tree' }} size={18} tintColor={theme.textSecondary} />
-            <Text style={{ fontSize: 15, color: theme.text }}>Workflows & routines</Text>
-          </Pressable>
+          <WorkbenchRow label="Work" detail="Tasks, projects, teams & decisions" icon={{ android: 'work_outline', web: 'work_outline' }} onPress={() => { onClose(); router.push('/work'); }} />
+          <WorkbenchRow label="Artifacts" icon={{ android: 'description', web: 'description' }} onPress={() => { onClose(); router.push('/artifacts'); }} />
+          <WorkbenchRow label="Settings" detail="Account, connections & usage" icon={{ android: 'settings', web: 'settings' }} onPress={() => { onClose(); router.push('/settings'); }} />
         </>}
         ListEmptyComponent={(
           <TaskListEmpty

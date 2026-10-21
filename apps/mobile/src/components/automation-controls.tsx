@@ -21,8 +21,8 @@ export function AutomationRefresh({ refreshing, onRefresh }: { refreshing: boole
   </Pressable></View>;
 }
 const styles = StyleSheet.create({
-  button: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, justifyContent: 'center' },
+  button: { minHeight: 48, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, justifyContent: 'center' },
   label: { fontSize: 14, fontWeight: '600' },
   refreshRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  refresh: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+  refresh: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
 });

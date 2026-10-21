@@ -1,8 +1,21 @@
 const DAEMON_DISCONNECT_MESSAGES = new Set([
+  // Existing saved errors retain the pre-ion text after an upgrade.
   'Waku daemon disconnected',
   'Waku daemon is disconnected',
   'Waku client disconnected',
+  'ion daemon disconnected',
+  'ion daemon is disconnected',
+  'ion client disconnected',
 ]);
+
+/** A failed optional MCP connection must not be presented as an agent startup failure. */
+export function summarizeRuntimeError(message: string): string {
+  const server = message.match(/(?:^|\n)(?:[^:\n]+:\s*)?MCP client for `([^`\n]{1,64})` failed to start:/)?.[1];
+  if (server) return `${server} couldn’t connect. Check its setup on your desktop.`;
+  return /<(?:!doctype|html)(?:\s|>)/i.test(message)
+    ? 'Your agent couldn’t connect. Check its setup on your desktop, then try again.'
+    : message;
+}
 
 /** Connection loss is owned by the global reconnect banner. It must not
  * survive as a task-level error once that connection has recovered. */

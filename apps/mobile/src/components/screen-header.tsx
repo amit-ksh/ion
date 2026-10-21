@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Platform,
   useColorScheme,
   useWindowDimensions,
 } from "react-native";
@@ -53,11 +54,11 @@ export function ScreenHeaderBackdrop({ visible }: { visible: boolean }) {
         {
           height,
           borderBottomColor: theme.borderStrong,
-          backgroundColor: colorScheme === "dark" ? "#33333375" : "#ffffffd6",
+          backgroundColor: Platform.OS === "android" ? theme.background : colorScheme === "dark" ? "#33333375" : "#ffffffd6",
         },
       ]}
     >
-      <BlurView intensity={6} style={StyleSheet.absoluteFill} />
+      {Platform.OS !== "android" && <BlurView intensity={6} style={StyleSheet.absoluteFill} />}
     </View>
   );
 }
@@ -198,15 +199,15 @@ const styles = StyleSheet.create({
   },
   actionGroup: {
     alignItems: "center",
-    borderRadius: Radius.pill,
+    borderRadius: Radius.medium,
     flexDirection: "row",
-    height: 44,
+    minHeight: 48,
     paddingHorizontal: 4,
   },
   action: {
     alignItems: "center",
-    height: 44,
+    height: 48,
     justifyContent: "center",
-    width: 42,
+    width: 48,
   },
 });

@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "implementationCommit": "e84d280",
+  "capturedAt": "2026-10-21T08:45:31.658379+00:00",
+  "desktop": {
+    "build": "passed",
+    "keyboardEscape": "passed in rebuilt 982x816 Windows app",
+    "fullVisualAcceptance": "pending"
+  },
+  "mobile": {
+    "typecheckExit": 0,
+    "runtimeTests": {
+      "pass": 14,
+      "fail": 0,
+      "assertions": 47
+    },
+    "automationTests": {
+      "pass": 27,
+      "fail": 0,
+      "assertions": 93
+    },
+    "apk": {
+      "buildExit": 0,
+      "applicationId": "sh.waku.mobile.redesign",
+      "bytes": 54176806,
+      "sha256": "46519a74435d983214b7d71d79f88a1ef706164a0e6be8a7be3df08693460392",
+      "architectures": [
+        "x86_64"
+      ],
+      "hermesBytecode": true,
+      "bundleSha256": "ead15ec9018fda0fc2836459f94f6046b530d12952451693e353ed6646c7a324",
+      "currentSources": [
+        {
+          "file": "apps/mobile/src/app/_layout.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/agent-editor.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/team-editor.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/new-task.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/automation-editor.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/components/session-view.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/components/session-option-sheets.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/components/task-drawer.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/components/daemon-picker-sheet.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/daemon-editor.tsx",
+          "currentSource": true
+        }
+      ],
+      "installExit": 0,
+      "launchExit": 0,
+      "signatureVerification": "APK Signature Scheme v2 passed",
+      "buildDuration": "12m 56s",
+      "tasks": {
+        "total": 728,
+        "executed": 30,
+        "upToDate": 698
+      },
+      "unbuiltSourceChanges": [
+        {
+          "file": "apps/mobile/src/components/phone-dictation-control.tsx",
+          "change": "shorten recording prompt",
+          "reason": "owner explicitly requested no new build"
+        },
+        {
+          "file": "apps/mobile/src/components/workbench.tsx",
+          "change": "explicitly dismiss IME on editor Save/Close",
+          "reason": "source-only follow-up; no new build"
+        },
+        {
+          "file": "apps/mobile/src/components/mobile-composer.tsx",
+          "change": "bound error banner to three lines and summarize HTML provider errors",
+          "reason": "source-only finding; owner requested no more builds"
+        }
+      ]
+    },
+    "deviceAcceptance": "targeted emulator checks passed; full visual acceptance remains limited as listed",
+    "emulator": {
+      "serial": "emulator-5580",
+      "api": 36,
+      "viewportPixels": [
+        1080,
+        2400
+      ],
+      "density": 420,
+      "renderer": "swiftshader_indirect, Vulkan disabled",
+      "hostWindowScale": 0.25,
+      "initialSystemUiAnr": "Wait recovered app; evidence retained",
+      "authentication": "owner sign-in completed; preserved across final APK updates; paired with worktree debug daemon over adb loopback"
+    },
+    "statusBarUpdate": {
+      "source": "mount theme-aware StatusBar outside AccountGate",
+      "typecheckExit": 0,
+      "apkBuildExit": 0,
+      "deviceResult": "dark icons against light UI and light icons on ordinary dark surfaces verified; native Material modal status-bar contrast remains a platform limitation"
+    },
+    "deviceChecks": {
+      "phone": {
+        "pixels": [
+          1080,
+          2400
+        ],
+        "density": 420,
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "passed": [
+          "owner sign-in and pairing",
+          "transparent hamburger with 48dp target",
+          "agent model picker and single default selection",
+          "sticky equal Save/Close above IME",
+          "scrolling header occlusion",
+          "save and reopen model persistence",
+          "sheet outside dismissal",
+          "paired desktop options",
+          "Apps category icons"
+        ]
+      },
+      "compact": {
+        "pixels": [
+          840,
+          1800
+        ],
+        "density": 420,
+        "widthDp": 320,
+        "fontScale": 1.3,
+        "theme": "dark",
+        "passed": [
+          "home and navigation fit",
+          "composer above IME"
+        ]
+      },
+      "tablet": {
+        "pixels": [
+          1920,
+          1200
+        ],
+        "density": 240,
+        "logicalDp": [
+          1280,
+          800
+        ],
+        "passed": [
+          "dark home and expanded navigation rail",
+          "team footer above IME",
+          "light populated Work",
+          "light actual Apps catalogue"
+        ]
+      },
+      "revisionConflict": {
+        "passed": true,
+        "method": "second daemon client writes newer expertise; foreground refresh disables Save; explicit Reload shows newer value"
+      },
+      "accessibility": {
+        "compressedHierarchyHiddenDrawerAndProviderPageExcluded": true,
+        "spokenTalkBack": "not performed"
+      },
+      "liveProvider": {
+        "provider": "codex",
+        "result": "failed to open thread",
+        "error": "Codex did not finish opening its thread",
+        "streaming": "not verified"
+      },
+      "dictation": {
+        "hostAudio": "disabled on review emulator",
+        "recordingAndFinalization": "not certified"
+      },
+      "cleanup": {
+        "disposableAgentRemoved": true,
+        "disposableFailedChatRemoved": true,
+        "disposableProjectRemoved": true,
+        "unrelatedSessionPreserved": true,
+        "viewportAndFontRestored": true
+      }
+    },
+    "remainingAcceptance": [
+      "physical ARM device and hardware performance",
+      "successful provider streaming and long transcript measurement",
+      "spoken TalkBack traversal",
+      "recording, transcription and finalization",
+      "native Material modal status-bar contrast in dark mode",
+      "live Apps OAuth/account switching",
+      "full desktop state/theme matrix and macOS/Linux launchers"
+    ]
+  },
+  "review": "independent bounded reviewer rechecked capability fixes and final header/model/accessibility/keyboard/hamburger changes; no material source defect found",
+  "nativeBinary": {
+    "path": ".waku-cache/native-target/debug/waku.exe",
+    "bytes": 49592832,
+    "sha256": "e5d7195694dde2f28476cfd8a1eef9ba7913f4e01cd7775c698733e4b042f66b"
+  },
+  "latestFollowUp": {
+    "date": "2026-10-21",
+    "audit": "desktop-header-audit.md",
+    "validation": "desktop-header-validation.json",
+    "supersedes": "APK deferred-build and dark Material-sheet contrast entries; preserves historical receipts and remaining limits"
+  }
+}

@@ -1,4 +1,5 @@
 use super::*;
+use crate::ui::ActivationExt;
 
 use anyhow::Context as _;
 use base64::Engine as _;
@@ -2883,9 +2884,9 @@ impl Waku {
                 .w_full()
                 .max_w(px(CONTENT_MAX_WIDTH))
                 .mx_auto()
-                .rounded(px(13.0))
+                .rounded(px(16.0))
                 .border_1()
-                .border_color(theme.border)
+                .border_color(theme.border_strong)
                 .bg(theme.composer)
                 // Horizontal insets live on each row (and inside the field's
                 // scroll viewport, via `padding_x`) rather than on the card,
@@ -2932,16 +2933,20 @@ impl Waku {
                     card.child(self.render_composer_attachments(cx))
                 })
                 .child(div().pt(px(2.0)).child(self.composer.clone()))
-                .when(self.speech_feedback.is_some(), |card| {
-                    card.child(
-                        div()
-                            .px(px(12.0))
-                            .pt(px(5.0))
-                            .text_size(sp(11.5))
-                            .text_color(theme.text_secondary)
-                            .child(self.speech_feedback.clone().unwrap_or_default()),
-                    )
-                })
+                .when(
+                    self.speech_feedback.is_some()
+                        && self.speech_session_owner == self.state.selected_session,
+                    |card| {
+                        card.child(
+                            div()
+                                .px(px(12.0))
+                                .pt(px(5.0))
+                                .text_size(sp(11.5))
+                                .text_color(theme.text_secondary)
+                                .child(self.speech_feedback.clone().unwrap_or_default()),
+                        )
+                    },
+                )
                 .when(
                     (self.speech_transcript.is_some() || self.speech_partial.is_some())
                         && self.speech_session_owner == self.state.selected_session,
@@ -2972,6 +2977,7 @@ impl Waku {
                         .mt(px(8.0))
                         .px(px(10.0))
                         .flex()
+                        .flex_wrap()
                         .items_center()
                         .gap(px(4.0))
                         .text_size(sp(12.5))
@@ -3114,8 +3120,8 @@ impl Waku {
                         .child(match submit_action {
                             ComposerSubmitAction::Preparing => div()
                                 .id("send-or-stop")
-                                .w(px(26.0))
-                                .h(px(26.0))
+                                .w(px(32.0))
+                                .h(px(32.0))
                                 .rounded_full()
                                 .flex()
                                 .items_center()
@@ -3136,8 +3142,10 @@ impl Waku {
                                 .child(
                                     div()
                                         .id("send-or-stop")
-                                        .w(px(26.0))
-                                        .h(px(26.0))
+                                        .tab_index(0)
+                                .focus_visible(|style| style.border_1().border_color(theme.accent))
+                                .w(px(32.0))
+                                        .h(px(32.0))
                                         .rounded_full()
                                         .flex()
                                         .items_center()
@@ -3158,31 +3166,33 @@ impl Waku {
                                         .when(!escape_stop_armed, |element| {
                                             element.child(icon("icons/stop.svg", 18.0, theme.text))
                                         })
-                                        .on_click(cx.listener(|this, _, _, cx| {
+                                        .on_activation(cx, |this, _, cx| {
                                             this.cancel_turn(cx);
-                                        })),
+                                        }),
                                 )
                                 .when(can_send, |element| {
                                     element.child(
                                         div()
                                             .id("queue-follow-up")
-                                            .w(px(26.0))
-                                            .h(px(26.0))
+                                            .tab_index(0)
+                                            .focus_visible(|style| style.border_1().border_color(theme.accent))
+                                            .w(px(32.0))
+                                            .h(px(32.0))
                                             .rounded_full()
                                             .flex()
                                             .items_center()
                                             .justify_center()
                                             .cursor_default()
-                                            .bg(theme.inverse)
+                                            .bg(theme.primary)
                                             .hover(|element| element.opacity(0.9))
                                             .active(|element| element.opacity(0.8))
                                             .child(icon(
                                                 "icons/arrow-up.svg",
                                                 16.0,
-                                                theme.on_inverse,
+                                                theme.on_primary,
                                             ))
                                             .tooltip(Tooltip::text(tr!("composer.queue_followup")))
-                                            .on_click(cx.listener(|this, _, _, cx| {
+                                            .on_activation(cx, |this, _, cx| {
                                                 let prompt =
                                                     this.composer.read(cx).content(cx).to_owned();
                                                 if let Some(submission) =
@@ -3192,19 +3202,21 @@ impl Waku {
                                                         .update(cx, |input, cx| input.clear(cx));
                                                     this.submit_composer_submission(submission, cx);
                                                 }
-                                            })),
+                                            }),
                                     )
                                 }),
                             ComposerSubmitAction::Send => div()
                                 .id("send-or-stop")
-                                .w(px(26.0))
-                                .h(px(26.0))
+                                .tab_index(0)
+                                .focus_visible(|style| style.border_1().border_color(theme.accent))
+                                .w(px(32.0))
+                                .h(px(32.0))
                                 .rounded_full()
                                 .flex()
                                 .items_center()
                                 .justify_center()
                                 .bg(if can_send {
-                                    theme.inverse
+                                    theme.primary
                                 } else {
                                     theme.overlay_strong
                                 })
@@ -3218,7 +3230,7 @@ impl Waku {
                                     "icons/arrow-up.svg",
                                     16.0,
                                     if can_send {
-                                        theme.on_inverse
+                                        theme.on_primary
                                     } else {
                                         theme.text_ghost
                                     },
@@ -3228,7 +3240,7 @@ impl Waku {
                                 .when(no_providers && !team_address, |element| {
                                     element.tooltip(Tooltip::text(tr!("composer.no_providers")))
                                 })
-                                .on_click(cx.listener(|this, _, _, cx| {
+                                .on_activation(cx, |this, _, cx| {
                                     let prompt = this.composer.read(cx).content(cx).to_owned();
                                     if let Some(submission) =
                                         this.submission_with_attachments(&prompt, cx)
@@ -3236,7 +3248,7 @@ impl Waku {
                                         this.composer.update(cx, |input, cx| input.clear(cx));
                                         this.submit_composer_submission(submission, cx);
                                     }
-                                })),
+                                }),
                         }),
                 ),
         )

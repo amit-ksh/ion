@@ -132,14 +132,21 @@ fn source_blocks(source: &str, language: Option<&str>) -> Vec<Block> {
         })
         .collect()
 }
+fn scroll_document_selection(list: &ListState, selected: usize, key: &str) {
+    match key {
+        // Unmeasured rows have no reliable cumulative height. Anchor at the
+        // ends instead of revealing through the measured-height cursor.
+        "end" => list.scroll_to_end(),
+        "home" => list.scroll_to(ListOffset {
+            item_ix: 0,
+            offset_in_item: px(0.0),
+        }),
+        _ => list.scroll_to_reveal_item(selected),
+    }
+}
 fn prepare(artifact: &Artifact, bytes: Vec<u8>) -> anyhow::Result<PreparedDocument> {
     anyhow::ensure!(
-        bytes.len()
-            <= if artifact.format == "pdf" {
-                waku_document::MAX_DOCUMENT_BYTES
-            } else {
-                64 * 1024
-            }
+        bytes.len() <= waku_document::MAX_DOCUMENT_BYTES
             && artifact
                 .evidence
                 .as_ref()
@@ -217,6 +224,7 @@ impl Waku {
         let ui = &mut self.control_ui.preview;
         ui.artifact = Some(artifact.clone());
         ui.busy = true;
+        window.focus(&ui.focus, cx);
         let generation = ui.generation;
         let window_handle = window.window_handle();
         let client = self.daemon.client();
@@ -343,7 +351,7 @@ impl Waku {
             "pageup" => ui.selected.saturating_sub(4),
             _ => return,
         };
-        ui.list.scroll_to_reveal_item(ui.selected);
+        scroll_document_selection(&ui.list, ui.selected, &event.keystroke.key);
         cx.stop_propagation();
         cx.notify();
     }
@@ -507,6 +515,15 @@ impl Waku {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn document_end_reaches_unmeasured_rows_and_home_returns_to_start() {
+        let list = ListState::new(31, ListAlignment::Top, px(80.0));
+        scroll_document_selection(&list, 30, "end");
+        assert_eq!(list.logical_scroll_top().item_ix, 31);
+        scroll_document_selection(&list, 0, "home");
+        assert_eq!(list.logical_scroll_top().item_ix, 0);
+        assert_eq!(list.logical_scroll_top().offset_in_item, px(0.0));
+    }
     fn artifact(format: &str, bytes: &[u8]) -> Artifact {
         Artifact {
             id: Uuid::new_v4(),
@@ -571,6 +588,22 @@ mod tests {
             .collect();
         assert_eq!(joined, text);
         assert!(source.len() > 10);
+    }
+    #[test]
+    fn document_preview_accepts_large_verified_source_without_losing_unicode() {
+        let text = "語".repeat(30_000);
+        let PreparedDocument { source, .. } =
+            prepare(&artifact("txt", text.as_bytes()), text.as_bytes().to_vec()).unwrap();
+        let joined: String = source
+            .iter()
+            .map(|block| match block {
+                Block::CodeBlock { code, .. } => code.as_str(),
+                _ => panic!("Expected complete source"),
+            })
+            .collect();
+        assert_eq!(joined, text);
+        let oversized = vec![b'x'; waku_document::MAX_DOCUMENT_BYTES + 1];
+        assert!(prepare(&artifact("txt", &oversized), oversized).is_err());
     }
     #[test]
     fn document_preview_pretty_json_and_inert_html_source() {

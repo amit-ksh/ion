@@ -139,7 +139,7 @@ pub fn fetch_codex_plan_usage() -> anyhow::Result<PlanUsage> {
     let mut headers = vec![
         format!("Authorization: Bearer {access_token}"),
         "Accept: application/json".to_owned(),
-        "User-Agent: waku".to_owned(),
+        "User-Agent: ion".to_owned(),
     ];
     if let Some(account_id) = auth.pointer("/tokens/account_id").and_then(Value::as_str) {
         headers.push(format!("ChatGPT-Account-Id: {account_id}"));
@@ -173,7 +173,7 @@ pub fn fetch_opencode_go_plan_usage() -> anyhow::Result<Option<PlanUsage>> {
         &[
             format!("Authorization: Bearer {api_key}"),
             "Accept: application/json".to_owned(),
-            "User-Agent: waku".to_owned(),
+            "User-Agent: ion".to_owned(),
         ],
     )?;
     match status {

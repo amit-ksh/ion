@@ -939,6 +939,7 @@ fn run_on_host(
             }
             reply => {
                 let call = &journal.pending[0];
+                let failed = reply.is_err();
                 let reply = match reply {
                     Ok(ToolOutcome::Reply(body)) => body,
                     Err(error) => {
@@ -947,13 +948,18 @@ fn run_on_host(
                     }
                     _ => unreachable!(),
                 };
-                let _ = events.send(DriverEvent::Activity {
-                    id: Some(call.activity_id.clone()),
-                    kind: ActivityKind::Tool,
-                    title: call.name.replace('_', " "),
-                    detail: Some(reply.clone()),
-                    complete: true,
-                });
+                let mut activity = crate::driver::activity::tool_activity(
+                    Some(call.activity_id.clone()),
+                    ActivityKind::Tool,
+                    call.name.replace('_', " "),
+                    Some(&call.arguments),
+                    Some(&Value::String(reply.clone())),
+                    None,
+                    failed,
+                    true,
+                );
+                activity.tool_name = Some(call.name.clone());
+                let _ = events.send(DriverEvent::RichActivity(activity));
                 journal.receipt(reply)?;
                 journal.save(coordinator, &claimed.lease)?;
             }

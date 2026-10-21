@@ -144,14 +144,14 @@ export function DaemonPickerSheet({
             importantForAccessibility={editorTarget === undefined ? 'auto' : 'no-hide-descendants'}
             pointerEvents={editorTarget === undefined ? 'auto' : 'none'}
             style={{ width: pageWidth }}>
-            <SheetPageHeader title="Daemons" />
+            <SheetPageHeader title="Paired desktops" />
             <DaemonList
               onEdit={(item) => pushEditor(item.id)}
               onSelect={select}
             />
             <SheetRow
               description="Connect another host"
-              label="Add Daemon…"
+              label="Pair desktop"
               leading={(
                 <AppSymbol
                   name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }}
@@ -276,7 +276,7 @@ function DaemonEditor({
     <View style={styles.editor}>
       <SheetPageHeader
         backDisabled={saving || removing}
-        title={profile ? 'Edit Daemon' : 'Add Daemon'}
+        title={profile ? 'Edit desktop' : 'Pair desktop'}
         onBack={onBack}
       />
       <View style={[styles.formGroup, { backgroundColor: theme.overlay }]}>
@@ -428,7 +428,7 @@ function SheetPageHeader({
     <View style={styles.pageHeader}>
       {onBack ? (
         <Pressable
-          accessibilityLabel="Back to daemons"
+          accessibilityLabel="Back to desktops"
           accessibilityRole="button"
           accessibilityState={{ disabled: backDisabled }}
           disabled={backDisabled}
@@ -471,7 +471,7 @@ function ConnectionFootnote({
   };
   let message = editing
     ? 'Leave the token blank to keep the saved credential.'
-    : 'Copy the address and token from Waku Desktop → Settings → Daemon.';
+    : 'Copy the address and token from ion Desktop → Settings → Daemon.';
 
   if (security === 'invalid') {
     color = theme.danger;

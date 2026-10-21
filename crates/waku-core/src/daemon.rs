@@ -51,6 +51,7 @@ pub struct WakuBackend {
     task_store: Arc<StateStore>,
     task_state: Arc<Mutex<PersistedState>>,
     removed_session_ids: Arc<Mutex<HashSet<Uuid>>>,
+    removed_project_ids: Mutex<HashSet<Uuid>>,
     composer_drafts: ComposerDraftStore,
     attachments: AttachmentStore,
     usage_scan_cache: Mutex<crate::usage_history::ScanCache>,
@@ -70,7 +71,7 @@ impl WakuBackend {
         crate::speech::cleanup_stale_recordings();
         let mut task_state = task_store
             .load()
-            .context("could not load Waku task database")?;
+            .context("could not load ion task database")?;
         migrate_projectless_state(&task_store, &mut task_state)?;
         let composer_drafts = ComposerDraftStore::for_state_path(task_store.path());
         let attachments = AttachmentStore::new(
@@ -122,6 +123,7 @@ impl WakuBackend {
             task_store,
             task_state,
             removed_session_ids,
+            removed_project_ids: Mutex::new(HashSet::new()),
             composer_drafts,
             attachments,
             usage_scan_cache: Mutex::new(HashMap::new()),
@@ -323,6 +325,7 @@ impl Backend for WakuBackend {
                 source_prompt,
                 attachments,
             } => {
+                let _cleanup = self.artifact_cleanup_gate.lock();
                 let gate = self.task_start_gate(session_id);
                 let _guard = gate.lock();
                 anyhow::ensure!(
@@ -480,6 +483,7 @@ impl Backend for WakuBackend {
                 limits,
                 access,
             } => {
+                let _cleanup = self.artifact_cleanup_gate.lock();
                 let gate = self.task_start_gate(session_id);
                 let _guard = gate.lock();
                 anyhow::ensure!(
@@ -1139,7 +1143,11 @@ impl Backend for WakuBackend {
                     .collect::<HashMap<_, _>>();
                 let mut state = self.task_state.lock();
                 let removed_session_ids = self.removed_session_ids.lock();
-                for project in projects {
+                let removed_project_ids = self.removed_project_ids.lock();
+                for project in projects
+                    .into_iter()
+                    .filter(|p| !removed_project_ids.contains(&p.id))
+                {
                     if let Some(existing) = state
                         .projects
                         .iter_mut()
@@ -1152,9 +1160,13 @@ impl Backend for WakuBackend {
                 }
                 let sessions = sessions
                     .into_iter()
-                    .filter(|session| !removed_session_ids.contains(&session.id))
+                    .filter(|session| {
+                        !removed_session_ids.contains(&session.id)
+                            && !removed_project_ids.contains(&session.project_id)
+                    })
                     .collect::<Vec<_>>();
                 drop(removed_session_ids);
+                drop(removed_project_ids);
                 let saved_ids = sessions
                     .iter()
                     .map(|session| session.id)
@@ -1217,6 +1229,50 @@ impl Backend for WakuBackend {
                     }
                 }
                 Ok(ResponsePayload::TaskStateSaved { sessions })
+            }
+            Command::RemoveProject { project_id } => {
+                // Serialize with provider/team startup before inspecting status.
+                let _cleanup = self.artifact_cleanup_gate.lock();
+                let mut state = self.task_state.lock();
+                anyhow::ensure!(
+                    !state
+                        .sessions
+                        .iter()
+                        .any(|s| s.project_id == project_id && s.is_busy()),
+                    "Stop the project's running tasks before removing it."
+                );
+                let mut after = None;
+                loop {
+                    let page = self.teams.list_runs(Some(project_id), None, after, 64)?;
+                    anyhow::ensure!(
+                        !page
+                            .runs
+                            .iter()
+                            .any(|r| r.status == waku_protocol::teams::TeamRunStatus::Active),
+                        "Stop the project's running teams before removing it."
+                    );
+                    after = page.next_cursor;
+                    if after.is_none() {
+                        break;
+                    }
+                }
+                let removed: HashSet<_> = state
+                    .sessions
+                    .iter()
+                    .filter(|s| s.project_id == project_id)
+                    .map(|s| s.id)
+                    .collect();
+                self.removed_session_ids
+                    .lock()
+                    .extend(removed.iter().copied());
+                self.removed_project_ids.lock().insert(project_id);
+                state.sessions.retain(|s| s.project_id != project_id);
+                state.projects.retain(|p| p.id != project_id);
+                self.task_store.save(&mut state)?;
+                drop(state);
+                self.sessions.lock().retain(|id, _| !removed.contains(id));
+                self.terminals.lock().retain(|id, _| !removed.contains(id));
+                Ok(ResponsePayload::Ack)
             }
             Command::RemoveSession => {
                 let gate = self.task_start_gate(session_id);
@@ -1600,6 +1656,10 @@ impl Backend for WakuBackend {
                 let _cleanup = self.artifact_cleanup_gate.lock();
                 let gate = self.task_start_gate(session_id);
                 let _guard = gate.lock();
+                anyhow::ensure!(
+                    !self.removed_session_ids.lock().contains(&session_id),
+                    "This task was removed"
+                );
                 anyhow::ensure!(
                     self.teams.binding_for_task(session_id)?.is_none(),
                     "Team tasks require the Teams execution adapter; solo launch is disabled"
@@ -2788,6 +2848,7 @@ fn handle_driver_command(
         | Command::ReadWorkspaceArtifact { .. }
         | Command::SaveTaskState { .. }
         | Command::RemoveSession
+        | Command::RemoveProject { .. }
         | Command::HydrateSession { .. }
         | Command::SearchSessionMessages { .. }
         | Command::ListProviderSessions { .. }

@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppSymbol } from '@/components/app-symbol';
+import { SheetSystemBars } from '@/components/sheet-system-bars';
 import { liquidGlass } from '@/components/glass-surface';
 import { NativeTint, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -59,6 +60,7 @@ export function Sheet({
       onDismiss={onDismiss}>
       <BottomSheetView
         style={[styles.content, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+        <SheetSystemBars />
         {scrollable ? (
           <BottomSheetScrollView
             alwaysBounceVertical={false}

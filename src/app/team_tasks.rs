@@ -363,12 +363,13 @@ impl Waku {
                 .px(px(24.0))
                 .py(px(10.0))
                 .flex()
+                .flex_wrap()
                 .gap(px(8.0))
                 .items_center()
                 .text_size(sp(12.5))
                 .text_color(theme.text_secondary)
                 .child(icon("icons/fork.svg", 14.0, theme.text_secondary))
-                .child(format!("{} · Team task · {}", binding.team_name, status))
+                .child(div().min_w_0().child(format!("{} · Team task · {}", binding.team_name, status)))
                 .child(self.control_button(
                     "task-team-run",
                     "Open team run",

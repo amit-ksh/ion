@@ -10,7 +10,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View, useColorScheme, useWindowDimensions } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AccountGate } from "@/components/account-gate";
@@ -18,14 +18,15 @@ import { cloudAccount } from "@/lib/cloud-account";
 import { Colors } from "@/constants/theme";
 import {
   HeaderAction,
-  HeaderActionGroup,
   nativeHeaderButtons,
   type HeaderActionSpec,
 } from "@/components/screen-header";
 import { TaskDrawerHost, useTaskDrawer } from "@/components/task-drawer";
+import { WorkbenchNavigation } from "@/components/workbench-navigation";
 import { DaemonProvider, useDaemon } from "@/lib/daemon-context";
 import { RuntimeProvider } from "@/lib/runtime-context";
 import { listenForGatewayNotifications } from "@/lib/gateway-notifications";
+import { MOBILE_CLOUD_SERVICES } from '@/lib/mobile-capabilities';
 
 /** Deep links and state restores keep the new-task home as the stack anchor. */
 export const unstable_settings = { anchor: "index" };
@@ -85,29 +86,39 @@ export default function RootLayout() {
             <DaemonProvider>
               <RuntimeProvider>
                 <TaskDrawerHost>
-                  <AppNavigator />
+                  <WorkbenchShell />
                 </TaskDrawerHost>
-                <StatusBar style="auto" />
               </RuntimeProvider>
             </DaemonProvider>
           </AccountGate>
+          <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
         </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }
 
+function WorkbenchShell() {
+  const { width } = useWindowDimensions();
+  const expanded = Platform.OS === 'android' && width >= 600;
+  return <View style={[styles.root, expanded && styles.expanded]}>
+    {expanded && <WorkbenchNavigation rail />}
+    <View style={styles.root}><AppNavigator /></View>
+    {!expanded && <WorkbenchNavigation />}
+  </View>;
+}
+
 function AppNavigator() {
   useEffect(
     () =>
-      listenForGatewayNotifications((destination) => {
+      MOBILE_CLOUD_SERVICES ? listenForGatewayNotifications((destination) => {
         if (destination.scope === "inbox") router.push("/gateway-portfolio");
         else
           router.push({
             pathname: "/gateway-task/[id]",
             params: { id: destination.taskId },
           });
-      }),
+      }) : undefined,
     [],
   );
   const [cloudEpoch, setCloudEpoch] = useState(0);
@@ -119,6 +130,10 @@ function AppNavigator() {
   const { openTaskDrawer } = useTaskDrawer();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const surfaceHeader = useMemo<NativeStackNavigationOptions>(() => ({
+    ...floatingHeader,
+    headerStyle: { backgroundColor: Platform.OS === 'android' ? theme.background : 'transparent' },
+  }), [theme.background]);
   const daemonRoutesAvailable = phase === "booting" || profiles.length > 0;
   const drawerAction = useMemo<HeaderActionSpec>(
     () => ({
@@ -130,16 +145,12 @@ function AppNavigator() {
   );
   const drawerHeader = useMemo<NativeStackNavigationOptions>(
     () => ({
-      ...floatingHeader,
+      ...surfaceHeader,
       gestureEnabled: false,
-      headerLeft: () => (
-        <HeaderActionGroup>
-          <HeaderAction {...drawerAction} />
-        </HeaderActionGroup>
-      ),
+      headerLeft: () => <HeaderAction {...drawerAction} />,
       unstable_headerLeftItems: () => nativeHeaderButtons([drawerAction]),
     }),
-    [drawerAction],
+    [drawerAction, surfaceHeader],
   );
 
   useEffect(() => {
@@ -161,7 +172,7 @@ function AppNavigator() {
         name="index"
         options={
           daemonRoutesAvailable
-            ? { ...drawerHeader, title: "New Task" }
+            ? { ...drawerHeader, title: "Ion" }
             : { headerShown: false, title: "ion" }
         }
       />
@@ -169,13 +180,18 @@ function AppNavigator() {
        * route from navigation, returning restored and open tasks to home. */}
       <Stack.Screen name="speech" options={{ title: "Dictation" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
+        <Stack.Screen name="work" options={{ ...drawerHeader, title: "Work" }} />
+        <Stack.Screen name="settings" options={{ ...drawerHeader, title: "Settings" }} />
+        <Stack.Screen name="apps" options={{ ...surfaceHeader, title: "Apps" }} />
+        <Stack.Screen name="agent-editor" options={{ ...surfaceHeader, title: "Agent" }} />
+        <Stack.Screen name="team-editor" options={{ ...surfaceHeader, title: "Team" }} />
         <Stack.Screen
           name="artifacts"
           options={{ ...drawerHeader, title: "Artifacts" }}
         />
         <Stack.Screen
           name="artifact-document"
-          options={{ ...floatingHeader, title: "Document" }}
+          options={{ ...surfaceHeader, title: "Document" }}
         />
         <Stack.Screen
           name="usage"
@@ -183,12 +199,16 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="inbox-source"
-          options={{ ...floatingHeader, title: "Review" }}
+          options={{ ...surfaceHeader, title: "Review" }}
         />
+        <Stack.Protected guard={MOBILE_CLOUD_SERVICES}>
+        <Stack.Screen name="cloud-billing" options={{ title: 'Cloud billing' }} />
+        <Stack.Screen name="cloud-deployments" options={{ title: 'Deployments' }} />
         <Stack.Screen
           name="cloud-budgets"
-          options={{ ...floatingHeader, title: "GPU budgets" }}
+          options={{ ...surfaceHeader, title: "GPU budgets" }}
         />
+        </Stack.Protected>
         <Stack.Screen
           name="inbox"
           options={{ ...drawerHeader, title: "Inbox" }}
@@ -199,19 +219,19 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="automation-editor"
-          options={{ ...floatingHeader, title: "Automation" }}
+          options={{ ...surfaceHeader, title: "Automation" }}
         />
         <Stack.Screen
           name="automation/[id]"
-          options={{ ...floatingHeader, title: "Run" }}
+          options={{ ...surfaceHeader, title: "Run" }}
         />
         <Stack.Screen
           name="daemons"
-          options={{ headerLargeTitle: true, title: "Daemons" }}
+          options={{ ...surfaceHeader, title: "Paired desktops" }}
         />
         <Stack.Screen
           name="new-task"
-          options={{ ...drawerHeader, title: "New Task" }}
+          options={{ ...drawerHeader, title: "Ion" }}
         />
         <Stack.Screen
           name="session/[id]"
@@ -227,9 +247,10 @@ function AppNavigator() {
         name="daemon-editor"
         options={{
           presentation: "pageSheet",
-          title: "Add Daemon",
+          title: "Pair desktop",
         }}
       />
+      <Stack.Protected guard={MOBILE_CLOUD_SERVICES}>
       <Stack.Screen name="gateway" options={{ title: "Personal gateway" }} />
       <Stack.Screen
         name="remote-executions"
@@ -271,10 +292,12 @@ function AppNavigator() {
         name="gateway-task/[id]"
         options={{ title: "Gateway task" }}
       />
+      </Stack.Protected>
     </Stack>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  expanded: { flexDirection: 'row' },
 });

@@ -157,7 +157,7 @@ fn append_sidebar_group_rows(
     collapsed: bool,
     show_more: bool,
 ) {
-    if sessions.is_empty() && !show_more {
+    if sessions.is_empty() && !show_more && !matches!(group, SidebarGroup::Project(_)) {
         return;
     }
 
@@ -205,16 +205,15 @@ fn updater_button_available_content(
 /// Height of a session card plus the separation reserved beneath it in the
 /// virtualized sidebar list. Keep the gap inside the list row so measured and
 /// estimated heights stay identical for off-screen sessions.
-const SIDEBAR_SESSION_CARD_HEIGHT: f32 = 51.0;
+const SIDEBAR_SESSION_CARD_HEIGHT: f32 = 34.0;
 const SIDEBAR_SESSION_ROW_GAP: f32 = 1.0;
 const SIDEBAR_SESSION_ROW_HEIGHT: f32 = SIDEBAR_SESSION_CARD_HEIGHT + SIDEBAR_SESSION_ROW_GAP;
 const SIDEBAR_ACTION_ROW_HEIGHT: f32 = 32.0;
 const SIDEBAR_SEARCH_BOTTOM_GAP: f32 = 10.0;
-const SIDEBAR_GROUP_HEADER_HEIGHT: f32 = 28.0;
+const SIDEBAR_GROUP_HEADER_HEIGHT: f32 = 32.0;
 const SIDEBAR_GROUP_HEADER_BOTTOM_GAP: f32 = 2.0;
 const SIDEBAR_SHOW_MORE_ROW_HEIGHT: f32 = 30.0;
 const SIDEBAR_GROUP_SPACER_HEIGHT: f32 = 10.0;
-const SIDEBAR_GROUP_GUIDE_X: f32 = 15.0;
 const SIDEBAR_GROUP_CHILD_PADDING: f32 = 28.0;
 const SIDEBAR_PROJECT_RECENT_WINDOW_SECONDS: u64 = 3 * 24 * 60 * 60;
 const SIDEBAR_PROJECT_REVEAL_BATCH: usize = 30;
@@ -716,6 +715,11 @@ impl Waku {
             .flex_none()
             .px(px(4.0))
             .rounded(px(7.0))
+            .bg(if id == "sidebar-new-session" {
+                theme.accent_soft
+            } else {
+                gpui::transparent_black()
+            })
             .flex()
             .items_center()
             .gap(px(10.0))
@@ -730,7 +734,15 @@ impl Waku {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(icon(icon_path, 14.0, theme.text_secondary)),
+                    .child(icon(
+                        icon_path,
+                        14.0,
+                        if id == "sidebar-new-session" {
+                            theme.accent
+                        } else {
+                            theme.text_secondary
+                        },
+                    )),
             )
             .child(
                 div()
@@ -1037,7 +1049,7 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = Theme::current(cx);
-        self.ensure_sidebar_branch_labels(cx);
+
         let is_resizing = self
             .panel_resize_drag
             .is_some_and(|drag| drag.target == PanelResizeTarget::Sidebar);
@@ -1106,6 +1118,23 @@ impl Waku {
                     .child(self.render_sidebar_search(cx)),
             )
             .child(self.render_workspace_nav(cx))
+            .child(
+                div()
+                    .px(px(18.0))
+                    .py(px(8.0))
+                    .flex()
+                    .items_center()
+                    .text_size(sp(12.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme.text_tertiary)
+                    .child(if self.state.sidebar_grouping == SidebarGrouping::Project {
+                        "Projects"
+                    } else {
+                        "Chats"
+                    })
+                    .child(div().flex_1())
+                    .child(self.render_sidebar_header_actions(cx)),
+            )
             .child(
                 div()
                     .id("sidebar-scroll")
@@ -1287,9 +1316,19 @@ impl Waku {
                     })
                     .map(|project| project.id)
                     .collect::<HashSet<_>>();
-                for (group, sessions) in
-                    project_sidebar_groups(&sorted_sessions, &projectless_project_ids)
-                {
+                let mut groups = project_sidebar_groups(&sorted_sessions, &projectless_project_ids);
+                let included = groups
+                    .iter()
+                    .map(|(group, _)| *group)
+                    .collect::<HashSet<_>>();
+                for project in &self.state.projects {
+                    if !projectless_project_ids.contains(&project.id)
+                        && !included.contains(&SidebarGroup::Project(project.id))
+                    {
+                        groups.push((SidebarGroup::Project(project.id), Vec::new()));
+                    }
+                }
+                for (group, sessions) in groups {
                     let revealed_older_sessions = self
                         .sidebar_project_reveal_counts
                         .get(&group)
@@ -1400,8 +1439,8 @@ impl Waku {
     fn render_sidebar_group_header(
         &self,
         group: SidebarGroup,
-        first: bool,
-        has_expanded_children: bool,
+        _first: bool,
+        _has_expanded_children: bool,
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = Theme::current(cx);
@@ -1573,20 +1612,6 @@ impl Waku {
                 },
                 |element, id| element.child(self.render_sidebar_project_menu(id, cx)),
             )
-            .when(first, |element| {
-                element.child(self.render_sidebar_header_actions(cx))
-            })
-            .when(show_folder_icon && has_expanded_children, |element| {
-                element.child(
-                    div()
-                        .absolute()
-                        .left(px(SIDEBAR_GROUP_GUIDE_X))
-                        .top(px(19.0))
-                        .bottom(px(-2.0))
-                        .w(px(1.0))
-                        .bg(theme.border),
-                )
-            })
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.toggle_sidebar_group(group, cx);
             }))
@@ -1662,27 +1687,12 @@ impl Waku {
             }));
 
         div()
-            .relative()
             .w_full()
             .h(px(SIDEBAR_SHOW_MORE_ROW_HEIGHT))
             .pl(px(SIDEBAR_GROUP_CHILD_PADDING))
             .flex()
             .items_center()
             .child(button)
-            .child(
-                div()
-                    .absolute()
-                    .left(px(SIDEBAR_GROUP_GUIDE_X))
-                    .top_0()
-                    .w(px(SIDEBAR_GROUP_CHILD_PADDING
-                        - SIDEBAR_GROUP_GUIDE_X
-                        - 4.0))
-                    .h(px(15.0))
-                    .border_l_1()
-                    .border_b_1()
-                    .rounded_bl(px(4.0))
-                    .border_color(theme.border),
-            )
     }
 
     fn show_more_project_sessions(&mut self, group: SidebarGroup, cx: &mut Context<Self>) {
@@ -1873,43 +1883,11 @@ impl Waku {
             session.status,
             SessionStatus::Connecting | SessionStatus::Working
         );
-        let project = self
-            .state
-            .projects
-            .iter()
-            .find(|project| project.id == session.project_id);
         let grouped_by_project = self.state.sidebar_grouping == SidebarGrouping::Project;
         let left_padding = if grouped_by_project {
             SIDEBAR_GROUP_CHILD_PADDING
         } else {
             8.0
-        };
-        let detail_label = if grouped_by_project {
-            persisted_sidebar_branch_label(&session.workspace)
-                .map(|branch| SharedString::from(branch.to_owned()))
-                .or_else(|| {
-                    if !matches!(&session.workspace, SessionWorkspace::Local) {
-                        return None;
-                    }
-                    project.and_then(|project| {
-                        self.sidebar_branch_labels
-                            .borrow()
-                            .get(&project.path)
-                            .cloned()
-                    })
-                })
-        } else {
-            Some(SharedString::from(
-                project
-                    .map(Project::display_name)
-                    .unwrap_or_else(|| tr!("sidebar.unknown_project")),
-            ))
-        };
-        let has_detail_label = detail_label.is_some();
-        let detail_icon = if grouped_by_project {
-            "icons/git-branch.svg"
-        } else {
-            "icons/folder.svg"
         };
         let rename_input =
             (self.session_rename == Some(session_id)).then(|| self.session_rename_input.clone());
@@ -1962,7 +1940,8 @@ impl Waku {
             .gap(px(4.0))
             .pl(px(left_padding))
             .pr(px(8.0))
-            .py(px(7.0))
+            .h(px(SIDEBAR_SESSION_CARD_HEIGHT))
+            .justify_center()
             .rounded(px(7.0))
             .cursor_default()
             .when(selected, |element| {
@@ -2005,68 +1984,7 @@ impl Waku {
                             12.0,
                             status_color(&theme, session.status),
                         ))
-                    })
-                    .when(!renaming, |element| {
-                        element.child(
-                            self.control_button(
-                                format!("sidebar-remove-chat-{session_id}"),
-                                "",
-                                cx,
-                                move |this, window, cx| {
-                                    cx.stop_propagation();
-                                    this.request_remove_session(session_id, window, cx);
-                                },
-                            )
-                            .size(px(24.0))
-                            .p_0()
-                            .border_0()
-                            .justify_center()
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .tooltip(Tooltip::text("Remove chat"))
-                            .child(icon(
-                                "icons/trash.svg",
-                                13.0,
-                                theme.text_secondary,
-                            )),
-                        )
                     }),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(5.0))
-                    .text_size(sp(if grouped_by_project { 12.5 } else { 13.0 }))
-                    .line_height(sp(15.0))
-                    .when_some(detail_label, |element, label| {
-                        element
-                            .child(icon(detail_icon, 12.5, theme.text_tertiary))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .truncate()
-                                    .text_color(theme.text_tertiary)
-                                    .child(label),
-                            )
-                    })
-                    .when(!has_detail_label, |element| element.child(div().flex_1()))
-                    .when_some(
-                        session_time_label(session, unix_time()),
-                        |element, label| {
-                            element.child(
-                                div()
-                                    .flex_none()
-                                    .text_size(sp(12.5))
-                                    .text_color(if session.is_busy() {
-                                        theme.text_tertiary
-                                    } else {
-                                        theme.text_ghost
-                                    })
-                                    .child(SharedString::from(label)),
-                            )
-                        },
-                    ),
             )
             .when(!renaming, |element| {
                 element
@@ -2127,17 +2045,6 @@ impl Waku {
             .w_full()
             .pb(px(SIDEBAR_SESSION_ROW_GAP))
             .child(row)
-            .when(grouped_by_project, |element| {
-                element.child(
-                    div()
-                        .absolute()
-                        .left(px(SIDEBAR_GROUP_GUIDE_X))
-                        .top_0()
-                        .bottom_0()
-                        .w(px(1.0))
-                        .bg(theme.border),
-                )
-            })
             .into_any_element()
     }
 
@@ -2308,6 +2215,7 @@ impl Waku {
                         .child(div().min_w_0().truncate().child(label)),
                 )
             })
+            .child(self.render_header_theme_switch(cx))
             .children(self.render_setup_indicator(cx))
             .when(self.control_ui.page.is_none(), |element| {
                 element.child(self.render_background_work_summary(cx))
@@ -2365,6 +2273,45 @@ impl Waku {
             }
         })
         .detach();
+    }
+
+    fn render_header_theme_switch(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::current(cx);
+        let handle = self.menu_handle("header-theme", cx);
+        let current = self.state.theme;
+        let weak = cx.entity().downgrade();
+        dropdown_menu(
+            div()
+                .id("header-theme-switch")
+                .size(px(28.0))
+                .rounded(px(6.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .cursor_default()
+                .focus_visible(|style| style.border_1().border_color(theme.accent))
+                .hover(|style| style.bg(theme.overlay))
+                .tooltip(Tooltip::text("Appearance"))
+                .child(icon("icons/sun.svg", 16.0, theme.text_secondary)),
+            "header-theme-menu",
+            &handle,
+            MenuAlign::BelowRight,
+            move |_| {
+                ThemePreference::ALL
+                    .into_iter()
+                    .map(|preference| {
+                        let weak = weak.clone();
+                        MenuItem::new(preference.label(), move |window, cx| {
+                            let _ = weak.update(cx, |this, cx| {
+                                this.set_theme_preference(preference, window, cx)
+                            });
+                        })
+                        .selected(current == preference)
+                    })
+                    .collect()
+            },
+        )
+        .into_any_element()
     }
 
     fn render_sidebar_project_menu(&self, id: Uuid, cx: &mut Context<Self>) -> AnyElement {
@@ -2506,12 +2453,12 @@ impl Waku {
                                 .focus_visible(|style| style.border_1().border_color(theme.accent))
                                 .h(px(32.0))
                                 .px(px(14.0))
-                                .rounded_full()
+                                .rounded(px(10.0))
                                 .flex()
                                 .items_center()
                                 .cursor_default()
-                                .bg(theme.inverse)
-                                .text_color(theme.on_inverse)
+                                .bg(theme.primary)
+                                .text_color(theme.on_primary)
                                 .text_size(sp(12.5))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .hover(|element| element.opacity(0.9))

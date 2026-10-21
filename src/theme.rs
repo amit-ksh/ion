@@ -34,8 +34,8 @@ fn native_override(preference: ThemePreference) -> Option<bool> {
     }
 }
 
-/// Waku's visual language, take two: neutral graphite surfaces in the spirit
-/// of Cursor — color is reserved for meaning. On macOS the sidebar's semantic
+/// Ion's neutral workbench palette. Lime marks intentional primary actions;
+/// status colors keep their own meaning. On macOS the sidebar's semantic
 /// tint is installed as a native layer above Sidebar vibrancy; keeping this
 /// GPUI surface clear avoids incorrectly accumulating the alpha of nested Metal
 /// backgrounds. Selected, hovered, and pressed rows remain a 6% neutral layer.
@@ -64,8 +64,11 @@ pub struct Theme {
     pub text_tertiary: Hsla,
     pub text_ghost: Hsla,
 
-    /// Brand coral. Logo, caret, live-activity pulses — nothing structural.
+    /// Legible brand foreground; use `primary` for filled actions.
     pub accent: Hsla,
+    pub accent_soft: Hsla,
+    pub primary: Hsla,
+    pub on_primary: Hsla,
     pub resize_handle: Hsla,
     /// Meter fills in the usage panel. Quota-meter blue by convention;
     /// warning/danger take over as a lane fills.
@@ -91,27 +94,9 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// Neutral workspace surfaces do not change the chat, sidebar or settings palette.
+    /// Workspace pages share the same layers as chat, sidebar, and settings.
     pub fn workspace(cx: &App) -> Self {
-        let mut theme = Self::current(cx);
-        if theme.is_dark {
-            theme.surface = rgb(0x191A1C).into();
-            theme.raised = rgb(0x222326).into();
-            theme.inset = rgb(0x151618).into();
-            theme.text = rgb(0xF0F0F2).into();
-            theme.text_secondary = rgb(0xBFC0C5).into();
-            theme.text_tertiary = rgb(0xABADB4).into();
-            theme.text_ghost = rgb(0x9799A1).into();
-        } else {
-            theme.surface = rgb(0xF7F7F8).into();
-            theme.raised = rgb(0xFFFFFF).into();
-            theme.inset = rgb(0xEEEEF0).into();
-            theme.text = rgb(0x202126).into();
-            theme.text_secondary = rgb(0x55575F).into();
-            theme.text_tertiary = rgb(0x62646D).into();
-            theme.text_ghost = rgb(0x676973).into();
-        }
-        theme
+        Self::current(cx)
     }
 
     pub fn current(cx: &App) -> Self {
@@ -125,19 +110,19 @@ impl Theme {
     pub fn dark() -> Self {
         Self {
             is_dark: true,
-            canvas: rgb(0x14201B).into(),
+            canvas: rgb(0x181B19).into(),
             sidebar: if cfg!(target_os = "macos") {
                 transparent_black()
             } else {
-                rgb(0x10201A).into()
+                rgb(0x141715).into()
             },
-            sidebar_drag_background: rgb(0x10201A).into(),
+            sidebar_drag_background: rgb(0x141715).into(),
             sidebar_item_background: hsla(0.0, 0.0, 0.941, 0.06),
-            surface: rgb(0x14201B).into(),
-            raised: rgb(0x20332A).into(),
-            composer: rgb(0x1D2E25).into(),
-            inset: rgb(0x111C17).into(),
-            terminal: rgb(0x111C17).into(),
+            surface: rgb(0x1D201E).into(),
+            raised: rgb(0x272B28).into(),
+            composer: rgb(0x222623).into(),
+            inset: rgb(0x131614).into(),
+            terminal: rgb(0x131614).into(),
             overlay: hsla(220.0 / 360.0, 0.10, 0.90, 0.05),
             overlay_strong: hsla(220.0 / 360.0, 0.10, 0.90, 0.09),
 
@@ -145,12 +130,15 @@ impl Theme {
             border_strong: hsla(220.0 / 360.0, 0.10, 0.90, 0.14),
             sidebar_border: hsla(126.93 / 360.0, 0.000_000_1, 0.16077, 1.0),
 
-            text: rgb(0xEDF5EF).into(),
-            text_secondary: rgb(0xB7C9BD).into(),
-            text_tertiary: rgb(0xA0B3A6).into(),
-            text_ghost: rgb(0x81978A).into(),
+            text: rgb(0xF2F4EF).into(),
+            text_secondary: rgb(0xC2C8C0).into(),
+            text_tertiary: rgb(0xABB3A8).into(),
+            text_ghost: rgb(0x9AA395).into(),
 
-            accent: rgb(0xB9F36B).into(),
+            accent: rgb(0xC2EF68).into(),
+            accent_soft: hsla(80.0 / 360.0, 0.81, 0.67, 0.12),
+            primary: rgb(0xC2EF68).into(),
+            on_primary: rgb(0x1B2510).into(),
             resize_handle: rgb(0x3B82F6).into(),
             gauge: rgb(0x3B82F6).into(),
 
@@ -172,18 +160,18 @@ impl Theme {
     pub fn light() -> Self {
         Self {
             is_dark: false,
-            canvas: rgb(0xEFF5EE).into(),
+            canvas: rgb(0xF5F6F2).into(),
             sidebar: if cfg!(target_os = "macos") {
                 transparent_black()
             } else {
-                rgb(0xE6EEE3).into()
+                rgb(0xECEFE8).into()
             },
-            sidebar_drag_background: rgb(0xE6EEE3).into(),
+            sidebar_drag_background: rgb(0xECEFE8).into(),
             sidebar_item_background: hsla(0.0, 0.0, 0.078, 0.06),
-            surface: rgb(0xEFF5EE).into(),
-            raised: rgb(0xE2ECDF).into(),
+            surface: rgb(0xFAFBF8).into(),
+            raised: rgb(0xFFFFFF).into(),
             composer: rgb(0xFFFFFF).into(),
-            inset: rgb(0xDAE5D7).into(),
+            inset: rgb(0xEBEEE7).into(),
             terminal: rgb(0xFFFFFF).into(),
             overlay: hsla(220.0 / 360.0, 0.10, 0.12, 0.05),
             overlay_strong: hsla(220.0 / 360.0, 0.10, 0.12, 0.09),
@@ -192,12 +180,15 @@ impl Theme {
             border_strong: hsla(220.0 / 360.0, 0.10, 0.12, 0.15),
             sidebar_border: hsla(0.0, 0.0, 0.078, 0.12),
 
-            text: rgb(0x16251A).into(),
-            text_secondary: rgb(0x465C4A).into(),
-            text_tertiary: rgb(0x526B56).into(),
-            text_ghost: rgb(0x627766).into(),
+            text: rgb(0x20271F).into(),
+            text_secondary: rgb(0x505B4D).into(),
+            text_tertiary: rgb(0x606B5C).into(),
+            text_ghost: rgb(0x626D5E).into(),
 
-            accent: rgb(0x38621B).into(),
+            accent: rgb(0x47651B).into(),
+            accent_soft: hsla(80.0 / 360.0, 0.55, 0.34, 0.10),
+            primary: rgb(0xC2EF68).into(),
+            on_primary: rgb(0x1B2510).into(),
             resize_handle: rgb(0x2563EB).into(),
             gauge: rgb(0x2563EB).into(),
 
@@ -208,10 +199,10 @@ impl Theme {
             inverse: rgb(0x202227).into(),
             on_inverse: rgb(0xF8F8F9).into(),
 
-            warning: rgb(0xA66B20).into(),
-            success: rgb(0x2F8F52).into(),
+            warning: rgb(0x875014).into(),
+            success: rgb(0x237640).into(),
             favorite: rgb(0xCA8A04).into(),
-            danger: rgb(0xC64A42).into(),
+            danger: rgb(0xAC3933).into(),
             danger_soft: hsla(4.0 / 360.0, 0.55, 0.52, 0.10),
         }
     }

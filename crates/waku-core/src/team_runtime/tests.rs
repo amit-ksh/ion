@@ -277,6 +277,13 @@ impl Fixture {
         }
     }
     fn until(&self, condition: impl Fn(&TeamRunSnapshot) -> bool) -> TeamRunSnapshot {
+        self.wait_for(condition, true)
+    }
+    fn wait_for(
+        &self,
+        condition: impl Fn(&TeamRunSnapshot) -> bool,
+        tick: bool,
+    ) -> TeamRunSnapshot {
         // Disk-backed native execution may progress beyond 30s on Windows.
         // Fail a true 30s stall, and retain a separate finite overall bound.
         let deadline = Instant::now() + Duration::from_secs(180);
@@ -284,7 +291,9 @@ impl Fixture {
         let mut observed = None;
         let mut after = None;
         loop {
-            self.runtime.tick(&mut after).unwrap();
+            if tick {
+                self.runtime.tick(&mut after).unwrap();
+            }
             let run = self.runtime.coordinator.snapshot(self.run.id).unwrap();
             let progress = (
                 run.status,
@@ -666,15 +675,9 @@ fn team_background_scheduler_runs_saved_queue_and_starts_only_once() {
     let f = Fixture::new(64);
     f.runtime.start(RuntimePublisher::for_test()).unwrap();
     assert!(f.runtime.start(RuntimePublisher::for_test()).is_err());
-    let deadline = Instant::now() + Duration::from_secs(30);
-    loop {
-        let run = f.runtime.coordinator.snapshot(f.run.id).unwrap();
-        if run.status == TeamRunStatus::Completed && f.runtime.jobs.lock().is_empty() {
-            break;
-        }
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(20));
-    }
+    // Observe the autonomous scheduler without helping it dispatch. As with
+    // foreground dispatch, bound stalls separately from progressing disk work.
+    f.wait_for(|run| run.status == TeamRunStatus::Completed, false);
     assert_eq!(f.script.starts.lock().len(), 5);
     f.runtime.shutdown();
     let scheduler = f.runtime.scheduler.lock().take().unwrap();

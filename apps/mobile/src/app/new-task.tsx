@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -60,6 +61,7 @@ import {
 } from '@/lib/model-traits';
 import { useRuntime } from '@/lib/runtime-context';
 import { providerLabel } from '@/lib/session-presentation';
+import { mobileHarness } from '@/lib/mobile-capabilities';
 
 type SheetKind =
   | 'daemon'
@@ -67,10 +69,11 @@ type SheetKind =
   | 'model'
   | 'traits'
   | 'workspace'
+  | 'setup'
   | 'branch';
 
 export default function NewTaskScreen() {
-  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string}>();
+  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string;project?:string}>();
   const proposalLoaded = useRef<string | null>(null);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -155,11 +158,11 @@ export default function NewTaskScreen() {
       setRuntimeMode(extras.runtimeMode);
       setIsolated(extras.isolated);
       if (extras.projectId) setProjectId(extras.projectId);
-      setProvider('nebius');
-      setModel(prefs.lastProvider === 'nebius' ? prefs.lastModel : null);
-      setReasoningEffort(prefs.lastProvider === 'nebius' ? prefs.lastReasoningEffort : null);
-      setServiceTier(prefs.lastProvider === 'nebius' ? prefs.lastServiceTier : null);
-      setContextWindow(prefs.lastProvider === 'nebius' ? prefs.lastContextWindow : null);
+      setProvider(mobileHarness(prefs.lastProvider) ? prefs.lastProvider : null);
+      setModel(mobileHarness(prefs.lastProvider) ? prefs.lastModel : null);
+      setReasoningEffort(mobileHarness(prefs.lastProvider) ? prefs.lastReasoningEffort : null);
+      setServiceTier(mobileHarness(prefs.lastProvider) ? prefs.lastServiceTier : null);
+      setContextWindow(mobileHarness(prefs.lastProvider) ? prefs.lastContextWindow : null);
       preferencesRef.current = prefs;
       setRestoredAddress(address);
     })();
@@ -212,6 +215,10 @@ export default function NewTaskScreen() {
     runtimeMode,
     serviceTier,
   ]);
+
+  useEffect(() => {
+    if (proposalParams.project && taskState.data?.projects.some(project => project.id === proposalParams.project)) setProjectId(proposalParams.project);
+  }, [proposalParams.project, taskState.data?.projects]);
 
   // Cross-device draft: hydrate again whenever this surface becomes active,
   // but persist only real local edits. Echoing a hydrated value would let a
@@ -388,22 +395,96 @@ export default function NewTaskScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.background }]}>
       {/* Title and back button are the native navigation bar's; keep clear of it. */}
       <View style={{ height: headerInset }} />
-      <View style={styles.spacer} />
+      <View style={{ flex: 1, paddingHorizontal: 24 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Choose model: ${modelLabel}`} onPress={() => setOpenSheet('model')}
+          style={{ minHeight: 48, alignSelf: 'center', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <Text numberOfLines={1} style={{ color: theme.text, fontSize: 17, fontWeight: '600', flexShrink: 1 }}>{modelLabel}</Text>
+          <AppSymbol name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={18} tintColor={theme.textSecondary} />
+        </Pressable>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 28, fontWeight: '600', textAlign: 'center' }}>What can we work on?</Text>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Conversation setup" onPress={() => setOpenSheet('setup')}
+          style={{ minHeight: 48, flexDirection: 'row', gap: 8, alignItems: 'center', alignSelf: 'center' }}>
+          <AppSymbol name={{ ios: 'folder', android: 'folder_open', web: 'folder_open' }} size={17} tintColor={theme.textSecondary} />
+          <Text numberOfLines={1} style={{ color: theme.textSecondary, flexShrink: 1 }}>{selectedProject?.name ?? 'Choose project'} · {daemon.activeProfile?.name ?? 'Desktop'}</Text>
+          <AppSymbol name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }} size={17} tintColor={theme.textSecondary} />
+        </Pressable>
+      </View>
+      <View style={[styles.composerShell, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        {error && (
+          <View
+            accessibilityLiveRegion="polite"
+            style={[styles.error, { backgroundColor: theme.dangerSoft }]}>
+            <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+          </View>
+        )}
+        <LiveDictationPreview text={speechPreview} />
+        <ComposerCard
+          {...contextPicker.inputProps}
+          accessibilityLabel="Task prompt"
+          editable={!submitting}
+          left={(
+            <>
+              <ComposerAddMenu
+                disabled={submitting || daemon.phase !== 'connected' || !selectedProject || !provider}
+                onChooseContext={contextPicker.open}
+              />
+              <ComposerAccessMenu
+                mode={runtimeMode}
+                onApply={setRuntimeMode}
+              />
+            </>
+          )}
+          placeholder="Message Ion"
+          right={(
+            <>
+              <PhoneDictationControl
+                client={daemon.client}
+                onPreview={setSpeechPreview}
+                contextKey={`new-task:${projectId ?? ''}:${provider ?? ''}`}
+                host={daemon.activeProfile?.name ?? 'the selected daemon'}
+                disabled={submitting || daemon.phase !== 'connected'}
+                onError={setError}
+                onTranscript={(text) => {
+                  draftSync.markEdited();
+                  setPrompt((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
+                }}
+              />
+              {activeModel && modelHasConfigurableTraits(activeModel) && (
+                <ComposerIconButton
+                  icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
+                  label="Model options"
+                  onPress={() => setOpenSheet('traits')}
+                />
+              )}
+              <SendButton
+                busy={submitting}
+                disabled={startDisabled}
+                label="Start task"
+                onPress={() => void start()}
+              />
+            </>
+          )}
+          value={prompt}
+        />
+      </View>
 
-      <View style={styles.rows}>
+      <Sheet onDismiss={() => setOpenSheet(null)} title="Conversation setup" visible={openSheet === 'setup'}>
+      <View style={[styles.rows, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <SelectorRow
           icon={{ ios: 'laptopcomputer', android: 'laptop_mac', web: 'laptop_mac' }}
-          label="Daemon"
+          label="Desktop"
           loading={
             daemon.phase === 'connecting'
             || daemon.phase === 'booting'
             || daemon.phase === 'reconnecting'
           }
-          value={daemon.activeProfile?.name ?? 'Add a daemon'}
+          value={daemon.activeProfile?.name ?? 'Pair desktop'}
           onPress={() => setOpenSheet('daemon')}
         />
         <SelectorRow
@@ -437,65 +518,7 @@ export default function NewTaskScreen() {
         )}
       </View>
 
-      <View style={[styles.composerShell, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {error && (
-          <View
-            accessibilityLiveRegion="polite"
-            style={[styles.error, { backgroundColor: theme.dangerSoft }]}>
-            <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
-          </View>
-        )}
-        <LiveDictationPreview text={speechPreview} />
-        <ComposerCard
-          {...contextPicker.inputProps}
-          accessibilityLabel="Task prompt"
-          autoFocus
-          editable={!submitting}
-          left={(
-            <>
-              <ComposerAddMenu
-                disabled={submitting || daemon.phase !== 'connected' || !selectedProject || !provider}
-                onChooseContext={contextPicker.open}
-              />
-              <ComposerAccessMenu
-                mode={runtimeMode}
-                onApply={setRuntimeMode}
-              />
-            </>
-          )}
-          placeholder={`Work on ${daemon.activeProfile?.name ?? 'your daemon'}`}
-          right={(
-            <>
-              <PhoneDictationControl
-                client={daemon.client}
-                onPreview={setSpeechPreview}
-                contextKey={`new-task:${projectId ?? ''}:${provider ?? ''}`}
-                host={daemon.activeProfile?.name ?? 'the selected daemon'}
-                disabled={submitting || daemon.phase !== 'connected'}
-                onError={setError}
-                onTranscript={(text) => {
-                  draftSync.markEdited();
-                  setPrompt((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
-                }}
-              />
-              {activeModel && modelHasConfigurableTraits(activeModel) && (
-                <ComposerIconButton
-                  icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
-                  label="Model options"
-                  onPress={() => setOpenSheet('traits')}
-                />
-              )}
-              <SendButton
-                busy={submitting}
-                disabled={startDisabled}
-                label="Start task"
-                onPress={() => void start()}
-              />
-            </>
-          )}
-          value={prompt}
-        />
-      </View>
+      </Sheet>
 
       <DaemonPickerSheet
         onDismiss={() => setOpenSheet(null)}
@@ -644,8 +667,9 @@ function SelectorRow({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  spacer: { flex: 1 },
-  rows: { gap: 2, paddingBottom: 8, paddingHorizontal: Spacing.three },
+  configuration: { flex: 1 },
+  configurationContent: { flexGrow: 1, justifyContent: 'flex-end', padding: 16 },
+  rows: { gap: 2, padding: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.large },
   row: {
     alignItems: 'center',
     borderRadius: Radius.medium,

@@ -1690,6 +1690,7 @@ pub use skills_page::init as init_skills_keys;
 use streaming::*;
 use transcript::*;
 use transcript_view::ConversationNavigationRail;
+pub use workspace_control::init as init_workspace_control_keys;
 
 /// Collapse provider- or page-supplied text into a label that cannot contain
 /// hard line breaks. GPUI's `truncate()` prevents wrapping, but explicit
@@ -1985,6 +1986,7 @@ impl Waku {
         let composer_draft_store = ComposerDraftStore::remote(daemon.clone());
         let composer_drafts = composer_draft_store.load().unwrap_or_default();
         let mut state = store.load_or_fresh(cwd);
+        state.sidebar_grouping = SidebarGrouping::Project;
         if waku_protocol::distribution::DistributionProfile::current()
             == waku_protocol::distribution::DistributionProfile::NebiusHackathon
             && let Some(project_id) = state
@@ -2718,7 +2720,11 @@ impl Waku {
                 &session_rename_input,
                 |this: &mut Self, _, event: &InputEvent, cx| match event {
                     InputEvent::Submit(_) => this.commit_session_rename(cx),
-                    InputEvent::Edited if this.session_rename.is_some() || this.project_rename.is_some() => cx.notify(),
+                    InputEvent::Edited
+                        if this.session_rename.is_some() || this.project_rename.is_some() =>
+                    {
+                        cx.notify()
+                    }
                     _ => {}
                 },
             )

@@ -1,0 +1,884 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-21T01:10:24.365Z",
+  "title": "Design System: Ion",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Ion Lime",
+        "tonalRamp": [
+          "oklch(15% 0.1697 125.15)",
+          "oklch(26.43% 0.1697 125.15)",
+          "oklch(37.86% 0.1697 125.15)",
+          "oklch(49.29% 0.1697 125.15)",
+          "oklch(60.71% 0.1697 125.15)",
+          "oklch(72.14% 0.1697 125.15)",
+          "oklch(83.57% 0.1697 125.15)",
+          "oklch(95% 0.1697 125.15)"
+        ]
+      },
+      "on-primary": {
+        "role": "neutral",
+        "displayName": "Ink on Lime",
+        "tonalRamp": [
+          "oklch(15% 0.0396 129.71)",
+          "oklch(26.43% 0.0396 129.71)",
+          "oklch(37.86% 0.0396 129.71)",
+          "oklch(49.29% 0.0396 129.71)",
+          "oklch(60.71% 0.0396 129.71)",
+          "oklch(72.14% 0.0396 129.71)",
+          "oklch(83.57% 0.0396 129.71)",
+          "oklch(95% 0.0396 129.71)"
+        ]
+      },
+      "dark-canvas": {
+        "role": "neutral",
+        "displayName": "Charcoal Canvas",
+        "tonalRamp": [
+          "oklch(15% 0.0060 156.70)",
+          "oklch(26.43% 0.0060 156.70)",
+          "oklch(37.86% 0.0060 156.70)",
+          "oklch(49.29% 0.0060 156.70)",
+          "oklch(60.71% 0.0060 156.70)",
+          "oklch(72.14% 0.0060 156.70)",
+          "oklch(83.57% 0.0060 156.70)",
+          "oklch(95% 0.0060 156.70)"
+        ]
+      },
+      "dark-sidebar": {
+        "role": "neutral",
+        "displayName": "Deep Sidebar",
+        "tonalRamp": [
+          "oklch(15% 0.0061 156.63)",
+          "oklch(26.43% 0.0061 156.63)",
+          "oklch(37.86% 0.0061 156.63)",
+          "oklch(49.29% 0.0061 156.63)",
+          "oklch(60.71% 0.0061 156.63)",
+          "oklch(72.14% 0.0061 156.63)",
+          "oklch(83.57% 0.0061 156.63)",
+          "oklch(95% 0.0061 156.63)"
+        ]
+      },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "Object Surface — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0058 156.76)",
+          "oklch(26.43% 0.0058 156.76)",
+          "oklch(37.86% 0.0058 156.76)",
+          "oklch(49.29% 0.0058 156.76)",
+          "oklch(60.71% 0.0058 156.76)",
+          "oklch(72.14% 0.0058 156.76)",
+          "oklch(83.57% 0.0058 156.76)",
+          "oklch(95% 0.0058 156.76)"
+        ]
+      },
+      "dark-raised": {
+        "role": "neutral",
+        "displayName": "Raised Neutral — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0078 153.40)",
+          "oklch(26.43% 0.0078 153.40)",
+          "oklch(37.86% 0.0078 153.40)",
+          "oklch(49.29% 0.0078 153.40)",
+          "oklch(60.71% 0.0078 153.40)",
+          "oklch(72.14% 0.0078 153.40)",
+          "oklch(83.57% 0.0078 153.40)",
+          "oklch(95% 0.0078 153.40)"
+        ]
+      },
+      "dark-composer": {
+        "role": "neutral",
+        "displayName": "Composer Charcoal",
+        "tonalRamp": [
+          "oklch(15% 0.0080 153.35)",
+          "oklch(26.43% 0.0080 153.35)",
+          "oklch(37.86% 0.0080 153.35)",
+          "oklch(49.29% 0.0080 153.35)",
+          "oklch(60.71% 0.0080 153.35)",
+          "oklch(72.14% 0.0080 153.35)",
+          "oklch(83.57% 0.0080 153.35)",
+          "oklch(95% 0.0080 153.35)"
+        ]
+      },
+      "dark-inset": {
+        "role": "neutral",
+        "displayName": "Inset Charcoal",
+        "tonalRamp": [
+          "oklch(15% 0.0061 156.62)",
+          "oklch(26.43% 0.0061 156.62)",
+          "oklch(37.86% 0.0061 156.62)",
+          "oklch(49.29% 0.0061 156.62)",
+          "oklch(60.71% 0.0061 156.62)",
+          "oklch(72.14% 0.0061 156.62)",
+          "oklch(83.57% 0.0061 156.62)",
+          "oklch(95% 0.0061 156.62)"
+        ]
+      },
+      "dark-text": {
+        "role": "neutral",
+        "displayName": "Primary Ink — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0069 124.45)",
+          "oklch(26.43% 0.0069 124.45)",
+          "oklch(37.86% 0.0069 124.45)",
+          "oklch(49.29% 0.0069 124.45)",
+          "oklch(60.71% 0.0069 124.45)",
+          "oklch(72.14% 0.0069 124.45)",
+          "oklch(83.57% 0.0069 124.45)",
+          "oklch(95% 0.0069 124.45)"
+        ]
+      },
+      "dark-text-secondary": {
+        "role": "neutral",
+        "displayName": "Supporting Ink — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0128 137.79)",
+          "oklch(26.43% 0.0128 137.79)",
+          "oklch(37.86% 0.0128 137.79)",
+          "oklch(49.29% 0.0128 137.79)",
+          "oklch(60.71% 0.0128 137.79)",
+          "oklch(72.14% 0.0128 137.79)",
+          "oklch(83.57% 0.0128 137.79)",
+          "oklch(95% 0.0128 137.79)"
+        ]
+      },
+      "dark-text-tertiary": {
+        "role": "neutral",
+        "displayName": "Metadata Ink — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0178 137.04)",
+          "oklch(26.43% 0.0178 137.04)",
+          "oklch(37.86% 0.0178 137.04)",
+          "oklch(49.29% 0.0178 137.04)",
+          "oklch(60.71% 0.0178 137.04)",
+          "oklch(72.14% 0.0178 137.04)",
+          "oklch(83.57% 0.0178 137.04)",
+          "oklch(95% 0.0178 137.04)"
+        ]
+      },
+      "dark-text-ghost": {
+        "role": "neutral",
+        "displayName": "Quiet Ink — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0225 134.15)",
+          "oklch(26.43% 0.0225 134.15)",
+          "oklch(37.86% 0.0225 134.15)",
+          "oklch(49.29% 0.0225 134.15)",
+          "oklch(60.71% 0.0225 134.15)",
+          "oklch(72.14% 0.0225 134.15)",
+          "oklch(83.57% 0.0225 134.15)",
+          "oklch(95% 0.0225 134.15)"
+        ]
+      },
+      "dark-border": {
+        "role": "neutral",
+        "displayName": "Dark Border",
+        "tonalRamp": [
+          "oklch(15% 0.0049 264.53)",
+          "oklch(26.43% 0.0049 264.53)",
+          "oklch(37.86% 0.0049 264.53)",
+          "oklch(49.29% 0.0049 264.53)",
+          "oklch(60.71% 0.0049 264.53)",
+          "oklch(72.14% 0.0049 264.53)",
+          "oklch(83.57% 0.0049 264.53)",
+          "oklch(95% 0.0049 264.53)"
+        ]
+      },
+      "dark-border-strong": {
+        "role": "neutral",
+        "displayName": "Dark Border Strong",
+        "tonalRamp": [
+          "oklch(15% 0.0049 264.53)",
+          "oklch(26.43% 0.0049 264.53)",
+          "oklch(37.86% 0.0049 264.53)",
+          "oklch(49.29% 0.0049 264.53)",
+          "oklch(60.71% 0.0049 264.53)",
+          "oklch(72.14% 0.0049 264.53)",
+          "oklch(83.57% 0.0049 264.53)",
+          "oklch(95% 0.0049 264.53)"
+        ]
+      },
+      "dark-overlay": {
+        "role": "neutral",
+        "displayName": "Dark Overlay",
+        "tonalRamp": [
+          "oklch(15% 0.0049 264.53)",
+          "oklch(26.43% 0.0049 264.53)",
+          "oklch(37.86% 0.0049 264.53)",
+          "oklch(49.29% 0.0049 264.53)",
+          "oklch(60.71% 0.0049 264.53)",
+          "oklch(72.14% 0.0049 264.53)",
+          "oklch(83.57% 0.0049 264.53)",
+          "oklch(95% 0.0049 264.53)"
+        ]
+      },
+      "dark-overlay-strong": {
+        "role": "neutral",
+        "displayName": "Dark Overlay Strong",
+        "tonalRamp": [
+          "oklch(15% 0.0049 264.53)",
+          "oklch(26.43% 0.0049 264.53)",
+          "oklch(37.86% 0.0049 264.53)",
+          "oklch(49.29% 0.0049 264.53)",
+          "oklch(60.71% 0.0049 264.53)",
+          "oklch(72.14% 0.0049 264.53)",
+          "oklch(83.57% 0.0049 264.53)",
+          "oklch(95% 0.0049 264.53)"
+        ]
+      },
+      "desktop-dark-accent-soft": {
+        "role": "primary",
+        "displayName": "Desktop Dark Accent Soft",
+        "tonalRamp": [
+          "oklch(15% 0.1710 125.19)",
+          "oklch(26.43% 0.1710 125.19)",
+          "oklch(37.86% 0.1710 125.19)",
+          "oklch(49.29% 0.1710 125.19)",
+          "oklch(60.71% 0.1710 125.19)",
+          "oklch(72.14% 0.1710 125.19)",
+          "oklch(83.57% 0.1710 125.19)",
+          "oklch(95% 0.1710 125.19)"
+        ]
+      },
+      "mobile-dark-accent-soft": {
+        "role": "primary",
+        "displayName": "Mobile Dark Accent Soft",
+        "tonalRamp": [
+          "oklch(15% 0.1697 125.15)",
+          "oklch(26.43% 0.1697 125.15)",
+          "oklch(37.86% 0.1697 125.15)",
+          "oklch(49.29% 0.1697 125.15)",
+          "oklch(60.71% 0.1697 125.15)",
+          "oklch(72.14% 0.1697 125.15)",
+          "oklch(83.57% 0.1697 125.15)",
+          "oklch(95% 0.1697 125.15)"
+        ]
+      },
+      "mobile-dark-selected": {
+        "role": "neutral",
+        "displayName": "Mobile Dark Selected",
+        "tonalRamp": [
+          "oklch(15% 0.0378 128.97)",
+          "oklch(26.43% 0.0378 128.97)",
+          "oklch(37.86% 0.0378 128.97)",
+          "oklch(49.29% 0.0378 128.97)",
+          "oklch(60.71% 0.0378 128.97)",
+          "oklch(72.14% 0.0378 128.97)",
+          "oklch(83.57% 0.0378 128.97)",
+          "oklch(95% 0.0378 128.97)"
+        ]
+      },
+      "dark-success": {
+        "role": "semantic",
+        "displayName": "Dark Success",
+        "tonalRamp": [
+          "oklch(15% 0.1361 153.55)",
+          "oklch(26.43% 0.1361 153.55)",
+          "oklch(37.86% 0.1361 153.55)",
+          "oklch(49.29% 0.1361 153.55)",
+          "oklch(60.71% 0.1361 153.55)",
+          "oklch(72.14% 0.1361 153.55)",
+          "oklch(83.57% 0.1361 153.55)",
+          "oklch(95% 0.1361 153.55)"
+        ]
+      },
+      "dark-warning": {
+        "role": "semantic",
+        "displayName": "Dark Warning",
+        "tonalRamp": [
+          "oklch(15% 0.1051 78.43)",
+          "oklch(26.43% 0.1051 78.43)",
+          "oklch(37.86% 0.1051 78.43)",
+          "oklch(49.29% 0.1051 78.43)",
+          "oklch(60.71% 0.1051 78.43)",
+          "oklch(72.14% 0.1051 78.43)",
+          "oklch(83.57% 0.1051 78.43)",
+          "oklch(95% 0.1051 78.43)"
+        ]
+      },
+      "dark-danger": {
+        "role": "semantic",
+        "displayName": "Dark Danger",
+        "tonalRamp": [
+          "oklch(15% 0.1409 25.65)",
+          "oklch(26.43% 0.1409 25.65)",
+          "oklch(37.86% 0.1409 25.65)",
+          "oklch(49.29% 0.1409 25.65)",
+          "oklch(60.71% 0.1409 25.65)",
+          "oklch(72.14% 0.1409 25.65)",
+          "oklch(83.57% 0.1409 25.65)",
+          "oklch(95% 0.1409 25.65)"
+        ]
+      },
+      "light-canvas": {
+        "role": "neutral",
+        "displayName": "Warm Workbench Canvas",
+        "tonalRamp": [
+          "oklch(15% 0.0054 117.92)",
+          "oklch(26.43% 0.0054 117.92)",
+          "oklch(37.86% 0.0054 117.92)",
+          "oklch(49.29% 0.0054 117.92)",
+          "oklch(60.71% 0.0054 117.92)",
+          "oklch(72.14% 0.0054 117.92)",
+          "oklch(83.57% 0.0054 117.92)",
+          "oklch(95% 0.0054 117.92)"
+        ]
+      },
+      "light-sidebar": {
+        "role": "neutral",
+        "displayName": "Pale Sidebar",
+        "tonalRamp": [
+          "oklch(15% 0.0098 125.68)",
+          "oklch(26.43% 0.0098 125.68)",
+          "oklch(37.86% 0.0098 125.68)",
+          "oklch(49.29% 0.0098 125.68)",
+          "oklch(60.71% 0.0098 125.68)",
+          "oklch(72.14% 0.0098 125.68)",
+          "oklch(83.57% 0.0098 125.68)",
+          "oklch(95% 0.0098 125.68)"
+        ]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "Object Surface — Light",
+        "tonalRamp": [
+          "oklch(15% 0.0041 121.56)",
+          "oklch(26.43% 0.0041 121.56)",
+          "oklch(37.86% 0.0041 121.56)",
+          "oklch(49.29% 0.0041 121.56)",
+          "oklch(60.71% 0.0041 121.56)",
+          "oklch(72.14% 0.0041 121.56)",
+          "oklch(83.57% 0.0041 121.56)",
+          "oklch(95% 0.0041 121.56)"
+        ]
+      },
+      "light-raised": {
+        "role": "neutral",
+        "displayName": "White Raised Surface",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "light-inset": {
+        "role": "neutral",
+        "displayName": "Pale Inset Well",
+        "tonalRamp": [
+          "oklch(15% 0.0098 125.68)",
+          "oklch(26.43% 0.0098 125.68)",
+          "oklch(37.86% 0.0098 125.68)",
+          "oklch(49.29% 0.0098 125.68)",
+          "oklch(60.71% 0.0098 125.68)",
+          "oklch(72.14% 0.0098 125.68)",
+          "oklch(83.57% 0.0098 125.68)",
+          "oklch(95% 0.0098 125.68)"
+        ]
+      },
+      "light-text": {
+        "role": "neutral",
+        "displayName": "Primary Ink — Light",
+        "tonalRamp": [
+          "oklch(15% 0.0177 141.64)",
+          "oklch(26.43% 0.0177 141.64)",
+          "oklch(37.86% 0.0177 141.64)",
+          "oklch(49.29% 0.0177 141.64)",
+          "oklch(60.71% 0.0177 141.64)",
+          "oklch(72.14% 0.0177 141.64)",
+          "oklch(83.57% 0.0177 141.64)",
+          "oklch(95% 0.0177 141.64)"
+        ]
+      },
+      "light-text-secondary": {
+        "role": "neutral",
+        "displayName": "Supporting Ink — Light",
+        "tonalRamp": [
+          "oklch(15% 0.0262 138.99)",
+          "oklch(26.43% 0.0262 138.99)",
+          "oklch(37.86% 0.0262 138.99)",
+          "oklch(49.29% 0.0262 138.99)",
+          "oklch(60.71% 0.0262 138.99)",
+          "oklch(72.14% 0.0262 138.99)",
+          "oklch(83.57% 0.0262 138.99)",
+          "oklch(95% 0.0262 138.99)"
+        ]
+      },
+      "light-text-tertiary": {
+        "role": "neutral",
+        "displayName": "Metadata Ink — Light",
+        "tonalRamp": [
+          "oklch(15% 0.0268 137.32)",
+          "oklch(26.43% 0.0268 137.32)",
+          "oklch(37.86% 0.0268 137.32)",
+          "oklch(49.29% 0.0268 137.32)",
+          "oklch(60.71% 0.0268 137.32)",
+          "oklch(72.14% 0.0268 137.32)",
+          "oklch(83.57% 0.0268 137.32)",
+          "oklch(95% 0.0268 137.32)"
+        ]
+      },
+      "light-text-ghost": {
+        "role": "neutral",
+        "displayName": "Quiet Ink — Light",
+        "tonalRamp": [
+          "oklch(15% 0.0267 137.31)",
+          "oklch(26.43% 0.0267 137.31)",
+          "oklch(37.86% 0.0267 137.31)",
+          "oklch(49.29% 0.0267 137.31)",
+          "oklch(60.71% 0.0267 137.31)",
+          "oklch(72.14% 0.0267 137.31)",
+          "oklch(83.57% 0.0267 137.31)",
+          "oklch(95% 0.0267 137.31)"
+        ]
+      },
+      "light-border": {
+        "role": "neutral",
+        "displayName": "Light Border",
+        "tonalRamp": [
+          "oklch(15% 0.0084 264.40)",
+          "oklch(26.43% 0.0084 264.40)",
+          "oklch(37.86% 0.0084 264.40)",
+          "oklch(49.29% 0.0084 264.40)",
+          "oklch(60.71% 0.0084 264.40)",
+          "oklch(72.14% 0.0084 264.40)",
+          "oklch(83.57% 0.0084 264.40)",
+          "oklch(95% 0.0084 264.40)"
+        ]
+      },
+      "light-border-strong": {
+        "role": "neutral",
+        "displayName": "Light Border Strong",
+        "tonalRamp": [
+          "oklch(15% 0.0084 264.40)",
+          "oklch(26.43% 0.0084 264.40)",
+          "oklch(37.86% 0.0084 264.40)",
+          "oklch(49.29% 0.0084 264.40)",
+          "oklch(60.71% 0.0084 264.40)",
+          "oklch(72.14% 0.0084 264.40)",
+          "oklch(83.57% 0.0084 264.40)",
+          "oklch(95% 0.0084 264.40)"
+        ]
+      },
+      "light-overlay": {
+        "role": "neutral",
+        "displayName": "Light Overlay",
+        "tonalRamp": [
+          "oklch(15% 0.0084 264.40)",
+          "oklch(26.43% 0.0084 264.40)",
+          "oklch(37.86% 0.0084 264.40)",
+          "oklch(49.29% 0.0084 264.40)",
+          "oklch(60.71% 0.0084 264.40)",
+          "oklch(72.14% 0.0084 264.40)",
+          "oklch(83.57% 0.0084 264.40)",
+          "oklch(95% 0.0084 264.40)"
+        ]
+      },
+      "light-overlay-strong": {
+        "role": "neutral",
+        "displayName": "Light Overlay Strong",
+        "tonalRamp": [
+          "oklch(15% 0.0084 264.40)",
+          "oklch(26.43% 0.0084 264.40)",
+          "oklch(37.86% 0.0084 264.40)",
+          "oklch(49.29% 0.0084 264.40)",
+          "oklch(60.71% 0.0084 264.40)",
+          "oklch(72.14% 0.0084 264.40)",
+          "oklch(83.57% 0.0084 264.40)",
+          "oklch(95% 0.0084 264.40)"
+        ]
+      },
+      "light-accent": {
+        "role": "primary",
+        "displayName": "Leaf Ink",
+        "tonalRamp": [
+          "oklch(15% 0.1065 129.02)",
+          "oklch(26.43% 0.1065 129.02)",
+          "oklch(37.86% 0.1065 129.02)",
+          "oklch(49.29% 0.1065 129.02)",
+          "oklch(60.71% 0.1065 129.02)",
+          "oklch(72.14% 0.1065 129.02)",
+          "oklch(83.57% 0.1065 129.02)",
+          "oklch(95% 0.1065 129.02)"
+        ]
+      },
+      "desktop-light-accent-soft": {
+        "role": "primary",
+        "displayName": "Desktop Light Accent Soft",
+        "tonalRamp": [
+          "oklch(15% 0.1269 126.15)",
+          "oklch(26.43% 0.1269 126.15)",
+          "oklch(37.86% 0.1269 126.15)",
+          "oklch(49.29% 0.1269 126.15)",
+          "oklch(60.71% 0.1269 126.15)",
+          "oklch(72.14% 0.1269 126.15)",
+          "oklch(83.57% 0.1269 126.15)",
+          "oklch(95% 0.1269 126.15)"
+        ]
+      },
+      "mobile-light-accent-soft": {
+        "role": "primary",
+        "displayName": "Mobile Light Accent Soft",
+        "tonalRamp": [
+          "oklch(15% 0.1291 127.44)",
+          "oklch(26.43% 0.1291 127.44)",
+          "oklch(37.86% 0.1291 127.44)",
+          "oklch(49.29% 0.1291 127.44)",
+          "oklch(60.71% 0.1291 127.44)",
+          "oklch(72.14% 0.1291 127.44)",
+          "oklch(83.57% 0.1291 127.44)",
+          "oklch(95% 0.1291 127.44)"
+        ]
+      },
+      "mobile-light-selected": {
+        "role": "neutral",
+        "displayName": "Mobile Light Selected",
+        "tonalRamp": [
+          "oklch(15% 0.0263 123.44)",
+          "oklch(26.43% 0.0263 123.44)",
+          "oklch(37.86% 0.0263 123.44)",
+          "oklch(49.29% 0.0263 123.44)",
+          "oklch(60.71% 0.0263 123.44)",
+          "oklch(72.14% 0.0263 123.44)",
+          "oklch(83.57% 0.0263 123.44)",
+          "oklch(95% 0.0263 123.44)"
+        ]
+      },
+      "light-success": {
+        "role": "semantic",
+        "displayName": "Light Success",
+        "tonalRamp": [
+          "oklch(15% 0.1159 151.15)",
+          "oklch(26.43% 0.1159 151.15)",
+          "oklch(37.86% 0.1159 151.15)",
+          "oklch(49.29% 0.1159 151.15)",
+          "oklch(60.71% 0.1159 151.15)",
+          "oklch(72.14% 0.1159 151.15)",
+          "oklch(83.57% 0.1159 151.15)",
+          "oklch(95% 0.1159 151.15)"
+        ]
+      },
+      "light-warning": {
+        "role": "semantic",
+        "displayName": "Light Warning",
+        "tonalRamp": [
+          "oklch(15% 0.1018 62.30)",
+          "oklch(26.43% 0.1018 62.30)",
+          "oklch(37.86% 0.1018 62.30)",
+          "oklch(49.29% 0.1018 62.30)",
+          "oklch(60.71% 0.1018 62.30)",
+          "oklch(72.14% 0.1018 62.30)",
+          "oklch(83.57% 0.1018 62.30)",
+          "oklch(95% 0.1018 62.30)"
+        ]
+      },
+      "light-danger": {
+        "role": "semantic",
+        "displayName": "Light Danger",
+        "tonalRamp": [
+          "oklch(15% 0.1515 26.86)",
+          "oklch(26.43% 0.1515 26.86)",
+          "oklch(37.86% 0.1515 26.86)",
+          "oklch(49.29% 0.1515 26.86)",
+          "oklch(60.71% 0.1515 26.86)",
+          "oklch(72.14% 0.1515 26.86)",
+          "oklch(83.57% 0.1515 26.86)",
+          "oklch(95% 0.1515 26.86)"
+        ]
+      },
+      "dark-code": {
+        "role": "functional",
+        "displayName": "Warm Code — Dark",
+        "tonalRamp": [
+          "oklch(15% 0.0838 55.29)",
+          "oklch(26.43% 0.0838 55.29)",
+          "oklch(37.86% 0.0838 55.29)",
+          "oklch(49.29% 0.0838 55.29)",
+          "oklch(60.71% 0.0838 55.29)",
+          "oklch(72.14% 0.0838 55.29)",
+          "oklch(83.57% 0.0838 55.29)",
+          "oklch(95% 0.0838 55.29)"
+        ]
+      },
+      "light-code": {
+        "role": "functional",
+        "displayName": "Warm Code — Light",
+        "tonalRamp": [
+          "oklch(15% 0.1086 51.17)",
+          "oklch(26.43% 0.1086 51.17)",
+          "oklch(37.86% 0.1086 51.17)",
+          "oklch(49.29% 0.1086 51.17)",
+          "oklch(60.71% 0.1086 51.17)",
+          "oklch(72.14% 0.1086 51.17)",
+          "oklch(83.57% 0.1086 51.17)",
+          "oklch(95% 0.1086 51.17)"
+        ]
+      },
+      "selection-blue": {
+        "role": "functional",
+        "displayName": "Native Blue",
+        "tonalRamp": [
+          "oklch(15% 0.1880 259.81)",
+          "oklch(26.43% 0.1880 259.81)",
+          "oklch(37.86% 0.1880 259.81)",
+          "oklch(49.29% 0.1880 259.81)",
+          "oklch(60.71% 0.1880 259.81)",
+          "oklch(72.14% 0.1880 259.81)",
+          "oklch(83.57% 0.1880 259.81)",
+          "oklch(95% 0.1880 259.81)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "desktop-heading": {
+        "displayName": "Desktop Page Heading",
+        "purpose": "Native compact workspace heading; authored at the default UI setting, scaled by sp()."
+      },
+      "desktop-section": {
+        "displayName": "Desktop Section",
+        "purpose": "Semibold form titles."
+      },
+      "desktop-body": {
+        "displayName": "Desktop Body",
+        "purpose": "Native workbench body and section copy; content fonts follow their own settings."
+      },
+      "desktop-label": {
+        "displayName": "Desktop Control Label",
+        "purpose": "Compact action and navigation labels; primary button weight is semibold."
+      },
+      "desktop-detail": {
+        "displayName": "Desktop Supporting Copy",
+        "purpose": "Metadata and supporting labels."
+      },
+      "desktop-field": {
+        "displayName": "Desktop Comfortable Input",
+        "purpose": "Single-line TextField comfortable variant."
+      },
+      "mobile-title": {
+        "displayName": "Android Editor Title",
+        "purpose": "Agent/team editor titles using the platform default sans."
+      },
+      "mobile-heading": {
+        "displayName": "Android State Heading",
+        "purpose": "Empty/recovery state heading."
+      },
+      "mobile-section": {
+        "displayName": "Android Form Section",
+        "purpose": "Execution and access group headings."
+      },
+      "mobile-field": {
+        "displayName": "Android Form Text",
+        "purpose": "AutomationField labels and inputs; React Native units scale with the platform."
+      },
+      "mobile-row": {
+        "displayName": "Android Object Label",
+        "purpose": "WorkbenchRow primary text."
+      },
+      "mobile-button": {
+        "displayName": "Android Action Label",
+        "purpose": "WorkbenchButton text."
+      },
+      "mobile-detail": {
+        "displayName": "Android Row Detail",
+        "purpose": "WorkbenchRow supporting text."
+      },
+      "mobile-navigation": {
+        "displayName": "Android Destination Label",
+        "purpose": "Labelled bottom navigation and rail; medium inactive, bold selected."
+      },
+      "mobile-code": {
+        "displayName": "Android Request Code",
+        "purpose": "Monospace approval/request details; desktop code uses bundled JetBrains Mono."
+      }
+    },
+    "shadows": [
+      {
+        "name": "desktop-floating-layer",
+        "value": "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+        "purpose": "GPUI shadow_lg() in floating composer menus/popovers. Derived from the locked f9bad894 GPUI style macro; CSS notation illustrates the two native layers. Not an Android or content-card shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "panel-slide",
+        "value": "200ms ease-out-quint",
+        "purpose": "Existing desktop panel width movement; system reduce motion skips decorative requests. Native easing, not a new CSS animation."
+      },
+      {
+        "name": "spinner-period",
+        "value": "900ms",
+        "purpose": "Existing rotating loader cycle from src/ui/motion.rs; shared self-parking clock, at most 60Hz."
+      },
+      {
+        "name": "pulse-cadence",
+        "value": "30Hz maximum for ordinary pulses",
+        "purpose": "Existing strided pulse clock; expensive views can use roughly 15Hz. Reduce motion holds phase zero and schedules nothing."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "android-navigation-rail",
+        "value": "600dp",
+        "purpose": "Actual Android window-width threshold; 96dp rail replaces compact bottom navigation."
+      },
+      {
+        "name": "desktop-workspace-side-form",
+        "value": "900px remaining content width",
+        "purpose": "Workspace definition form switches from full width to 420px; sidebar/right panel widths are subtracted first."
+      }
+    ],
+    "refinement": {
+      "editorFooter": {
+        "desktopPadding": 20,
+        "mobilePadding": 16,
+        "gap": 8,
+        "equalColumns": true,
+        "savePrimary": true,
+        "outsideClickDismiss": true
+      },
+      "mobileHome": "Model selector, contextual setup entry, conversation and composer.",
+      "mobileCloudServices": false,
+      "source": "docs/ion-redesign/refinement-audit.md"
+    }
+  },
+  "components": [
+    {
+      "name": "Desktop Primary Button",
+      "kind": "button",
+      "refersTo": "desktop-button-primary",
+      "description": "GPUI control_button create/open variant: 32px, 8px corners, visible accent focus, semibold label. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<button class=\"ds-desktop-primary\">New agent</button>",
+      "css": ".ds-desktop-primary {font-family:system-ui,sans-serif;height:32px;padding:0 12px;border:1px solid #c2ef68;border-radius:8px;background:#c2ef68;color:#1b2510;font-size:13px;font-weight:600;cursor:default;} .ds-desktop-primary:hover {opacity:.9;} .ds-desktop-primary:active {opacity:.8;} .ds-desktop-primary:focus-visible {outline:1px solid #c2ef68;outline-offset:2px;}"
+    },
+    {
+      "name": "Desktop Secondary Button — Dark",
+      "kind": "button",
+      "refersTo": "desktop-button-secondary-dark",
+      "description": "GPUI control_button neutral variant. The native focus refinement changes its 1px border to accent. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<button class=\"ds-desktop-secondary\">Reload</button>",
+      "css": ".ds-desktop-secondary {font-family:system-ui,sans-serif;height:32px;padding:0 12px;border:1px solid hsla(220,10%,90%,.14);border-radius:8px;background:#272b28;color:#f2f4ef;font-size:13px;cursor:default;} .ds-desktop-secondary:hover {background:hsla(220,10%,90%,.09);} .ds-desktop-secondary:active {background:hsla(220,10%,90%,.05);} .ds-desktop-secondary:focus-visible {outline:none;border-color:#c2ef68;}"
+    },
+    {
+      "name": "Desktop Comfortable Field — Dark",
+      "kind": "input",
+      "refersTo": "desktop-field-dark",
+      "description": "GPUI TextField::comfortable(): 42px high, inset fill, 14/22 authored text, and focus border. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<label class=\"ds-desktop-field-label\">Name<input class=\"ds-desktop-field\" value=\"Code reviewer\" /></label>",
+      "css": ".ds-desktop-field-label {font-family:system-ui,sans-serif;display:flex;flex-direction:column;gap:6px;color:#f2f4ef;font-size:12.5px;} .ds-desktop-field {font-family:system-ui,sans-serif;height:42px;box-sizing:border-box;padding:0 12px;border:1px solid hsla(220,10%,90%,.14);border-radius:8px;background:#131614;color:#f2f4ef;font-size:14px;line-height:22px;} .ds-desktop-field:hover {border-color:hsla(220,10%,90%,.14);} .ds-desktop-field:focus-visible {outline:none;border-color:#c2ef68;}"
+    },
+    {
+      "name": "Android Primary Button",
+      "kind": "button",
+      "refersTo": "mobile-button-primary",
+      "description": "WorkbenchButton primary: minimum 48dp target, medium corners, 2dp focus border; pressed .75, disabled .45. HTML uses CSS pixels as a logical-unit illustration. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<button class=\"ds-mobile-primary\">Save agent</button>",
+      "css": ".ds-mobile-primary {font-family:system-ui,sans-serif;min-height:48px;padding:10px 14px;border:2px solid transparent;border-radius:12px;background:#c2ef68;color:#1b2510;font-size:14px;line-height:20px;font-weight:600;} .ds-mobile-primary:hover {background:#c2ef68;} .ds-mobile-primary:active {opacity:.75;} .ds-mobile-primary:focus-visible {outline:none;border-color:#c2ef68;} .ds-mobile-primary:disabled {opacity:.45;}"
+    },
+    {
+      "name": "Android Secondary Button — Dark",
+      "kind": "button",
+      "refersTo": "mobile-button-secondary-dark",
+      "description": "WorkbenchButton secondary uses surfaceMuted; a destructive variant changes label ink to theme.danger. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<button class=\"ds-mobile-secondary\">Reload from desktop</button>",
+      "css": ".ds-mobile-secondary {font-family:system-ui,sans-serif;min-height:48px;padding:10px 14px;border:2px solid transparent;border-radius:12px;background:#272b28;color:#f2f4ef;font-size:14px;line-height:20px;font-weight:600;} .ds-mobile-secondary:hover {background:#272b28;} .ds-mobile-secondary:active {background:hsla(220,10%,90%,.09);opacity:.75;} .ds-mobile-secondary:focus-visible {outline:none;border-color:#c2ef68;} .ds-mobile-secondary:disabled {opacity:.45;}"
+    },
+    {
+      "name": "Android Form Field — Dark",
+      "kind": "input",
+      "refersTo": "mobile-field-dark",
+      "description": "AutomationField used by agent/team editors: label, muted fill, 48dp minimum, 8dp corners, 16/24 text, accent focus. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<label class=\"ds-mobile-field-label\">Name<input class=\"ds-mobile-field\" value=\"Code reviewer\" /></label>",
+      "css": ".ds-mobile-field-label {font-family:system-ui,sans-serif;display:flex;flex-direction:column;gap:8px;color:#f2f4ef;font-size:16px;line-height:24px;} .ds-mobile-field {font-family:system-ui,sans-serif;min-height:48px;box-sizing:border-box;padding:12px;border:1px solid hsla(220,10%,90%,.07);border-radius:8px;background:#272b28;color:#f2f4ef;font-size:16px;line-height:24px;} .ds-mobile-field:hover {border-color:hsla(220,10%,90%,.07);} .ds-mobile-field:focus-visible {outline:none;border-color:#c2ef68;}"
+    },
+    {
+      "name": "Android Object Card — Dark",
+      "kind": "card",
+      "refersTo": "mobile-card-dark",
+      "description": "WorkbenchCard: surface fill, hairline stroke, 16dp corners/padding, 12dp internal gap, no shadow. The hairline is approximated as a CSS border. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<section class=\"ds-mobile-card\"><span class=\"ds-mobile-card-title\">Execution</span><span class=\"ds-mobile-card-detail\">Harness and environment</span></section>",
+      "css": ".ds-mobile-card {font-family:system-ui,sans-serif;display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid hsla(220,10%,90%,.07);border-radius:16px;background:#1d201e;color:#f2f4ef;} .ds-mobile-card-title {font-size:17px;font-weight:600;} .ds-mobile-card-detail {font-size:13px;line-height:19px;color:#c2c8c0;}"
+    },
+    {
+      "name": "Desktop Selected Settings Navigation — Dark",
+      "kind": "nav",
+      "refersTo": "desktop-navigation-selected-dark",
+      "description": "Selected GPUI Settings row: 36px high, 8px corners, 15-unit icon, 13-unit label, soft accent selection. Native GPUI adds its focus border; the preview uses an inset outline to avoid moving layout. SVG path comes from assets/icons/settings.svg. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<nav aria-label=\"Settings\"><button class=\"ds-settings-nav\" aria-current=\"page\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg><span>General</span></button></nav>",
+      "css": ".ds-settings-nav {font-family:system-ui,sans-serif;height:36px;padding:0 11px;display:flex;align-items:center;gap:10px;border:0;border-radius:8px;background:hsla(80,81%,67%,.12);color:#f2f4ef;font-size:13px;cursor:default;} .ds-settings-nav svg {color:#c2ef68;} .ds-settings-nav:hover,.ds-settings-nav:active {background:hsla(0,0%,94.1%,.06);} .ds-settings-nav:focus-visible {outline:1px solid #c2ef68;outline-offset:-1px;}"
+    },
+    {
+      "name": "Android Work Filter — Dark",
+      "kind": "chip",
+      "refersTo": "mobile-filter-selected-dark",
+      "description": "Work section tab, not a generic badge: 48dp minimum, 12dp corners, 14-unit semibold label. Native source has selected fill/text and accessibility state but no custom focus/hover refinement; browser focus remains the preview default. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<div role=\"tablist\" aria-label=\"Work sections\"><button class=\"ds-work-filter\" role=\"tab\" aria-selected=\"true\">Teams</button></div>",
+      "css": ".ds-work-filter {font-family:system-ui,sans-serif;min-height:48px;padding:12px 16px;border:0;border-radius:12px;background:rgba(194,239,104,.12);color:#c2ef68;font-size:14px;font-weight:600;} .ds-work-filter:hover,.ds-work-filter:active {background:rgba(194,239,104,.12);} .ds-work-filter:focus-visible {outline:auto;}"
+    },
+    {
+      "name": "Android Composer — Dark",
+      "kind": "custom",
+      "refersTo": "mobile-composer-dark",
+      "description": "ComposerCard opaque Android fallback: 16dp corners, hairline, 16/21 multiline text, a 48dp circular send control and visible context hint. This snippet illustrates the composer/send primitive, not every attachment, dictation, approval, or streaming state. Arrow path comes from assets/icons/arrow-up.svg as an illustrative equivalent of Android's arrow_upward symbol. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
+      "html": "<section class=\"ds-composer\"><textarea class=\"ds-composer-input\" aria-label=\"Message\" placeholder=\"Ask Ion to work on a task\"></textarea><div class=\"ds-composer-toolbar\"><button class=\"ds-composer-send\" aria-label=\"Send message\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/></svg></button></div><span class=\"ds-composer-hint\"></span></section>",
+      "css": ".ds-composer {font-family:system-ui,sans-serif;padding:6px 10px 8px;border:1px solid hsla(220,10%,90%,.07);border-radius:16px;background:#222623;color:#f2f4ef;} .ds-composer-input {font-family:system-ui,sans-serif;display:block;width:calc(100% - 12px);min-height:42px;max-height:120px;padding:8px 6px;border:0;resize:none;background:transparent;color:#f2f4ef;font-size:16px;line-height:21px;} .ds-composer-input::placeholder {color:#abb3a8;} .ds-composer-input:focus-visible {outline:auto;outline-color:#3b82f6;} .ds-composer-toolbar {display:flex;justify-content:flex-end;align-items:flex-end;gap:8px;margin-top:2px;} .ds-composer-send {width:48px;height:48px;margin-left:4px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:#c2ef68;color:#1b2510;} .ds-composer-send:hover {background:#c2ef68;} .ds-composer-send:active {opacity:.6;} .ds-composer-send:focus-visible {outline:auto;} .ds-composer-send:disabled {background:#272b28;color:#abb3a8;} .ds-composer-hint {display:block;padding:0 12px 6px;color:#c2c8c0;font-size:12px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Operate",
+    "overview": "Ion is a native workbench: quiet charcoal or warm pale surfaces, compact contextual controls, and a restrained lime signal for the next useful action. Alignment and readable hierarchy do most of the work. Rounded groups hold an object, editor, or composer without turning every region into a card.\n\nDesktop uses GPUI; Android uses React Native and Expo. Their shared palette and vocabulary establish one product while their control sizes and navigation remain native. The independent dotted-stem-and-loop Ion mark is canonical in `assets/icons/ion.svg`; `scripts/assets/ion-icon.py` produces platform assets with lime on charcoal.\n\nThis is a source-extracted record of the implemented redesign, not a visual acceptance record. The session was code led; there is no approved comp. Fresh native evidence now covers the desktop agent model menu, fixed equal-width Save/Close footer, scrolling and outside dismissal in dark mode, plus Appearance and home in light mode (`docs/ion-redesign/evidence/refinement/`). The original System theme preference was restored. Earlier Teams evidence proves its crash correction. Android emulator evidence now covers signed-in phone, 320dp at 130% font scale, expanded rail, model selection, save/reopen and keyboard handling. Broader desktop provider/state coverage, hardware checks and full visual acceptance remain incomplete. Formal visual disposition is **recapture**; the seven source findings resolved in `docs/ion-redesign/reviewer-verdict.md` do not establish full parity or visual acceptance. See `docs/ion-redesign/ux-audit.md` for the complete evidence boundary.",
+    "keyCharacteristics": [
+      "Neutral surfaces with selective lime emphasis.",
+      "Compact desktop controls and larger Android touch targets.",
+      "Real state, short contextual labels, and nearby actions.",
+      "Flat content groups with depth reserved for transient layers.",
+      "Visible focus, readable themes, and motion that respects system settings."
+    ],
+    "rules": [
+      {
+        "name": "The Intentional Lime Rule",
+        "body": "Use filled lime for the contextual primary action and selected brand affordances; keep broad work surfaces neutral.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic Foreground Rule",
+        "body": "Resolve status and accent text from the current theme. Pair meaning with a label or icon, not color alone.",
+        "section": "colors"
+      },
+      {
+        "name": "The Native Type Rule",
+        "body": "Preserve platform text scaling and existing content font settings; do not replace chrome with a branded display font.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Content Rule",
+        "body": "Establish everyday grouping with surface tone, spacing, and hairlines; reserve cast shadow for floating desktop layers.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use neutral layers for broad surfaces and lime for the contextual primary action.",
+      "**Do** resolve text, status, and focus colors from the current theme.",
+      "**Do** preserve native system typography, platform scaling, and the bundled desktop code face.",
+      "**Do** pair status with text or an icon and keep actions keyboard/touch operable.",
+      "**Do** retain Android's labelled compact navigation and expanded rail.",
+      "**Do** keep real connection, draft, busy, error, approval, and conflict states visible.",
+      "**Do** use the canonical Ion vector and reproducible platform assets.",
+      "**Do** recapture missing theme, viewport, and interaction evidence before claiming visual acceptance."
+    ],
+    "donts": [
+      "**Don't** spread the primary lime across large canvas regions or use it as light-theme body text.",
+      "**Don't** add fictional metrics, decorative charts, stacked glass, or perpetual decorative motion.",
+      "**Don't** replace Android's opaque workbench surfaces with a simulated glass treatment.",
+      "**Don't** force desktop control geometry onto Android touch controls.",
+      "**Don't** treat parent rounding as clipping for GPUI descendant paint.",
+      "**Don't** add I/O, whole-session scans, or a new frame clock to a rendering path.",
+      "**Don't** claim full desktop/Android parity or hardware validation from source checks or one screenshot."
+    ]
+  }
+}

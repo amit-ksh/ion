@@ -1,5 +1,6 @@
 use super::composer::next_picker_highlight;
 use super::*;
+use crate::ui::ActivationExt;
 
 const SETTINGS_CONTENT_MAX_WIDTH: f32 = 760.0;
 
@@ -1377,6 +1378,8 @@ impl Waku {
                         "settings-tab-{}",
                         label.to_lowercase()
                     )))
+                    .tab_index(0)
+                    .focus_visible(|style| style.border_1().border_color(theme.accent))
                     .h(px(36.0))
                     .px(px(11.0))
                     .rounded(px(8.0))
@@ -1391,7 +1394,7 @@ impl Waku {
                         theme.text_secondary
                     })
                     .when(selected, |element| {
-                        element.bg(theme.sidebar_item_background)
+                        element.bg(theme.accent_soft)
                     })
                     .hover(|element| element.bg(theme.sidebar_item_background))
                     .active(|element| element.bg(theme.sidebar_item_background))
@@ -1399,15 +1402,15 @@ impl Waku {
                         icon_path,
                         15.0,
                         if selected {
-                            theme.text_secondary
+                            theme.accent
                         } else {
                             theme.text_tertiary
                         },
                     ))
                     .child(label)
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                    .on_activation(cx, move |this, _, cx| {
                         this.open_settings_page(page, cx);
-                    })),
+                    }),
             );
         }
 
@@ -1430,6 +1433,8 @@ impl Waku {
                 div().px(px(12.0)).child(
                     div()
                         .id("settings-back")
+                        .tab_index(0)
+                        .focus_visible(|style| style.border_1().border_color(theme.accent))
                         .h(px(34.0))
                         .px(px(9.0))
                         .rounded(px(8.0))
@@ -1443,12 +1448,12 @@ impl Waku {
                         .active(|element| element.bg(theme.overlay_strong))
                         .child(icon("icons/arrow-left.svg", 15.0, theme.text_tertiary))
                         .child(tr!("settings.back"))
-                        .on_click(cx.listener(|this, _, window, cx| {
+                        .on_activation(cx, |this, window, cx| {
                             this.settings_page = None;
                             let focus_handle = this.composer_focus(cx);
                             window.focus(&focus_handle, cx);
                             cx.notify();
-                        })),
+                        }),
                 ),
             )
             .child(
@@ -3707,7 +3712,7 @@ impl Waku {
             }))
     }
 
-    fn set_theme_preference(
+    pub(super) fn set_theme_preference(
         &mut self,
         preference: ThemePreference,
         window: &mut Window,
