@@ -71,6 +71,12 @@ Even this owner-only 50-user always-on scenario exceeds Free request allowance.
 
 ## Remaining investigation and work
 
+Desktop continuation: [158](158-desktop-relay-usage-fix.md) records the implemented
+task batch, duplicate-window/OS guards, PDF backoff correction and actual local
+workerd cursor before/after measurements. The five native credential HTTP tests
+now pass. The items below describe the original owner-only milestone; task 154
+still requires the listed native/live release gates.
+
 1. **Live metric identity/window:** saved Wrangler login expired at
    `2026-10-21T13:49:31.869Z`; checked at approximately 14:45 UTC. Recorded scopes
    contain no explicit analytics/billing scope. No scopes expanded, login

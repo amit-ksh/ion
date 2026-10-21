@@ -222,6 +222,7 @@ export class DurableTaskRelay {
     this.db.run(
       "CREATE TABLE IF NOT EXISTS relay_publisher_presence (device_id TEXT PRIMARY KEY, seen_at INTEGER NOT NULL)",
     );
+    this.db.run("CREATE TABLE IF NOT EXISTS relay_task_snapshots (publisher_id TEXT PRIMARY KEY, body TEXT NOT NULL)");
     this.db.run(
       "CREATE TABLE IF NOT EXISTS relay_interactions (id TEXT PRIMARY KEY, publisher_id TEXT NOT NULL, task_id TEXT NOT NULL, runtime_id TEXT NOT NULL, request_id TEXT NOT NULL, body TEXT NOT NULL, fingerprint TEXT NOT NULL, status TEXT NOT NULL, published_at INTEGER NOT NULL, UNIQUE(task_id, runtime_id, request_id))",
     );
@@ -238,8 +239,8 @@ export class DurableTaskRelay {
     if (!uuid.test(publisherId)) throw new Error("Invalid task publisher");
     const publishedAt = this.now();
     this.db.run(
-      "INSERT INTO relay_publisher_presence (device_id, seen_at) VALUES (?1, ?2) ON CONFLICT(device_id) DO UPDATE SET seen_at = excluded.seen_at",
-      [publisherId, publishedAt],
+      "INSERT INTO relay_publisher_presence (device_id, seen_at) VALUES (?1, ?2) ON CONFLICT(device_id) DO UPDATE SET seen_at = excluded.seen_at WHERE seen_at<=?3 OR seen_at>?2",
+      [publisherId, publishedAt, publishedAt - 30_000],
     );
     return { publishedAt };
   }
@@ -343,8 +344,15 @@ export class DurableTaskRelay {
         );
         removed++;
       }
+      // A small receipt lets a restarted desktop distinguish a restored relay
+      // from a merely unchanged task list without scanning every task each poll.
+      this.db.run("INSERT INTO relay_task_snapshots VALUES (?1,?2) ON CONFLICT(publisher_id) DO UPDATE SET body=excluded.body WHERE body<>excluded.body",
+        [publisherId, JSON.stringify([...activeIds].sort())]);
       return { removed };
     });
+  }
+  hasTaskSnapshot(publisherId: string): boolean {
+    return !!this.db.query<{ present: number }, [string]>("SELECT 1 AS present FROM relay_task_snapshots WHERE publisher_id=?1").get(publisherId);
   }
 
   setComputerTarget(

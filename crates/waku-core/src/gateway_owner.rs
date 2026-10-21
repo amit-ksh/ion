@@ -24,6 +24,8 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const PASS_BUDGET: Duration = Duration::from_secs(20);
 mod cadence;
 mod lease;
+pub use cadence::Cadence;
+pub use lease::PublisherLease;
 // There is exactly one owner worker per daemon process. The normal IPC server
 // selects a daemon; this also fences accidentally constructed duplicate owners.
 static OWNER_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -121,8 +123,13 @@ impl GatewayOwner {
                             let projection = engine.projection()?;
                             let changed = published_projection.as_ref() != Some(&projection);
                             if !cadence.should_poll(last_regular.elapsed(), next_regular, rotated, changed) {
-                                return if engine.teams.pdf_transfer_active() {
-                                    portfolio::sync_pdf(&api.with_owner_sync()?, &engine, &fence)
+                                return if engine.teams.pdf_transfer_active() && cadence.can_wake() {
+                                    let pdf = api.with_owner_sync().and_then(|api| portfolio::sync_pdf(&api, &engine, &fence));
+                                    if pdf.is_err() {
+                                        next_regular = cadence.observe(&pdf.as_ref().map(|_| true));
+                                        last_regular = Instant::now();
+                                    }
+                                    pdf
                                 } else { Ok(()) };
                             }
                             last_regular = Instant::now();
@@ -165,7 +172,7 @@ impl GatewayOwner {
                     warned = true;
                 } else if result.is_ok() { warned = false; }
                 if fence.stopped() { break; }
-                let interval = if engine.teams.pdf_transfer_active() { Duration::from_millis(500) } else { POLL_INTERVAL };
+                let interval = if engine.teams.pdf_transfer_active() && cadence.can_wake() { Duration::from_millis(500) } else { POLL_INTERVAL };
                 match receiver.recv_timeout(interval) {
                     Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
                     _ => {}

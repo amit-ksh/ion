@@ -189,6 +189,7 @@ pub struct GatewayApi {
     managed: Option<cloud::PublisherBinding>,
     client: reqwest::blocking::Client,
     owner_sync: Option<gateway_sync::OwnerCycle>,
+    task_sync: Option<gateway_sync::TaskCycle>,
 }
 
 impl GatewayApi {
@@ -284,6 +285,7 @@ impl GatewayApi {
             managed: Some(binding),
             client: gateway_client()?,
             owner_sync: None,
+            task_sync: None,
         })
     }
     pub fn has_publish_grant(&self) -> Result<bool> {
@@ -316,6 +318,9 @@ impl GatewayApi {
     }
 
     pub fn heartbeat(&self) -> Result<()> {
+        if self.task_sync.is_some() {
+            return Ok(());
+        }
         let _: serde_json::Value = self.request(
             reqwest::Method::POST,
             "v1/device/heartbeat",
@@ -391,6 +396,9 @@ impl GatewayApi {
     }
 
     pub fn pending_commands(&self) -> Result<Vec<GatewayRelayCommand>> {
+        if let Some(cycle) = &self.task_sync {
+            return Ok(cycle.commands.clone());
+        }
         #[derive(Deserialize)]
         struct Commands {
             commands: Vec<GatewayRelayCommand>,
@@ -790,6 +798,7 @@ impl CredentialService {
             managed: None,
             client: gateway_client()?,
             owner_sync: None,
+            task_sync: None,
         })
     }
 

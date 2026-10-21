@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { createGatewayRuntime } from "../../personal-gateway/src/server";
 import { durableDatabase } from "../src/database";
 
@@ -47,6 +47,76 @@ function fixture() {
     async close() { await runtime.close(); raw.close(); } };
 }
 const projection = () => ({ version: 1, revision: 1, projects: [], definitions: [], runs: [], truncated: false });
+
+test("desktop task bridge baseline bounds unchanged presence writes", async () => {
+  const originalNow = Date.now; let now = originalNow(); Date.now = () => now;
+  const f = fixture();
+  try {
+    const publisher = await f.pair(["publish"]);
+    await f.call("/v1/device/heartbeat", "POST", publisher, {});
+    f.reset();
+    for (let i = 0; i < 20; i++) {
+      now += 5_000;
+      await f.call("/v1/device/session", "GET", publisher);
+      await f.call("/v1/device/commands", "GET", publisher);
+      await f.call("/v1/device/tasks/reconcile", "POST", publisher, { activeIds: [] });
+      await f.call("/v1/device/heartbeat", "POST", publisher, {});
+    }
+    if (process.env.ION_RELAY_COUNTER_REPORT === "1" && !existsSync(new URL("../../../.waku-cache/ion-task-bridge-before.json", import.meta.url)))
+      writeFileSync(new URL("../../../.waku-cache/ion-task-bridge-before.json", import.meta.url), JSON.stringify({ method: "source-derived desktop idle inventory, real HTTP and durable SQL adapter, local SQLite", simulatedSeconds: 100, counters: f.counts }, null, 2) + "\n");
+    expect(f.counts.requests).toBe(80);
+    expect(f.counts.changedRows).toBeLessThanOrEqual(4); // Presence plus initial task-set receipt.
+  } finally { await f.close(); Date.now = originalNow; }
+});
+
+test("batched task bridge has bounded hour-long idle traffic and retains durable command ownership", async () => {
+  const originalNow = Date.now; let now = originalNow(); Date.now = () => now;
+  const f = fixture();
+  try {
+    const publisher = await f.pair(["publish"]), other = await f.pair(["publish"]);
+    const phone = await f.pair(["taskRead", "taskControl"]);
+    const first = await f.call("/v1/device/tasks/sync", "GET", publisher);
+    expect(first.body.snapshotPresent).toBe(false);
+    await f.call("/v1/device/tasks/reconcile", "POST", publisher, { activeIds: [] });
+    f.reset();
+    for (let i = 0; i < 20; i++) { now += 5_000; await f.call("/v1/device/tasks/sync", "GET", publisher); }
+    const idle20 = { ...f.counts };
+    expect(idle20.requests).toBe(20); expect(idle20.changedRows).toBe(3);
+    f.reset();
+    for (let i = 0; i < 360; i++) { now += 10_000; await f.call("/v1/device/tasks/sync", "GET", publisher); }
+    const idleHour = { ...f.counts };
+    expect(idleHour.requests).toBe(360); expect(idleHour.changedRows).toBe(120);
+    expect((await f.call("/v1/device/tasks/sync", "GET", publisher)).body.snapshotPresent).toBe(true);
+    const task = { id: randomUUID(), projectId: randomUUID(), projectName: "Ion", title: "Review", provider: "codex", status: "running", runtimeId: randomUUID(), updatedAt: now };
+    f.reset();
+    await f.call("/v1/device/tasks/sync", "GET", publisher);
+    expect((await f.call(`/v1/device/tasks/${task.id}`, "PUT", publisher, { task })).body.changed).toBe(true);
+    await f.call("/v1/device/tasks/reconcile", "POST", publisher, { activeIds: [task.id] });
+    const changedTask = { ...f.counts };
+    // Content replay and unchanged reconciliation cannot emit status again.
+    f.reset();
+    expect((await f.call(`/v1/device/tasks/${task.id}`, "PUT", publisher, { task })).body.changed).toBe(false);
+    await f.call("/v1/device/tasks/reconcile", "POST", publisher, { activeIds: [task.id] });
+    expect(f.counts.changedRows).toBe(0);
+    const input = { taskId: task.id, runtimeId: task.runtimeId, kind: "stop", payload: {}, idempotencyKey: randomUUID() };
+    const queued = await f.call("/v1/device/commands", "POST", phone, input);
+    expect(queued.status).toBe(201);
+    expect((await f.call("/v1/device/commands", "POST", phone, input)).body.id).toBe(queued.body.id);
+    expect((await f.call("/v1/device/tasks/sync", "GET", other)).body.commands).toEqual([]);
+    expect((await f.call("/v1/device/tasks/sync", "GET", publisher)).body.commands[0].id).toBe(queued.body.id);
+    expect((await f.call(`/v1/device/commands/${queued.body.id}/claim`, "POST", publisher, {})).body.status).toBe("uncertain");
+    expect((await f.call("/v1/device/tasks/sync", "GET", publisher)).body.commands).toEqual([]);
+    expect((await f.call(`/v1/device/commands/${queued.body.id}/claim`, "POST", publisher, {})).status).toBe(400);
+    expect((await f.call("/v1/device/tasks/sync", "GET", phone)).status).toBe(401);
+    await f.call(`/v1/owner/devices/${publisher.id}/revoke`, "POST", f.owner);
+    f.reset();
+    expect((await f.call("/v1/device/tasks/sync", "GET", publisher)).status).toBe(401);
+    expect((await f.call(`/v1/device/commands/${queued.body.id}/settle`, "POST", publisher, { applied: true })).status).toBe(401);
+    expect(f.counts.changedRows).toBe(0);
+    if (process.env.ION_RELAY_COUNTER_REPORT === "1")
+      writeFileSync(new URL("../../../.waku-cache/ion-task-bridge-after.json", import.meta.url), JSON.stringify({ method: "real HTTP/durable adapter; local SQLite and simulated time; native UI thread not executed", idle20Seconds: 100, idle20, idleHourSeconds: 3600, idleHour, changedTask, commandIsolationAndNoReplay: true }, null, 2) + "\n");
+  } finally { await f.close(); Date.now = originalNow; }
+});
 
 test("batched unchanged cycles bound requests/writes and changed content is immediately published", async () => {
   const originalNow = Date.now; let now = originalNow(); Date.now = () => now;

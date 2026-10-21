@@ -148,6 +148,7 @@ mod tests {
                 managed: None,
                 client: super::super::gateway_client().unwrap(),
                 owner_sync: None,
+                task_sync: None,
             }
         };
         let first = make(value());

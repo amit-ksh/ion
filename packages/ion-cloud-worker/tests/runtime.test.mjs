@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
@@ -50,7 +50,7 @@ function instance(directory, configured = false, storage = true, apps = false, s
     ...convertV4MiniflareOptions({
       name: "ion-test",
       modules: true,
-      scriptPath: fileURLToPath(new URL("../dist/index.js", import.meta.url)),
+      scriptPath: process.env.ION_WORKER_TEST_BUNDLE ?? fileURLToPath(new URL("../dist/index.js", import.meta.url)),
       compatibilityDate: "2026-10-19",
       compatibilityFlags: ["nodejs_compat"],
       durableObjects: {
@@ -266,6 +266,49 @@ test("real Workers SQL: account isolation, single-use pairing and restart durabi
       maxRetries: 5,
       retryDelay: 100,
     });
+  }
+});
+
+test("batched relay reads: public JWT workspace selection and revocation remain authoritative", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ion-worker-relay-batch-"));
+  let mf = instance(directory);
+  const call = async (subject, path, method = "GET", body, device) => mf.dispatchFetch(origin + "/v1/gateway" + path, {
+    method,
+    headers: { Authorization: "Bearer " + await token(subject), "Content-Type": "application/json",
+      "x-ion-account-subject": "owner", "x-ion-workspace": workspace("owner"),
+      ...(device ? { "X-Waku-Device-Id": device.id, "X-Ion-Device-Token": device.token } : {}) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  try {
+    const invited = await call("owner", "/v1/owner/invites", "POST", { grants: ["publish"] });
+    assert.equal(invited.status, 201);
+    const paired = await call("owner", "/v1/pair", "POST", { invite: (await invited.json()).invite, name: "Batch fixture" });
+    assert.equal(paired.status, 201);
+    const publisher = await paired.json();
+    for (const path of ["/v1/device/sync", "/v1/device/tasks/sync"]) {
+      const own = await call("owner", path, "GET", undefined, publisher);
+      assert.equal(own.status, 200, await own.clone().text());
+      assert.equal((await own.json()).publisherId, publisher.id);
+      // Forged hints and an otherwise valid device token cannot choose the
+      // owner's database under a judge's JWT, or bypass the JWT altogether.
+      assert.equal((await call("judge", path, "GET", undefined, publisher)).status, 401);
+      assert.equal((await mf.dispatchFetch(origin + "/v1/gateway" + path, {
+        headers: { "X-Waku-Device-Id": publisher.id, "X-Ion-Device-Token": publisher.token },
+      })).status, 401);
+    }
+    assert.equal((await call("owner", "/v1/device/tasks/reconcile", "POST", { activeIds: [] }, publisher)).status, 200);
+    await mf.dispose(); mf = instance(directory);
+    const restarted = await call("owner", "/v1/device/tasks/sync", "GET", undefined, publisher);
+    assert.equal(restarted.status, 200);
+    assert.equal((await restarted.json()).snapshotPresent, true);
+    assert.equal((await call("owner", `/v1/owner/devices/${publisher.id}/revoke`, "POST")).status, 200);
+    for (const path of ["/v1/device/sync", "/v1/device/tasks/sync"])
+      assert.equal((await call("owner", path, "GET", undefined, publisher)).status, 401);
+  } finally {
+    await mf.dispose();
+    assert.equal(resolve(directory, ".."), resolve(tmpdir()));
+    assert.ok(directory.startsWith(join(tmpdir(), "ion-worker-relay-batch-")));
+    rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 test("real Workers SQL/R2: owner switches, private publication, idempotency and static serving while compute is off", async () => {

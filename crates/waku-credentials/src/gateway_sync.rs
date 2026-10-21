@@ -34,6 +34,14 @@ pub(super) struct OwnerCycle {
     started: Instant,
     pub active: AtomicBool,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct TaskCycle {
+    version: u32,
+    publisher_id: String,
+    pub snapshot_present: bool,
+    pub commands: Vec<GatewayRelayCommand>,
+}
 impl OwnerCycle {
     pub fn feature(&self, name: &str) -> bool {
         self.reply.features.get(name) == Some(&1)
@@ -78,6 +86,9 @@ impl GatewayApi {
             self.managed.as_ref().map(|b| b.workspace_id.as_str())
         ]))
     }
+    pub fn task_bridge_lock_key(&self) -> String {
+        digest(&serde_json::json!(["desktop-tasks", self.owner_lock_key()]))
+    }
     /// Retain only pairing comparison state across cycles, never cached queues.
     pub fn pairing_snapshot(&self) -> Self {
         Self {
@@ -87,7 +98,38 @@ impl GatewayApi {
             managed: self.managed.clone(),
             client: self.client.clone(),
             owner_sync: None,
+            task_sync: None,
         }
+    }
+    pub fn with_task_sync(mut self) -> Result<Self> {
+        let reply: TaskCycle =
+            match self.request(reqwest::Method::GET, "v1/device/tasks/sync", None) {
+                Ok(reply) => reply,
+                Err(error)
+                    if error
+                        .downcast_ref::<HttpFailure>()
+                        .is_some_and(|e| e.0 == reqwest::StatusCode::NOT_FOUND) =>
+                {
+                    return Ok(self);
+                }
+                Err(error) => return Err(error),
+            };
+        anyhow::ensure!(
+            reply.version == 1
+                && reply.publisher_id == self.device_id
+                && reply.commands.len() <= 50,
+            "Gateway returned an invalid task synchronization batch"
+        );
+        self.task_sync = Some(reply);
+        Ok(self)
+    }
+    pub fn task_snapshot_present(&self) -> Option<bool> {
+        self.task_sync.as_ref().map(|cycle| cycle.snapshot_present)
+    }
+    pub fn task_cycle_active(&self) -> bool {
+        self.task_sync
+            .as_ref()
+            .is_none_or(|cycle| !cycle.commands.is_empty())
     }
     pub fn with_owner_sync(mut self) -> Result<Self> {
         let reply: Reply = match self.request(reqwest::Method::GET, "v1/device/sync", None) {
@@ -222,6 +264,7 @@ mod tests {
                 managed: None,
                 client: gateway_client().unwrap(),
                 owner_sync: None,
+                task_sync: None,
             },
             thread,
         )
@@ -293,5 +336,43 @@ mod tests {
             server.join().unwrap(),
             ["/v1/device/sync", "/v1/device/automations"]
         );
+    }
+    #[test]
+    fn task_batch_replaces_idle_queue_and_presence_but_not_effect_grants() {
+        let (api, server) = client(vec![
+            (
+                200,
+                serde_json::json!({"version":1,"publisherId":ID,"snapshotPresent":true,"commands":[]}),
+            ),
+            (401, serde_json::json!({"error":"revoked"})),
+        ]);
+        let api = api.with_task_sync().unwrap();
+        assert_eq!(api.task_snapshot_present(), Some(true));
+        assert!(api.pending_commands().unwrap().is_empty());
+        assert!(!api.task_cycle_active());
+        api.heartbeat().unwrap();
+        assert!(api.has_publish_grant().is_err());
+        assert_ne!(api.owner_lock_key(), api.task_bridge_lock_key());
+        assert_eq!(
+            server.join().unwrap(),
+            ["/v1/device/tasks/sync", "/v1/device/session"]
+        );
+    }
+    #[test]
+    fn task_batch_refuses_foreign_identity_and_auth_failure_without_legacy_fallback() {
+        for (status, body) in [
+            (401, serde_json::json!({"error":"revoked"})),
+            (
+                200,
+                serde_json::json!({"version":1,"publisherId":"other","snapshotPresent":true,"commands":[]}),
+            ),
+        ] {
+            let (api, server) = client(vec![(status, body)]);
+            assert!(api.with_task_sync().is_err());
+            server.join().unwrap();
+        }
+        let (api, server) = client(vec![(404, serde_json::json!({"error":"older server"}))]);
+        assert_eq!(api.with_task_sync().unwrap().task_snapshot_present(), None);
+        server.join().unwrap();
     }
 }

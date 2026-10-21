@@ -1,0 +1,164 @@
+{
+  "sourceBase": "d71e877",
+  "liveAttributionProven": false,
+  "nativeOwnerOrBridgeExecuted": false,
+  "before": {
+    "method": "local workerd SQL cursor rowsRead/rowsWritten; source-derived owner17 plus desktop4 HTTP inventory; simulated clock; no native worker or live billing attribution",
+    "beforeRevision": "26e88a5",
+    "idle100Seconds": {
+      "requests": 420,
+      "statements": 5382,
+      "rowsRead": 3461,
+      "rowsWritten": 61
+    },
+    "changedProjectionPass": {
+      "requests": 21,
+      "statements": 269,
+      "rowsRead": 173,
+      "rowsWritten": 3
+    }
+  },
+  "after": {
+    "method": "local workerd, actual Durable Object SQL cursor rowsRead/rowsWritten, real HTTP handlers; simulated clock; one publisher and one phone; no live billing attribution; stop/permission receipts are simulated local daemon acknowledgements, not real device effects",
+    "idle100Seconds": {
+      "requests": 40,
+      "statements": 880,
+      "rowsRead": 600,
+      "rowsWritten": 9
+    },
+    "idleHour": {
+      "requests": 720,
+      "statements": 15840,
+      "rowsRead": 10800,
+      "rowsWritten": 360
+    },
+    "changedTask": {
+      "requests": 2,
+      "statements": 34,
+      "rowsRead": 17,
+      "rowsWritten": 6
+    },
+    "unchangedReplay": {
+      "requests": 2,
+      "statements": 24,
+      "rowsRead": 15,
+      "rowsWritten": 0
+    },
+    "stopLifecycle": {
+      "requests": 6,
+      "statements": 89,
+      "rowsRead": 59,
+      "rowsWritten": 5
+    },
+    "approvalLifecycle": {
+      "requests": 9,
+      "statements": 145,
+      "rowsRead": 91,
+      "rowsWritten": 13
+    }
+  },
+  "sourceSha256": {
+    "crates/waku-client/src/process.rs": "1320db591b36fa319b87ea1c6a1f083bd8d4b7c5c2a39e2fb2645e19262aa33c",
+    "crates/waku-core/src/gateway_owner.rs": "2017d236cec525a1749ac0ef8c8e7372d14abebf4121dc22793a6befdce88b24",
+    "crates/waku-core/src/gateway_owner/cadence.rs": "11aa28f22d11f8f390c3fea2552e58d2835c873801c8674c5241321686e06026",
+    "crates/waku-core/src/gateway_owner/lease.rs": "20144c268521c3b68453c2b9beace06e0c431e1ec25eb8bee55a2b33565f24f5",
+    "crates/waku-core/src/lib.rs": "f11fbce10f8fdfed299176526353cc8343547ccceec5a03698efcc6229cad0a2",
+    "crates/waku-credentials/src/gateway_pairing_file.rs": "f38f4bc119593edcde9a592f5a320e98e4678c360d180bd7805e34865432363d",
+    "crates/waku-credentials/src/gateway_sync.rs": "17b64aeac9014596e0e0393ee709aec3834ba25de9ae9af5ee582e1e35c30cf9",
+    "crates/waku-credentials/src/lib.rs": "111ed593de5699bd3dab508b34fe1379b256f41d8038028b0a9120b536becc12",
+    "src/gateway_bridge.rs": "2d4600c2faf1ce570b8fbef3cd5ec425f18f217dbbb7fca0414e9a3c1dae498e",
+    "src/gateway_bridge/registry.rs": "dae17de6e2fbd927e02688fc83989885c6d5cb144180a3d4f01801e277502faa",
+    "packages/personal-gateway/src/http.ts": "7666dd8e8a87f3b438af36b83d515bb3c6e787dde2a4bbe095fd3642fd36133d",
+    "packages/personal-gateway/src/task-relay.ts": "561bd340319d5fa0debce26cbb95727e807961d73439b4a1f40e896b51fd3a3a",
+    "packages/ion-cloud-worker/tests/relay-sql-counters.test.mjs": "7c93dd0c336cfda09858d3bcf4e402328ad92c501ee7f2f78d936aa024cbb386",
+    "packages/ion-cloud-worker/tests/fixtures/relay-counters.ts": "37fd6ddc5d4d515307ec870157d7e87f863d3be8db49ff6aabcfda1a684c1676",
+    "packages/ion-cloud-worker/tests/runtime.test.mjs": "09369ff3dd83c1a1bd6d37c4ab63cd9e8a3ce04bc3bdcb1a7a0ae2c1f8491864",
+    "packages/ion-cloud-worker/tests/relay-sync.local.test.ts": "e95bfcaec9b30f9a648a469bb63eb6a25f145732d7dc17229a7736258c9dbb83"
+  },
+  "livePreDeployment": {
+    "observedAt": "2026-10-21T16:24:22.148Z",
+    "querySince": "2026-10-20T16:24:22.148Z",
+    "queryUntil": "2026-10-21T16:24:22.148Z",
+    "readOnly": true,
+    "scopesChanged": false,
+    "permissionsExpanded": false,
+    "dashboardSelectedWindowVerified": false,
+    "meterIdentityVerified": false,
+    "checks": [
+      {
+        "name": "accountDO24h",
+        "status": 200,
+        "errors": [],
+        "metrics": {
+          "durableObjectsInvocationsAdaptiveGroups": [
+            {
+              "dimensions": {
+                "namespaceId": "29d1ef8b45224dc3b2467659f00c6e23",
+                "scriptName": "ion-cloud",
+                "status": "success",
+                "type": "jsrpc"
+              },
+              "sum": {
+                "requests": 9
+              }
+            },
+            {
+              "dimensions": {
+                "namespaceId": "29d1ef8b45224dc3b2467659f00c6e23",
+                "scriptName": "ion-cloud",
+                "status": "success",
+                "type": "http"
+              },
+              "sum": {
+                "requests": 115278
+              }
+            }
+          ],
+          "durableObjectsPeriodicGroups": [
+            {
+              "sum": {
+                "activeTime": 274447475,
+                "cpuTime": 131479826,
+                "duration": 35.1292768,
+                "rowsRead": 964342,
+                "rowsWritten": 26043
+              }
+            }
+          ],
+          "durableObjectsSqlStorageGroups": [
+            {
+              "max": {
+                "storedBytes": 212992
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "namespaces",
+        "status": 200,
+        "errors": [],
+        "namespaces": [
+          {
+            "id": "29d1ef8b45224dc3b2467659f00c6e23",
+            "name": "ion-cloud_AccountRelay",
+            "script": "ion-cloud",
+            "class": "AccountRelay"
+          },
+          {
+            "id": "f75aac9a812b483fad34d669cfa1ebd3",
+            "name": "ion-cloud_Platform",
+            "script": "ion-cloud",
+            "class": "Platform"
+          }
+        ]
+      }
+    ]
+  },
+  "nativeCoreClientTypecheck": "passed",
+  "publicWorkerTests": {
+    "passed": 8,
+    "failed": 0,
+    "freshBundleSha256": "fd5179abf23cf27b43758729e00ab1a924c45c6485d5b77e90d78b27e8e165f7"
+  }
+}

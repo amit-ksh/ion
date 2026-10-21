@@ -3,7 +3,7 @@ use std::time::Duration;
 /// Short bounded idle delay keeps mobile controls responsive. Connectivity and
 /// revocation failures back off independently; local changes cannot defeat it.
 #[derive(Default)]
-pub(super) struct Cadence {
+pub struct Cadence {
     idle: u8,
     failures: u8,
 }
@@ -14,7 +14,13 @@ impl Cadence {
     pub fn can_wake(&self) -> bool {
         self.failures == 0
     }
-    pub fn should_poll(&self, elapsed: Duration, delay: Duration, rotated: bool, changed: bool) -> bool {
+    pub fn should_poll(
+        &self,
+        elapsed: Duration,
+        delay: Duration,
+        rotated: bool,
+        changed: bool,
+    ) -> bool {
         rotated || elapsed >= delay || (changed && self.can_wake())
     }
     pub fn observe<E>(&mut self, result: &Result<bool, E>) -> Duration {
@@ -58,6 +64,11 @@ mod tests {
         c.observe(&Err::<bool, _>(()));
         assert!(!c.should_poll(Duration::ZERO, Duration::from_secs(10), false, true));
         assert!(c.should_poll(Duration::ZERO, Duration::from_secs(10), true, false));
-        assert!(c.should_poll(Duration::from_secs(10), Duration::from_secs(10), false, false));
+        assert!(c.should_poll(
+            Duration::from_secs(10),
+            Duration::from_secs(10),
+            false,
+            false
+        ));
     }
 }

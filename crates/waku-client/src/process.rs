@@ -344,6 +344,10 @@ pub struct DaemonSupervisor {
 }
 
 impl DaemonSupervisor {
+    /// Stable across reconnects, without reading a socket or touching the daemon.
+    pub fn same_supervisor(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
     pub fn spawn(executable: &Path, watch_for_rebuilds: bool) -> anyhow::Result<Self> {
         Self::spawn_configured(
             executable,

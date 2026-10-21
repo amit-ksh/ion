@@ -6,7 +6,7 @@ use std::{
 
 /// Advisory OS lock, held for the paired publisher's lifetime and released on
 /// crash/exit. Lock-file existence is never used as proof of a running owner.
-pub(super) struct PublisherLease {
+pub struct PublisherLease {
     key: String,
     _file: File,
 }

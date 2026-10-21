@@ -37,6 +37,7 @@ pub mod deepseek_session;
 pub mod driver;
 mod frontmatter;
 mod gateway_owner;
+pub use gateway_owner::{Cadence as GatewaySyncCadence, PublisherLease as GatewayPublisherLease};
 pub mod git_branch;
 pub mod git_commit;
 pub mod grok_session;

@@ -186,6 +186,13 @@ export function createGatewayHandler(
           notificationPolicy: publication.policy,
         });
       }
+      if (path === "/v1/device/tasks/sync" && method === "GET") {
+        const identity = authorizedDevice(request, authority, "publish");
+        relay.heartbeat(identity.id);
+        return json({ version: 1, publisherId: identity.id,
+          snapshotPresent: relay.hasTaskSnapshot(identity.id),
+          commands: relay.pendingCommands(identity.id) });
+      }
       if (path === "/owner" && method === "GET")
         return ownerAsset(ownerHtml, "text/html; charset=utf-8");
       if (path === "/owner/style.css" && method === "GET")
