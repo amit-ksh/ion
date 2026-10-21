@@ -737,7 +737,7 @@ export function createGatewayHandler(
           identity.id,
           input.interaction as RelayInteractionInput,
         );
-        if (interaction.created)
+        if (interaction.created && interaction.status === "pending")
           push.enqueue(interaction.taskId, `interaction:${interaction.id}`);
         return json(interaction, 201);
       }

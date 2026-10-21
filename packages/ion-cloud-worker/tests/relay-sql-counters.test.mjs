@@ -17,7 +17,7 @@ test("workerd SQL cursors bound idle writes and preserve changed task publicatio
       external: ["cloudflare:workers", "node:*"],
       alias: { "bun:sqlite": fileURLToPath(new URL("../src/sqlite-unavailable.ts", import.meta.url)) },
     });
-    mf = new Miniflare({
+    const start = () => new Miniflare({
       ...convertV4MiniflareOptions({
         name: "ion-relay-counters", modules: true, script: result.outputFiles[0].text,
         compatibilityDate: "2026-10-19", compatibilityFlags: ["nodejs_compat"],
@@ -27,6 +27,7 @@ test("workerd SQL cursors bound idle writes and preserve changed task publicatio
       resourcePersistencePath: directory, isolatedResourcePersistencePath: directory,
       telemetry: { enabled: false },
     });
+    mf = start();
     let now = 1_800_000_000_000;
     const owner = { token: "local_counter_owner_" + "x".repeat(48), id: "" };
     const call = async (path, method = "GET", identity, body) => {
@@ -113,6 +114,38 @@ test("workerd SQL cursors bound idle writes and preserve changed task publicatio
     assert.equal((await call(`/v1/device/commands/${permission.id}/settle`, "POST", publisher, { applied: true })).status, "applied");
     assert.deepEqual((await call(`/v1/device/tasks/${task.id}/interactions`, "GET", phone)).interactions, []);
     const approvalLifecycle = await call("/__counters");
+    // Real workerd SQL: remember an answer even when its first snapshot has
+    // not arrived. Retrying it and replaying the snapshot must not rewrite rows.
+    const early = { taskId: task.id, runtimeId: task.runtimeId, requestId: "answered-before-publication" };
+    await call("/__counters", "DELETE");
+    await call("/v1/device/interactions/resolve", "POST", publisher, early);
+    const earlyResolution = await call("/__counters");
+    assert.ok(earlyResolution.rowsWritten > 0);
+    await call("/__counters", "DELETE");
+    for (let i = 0; i < 20; i++) await call("/v1/device/interactions/resolve", "POST", publisher, early);
+    const resolutionRetries = await call("/__counters");
+    assert.equal(resolutionRetries.requests, 20);
+    assert.equal(resolutionRetries.rowsWritten, 0);
+    await mf.dispose();
+    mf = start();
+    await call("/__counters", "DELETE");
+    const lateInput = { ...early, kind: "permission", title: "Already answered", detail: "", questions: [],
+      options: [{ id: "deny", label: "Deny", allow: false }] };
+    const late = await call("/v1/device/interactions", "POST", publisher, { interaction: lateInput });
+    assert.equal(late.status, "resolved");
+    assert.deepEqual((await call(`/v1/device/tasks/${task.id}/interactions`, "GET", phone)).interactions, []);
+    const latePublication = await call("/__counters");
+    await call("/__counters", "DELETE");
+    assert.equal((await call("/v1/device/interactions", "POST", publisher, { interaction: lateInput })).created, false);
+    const lateReplay = await call("/__counters");
+    assert.equal(lateReplay.rowsWritten, 0);
+    // A genuinely new request still reaches the phone after recovery.
+    const fresh = await call("/v1/device/interactions", "POST", publisher,
+      { interaction: { ...lateInput, requestId: "new-after-recovery" } });
+    assert.equal(fresh.status, "pending");
+    assert.deepEqual((await call(`/v1/device/tasks/${task.id}/interactions`, "GET", phone)).interactions.map(value => value.id), [fresh.id]);
+    await call("/v1/device/interactions/resolve", "POST", publisher,
+      { ...early, requestId: "new-after-recovery" });
     const unfinishedInput = { taskId: task.id, runtimeId: task.runtimeId, kind: "stop", payload: {}, idempotencyKey: crypto.randomUUID() };
     const unfinished = await call("/v1/device/commands", "POST", phone, unfinishedInput);
     assert.equal((await call(`/v1/device/commands/${unfinished.id}/claim`, "POST", publisher, {})).status, "uncertain");
@@ -128,7 +161,9 @@ test("workerd SQL cursors bound idle writes and preserve changed task publicatio
     assert.equal(kept.task.runtimeId, task.runtimeId);
     await call("/v1/device/tasks/reconcile", "POST", publisher, { activeIds: [task.id] });
     assert.equal((await call("/v1/device/tasks/sync", "GET", publisher)).snapshotPresent, true);
-    const receipt = { method: "local workerd, actual Durable Object SQL cursor rowsRead/rowsWritten, real HTTP handlers; simulated clock; one publisher and one phone; no live billing attribution; stop/permission receipts are simulated local daemon acknowledgements, not real device effects", idle100Seconds, idleHour, changedTask, unchangedReplay, stopLifecycle, approvalLifecycle, legacySchemaRecovery: { taskAndGrantsRetained: true, queuedCommandRetained: true, uncertainCommandNotRequeued: true, idempotencyRetained: true, missingReceiptRepublished: true } };
+    const receipt = { method: "local workerd, actual Durable Object SQL cursor rowsRead/rowsWritten, real HTTP handlers; simulated clock; one publisher and one phone; no live billing attribution; stop/permission receipts are simulated local daemon acknowledgements, not real device effects", idle100Seconds, idleHour, changedTask, unchangedReplay, stopLifecycle, approvalLifecycle,
+      resolutionRecovery: { earlyResolution, resolutionRetries, latePublication, lateReplay, workerRestartRetainedResolution: true, freshPendingRequestDelivered: true },
+      legacySchemaRecovery: { taskAndGrantsRetained: true, queuedCommandRetained: true, uncertainCommandNotRequeued: true, idempotencyRetained: true, missingReceiptRepublished: true } };
     console.log(JSON.stringify(receipt));
     if (process.env.ION_RELAY_SQL_REPORT)
       writeFileSync(resolve(process.env.ION_RELAY_SQL_REPORT), JSON.stringify(receipt, null, 2) + "\n");

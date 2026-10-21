@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { startGateway } from './server';
+import { startGateway, createGatewayRuntime } from './server';
+import { Database } from 'bun:sqlite';
 import { ComposioCatalog } from './composio';
 import { ComposioExecutor } from './composio-execution';
 
@@ -36,6 +37,43 @@ function request(path: string, method: string, token?: string, data?: unknown, d
 }
 
 describe('personal gateway HTTP boundary', () => {
+  test('a late resolved snapshot sends no review notice while a new pending request still notifies', async () => {
+    const path = databasePath();
+    const runtime = createGatewayRuntime({ databasePath: path, ownerToken, allowedTools: [],
+      periodicPush: false, pushFetch: (async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
+        Response.json({ data: [{ status: 'ok', id: 'fixture-ticket' }] })) as typeof fetch });
+    const db = new Database(path, { readonly: true });
+    const call = (path: string, method: string, token?: string, data?: unknown, deviceId?: string) =>
+      runtime.fetch(request(path, method, token, data, deviceId));
+    try {
+      const pair = async (grants: string[]) => {
+        const { invite } = await (await call('/v1/owner/invites', 'POST', ownerToken, { grants })).json() as { invite: string };
+        return await (await call('/v1/pair', 'POST', undefined, { invite, name: 'Notice fixture' })).json() as { id: string; token: string };
+      };
+      const publisher = await pair(['publish']);
+      const phone = await pair(['taskRead']);
+      expect((await call('/v1/device/push', 'PUT', phone.token,
+        { token: 'ExpoPushToken[aaaaaaaaaaaaaaaaaaaaaaaaaaaa]' }, phone.id)).status).toBe(200);
+      const task = { id: '11111111-1111-4111-8111-111111111111', projectId: '22222222-2222-4222-8222-222222222222',
+        projectName: 'Fixture', title: 'Waiting', provider: 'codex', status: 'waiting',
+        runtimeId: '33333333-3333-4333-8333-333333333333', updatedAt: 1 };
+      await call(`/v1/device/tasks/${task.id}`, 'PUT', publisher.token, { task }, publisher.id);
+      await call('/v1/device/interactions/resolve', 'POST', publisher.token,
+        { taskId: task.id, runtimeId: task.runtimeId, requestId: 'answered' }, publisher.id);
+      const publish = async (requestId: string) => await (await call('/v1/device/interactions', 'POST', publisher.token,
+        { interaction: { taskId: task.id, runtimeId: task.runtimeId, requestId, kind: 'permission',
+          title: 'Review?', detail: '', options: [{ id: 'deny', label: 'Deny', allow: false }], questions: [] } }, publisher.id)).json() as { id: string; status: string };
+      const jobs = (id: string) => db.query<{ n: number }, [string]>(
+        'SELECT count(*) AS n FROM gateway_push_jobs WHERE event_key=?1').get(`interaction:${id}`)!.n;
+      const answered = await publish('answered');
+      expect(answered.status).toBe('resolved');
+      expect(jobs(answered.id)).toBe(0);
+      const pending = await publish('pending');
+      expect(pending.status).toBe('pending');
+      expect(jobs(pending.id)).toBe(1);
+    } finally { db.close(); await runtime.close(); }
+  });
+
   test('owner can invite, review, deny, and revoke without giving a device owner access', async () => {
     const running = startGateway({ databasePath: databasePath(), ownerToken, allowedTools });
     expect(running.server.url.hostname).toBe('127.0.0.1');

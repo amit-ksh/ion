@@ -1,0 +1,78 @@
+{
+  "method": "local workerd, actual Durable Object SQL cursor rowsRead/rowsWritten, real HTTP handlers; simulated clock; one publisher and one phone; no live billing attribution; stop/permission receipts are simulated local daemon acknowledgements, not real device effects",
+  "idle100Seconds": {
+    "requests": 40,
+    "statements": 880,
+    "rowsRead": 600,
+    "rowsWritten": 9
+  },
+  "idleHour": {
+    "requests": 720,
+    "statements": 15840,
+    "rowsRead": 10800,
+    "rowsWritten": 360
+  },
+  "changedTask": {
+    "requests": 2,
+    "statements": 34,
+    "rowsRead": 17,
+    "rowsWritten": 6
+  },
+  "unchangedReplay": {
+    "requests": 2,
+    "statements": 24,
+    "rowsRead": 15,
+    "rowsWritten": 0
+  },
+  "stopLifecycle": {
+    "requests": 6,
+    "statements": 89,
+    "rowsRead": 59,
+    "rowsWritten": 5
+  },
+  "approvalLifecycle": {
+    "requests": 9,
+    "statements": 146,
+    "rowsRead": 91,
+    "rowsWritten": 13
+  },
+  "resolutionRecovery": {
+    "earlyResolution": {
+      "requests": 1,
+      "statements": 14,
+      "rowsRead": 7,
+      "rowsWritten": 2
+    },
+    "resolutionRetries": {
+      "requests": 20,
+      "statements": 280,
+      "rowsRead": 140,
+      "rowsWritten": 0
+    },
+    "latePublication": {
+      "requests": 2,
+      "statements": 26,
+      "rowsRead": 17,
+      "rowsWritten": 3
+    },
+    "lateReplay": {
+      "requests": 1,
+      "statements": 13,
+      "rowsRead": 9,
+      "rowsWritten": 0
+    },
+    "workerRestartRetainedResolution": true,
+    "freshPendingRequestDelivered": true
+  },
+  "legacySchemaRecovery": {
+    "taskAndGrantsRetained": true,
+    "queuedCommandRetained": true,
+    "uncertainCommandNotRequeued": true,
+    "idempotencyRetained": true,
+    "missingReceiptRepublished": true
+  },
+  "at": "2026-10-21T18:04:26.048644+00:00",
+  "sourceParent": "bf2ce72921624b9efc83a2a13e7709c9da990fc6",
+  "candidateBundleSha256": "9d946b238a7702a242b419a12b473d86845a7071ab90c47d87acb06443c4e641",
+  "liveBillingAttribution": false
+}
