@@ -48,6 +48,7 @@ if __name__ == "__main__":
     artwork = mark(1024, scale=.76)
     tile.paste(artwork, mask=artwork.getchannel("A"))
     png(tile, "apps/mobile/assets/images/icon.png")
+    png(tile.resize((512, 512), Image.Resampling.LANCZOS), "website/public/app-icon.png")
     png(mark(1024, scale=.60), "apps/mobile/assets/images/adaptive-foreground.png")
     png(mark(1024, color="#ffffff", scale=.60), "apps/mobile/assets/images/adaptive-monochrome.png")
     png(mark(256, scale=.90), "apps/mobile/assets/images/splash-icon.png")
@@ -61,4 +62,4 @@ if __name__ == "__main__":
     dev.save(ROOT / "resources/AppIconDev.icns")
     (ROOT / "docs/ion-redesign").mkdir(parents=True, exist_ok=True)
     png(tile.resize((256,256), Image.Resampling.LANCZOS), "docs/ion-redesign/icon-preview.png")
-    print("Built Ion desktop, Android adaptive/themed, splash and favicon assets from canonical SVG.")
+    print("Built Ion desktop (macOS/Windows/Linux), Android adaptive/themed, splash and favicon assets from canonical SVG.")

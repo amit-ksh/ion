@@ -10,6 +10,7 @@ import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
 import { displaySessionTitle, providerLabel } from '@/lib/session-presentation';
+import { useRuntime } from '@/lib/runtime-context';
 
 const sections = ['Tasks', 'Projects', 'Teams', 'Decisions'] as const;
 type Section = typeof sections[number];
@@ -19,6 +20,7 @@ export default function WorkScreen() {
   const theme = useTheme();
   const header = useScreenHeaderInset();
   const tasks = useTaskState();
+  const runtime = useRuntime();
   const [section, setSection] = useState<Section>('Tasks');
   const [projectPicker, setProjectPicker] = useState(false);
   const [after, setAfter] = useState<string | null>(null);
@@ -66,13 +68,19 @@ export default function WorkScreen() {
     }
     const review = (source: string, id: string, run?: string) => () => router.push({ pathname: '/inbox-source', params: { source, id, run, owner } });
     return [
+      ...(!after ? (tasks.data?.sessions ?? []).filter(session => !session.team_assignment
+        && (session.status === 'waiting' || runtime.permissions[session.id] || runtime.userInputs[session.id])).map(session => ({
+        id: `session:${session.id}`, title: displaySessionTitle(session),
+        detail: `${runtime.userInputs[session.id] ? 'Question' : 'Approval'} · ${projects.get(session.project_id) ?? 'Project'}`,
+        open: () => router.push({ pathname: '/session/[id]', params: { id: session.id } }),
+      })) : []),
       ...(control.data?.decisions ?? []).map(decision => ({ id: decision.id, title: decision.title,
         detail: `Decision · ${projects.get(decision.projectId) ?? 'Project'}`, open: review('teamDecision', decision.id, decision.runId) })),
       ...(!after ? (records ?? []).filter((record): record is Extract<ControlRecord, {kind: 'action'}> => record.kind === 'action' && record.status === 'pending').map(action => ({
         id: action.id, title: action.title, detail: `Proposal · ${projects.get(action.projectId) ?? 'Project'}`, open: review('workspaceAction', action.id),
       })) : []),
     ];
-  }, [section, tasks.data, records, control.data?.decisions, owner, after]);
+  }, [section, tasks.data, records, control.data?.decisions, owner, after, runtime.permissions, runtime.userInputs]);
   const error = control.query.error ?? tasks.error;
   const loading = !control.data && control.query.isFetching || !tasks.data && tasks.isFetching;
   return <View style={[styles.screen, { backgroundColor: theme.background }]}>

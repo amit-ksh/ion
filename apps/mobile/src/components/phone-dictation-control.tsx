@@ -159,7 +159,7 @@ export function PhoneDictationControl({
 }
 
 const styles = StyleSheet.create({
-  group: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 1, alignItems: 'center' },
+  group: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 1, alignItems: 'center', gap: 8 },
   button: {
     minWidth: 48,
     minHeight: 48,

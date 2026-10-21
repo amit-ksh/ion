@@ -30,4 +30,6 @@ test('configured launcher and splash assets exist at packaging resolution', () =
     expect(png.readUInt32BE(16)).toBe(size); expect(png.readUInt32BE(20)).toBe(size);
   }
   for (const file of ['resources/AppIcon.icns', 'resources/AppIconDev.icns', 'resources/windows/AppIcon.ico', 'assets/icons/ion.svg']) expect(existsSync(file)).toBe(true);
+  const linux = readFileSync('website/public/app-icon.png');
+  expect(linux.readUInt32BE(16)).toBe(512); expect(linux.readUInt32BE(20)).toBe(512);
 });

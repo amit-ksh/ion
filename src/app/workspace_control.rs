@@ -1019,12 +1019,18 @@ impl Waku {
             .bg(theme.raised)
             .cursor_default()
             .hover(move |style| {
-                if primary { style.bg(theme.primary).opacity(0.9) }
-                else { style.bg(theme.overlay_strong) }
+                if primary {
+                    style.bg(theme.primary).opacity(0.9)
+                } else {
+                    style.bg(theme.overlay_strong)
+                }
             })
             .active(move |style| {
-                if primary { style.bg(theme.primary).opacity(0.8) }
-                else { style.bg(theme.overlay) }
+                if primary {
+                    style.bg(theme.primary).opacity(0.8)
+                } else {
+                    style.bg(theme.overlay)
+                }
             })
             .when(primary, |button| {
                 button
