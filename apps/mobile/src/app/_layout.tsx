@@ -89,10 +89,10 @@ export default function RootLayout() {
                 <TaskDrawerHost>
                   <WorkbenchShell />
                 </TaskDrawerHost>
-                <StatusBar style="auto" />
               </RuntimeProvider>
             </DaemonProvider>
           </AccountGate>
+          <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
         </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

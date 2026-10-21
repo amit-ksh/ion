@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "implementationCommit": "e7a7ddc5115de45ff5d392081d42168bf3230ad7",
+  "capturedAt": "2026-10-21T06:06:34.358506+00:00",
+  "desktop": {
+    "build": "passed",
+    "keyboardEscape": "passed in rebuilt 982x816 Windows app",
+    "fullVisualAcceptance": "pending"
+  },
+  "mobile": {
+    "typecheckExit": 0,
+    "runtimeTests": {
+      "pass": 14,
+      "fail": 0,
+      "assertions": 47
+    },
+    "automationTests": {
+      "pass": 27,
+      "fail": 0,
+      "assertions": 93
+    },
+    "directBundle": {
+      "modules": 2347,
+      "currentSources": [
+        {
+          "file": "apps/mobile/src/app/_layout.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/new-task.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/agent-editor.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/daemons.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/components/mobile-composer.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/lib/automation-api.ts",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/lib/runtime-context.tsx",
+          "currentSource": true
+        }
+      ]
+    },
+    "apk": {
+      "buildExit": 0,
+      "applicationId": "sh.waku.mobile.redesign",
+      "bytes": 54176554,
+      "sha256": "f4affb7bcc35f4a7e7ed60e87e22547e184033ed61e0b4d232858c256b546213",
+      "architectures": [
+        "x86_64"
+      ],
+      "hermesBytecode": true,
+      "bundleSha256": "f9fcc08024788e122f1f699161a324c0697fdd9cff17283437a888a44ada7c47",
+      "currentSources": [
+        {
+          "file": "apps/mobile/src/app/_layout.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/new-task.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/agent-editor.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/app/daemons.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/components/mobile-composer.tsx",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/lib/automation-api.ts",
+          "currentSource": true
+        },
+        {
+          "file": "apps/mobile/src/lib/runtime-context.tsx",
+          "currentSource": true
+        }
+      ],
+      "installExit": 0,
+      "launchExit": 0
+    },
+    "deviceAcceptance": "pending owner sign-in after installation",
+    "emulator": {
+      "serial": "emulator-5580",
+      "api": 36,
+      "viewportPixels": [
+        1080,
+        2400
+      ],
+      "density": 420,
+      "renderer": "swiftshader_indirect, Vulkan disabled",
+      "hostWindowScale": 0.25,
+      "initialSystemUiAnr": "Wait recovered app; evidence retained",
+      "authentication": "owner browser sign-in in progress"
+    },
+    "statusBarUpdate": {
+      "source": "mount theme-aware StatusBar outside AccountGate",
+      "typecheckExit": 0,
+      "apkBuild": "in progress"
+    }
+  },
+  "review": "independent source reviewer rechecked its three findings; no further material mistake",
+  "nativeBinary": {
+    "path": ".waku-cache/native-target/debug/waku.exe",
+    "bytes": 49592832,
+    "sha256": "e5d7195694dde2f28476cfd8a1eef9ba7913f4e01cd7775c698733e4b042f66b"
+  },
+  "readableAndroidBundle": {
+    "path": ".waku-cache/refinement-index.js",
+    "bytes": 4416403,
+    "sha256": "235fd3393d1ef0c6970ce6db4d3b634e11558c114590a6cf8bc02c7c9c894a8e"
+  }
+}

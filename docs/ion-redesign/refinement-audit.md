@@ -76,24 +76,31 @@ not full provider, populated workflow or long-transcript acceptance.
   separate non-React suite passed 24 tests (225 assertions) covering palette,
   icons, Apps, account policy, revisions, hierarchy and model layout. Final
   automation persistence/policy tests passed 27 tests (93 assertions).
-- Android APK: assembly in progress using a separate `.redesign` application ID,
-  local native dependency sources and an isolated Gradle cache. The first attempt
-  exposed cross-drive codegen and missing Expo script-distribution errors, which
-  were corrected in the local build environment without dependency version edits.
-  A second attempt exposed missing compiled Expo config-plugin distributions.
-  Restoring those files made direct Expo configuration pass. Subsequent attempts
-  exposed a cross-drive Expo CLI path and Metro dependency-junction visibility;
-  the isolated CLI copy and temporary Metro config resolved both. Direct Android
-  bundling passed with 2,347 modules. APK assembly is retrying with cached native
-  compilation. The temporary config is environment-only and is not product source.
+- Android APK: release assembly passed with 728 tasks; the isolated
+  `sh.waku.mobile.redesign` x86_64 APK is 54,176,554 bytes. APK Signature Scheme
+  v2 verification passed. Its Hermes bundle and source map contain the current
+  edited screens and capability guards. Installation on `emulator-5580` passed,
+  and Android resolved/launched `sh.waku.mobile.MainActivity` successfully.
+  This is an emulator review package, not a physical-device release validation.
 - Android emulator: an isolated API 36 x86_64 image and AVD were installed. WHPX
   acceleration is available. The initial Vulkan boot stalled; a diagnostic boot
   used software rendering with Vulkan disabled and reached boot-completed state.
-  No physical-device input/install
-  has been performed.
+  An Android System UI ANR appeared under the software-rendered emulator;
+  choosing Wait recovered the visible Ion account gate. That environment issue
+  is preserved as `android-system-ui-anr.png`; `android-account-gate.png` records
+  the recovered actual app screen. No physical-device input/install was performed.
 - Account-gated Android screens require a signed-in emulator. The user has been
-  confirmed they can sign in once the APK is installed. Authentication is left
-  to the owner; no account-gated device pass is claimed yet.
+  confirmed they can sign in once the APK is installed, and requested help
+  locating the review window. It was brought to the foreground. Authentication
+  is left to the owner; no account-gated device pass is claimed yet. The initial
+  host window opened off-screen. Resetting only its host position/scale to 25%
+  made the full phone visible without changing the 1080 × 2400 / 420dpi Android
+  viewport. The browser sign-in page is now open for owner input.
+- The first device capture exposed white system status icons on the light
+  signed-out surface. The status-bar component was inside the account gate and
+  did not mount while signed out. It now mounts above that gate and follows
+  the actual theme. TypeScript passed; the updated APK is assembling while the
+  owner signs in on the first successful review package.
 
 The independent reviewer initially hit its account usage limit, then completed
 its bounded read-only review after the window reset. It found a stale composer
