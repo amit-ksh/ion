@@ -213,5 +213,11 @@
     "path": ".waku-cache/native-target/debug/waku.exe",
     "bytes": 49592832,
     "sha256": "e5d7195694dde2f28476cfd8a1eef9ba7913f4e01cd7775c698733e4b042f66b"
+  },
+  "latestFollowUp": {
+    "date": "2026-10-21",
+    "audit": "desktop-header-audit.md",
+    "validation": "desktop-header-validation.json",
+    "supersedes": "APK deferred-build and dark Material-sheet contrast entries; preserves historical receipts and remaining limits"
   }
 }

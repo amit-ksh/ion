@@ -1350,6 +1350,8 @@ pub struct Waku {
     session_navigation: SessionNavigation,
     /// Sidebar task currently showing its inline rename field.
     session_rename: Option<Uuid>,
+    project_rename: Option<Uuid>,
+    connected_mobile_devices: Vec<String>,
     /// One stable field reused across sidebar rows so virtualization never
     /// replaces the focused editor while a rename is in progress.
     session_rename_input: Entity<TextInput>,
@@ -1685,10 +1687,10 @@ pub use settings::init as init_settings_keys;
 pub use sidebar::init as init_sidebar_keys;
 use sidebar::{SidebarGroup, SidebarRow};
 pub use skills_page::init as init_skills_keys;
-pub use workspace_control::init as init_workspace_control_keys;
 use streaming::*;
 use transcript::*;
 use transcript_view::ConversationNavigationRail;
+pub use workspace_control::init as init_workspace_control_keys;
 
 /// Collapse provider- or page-supplied text into a label that cannot contain
 /// hard line breaks. GPUI's `truncate()` prevents wrapping, but explicit
@@ -1984,6 +1986,7 @@ impl Waku {
         let composer_draft_store = ComposerDraftStore::remote(daemon.clone());
         let composer_drafts = composer_draft_store.load().unwrap_or_default();
         let mut state = store.load_or_fresh(cwd);
+        state.sidebar_grouping = SidebarGrouping::Project;
         if waku_protocol::distribution::DistributionProfile::current()
             == waku_protocol::distribution::DistributionProfile::NebiusHackathon
             && let Some(project_id) = state
@@ -2710,7 +2713,11 @@ impl Waku {
                 &session_rename_input,
                 |this: &mut Self, _, event: &InputEvent, cx| match event {
                     InputEvent::Submit(_) => this.commit_session_rename(cx),
-                    InputEvent::Edited if this.session_rename.is_some() => cx.notify(),
+                    InputEvent::Edited
+                        if this.session_rename.is_some() || this.project_rename.is_some() =>
+                    {
+                        cx.notify()
+                    }
                     _ => {}
                 },
             )
@@ -3052,6 +3059,8 @@ impl Waku {
                 transcript_control_focuses: RefCell::new(HashMap::new()),
                 session_navigation,
                 session_rename: None,
+                project_rename: None,
+                connected_mobile_devices: Vec::new(),
                 session_rename_input,
                 sidebar_collapsed_groups: HashSet::new(),
                 sidebar_project_reveal_counts: HashMap::new(),
@@ -3221,6 +3230,7 @@ impl Waku {
         entity.update(cx, |this, cx| {
             this.start_account_gate(cx);
             this.restart_task_state_sync();
+            this.start_mobile_device_watch(cx);
             this.initialize_onboarding(window, cx);
             for session_id in startup_live_session_ids {
                 this.start_runtime_attachment(session_id, cx);

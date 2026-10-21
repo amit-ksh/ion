@@ -157,7 +157,7 @@ fn append_sidebar_group_rows(
     collapsed: bool,
     show_more: bool,
 ) {
-    if sessions.is_empty() && !show_more {
+    if sessions.is_empty() && !show_more && !matches!(group, SidebarGroup::Project(_)) {
         return;
     }
 
@@ -205,16 +205,15 @@ fn updater_button_available_content(
 /// Height of a session card plus the separation reserved beneath it in the
 /// virtualized sidebar list. Keep the gap inside the list row so measured and
 /// estimated heights stay identical for off-screen sessions.
-const SIDEBAR_SESSION_CARD_HEIGHT: f32 = 51.0;
+const SIDEBAR_SESSION_CARD_HEIGHT: f32 = 34.0;
 const SIDEBAR_SESSION_ROW_GAP: f32 = 1.0;
 const SIDEBAR_SESSION_ROW_HEIGHT: f32 = SIDEBAR_SESSION_CARD_HEIGHT + SIDEBAR_SESSION_ROW_GAP;
 const SIDEBAR_ACTION_ROW_HEIGHT: f32 = 32.0;
 const SIDEBAR_SEARCH_BOTTOM_GAP: f32 = 10.0;
-const SIDEBAR_GROUP_HEADER_HEIGHT: f32 = 28.0;
+const SIDEBAR_GROUP_HEADER_HEIGHT: f32 = 32.0;
 const SIDEBAR_GROUP_HEADER_BOTTOM_GAP: f32 = 2.0;
 const SIDEBAR_SHOW_MORE_ROW_HEIGHT: f32 = 30.0;
 const SIDEBAR_GROUP_SPACER_HEIGHT: f32 = 10.0;
-const SIDEBAR_GROUP_GUIDE_X: f32 = 15.0;
 const SIDEBAR_GROUP_CHILD_PADDING: f32 = 28.0;
 const SIDEBAR_PROJECT_RECENT_WINDOW_SECONDS: u64 = 3 * 24 * 60 * 60;
 const SIDEBAR_PROJECT_REVEAL_BATCH: usize = 30;
@@ -735,7 +734,15 @@ impl Waku {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(icon(icon_path, 14.0, if id == "sidebar-new-session" { theme.accent } else { theme.text_secondary })),
+                    .child(icon(
+                        icon_path,
+                        14.0,
+                        if id == "sidebar-new-session" {
+                            theme.accent
+                        } else {
+                            theme.text_secondary
+                        },
+                    )),
             )
             .child(
                 div()
@@ -1045,7 +1052,7 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = Theme::current(cx);
-        self.ensure_sidebar_branch_labels(cx);
+
         let is_resizing = self
             .panel_resize_drag
             .is_some_and(|drag| drag.target == PanelResizeTarget::Sidebar);
@@ -1114,6 +1121,23 @@ impl Waku {
                     .child(self.render_sidebar_search(cx)),
             )
             .child(self.render_workspace_nav(cx))
+            .child(
+                div()
+                    .px(px(18.0))
+                    .py(px(8.0))
+                    .flex()
+                    .items_center()
+                    .text_size(sp(12.0))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme.text_tertiary)
+                    .child(if self.state.sidebar_grouping == SidebarGrouping::Project {
+                        "Projects"
+                    } else {
+                        "Chats"
+                    })
+                    .child(div().flex_1())
+                    .child(self.render_sidebar_header_actions(cx)),
+            )
             .child(
                 div()
                     .id("sidebar-scroll")
@@ -1295,9 +1319,19 @@ impl Waku {
                     })
                     .map(|project| project.id)
                     .collect::<HashSet<_>>();
-                for (group, sessions) in
-                    project_sidebar_groups(&sorted_sessions, &projectless_project_ids)
-                {
+                let mut groups = project_sidebar_groups(&sorted_sessions, &projectless_project_ids);
+                let included = groups
+                    .iter()
+                    .map(|(group, _)| *group)
+                    .collect::<HashSet<_>>();
+                for project in &self.state.projects {
+                    if !projectless_project_ids.contains(&project.id)
+                        && !included.contains(&SidebarGroup::Project(project.id))
+                    {
+                        groups.push((SidebarGroup::Project(project.id), Vec::new()));
+                    }
+                }
+                for (group, sessions) in groups {
                     let revealed_older_sessions = self
                         .sidebar_project_reveal_counts
                         .get(&group)
@@ -1408,8 +1442,8 @@ impl Waku {
     fn render_sidebar_group_header(
         &self,
         group: SidebarGroup,
-        first: bool,
-        has_expanded_children: bool,
+        _first: bool,
+        _has_expanded_children: bool,
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = Theme::current(cx);
@@ -1538,7 +1572,37 @@ impl Waku {
                             .flex()
                             .items_center()
                             .gap(px(2.0))
-                            .child(div().min_w_0().truncate().child(label))
+                            .child(match group {
+                                SidebarGroup::Project(id) if self.project_rename == Some(id) => {
+                                    div()
+                                        .id("project-rename-field")
+                                        .key_context(SESSION_RENAME_PARENT_CONTEXT)
+                                        .on_action(cx.listener(
+                                            |this, _: &CancelSessionRename, window, cx| {
+                                                this.cancel_session_rename(window, cx)
+                                            },
+                                        ))
+                                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                            cx.stop_propagation()
+                                        })
+                                        .on_click(|_, _, cx| cx.stop_propagation())
+                                        .on_mouse_down_out(cx.listener(move |this, _, _, cx| {
+                                            if this.project_rename == Some(id) {
+                                                this.commit_session_rename(cx);
+                                            }
+                                        }))
+                                        .h(px(24.0))
+                                        .min_w(px(90.0))
+                                        .flex_1()
+                                        .border_1()
+                                        .border_color(theme.accent)
+                                        .rounded(px(4.0))
+                                        .bg(theme.inset)
+                                        .child(self.session_rename_input.clone())
+                                        .into_any_element()
+                                }
+                                _ => div().min_w_0().truncate().child(label).into_any_element(),
+                            })
                             .when_some(updated_chevron, |element, chevron| element.child(chevron)),
                     )
                     .child(div().flex_1()),
@@ -1549,45 +1613,8 @@ impl Waku {
                     SidebarGroup::Project(id) => Some(id),
                     _ => None,
                 },
-                |element, id| {
-                    element.child(
-                        self.control_button(
-                            format!("sidebar-remove-project-{id}"),
-                            "",
-                            cx,
-                            move |this, window, cx| {
-                                cx.stop_propagation();
-                                this.request_remove_project(id, window, cx);
-                            },
-                        )
-                        .size(px(24.0))
-                        .p_0()
-                        .border_0()
-                        .justify_center()
-                        .tooltip(Tooltip::text("Remove project from Ion"))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(icon(
-                            "icons/trash.svg",
-                            13.0,
-                            theme.text_secondary,
-                        )),
-                    )
-                },
+                |element, id| element.child(self.render_sidebar_project_menu(id, cx)),
             )
-            .when(first, |element| {
-                element.child(self.render_sidebar_header_actions(cx))
-            })
-            .when(show_folder_icon && has_expanded_children, |element| {
-                element.child(
-                    div()
-                        .absolute()
-                        .left(px(SIDEBAR_GROUP_GUIDE_X))
-                        .top(px(19.0))
-                        .bottom(px(-2.0))
-                        .w(px(1.0))
-                        .bg(theme.border),
-                )
-            })
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.toggle_sidebar_group(group, cx);
             }))
@@ -1663,27 +1690,12 @@ impl Waku {
             }));
 
         div()
-            .relative()
             .w_full()
             .h(px(SIDEBAR_SHOW_MORE_ROW_HEIGHT))
             .pl(px(SIDEBAR_GROUP_CHILD_PADDING))
             .flex()
             .items_center()
             .child(button)
-            .child(
-                div()
-                    .absolute()
-                    .left(px(SIDEBAR_GROUP_GUIDE_X))
-                    .top_0()
-                    .w(px(SIDEBAR_GROUP_CHILD_PADDING
-                        - SIDEBAR_GROUP_GUIDE_X
-                        - 4.0))
-                    .h(px(15.0))
-                    .border_l_1()
-                    .border_b_1()
-                    .rounded_bl(px(4.0))
-                    .border_color(theme.border),
-            )
     }
 
     fn show_more_project_sessions(&mut self, group: SidebarGroup, cx: &mut Context<Self>) {
@@ -1783,6 +1795,7 @@ impl Waku {
             return;
         };
 
+        self.project_rename = None;
         self.session_rename = Some(session_id);
         self.session_rename_input.update(cx, |input, cx| {
             input.set_content(title, cx);
@@ -1794,6 +1807,26 @@ impl Waku {
     }
 
     pub(super) fn commit_session_rename(&mut self, cx: &mut Context<Self>) {
+        if let Some(project_id) = self.project_rename.take() {
+            let name = self
+                .session_rename_input
+                .read(cx)
+                .content()
+                .trim()
+                .to_owned();
+            if !name.is_empty()
+                && let Some(project) = self
+                    .state
+                    .projects
+                    .iter_mut()
+                    .find(|project| project.id == project_id)
+            {
+                project.name = name.chars().take(160).collect();
+                self.save();
+            }
+            cx.notify();
+            return;
+        }
         let Some(session_id) = self.session_rename.take() else {
             return;
         };
@@ -1823,7 +1856,8 @@ impl Waku {
     }
 
     fn cancel_session_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session_rename.take().is_none() {
+        let project = self.project_rename.take();
+        if self.session_rename.take().is_none() && project.is_none() {
             return;
         }
         let focus = self.composer_focus(cx);
@@ -1851,43 +1885,11 @@ impl Waku {
             session.status,
             SessionStatus::Connecting | SessionStatus::Working
         );
-        let project = self
-            .state
-            .projects
-            .iter()
-            .find(|project| project.id == session.project_id);
         let grouped_by_project = self.state.sidebar_grouping == SidebarGrouping::Project;
         let left_padding = if grouped_by_project {
             SIDEBAR_GROUP_CHILD_PADDING
         } else {
             8.0
-        };
-        let detail_label = if grouped_by_project {
-            persisted_sidebar_branch_label(&session.workspace)
-                .map(|branch| SharedString::from(branch.to_owned()))
-                .or_else(|| {
-                    if !matches!(&session.workspace, SessionWorkspace::Local) {
-                        return None;
-                    }
-                    project.and_then(|project| {
-                        self.sidebar_branch_labels
-                            .borrow()
-                            .get(&project.path)
-                            .cloned()
-                    })
-                })
-        } else {
-            Some(SharedString::from(
-                project
-                    .map(Project::display_name)
-                    .unwrap_or_else(|| tr!("sidebar.unknown_project")),
-            ))
-        };
-        let has_detail_label = detail_label.is_some();
-        let detail_icon = if grouped_by_project {
-            "icons/git-branch.svg"
-        } else {
-            "icons/folder.svg"
         };
         let rename_input =
             (self.session_rename == Some(session_id)).then(|| self.session_rename_input.clone());
@@ -1940,7 +1942,8 @@ impl Waku {
             .gap(px(4.0))
             .pl(px(left_padding))
             .pr(px(8.0))
-            .py(px(7.0))
+            .h(px(SIDEBAR_SESSION_CARD_HEIGHT))
+            .justify_center()
             .rounded(px(7.0))
             .cursor_default()
             .when(selected, |element| {
@@ -1983,68 +1986,7 @@ impl Waku {
                             12.0,
                             status_color(&theme, session.status),
                         ))
-                    })
-                    .when(!renaming, |element| {
-                        element.child(
-                            self.control_button(
-                                format!("sidebar-remove-chat-{session_id}"),
-                                "",
-                                cx,
-                                move |this, window, cx| {
-                                    cx.stop_propagation();
-                                    this.request_remove_session(session_id, window, cx);
-                                },
-                            )
-                            .size(px(24.0))
-                            .p_0()
-                            .border_0()
-                            .justify_center()
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .tooltip(Tooltip::text("Remove chat"))
-                            .child(icon(
-                                "icons/trash.svg",
-                                13.0,
-                                theme.text_secondary,
-                            )),
-                        )
                     }),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(5.0))
-                    .text_size(sp(if grouped_by_project { 12.5 } else { 13.0 }))
-                    .line_height(sp(15.0))
-                    .when_some(detail_label, |element, label| {
-                        element
-                            .child(icon(detail_icon, 12.5, theme.text_tertiary))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .truncate()
-                                    .text_color(theme.text_tertiary)
-                                    .child(label),
-                            )
-                    })
-                    .when(!has_detail_label, |element| element.child(div().flex_1()))
-                    .when_some(
-                        session_time_label(session, unix_time()),
-                        |element, label| {
-                            element.child(
-                                div()
-                                    .flex_none()
-                                    .text_size(sp(12.5))
-                                    .text_color(if session.is_busy() {
-                                        theme.text_tertiary
-                                    } else {
-                                        theme.text_ghost
-                                    })
-                                    .child(SharedString::from(label)),
-                            )
-                        },
-                    ),
             )
             .when(!renaming, |element| {
                 element
@@ -2105,17 +2047,6 @@ impl Waku {
             .w_full()
             .pb(px(SIDEBAR_SESSION_ROW_GAP))
             .child(row)
-            .when(grouped_by_project, |element| {
-                element.child(
-                    div()
-                        .absolute()
-                        .left(px(SIDEBAR_GROUP_GUIDE_X))
-                        .top_0()
-                        .bottom_0()
-                        .w(px(1.0))
-                        .bg(theme.border),
-                )
-            })
             .into_any_element()
     }
 
@@ -2264,6 +2195,30 @@ impl Waku {
                     cx,
                 ),
             )
+            .when(!self.connected_mobile_devices.is_empty(), |header| {
+                header.child(
+                    div()
+                        .id("connected-mobile-devices")
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .px(px(8.0))
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .child(icon("icons/smartphone.svg", 14.0, theme.success))
+                        .child(SharedString::from(
+                            if self.connected_mobile_devices.len() == 1 {
+                                format!("{} connected", self.connected_mobile_devices[0])
+                            } else {
+                                format!(
+                                    "{} mobile devices connected",
+                                    self.connected_mobile_devices.len()
+                                )
+                            },
+                        )),
+                )
+            })
+            .child(self.render_header_theme_switch(cx))
             .children(self.render_setup_indicator(cx))
             .when(self.control_ui.page.is_none(), |element| {
                 element.child(self.render_background_work_summary(cx))
@@ -2276,6 +2231,171 @@ impl Waku {
                     .child(self.render_right_panel_toggle(cx))
             })
             .children(right_window_controls)
+    }
+
+    pub(super) fn start_mobile_device_watch(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            loop {
+                let Ok(client) = this.update(cx, |this, _| this.daemon.client()) else {
+                    break;
+                };
+                let response = cx
+                    .background_executor()
+                    .spawn(async move {
+                        client.request(
+                            Uuid::nil(),
+                            Uuid::nil(),
+                            waku_client::Command::ListConnectedMobileDevices,
+                        )
+                    })
+                    .await;
+                let devices = match response {
+                    Ok(waku_client::ResponsePayload::ConnectedMobileDevices { devices }) => devices,
+                    _ => Vec::new(),
+                };
+                if this
+                    .update(cx, |this, cx| {
+                        if this.connected_mobile_devices != devices {
+                            this.connected_mobile_devices = devices;
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+                cx.background_executor().timer(Duration::from_secs(3)).await;
+            }
+        })
+        .detach();
+    }
+
+    fn render_header_theme_switch(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::current(cx);
+        let handle = self.menu_handle("header-theme", cx);
+        let current = self.state.theme;
+        let weak = cx.entity().downgrade();
+        dropdown_menu(
+            div()
+                .id("header-theme-switch")
+                .size(px(28.0))
+                .rounded(px(6.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .cursor_default()
+                .focus_visible(|style| style.border_1().border_color(theme.accent))
+                .hover(|style| style.bg(theme.overlay))
+                .tooltip(Tooltip::text("Appearance"))
+                .child(icon("icons/sun.svg", 16.0, theme.text_secondary)),
+            "header-theme-menu",
+            &handle,
+            MenuAlign::BelowRight,
+            move |_| {
+                ThemePreference::ALL
+                    .into_iter()
+                    .map(|preference| {
+                        let weak = weak.clone();
+                        MenuItem::new(preference.label(), move |window, cx| {
+                            let _ = weak.update(cx, |this, cx| {
+                                this.set_theme_preference(preference, window, cx)
+                            });
+                        })
+                        .selected(current == preference)
+                    })
+                    .collect()
+            },
+        )
+        .into_any_element()
+    }
+
+    fn render_sidebar_project_menu(&self, id: Uuid, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::current(cx);
+        let handle = self.menu_handle(format!("sidebar-project-options-{id}"), cx);
+        let weak = cx.entity().downgrade();
+        dropdown_menu(
+            div()
+                .id(SharedString::from(format!("project-options-{id}")))
+                .size(px(24.0))
+                .rounded(px(4.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .focus_visible(|style| style.border_1().border_color(theme.accent))
+                .hover(|style| style.bg(theme.overlay))
+                .tooltip(Tooltip::text("Project details and actions"))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(icon(
+                    "icons/ellipsis-vertical.svg",
+                    14.0,
+                    theme.text_secondary,
+                )),
+            SharedString::from(format!("project-options-menu-{id}")),
+            &handle,
+            MenuAlign::BelowLeft,
+            move |cx| {
+                let Some(entity) = weak.upgrade() else {
+                    return Vec::new();
+                };
+                let this = entity.read(cx);
+                let Some(project) = this.state.projects.iter().find(|p| p.id == id) else {
+                    return Vec::new();
+                };
+                let count = this
+                    .state
+                    .sessions
+                    .iter()
+                    .filter(|session| session.project_id == id && session.has_started())
+                    .count();
+                let name = project.display_name();
+                let path = project.path.display().to_string();
+                let rename = weak.clone();
+                let remove = weak.clone();
+                vec![
+                    MenuItem::new(name, |_, _| {})
+                        .disabled(true)
+                        .icon("icons/folder.svg"),
+                    MenuItem::new(
+                        if count == 1 {
+                            "1 chat".into()
+                        } else {
+                            format!("{count} chats")
+                        },
+                        |_, _| {},
+                    )
+                    .disabled(true),
+                    MenuItem::new(path, |_, _| {}).disabled(true),
+                    MenuItem::Separator,
+                    MenuItem::new("Edit project name", move |window, cx| {
+                        let _ = rename.update(cx, |this, cx| {
+                            let Some(name) = this
+                                .state
+                                .projects
+                                .iter()
+                                .find(|p| p.id == id)
+                                .map(|p| p.name.clone())
+                            else {
+                                return;
+                            };
+                            this.session_rename = None;
+                            this.project_rename = Some(id);
+                            this.session_rename_input.update(cx, |input, cx| {
+                                input.set_content(name, cx);
+                                input.select_all_text(cx);
+                            });
+                            let focus = this.session_rename_input.read(cx).focus();
+                            window.on_next_frame(move |window, cx| window.focus(&focus, cx));
+                            cx.notify();
+                        });
+                    }),
+                    MenuItem::new("Delete project…", move |window, cx| {
+                        let _ = remove
+                            .update(cx, |this, cx| this.request_remove_project(id, window, cx));
+                    }),
+                ]
+            },
+        )
+        .into_any_element()
     }
 
     // ── Empty states ───────────────────────────────────────────────────────

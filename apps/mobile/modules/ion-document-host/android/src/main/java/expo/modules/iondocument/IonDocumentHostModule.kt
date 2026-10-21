@@ -19,6 +19,10 @@ class IonDocumentHostModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("IonDocumentHost")
+    Constants("sheetSystemBarsSupported" to true)
+    View(IonSheetSystemBarsView::class) {
+      Prop("dark") { view: IonSheetSystemBarsView, dark: Boolean -> view.setDark(dark) }
+    }
     AsyncFunction("open") { token: String, entry: String, files: List<Map<String, String>> ->
       val ticket = synchronized(guard) {
         hosts.entries.removeAll { if (!it.value.alive()) { it.value.close(); true } else false }

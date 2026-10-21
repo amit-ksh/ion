@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-21",
+  "scope": "desktop header/projects and one approved emulator APK",
+  "apk": {
+    "sha256": "f215e124a54d32e2b9500e4eafa8e5b17fc2b030ec9afa86da8e02a27a6f0ab0",
+    "bytes": 54177682,
+    "javascript": [
+      {
+        "path": "apps/mobile/src/components/sheet.tsx",
+        "matchesCurrentSource": true
+      },
+      {
+        "path": "apps/mobile/src/components/sheet-system-bars.tsx",
+        "matchesCurrentSource": true
+      },
+      {
+        "path": "apps/mobile/src/lib/daemon-context.tsx",
+        "matchesCurrentSource": true
+      },
+      {
+        "path": "apps/mobile/src/components/phone-dictation-control.tsx",
+        "matchesCurrentSource": true
+      },
+      {
+        "path": "apps/mobile/src/components/mobile-composer.tsx",
+        "matchesCurrentSource": false
+      },
+      {
+        "path": "apps/mobile/src/app/new-task.tsx",
+        "matchesCurrentSource": true
+      },
+      {
+        "path": "apps/mobile/src/lib/runtime-errors.ts",
+        "matchesCurrentSource": false
+      },
+      {
+        "path": "apps/mobile/src/components/workbench.tsx",
+        "matchesCurrentSource": true
+      }
+    ],
+    "nativeSheetSystemBarsClassIncluded": true
+  },
+  "apkBuilds": 1,
+  "apkV2SignatureVerified": true,
+  "emulator": "emulator-5580",
+  "desktop": {
+    "watcherManaged": true,
+    "buildPassed": true,
+    "binaryBytes": 49589760,
+    "binarySha256": "ad6b8c8424cca0179be510fd54afe5da95cda61437a40c365251796c22f64c51",
+    "visualAndKeyboardAcceptance": "unverified: Windows Computer Use helper failed to write kernel assets after reset",
+    "reportedDevices": [
+      "Android"
+    ],
+    "projectRenamePersisted": true
+  },
+  "checks": {
+    "protocolBindingsCurrent": true,
+    "mobileTypecheckPassed": true,
+    "focusedTests": {
+      "passed": 19,
+      "failed": 0,
+      "assertions": 63
+    },
+    "mobilePresenceRegressionPassed": true,
+    "materialSheetStatusBarContrast": {
+      "light": "passed",
+      "dark": "passed"
+    },
+    "outsideSheetDismissal": "passed",
+    "shortRecordingPrompt": "observed"
+  },
+  "codex": {
+    "source": "actual Android chat through review daemon",
+    "assistantReply": "ION_REVIEW_OK",
+    "finalStatus": "idle",
+    "threadOpenTimeoutReproduced": false,
+    "remainingWarning": "GitLab MCP startup returned HTTP 422; owner configuration was not changed"
+  },
+  "recording": {
+    "microphonePermissionGranted": true,
+    "hostAudio": "disabled",
+    "observed": "Start recording returns to idle before an active recording state can be observed",
+    "cause": "undetermined",
+    "recordingDiscardFinalizationTranscription": "not certified"
+  },
+  "unbuiltFollowUp": {
+    "files": [
+      "apps/mobile/src/components/mobile-composer.tsx",
+      "apps/mobile/src/lib/runtime-errors.ts"
+    ],
+    "change": "Name the failed MCP integration rather than claiming the agent could not connect",
+    "testsAndTypes": "passed",
+    "apkRebuilt": false
+  },
+  "cleanup": {
+    "removedSessionIds": [
+      "ac14d33b-1396-4375-b0aa-5e8b669a62a8"
+    ],
+    "projectRemoved": true,
+    "sourcePreserved": true,
+    "otherSessionIdsPreserved": true,
+    "mobileDevices": [
+      "Android"
+    ]
+  },
+  "evidence": [
+    "android-header-update-dark-sheet.png",
+    "android-header-update-light-sheet.png",
+    "android-header-update-codex.png",
+    "android-header-update-record-prompt.png"
+  ],
+  "remainingAcceptance": [
+    "recording lifecycle and audible transcription",
+    "physical microphone quality and ARM/high-refresh performance",
+    "native desktop visual/keyboard state matrix",
+    "GitLab MCP setup",
+    "spoken TalkBack and live Apps OAuth/account switching",
+    "macOS/Linux launchers"
+  ]
+}

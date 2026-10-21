@@ -160,6 +160,7 @@ impl Subscriber {
 #[derive(Default)]
 struct HubState {
     next_subscriber_id: u64,
+    mobile_subscribers: HashMap<u64, (Uuid, String)>,
     task_state_revision: u64,
     subscribers: HashMap<u64, Subscriber>,
     active_runtimes: HashMap<Uuid, Uuid>,
@@ -688,6 +689,13 @@ pub fn serve(
     Ok(())
 }
 
+struct MobilePresence(Arc<Hub>, u64);
+impl Drop for MobilePresence {
+    fn drop(&mut self) {
+        self.0.state.lock().mobile_subscribers.remove(&self.1);
+    }
+}
+
 fn handle_connection(
     stream: TcpStream,
     expected_token: &str,
@@ -705,23 +713,47 @@ fn handle_connection(
         .max_message_size(Some(MAX_HANDSHAKE_MESSAGE_BYTES))
         .max_frame_size(Some(MAX_HANDSHAKE_MESSAGE_BYTES));
     let allowed_origins = options.allowed_origins.clone();
+    let mobile_label = Arc::new(Mutex::new(None::<String>));
+    let handshake_mobile_label = mobile_label.clone();
     let mut socket = accept_hdr_with_config(
         stream,
         move |request: &HandshakeRequest, response: HandshakeResponse| {
-            validate_handshake(request, response, &allowed_origins)
+            let response = validate_handshake(request, response, &allowed_origins)?;
+            if request
+                .headers()
+                .get(NATIVE_CLIENT_HEADER)
+                .and_then(|value| value.to_str().ok())
+                == Some(NATIVE_CLIENT_HEADER_VALUE)
+            {
+                let name = request
+                    .headers()
+                    .get("x-waku-device-name")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("Mobile device")
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .take(64)
+                    .collect::<String>();
+                *handshake_mobile_label.lock() = Some(if name.trim().is_empty() {
+                    "Mobile device".into()
+                } else {
+                    name
+                });
+            }
+            Ok(response)
         },
         Some(config),
     )
     .context("WebSocket handshake failed")?;
     let hello = read_client_message(&mut socket)?;
-    let resume_from = match hello {
+    let (resume_from, mobile_client_id) = match hello {
         ClientMessage::Hello {
             protocol_version,
             token,
             resume_from,
-            ..
+            client_id,
         } if protocol_version == PROTOCOL_VERSION && token_matches(expected_token, &token) => {
-            resume_from
+            (resume_from, client_id)
         }
         ClientMessage::Hello {
             protocol_version, ..
@@ -770,6 +802,13 @@ fn handle_connection(
     let (outgoing, outgoing_rx) = bounded(MAX_QUEUED_MESSAGES_PER_SUBSCRIBER);
     let (subscriber, kicked) = Subscriber::new(outgoing.clone());
     let subscriber_id = hub.subscribe(&resume_from, subscriber);
+    let _mobile_presence = mobile_label.lock().take().map(|label| {
+        hub.state
+            .lock()
+            .mobile_subscribers
+            .insert(subscriber_id, (mobile_client_id, label));
+        MobilePresence(hub.clone(), subscriber_id)
+    });
 
     'connection: while !shutdown.load(Ordering::Acquire) {
         if kicked.try_recv().is_ok() {
@@ -1044,6 +1083,20 @@ fn handle_request(
                 hub.begin_client_runtime(session_id, runtime_id)?;
                 installed_runtime = true;
             }
+            if matches!(&request.command, Command::ListConnectedMobileDevices) {
+                let clients = hub
+                    .state
+                    .lock()
+                    .mobile_subscribers
+                    .values()
+                    .cloned()
+                    .collect::<HashMap<_, _>>();
+                let mut devices = clients.into_iter().collect::<Vec<_>>();
+                devices.sort_by_key(|(id, _)| *id);
+                return Ok(ResponsePayload::ConnectedMobileDevices {
+                    devices: devices.into_iter().map(|(_, name)| name).collect(),
+                });
+            }
             backend.handle(request, hub.event_sink(session_id, runtime_id))
         })();
         let outcome = match result {
@@ -1192,6 +1245,106 @@ mod tests {
     use serde_json::json;
     use std::path::PathBuf;
     use waku_client::{DaemonClient, DaemonSupervisor};
+
+    #[test]
+    fn mobile_presence_requires_authentication_and_tracks_live_clients() {
+        use tungstenite::client::IntoClientRequest;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let server_shutdown = shutdown.clone();
+        let server = std::thread::spawn(move || {
+            serve(
+                listener,
+                "secret".into(),
+                Arc::new(TestBackend::default()),
+                server_shutdown,
+                ServerOptions {
+                    allow_shutdown: true,
+                    ..ServerOptions::default()
+                },
+            )
+            .unwrap()
+        });
+        let desktop = DaemonClient::connect(&address.to_string(), "secret".into()).unwrap();
+        let devices = || match desktop
+            .request(
+                Uuid::nil(),
+                Uuid::nil(),
+                Command::ListConnectedMobileDevices,
+            )
+            .unwrap()
+        {
+            ResponsePayload::ConnectedMobileDevices { devices } => devices,
+            other => panic!("unexpected presence response: {other:?}"),
+        };
+        let mobile = |client_id, token: &str| {
+            let mut request = format!("ws://{address}/v1").into_client_request().unwrap();
+            request.headers_mut().insert(
+                NATIVE_CLIENT_HEADER,
+                NATIVE_CLIENT_HEADER_VALUE.parse().unwrap(),
+            );
+            request
+                .headers_mut()
+                .insert("x-waku-device-name", "Review phone".parse().unwrap());
+            let (mut socket, _) = tungstenite::connect(request).unwrap();
+            write_json(
+                &mut socket,
+                &ClientMessage::Hello {
+                    protocol_version: PROTOCOL_VERSION,
+                    token: token.into(),
+                    client_id,
+                    resume_from: Vec::new(),
+                },
+            )
+            .unwrap();
+            let response = socket.read().unwrap();
+            let Message::Text(body) = response else {
+                panic!("expected hello response")
+            };
+            let response: ServerMessage = serde_json::from_str(&body).unwrap();
+            (socket, response)
+        };
+        let wait_for = |expected: Vec<String>| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(3);
+            loop {
+                let actual = devices();
+                if actual == expected {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "expected {expected:?}, got {actual:?}"
+                );
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        };
+        assert!(
+            devices().is_empty(),
+            "desktop connections are not mobile devices"
+        );
+        let (rejected, response) = mobile(Uuid::new_v4(), "wrong");
+        assert!(matches!(response, ServerMessage::Rejected { .. }));
+        drop(rejected);
+        assert!(devices().is_empty());
+        let client_id = Uuid::new_v4();
+        let (first, response) = mobile(client_id, "secret");
+        assert!(matches!(response, ServerMessage::Hello { .. }));
+        wait_for(vec!["Review phone".into()]);
+        let (second, _) = mobile(client_id, "secret");
+        wait_for(vec!["Review phone".into()]);
+        let (third, _) = mobile(Uuid::new_v4(), "secret");
+        wait_for(vec!["Review phone".into(), "Review phone".into()]);
+        drop(first);
+        wait_for(vec!["Review phone".into(), "Review phone".into()]);
+        drop(second);
+        wait_for(vec!["Review phone".into()]);
+        drop(third);
+        wait_for(Vec::new());
+        desktop.shutdown();
+        server.join().unwrap();
+    }
 
     #[test]
     fn project_removal_survives_stale_save_and_restart_without_touching_source() {

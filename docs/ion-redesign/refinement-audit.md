@@ -1,5 +1,9 @@
 # Ion refinement audit
 
+The October 21 header/project and approved emulator follow-up is recorded in
+[desktop-header-audit.md](desktop-header-audit.md). Its APK and dark-sheet results
+supersede the earlier deferred-build entries below.
+
 This pass follows the user's request to finish validation, replace the New agent
 model textbox, add Apps icons, pin equal Save/Close actions, dismiss sheets from
 outside, simplify mobile chat and paired desktops, and disable mobile cloud

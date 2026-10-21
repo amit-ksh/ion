@@ -1,5 +1,8 @@
 # Ion redesign: implementation and UX audit
 
+For the October 21 desktop header/project changes and approved emulator APK
+checks, see [desktop-header-audit.md](desktop-header-audit.md).
+
 This is the closeout of the native desktop and Android implementation, not a
 release certification. The source reviewer scored all seven identified fixes
 resolved. Its formal visual disposition remains **recapture** because the full

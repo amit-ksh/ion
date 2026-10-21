@@ -3712,7 +3712,7 @@ impl Waku {
             }))
     }
 
-    fn set_theme_preference(
+    pub(super) fn set_theme_preference(
         &mut self,
         preference: ThemePreference,
         window: &mut Window,

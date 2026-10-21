@@ -177,6 +177,7 @@ pub enum Command {
     TrashSkills {
         dirs: Vec<PathBuf>,
     },
+    ListConnectedMobileDevices,
     LoadTaskState,
     LoadWorkspaceControl,
     LoadInbox,
@@ -616,6 +617,9 @@ pub enum ResponseOutcome {
     rename_all_fields = "camelCase"
 )]
 pub enum ResponsePayload {
+    ConnectedMobileDevices {
+        devices: Vec<String>,
+    },
     TeamTaskQueued {
         snapshot: crate::teams::TeamRunSnapshot,
         session: AgentSession,

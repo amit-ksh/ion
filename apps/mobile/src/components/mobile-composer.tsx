@@ -51,7 +51,7 @@ import { composerProviderPrompt } from "@/lib/composer-completion";
 import { modelHasConfigurableTraits } from "@/lib/model-traits";
 import { useRuntime } from "@/lib/runtime-context";
 import { mobileHarness } from "@/lib/mobile-capabilities";
-import { isDaemonDisconnectError } from "@/lib/runtime-errors";
+import { isDaemonDisconnectError, summarizeRuntimeError } from "@/lib/runtime-errors";
 
 /**
  * The composer surface shared by the session screen and the new-task screen:
@@ -223,9 +223,7 @@ export function MobileComposer({
     ? null
     : runtimeError;
   const visibleError = visibleLocalError || visibleRuntimeError;
-  const errorSummary = useMemo(() => visibleError && /<(?:!doctype|html)(?:\s|>)/i.test(visibleError)
-    ? 'Your agent couldn’t connect. Check its setup on your desktop, then try again.'
-    : visibleError, [visibleError]);
+  const errorSummary = useMemo(() => visibleError ? summarizeRuntimeError(visibleError) : visibleError, [visibleError]);
   const queued = session.queued_messages ?? [];
   const taskState = useTaskState();
   const project = taskState.data?.projects.find((item) => item.id === session.project_id,
