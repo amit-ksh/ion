@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-/// Advisory OS lock, held for the paired publisher's lifetime and released on
+/// Shared advisory OS lock, held for the paired publisher's lifetime and released on
 /// crash/exit. Lock-file existence is never used as proof of a running owner.
 pub struct PublisherLease {
     key: String,

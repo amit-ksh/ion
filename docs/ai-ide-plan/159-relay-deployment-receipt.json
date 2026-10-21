@@ -1,0 +1,151 @@
+{
+  "observedAt": "2026-10-21T16:34:42.542Z",
+  "sourceCommit": "3b8a8b6",
+  "priorVersion": "b20ab52f-1155-424b-af51-eedc9957cd0f",
+  "deploymentAttempted": true,
+  "deployed": true,
+  "passed": true,
+  "needsReconciliation": false,
+  "paidWorkloadsStarted": 0,
+  "secretsWritten": false,
+  "serviceSwitchesWritten": false,
+  "permissionsExpanded": false,
+  "secretNamesSha256": "4e2d4370d0953300f3f133840566aa24e7fbba680f685f343fe8a86d797055ea",
+  "routesBefore": {
+    "hash": "19d5dd6cf690bc9969ce8e89e4e14f65c30763574367051feee62a137f70e1b5",
+    "count": 2,
+    "wwwExclusionPresent": true,
+    "wildcardPointsToIon": true
+  },
+  "publicBefore": [
+    {
+      "path": "/v1/health",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/bootstrap",
+      "method": "GET",
+      "status": 200,
+      "managedSandbox": false,
+      "staticPublishing": true
+    },
+    {
+      "path": "/v1/services/controls",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/tasks/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/models/ion-parakeet-110m-tdt-q8-v1.gguf",
+      "method": "HEAD",
+      "status": 200
+    }
+  ],
+  "versionId": "d948eb00-1607-497d-9dd8-9e7dc75dbcbb",
+  "bundleSha256": "fd5179abf23cf27b43758729e00ab1a924c45c6485d5b77e90d78b27e8e165f7",
+  "publicAfter": [
+    {
+      "path": "/v1/health",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/bootstrap",
+      "method": "GET",
+      "status": 200,
+      "managedSandbox": false,
+      "staticPublishing": true
+    },
+    {
+      "path": "/v1/services/controls",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/gateway/v1/device/tasks/sync",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/models/ion-parakeet-110m-tdt-q8-v1.gguf",
+      "method": "HEAD",
+      "status": 200
+    }
+  ],
+  "routesAfter": {
+    "hash": "06c021e8253a1cfa425538b54c211d4b8eacbb976d57d70e0cf3f3ee770c41fc",
+    "count": 2,
+    "wwwExclusionPresent": true,
+    "wildcardPointsToIon": true
+  },
+  "finishedAt": "2026-10-21T16:34:42.542Z",
+  "originalReceiptPreserved": "ion-relay-worker-deployment.json",
+  "originalGuardFailure": "Ephemeral route IDs included in configuration hash",
+  "routeSemanticsUnchanged": true,
+  "routeReconciliation": {
+    "observedAt": "2026-10-21T16:32:57.605Z",
+    "readOnly": true,
+    "deploymentRetried": false,
+    "routes": [
+      {
+        "pattern": "*.build-with-ion.tech/*",
+        "script": "ion-cloud"
+      },
+      {
+        "pattern": "www.build-with-ion.tech/*",
+        "script": null
+      }
+    ],
+    "semanticSha256": "d2249aa79c519465d81f878ca133fdb08abe90f956ae5122972af105cc1b6c17",
+    "historicalSemanticHashMatched": true,
+    "historicalHash": "a9675ce4713523fb2eda7ddc6d2db43e4f707cb2c2dee3e5ac01760e0e2258e8",
+    "originalGuardIncludedEphemeralRouteIds": true,
+    "currentExpectedRouteSemanticsVerified": true,
+    "websiteExclusionPreserved": true,
+    "routeCount": 2
+  },
+  "secretNamesUnchanged": true,
+  "nativeReadOnlyAcceptance": {
+    "passed": 1,
+    "failed": 0,
+    "unitTestExecutableSha256": "494553775b324e91473660b9a55081463d39de512aaab8006c483bfb86f6fb7a"
+  },
+  "deploymentRetried": false,
+  "liveReductionMeasured": false,
+  "nativeClientPackageRefreshed": false,
+  "originalDeploymentFinishedAt": "2026-10-21T16:31:29.300Z",
+  "nativeCombinedTypecheck": {
+    "passed": true,
+    "command": "cargo check --locked --offline --release -j 1 -p waku -p waku-core -p waku-client"
+  },
+  "legacySchemaRegression": {
+    "taskAndGrantsRetained": true,
+    "queuedCommandRetained": true,
+    "uncertainCommandNotRequeued": true,
+    "idempotencyRetained": true,
+    "missingReceiptRepublished": true
+  },
+  "nativeCorrectionSourceSha256": {
+    "crates/waku-credentials/src/gateway_sync/cadence.rs": "7928cef2afed27239d767cb9ce0997ed0650d04cf7123fc29583e8d9e81e4252",
+    "crates/waku-credentials/src/gateway_sync/lease.rs": "bb3f59b1cf0de408bfd532a58b3f431d2e7a0501b17beeff2fa40d4899b5f2f6",
+    "crates/waku-credentials/src/gateway_sync.rs": "90a646c9359e50d7a0fad7aee0957fd9e20d7fdab5006bb9ee79e590cea8bc51",
+    "crates/waku-credentials/src/lib.rs": "86e4bcdacae4d4ef5ee1076a0d346b50eeffe1cc79347c2379a8f47fc4d6571a",
+    "src/gateway_bridge.rs": "89a27c1cefc64a98c93cfe2e1e267af9fefaada18482d4ae7569e8298c91b328",
+    "crates/waku-core/src/gateway_owner.rs": "0c40f5f76ba15f04bb39e391a5c69ab1bb3999704fe7e82039673d568b3284aa"
+  }
+}

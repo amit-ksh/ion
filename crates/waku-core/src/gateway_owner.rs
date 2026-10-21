@@ -3,6 +3,7 @@
 use crate::{
     credentials::{
         CredentialService, GatewayApi, GatewayAutomationAction, GatewayAutomationCommand,
+        GatewayPublisherLease as PublisherLease, GatewaySyncCadence as Cadence,
     },
     persistence::{PersistedState, StateStore},
     teams::TeamCoordinator,
@@ -22,10 +23,6 @@ use waku_protocol::control::{AutomationRun, AutomationStatus, ControlRecord};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const PASS_BUDGET: Duration = Duration::from_secs(20);
-mod cadence;
-mod lease;
-pub use cadence::Cadence;
-pub use lease::PublisherLease;
 // There is exactly one owner worker per daemon process. The normal IPC server
 // selects a daemon; this also fences accidentally constructed duplicate owners.
 static OWNER_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -102,12 +99,12 @@ impl GatewayOwner {
         std::thread::Builder::new().name("ion-gateway-automations".into()).spawn(move || {
             let mut warned = false; let mut connected = false;
             let _lease = lease;
-            let mut cadence = cadence::Cadence::default();
+            let mut cadence = Cadence::default();
             let mut last_regular = Instant::now() - POLL_INTERVAL;
             let mut next_regular = POLL_INTERVAL;
             let mut previous: Option<GatewayApi> = None;
             let mut published_projection = None;
-            let mut publisher_lease: Option<lease::PublisherLease> = None;
+            let mut publisher_lease: Option<PublisherLease> = None;
             while !fence.stopped() {
                 let result = match CredentialService::global().gateway_api() {
                     Ok(api) => {
@@ -116,7 +113,7 @@ impl GatewayOwner {
                             let lock_key = api.owner_lock_key();
                             if publisher_lease.as_ref().is_none_or(|lease| !lease.matches(&lock_key)) {
                                 publisher_lease = None;
-                                publisher_lease = Some(lease::PublisherLease::acquire(lock_key)?);
+                                publisher_lease = Some(PublisherLease::acquire(lock_key)?);
                             }
                             let rotated = previous.as_ref().is_none_or(|old| !old.same_pairing(&api));
                             if rotated { cadence.reset(); published_projection = None; }

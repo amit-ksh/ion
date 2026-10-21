@@ -13,8 +13,9 @@ use uuid::Uuid;
 use waku_client::{Command, DaemonClient, DaemonSupervisor, ResponsePayload};
 
 use crate::credentials::{
-    CredentialKind, CredentialService, CredentialStatus, GatewayApi, GatewayRelayCommand,
-    GatewayRelayComputerTarget, GatewayRelayInteraction, GatewayRelayTask,
+    CredentialKind, CredentialService, CredentialStatus, GatewayApi, GatewayPublisherLease,
+    GatewayRelayCommand, GatewayRelayComputerTarget, GatewayRelayInteraction, GatewayRelayTask,
+    GatewaySyncCadence,
 };
 
 mod automations;
@@ -162,8 +163,8 @@ fn bridge_loop(
     let mut last_pdf: Option<Instant> = None;
     let mut previous: Option<GatewayApi> = None;
     let mut paired_before = false;
-    let mut cadence = waku_core::GatewaySyncCadence::default();
-    let mut publisher_lease: Option<waku_core::GatewayPublisherLease> = None;
+    let mut cadence = GatewaySyncCadence::default();
+    let mut publisher_lease: Option<GatewayPublisherLease> = None;
     while !stop.load(Ordering::Acquire) {
         while let Ok(update) = receiver.try_recv() {
             collect_interaction(&mut interactions, update);
@@ -208,7 +209,7 @@ fn bridge_loop(
                             .is_none_or(|lease| !lease.matches(&key))
                         {
                             publisher_lease = None;
-                            publisher_lease = Some(waku_core::GatewayPublisherLease::acquire(key)?);
+                            publisher_lease = Some(GatewayPublisherLease::acquire(key)?);
                         }
                         let api = api.with_timeout(Duration::from_secs(5))?;
                         if pdf_only {

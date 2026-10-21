@@ -1,5 +1,9 @@
 //! One authenticated read batch per owner pass. Never reuse it as an effect grant.
 use super::*;
+mod cadence;
+mod lease;
+pub use cadence::Cadence;
+pub use lease::PublisherLease;
 use sha2::{Digest, Sha256};
 use std::{
     sync::atomic::{AtomicBool, Ordering},

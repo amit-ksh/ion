@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+/// Shared outbound gateway cadence for the desktop bridge and daemon owner.
 /// Short bounded idle delay keeps mobile controls responsive. Connectivity and
 /// revocation failures back off independently; local changes cannot defeat it.
 #[derive(Default)]

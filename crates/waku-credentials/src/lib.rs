@@ -13,6 +13,7 @@ pub mod cloud;
 pub mod composio;
 mod gateway_pairing_file;
 mod gateway_sync;
+pub use gateway_sync::{Cadence as GatewaySyncCadence, PublisherLease as GatewayPublisherLease};
 pub mod inference;
 pub mod speech;
 pub use composio::ComposioAuthConfig;

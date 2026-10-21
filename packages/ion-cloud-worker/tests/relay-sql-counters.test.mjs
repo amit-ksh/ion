@@ -113,7 +113,22 @@ test("workerd SQL cursors bound idle writes and preserve changed task publicatio
     assert.equal((await call(`/v1/device/commands/${permission.id}/settle`, "POST", publisher, { applied: true })).status, "applied");
     assert.deepEqual((await call(`/v1/device/tasks/${task.id}/interactions`, "GET", phone)).interactions, []);
     const approvalLifecycle = await call("/__counters");
-    const receipt = { method: "local workerd, actual Durable Object SQL cursor rowsRead/rowsWritten, real HTTP handlers; simulated clock; one publisher and one phone; no live billing attribution; stop/permission receipts are simulated local daemon acknowledgements, not real device effects", idle100Seconds, idleHour, changedTask, unchangedReplay, stopLifecycle, approvalLifecycle };
+    const unfinishedInput = { taskId: task.id, runtimeId: task.runtimeId, kind: "stop", payload: {}, idempotencyKey: crypto.randomUUID() };
+    const unfinished = await call("/v1/device/commands", "POST", phone, unfinishedInput);
+    assert.equal((await call(`/v1/device/commands/${unfinished.id}/claim`, "POST", publisher, {})).status, "uncertain");
+    const stillQueued = await call("/v1/device/commands", "POST", phone, { ...unfinishedInput, idempotencyKey: crypto.randomUUID() });
+    await call("/__reopen-legacy-schema", "POST");
+    const restored = await call("/v1/device/tasks/sync", "GET", publisher);
+    assert.equal(restored.snapshotPresent, false);
+    assert.deepEqual(restored.commands.map(command => command.id), [stillQueued.id]);
+    assert.equal((await call(`/v1/device/commands/${unfinished.id}`, "GET", phone)).status, "uncertain");
+    assert.equal((await call("/v1/device/commands", "POST", phone, unfinishedInput)).id, unfinished.id);
+    const kept = await call(`/v1/device/tasks/${task.id}?publisherId=${publisher.id}`, "GET", phone);
+    assert.equal(kept.task.title, task.title);
+    assert.equal(kept.task.runtimeId, task.runtimeId);
+    await call("/v1/device/tasks/reconcile", "POST", publisher, { activeIds: [task.id] });
+    assert.equal((await call("/v1/device/tasks/sync", "GET", publisher)).snapshotPresent, true);
+    const receipt = { method: "local workerd, actual Durable Object SQL cursor rowsRead/rowsWritten, real HTTP handlers; simulated clock; one publisher and one phone; no live billing attribution; stop/permission receipts are simulated local daemon acknowledgements, not real device effects", idle100Seconds, idleHour, changedTask, unchangedReplay, stopLifecycle, approvalLifecycle, legacySchemaRecovery: { taskAndGrantsRetained: true, queuedCommandRetained: true, uncertainCommandNotRequeued: true, idempotencyRetained: true, missingReceiptRepublished: true } };
     console.log(JSON.stringify(receipt));
     if (process.env.ION_RELAY_SQL_REPORT)
       writeFileSync(resolve(process.env.ION_RELAY_SQL_REPORT), JSON.stringify(receipt, null, 2) + "\n");
