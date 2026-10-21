@@ -50,6 +50,11 @@ from main-branch ARM64 release artifacts and is not a physical-device pass.
 
 ## Completion rule
 
+RD-03 diagnosis: [145](145-gitlab-mcp-endpoint-diagnosis.md) reproduces HTTP 422
+HTML from the configured endpoint and observes a 401 OAuth challenge from the
+documented MCP endpoint. Correction/authenticated acceptance awaits owner
+approval; no global configuration or cache was changed.
+
 RD-02 source hardening: [143](143-phone-dictation-stop-recovery.md) records a
 separately reproduced native Stop/Discard exception cleanup defect and its fix.
 Ten isolated hook lifecycle scenarios and mobile TypeScript pass. The emulator

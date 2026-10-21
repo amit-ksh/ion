@@ -218,6 +218,9 @@ transcript/tool/reasoning states remain open; macOS/Linux are outside this goal.
 - [ ] Refresh Windows/Android packages after the additional service-control
   account-boundary fix in [140](140-service-control-account-boundary.md).
   Earlier package acceptance remains valid only for its recorded source.
+  [144](144-final-candidate-build-preparation.md) records new source/QA input
+  verification and candidate package checks including the dictation fix.
+  No new build started: physical memory remains below the release guard.
 - [ ] Stop all resources started for acceptance and record the actual result.
 - [ ] Commit each completed milestone and provide exact evidence/blockers to
   **Test and fix Ion** when the agreed handover conditions are satisfied.
