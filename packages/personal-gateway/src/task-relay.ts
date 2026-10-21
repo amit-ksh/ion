@@ -227,6 +227,9 @@ export class DurableTaskRelay {
       "CREATE TABLE IF NOT EXISTS relay_interactions (id TEXT PRIMARY KEY, publisher_id TEXT NOT NULL, task_id TEXT NOT NULL, runtime_id TEXT NOT NULL, request_id TEXT NOT NULL, body TEXT NOT NULL, fingerprint TEXT NOT NULL, status TEXT NOT NULL, published_at INTEGER NOT NULL, UNIQUE(task_id, runtime_id, request_id))",
     );
     this.db.run(
+      "CREATE TABLE IF NOT EXISTS relay_interaction_resolutions (publisher_id TEXT NOT NULL, task_id TEXT NOT NULL, runtime_id TEXT NOT NULL, request_id TEXT NOT NULL, PRIMARY KEY(publisher_id, task_id, runtime_id, request_id))",
+    );
+    this.db.run(
       "CREATE TABLE IF NOT EXISTS relay_computer_targets (task_id TEXT PRIMARY KEY, publisher_id TEXT NOT NULL, runtime_id TEXT NOT NULL, body TEXT NOT NULL)",
     );
   }
@@ -504,6 +507,13 @@ export class DurableTaskRelay {
           );
         return { ...this.interaction(previous.id)!, created: false };
       }
+      // A resolution may arrive before the first snapshot (or after a lost
+      // publication response). Persist that ordering across worker restarts.
+      const resolved = this.db
+        .query<{ present: number }, [string, string, string, string]>(
+          "SELECT 1 AS present FROM relay_interaction_resolutions WHERE publisher_id=?1 AND task_id=?2 AND runtime_id=?3 AND request_id=?4",
+        ).get(publisherId, input.taskId, input.runtimeId, input.requestId);
+      const status: RelayInteraction["status"] = resolved ? "resolved" : "pending";
       const id = randomUUID();
       const publishedAt = this.now();
       this.db.run(
@@ -516,7 +526,7 @@ export class DurableTaskRelay {
           input.requestId,
           body,
           fingerprint,
-          "pending",
+          status,
           publishedAt,
         ],
       );
@@ -524,7 +534,7 @@ export class DurableTaskRelay {
         ...input,
         id,
         fingerprint,
-        status: "pending",
+        status,
         publishedAt,
         created: true,
       };
@@ -589,7 +599,7 @@ export class DurableTaskRelay {
       if (!row || row.publisher_id !== publisherId)
         throw new Error("Interaction not found");
       this.db.run(
-        "UPDATE relay_interactions SET status = 'resolved' WHERE id = ?1",
+        "UPDATE relay_interactions SET status = 'resolved' WHERE id = ?1 AND status = 'pending'",
         [id],
       );
       this.db.run(
@@ -621,7 +631,22 @@ export class DurableTaskRelay {
         "SELECT id FROM relay_interactions WHERE publisher_id = ?1 AND task_id = ?2 AND runtime_id = ?3 AND request_id = ?4",
       )
       .get(publisherId, taskId, runtimeId, requestId);
-    return row ? this.resolveInteraction(publisherId, row.id) : null;
+    if (row) return this.resolveInteraction(publisherId, row.id);
+    return this.write(() => {
+      // Unknown requests cannot create tombstones in another publisher's task
+      // or a superseded runtime. Authentication remains at the HTTP boundary.
+      const task = this.db
+        .query<{ body: string; publisher_id: string }, [string]>(
+          "SELECT body, publisher_id FROM relay_tasks WHERE id=?1",
+        ).get(taskId);
+      if (!task || task.publisher_id !== publisherId ||
+          (JSON.parse(task.body) as RelayTask).runtimeId !== runtimeId) return null;
+      this.db.run(
+        "INSERT OR IGNORE INTO relay_interaction_resolutions (publisher_id, task_id, runtime_id, request_id) VALUES (?1,?2,?3,?4)",
+        [publisherId, taskId, runtimeId, requestId],
+      );
+      return null;
+    });
   }
 
   private validateInteractionCommand(

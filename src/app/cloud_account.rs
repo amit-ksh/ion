@@ -104,6 +104,8 @@ impl Waku {
         }
         self.cloud_ui.generation = self.cloud_ui.generation.wrapping_add(1);
         let generation = self.cloud_ui.generation;
+        let pairing_kind = crate::credentials::CredentialKind::GatewayPairingToken;
+        let pairing_generation = self.credential_generation.get(&pairing_kind).copied();
         self.cloud_ui.checking = true;
         cx.spawn(async move |view, cx| {
             let status = cx
@@ -138,11 +140,15 @@ impl Waku {
                             }
                         }
                     }
+                    let scope = crate::credentials::CredentialService::global()
+                        .gateway_api().map(|api| api.interaction_scope_key());
+                    anyhow::ensure!(!status.connected || scope.is_ok(),
+                        "Desktop pairing could not be loaded. Refresh your account before sharing tasks.");
                     let latest = cloud::status()?;
                     anyhow::ensure!(latest.workspace_id == status.workspace_id
-                        && latest.signed_in == status.signed_in,
+                        && latest.signed_in == status.signed_in && latest.connected == status.connected,
                         "The Ion account changed while refreshing Settings. Retry.");
-                    anyhow::Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason))
+                    anyhow::Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason, scope.ok()))
                 })
                 .await;
             let _ = view.update(cx, |this, cx| {
@@ -152,7 +158,14 @@ impl Waku {
                 this.cloud_ui.checking = false;
                 this.cloud_ui.checked = true;
                 match status {
-                    Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason)) => {
+                    Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason, scope)) => {
+                        if this.credential_generation.get(&pairing_kind).copied() == pairing_generation {
+                            if let (Some(bridge), Some(scope)) = (&mut this._gateway_bridge, scope) {
+                                if bridge.set_scope(Some(scope)) {
+                                    this.republish_pending_gateway_interactions();
+                                }
+                            }
+                        }
                         this.cloud_ui.sandbox_targets = sandbox_targets;
                         this.cloud_ui.sandbox_reason = sandbox_reason;
                         this.cloud_ui.managed_apps = managed_apps;
@@ -227,7 +240,6 @@ impl Waku {
                 self.cloud_ui.status = status;
                 self.cloud_ui.status_error = false;
                 self.cloud_ui.feedback = Some(message);
-                self.republish_pending_gateway_interactions();
             }
             Err(error) => {
                 self.cloud_ui.feedback = Some(error.to_string());

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Database } from 'bun:sqlite';
 import { DurableTaskRelay, type RelayTask } from './task-relay';
+import { openDatabase } from './database';
 
 const task: RelayTask = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -12,6 +13,64 @@ const task: RelayTask = {
   status: 'running', runtimeId: '33333333-3333-4333-8333-333333333333', updatedAt: 100,
 };
 const publisherId = '77777777-7777-4777-8777-777777777777';
+
+test('resolution before publication survives restart and rejects a stale window approval', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ion-resolution-order-'));
+  const path = join(directory, 'state.sqlite');
+  let relay = new DurableTaskRelay(path);
+  try {
+    relay.publishTask({ ...task, status: 'waiting' }, publisherId);
+    expect(relay.resolveInteractionRequest(publisherId, task.id, task.runtimeId!, 'already-answered')).toBeNull();
+    relay.close();
+    relay = new DurableTaskRelay(path);
+    const stale = relay.publishInteraction(publisherId, {
+      taskId: task.id, runtimeId: task.runtimeId!, requestId: 'already-answered',
+      kind: 'permission', title: 'Stale window', detail: '',
+      options: [{ id: 'allow', label: 'Allow once', allow: true }], questions: [],
+    });
+    expect(stale.status).toBe('resolved');
+    expect(relay.pendingInteractions(task.id)).toEqual([]);
+    expect(() => relay.enqueue('44444444-4444-4444-8444-444444444444',
+      '55555555-5555-4555-8555-555555555555', task.id, task.runtimeId!, 'permission',
+      { interactionId: stale.id, fingerprint: stale.fingerprint, optionId: 'allow' })).toThrow('no longer pending');
+  } finally {
+    relay.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('unknown resolutions are publisher/runtime scoped and retries write no rows', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ion-resolution-scope-'));
+  const db = openDatabase(join(directory, 'state.sqlite'));
+  const relay = new DurableTaskRelay(db);
+  const changes = () => db.query<{ count: number }, []>('SELECT total_changes() AS count').get()!.count;
+  try {
+    relay.publishTask({ ...task, status: 'waiting' }, publisherId);
+    const before = changes();
+    const foreign = '88888888-8888-4888-8888-888888888888';
+    relay.resolveInteractionRequest(foreign, task.id, task.runtimeId!, 'request');
+    relay.resolveInteractionRequest(publisherId, task.id, foreign, 'request');
+    expect(changes()).toBe(before);
+    const input = { taskId: task.id, runtimeId: task.runtimeId!, requestId: 'request',
+      kind: 'permission' as const, title: 'Still pending', detail: '',
+      options: [{ id: 'deny', label: 'Deny', allow: false }], questions: [] };
+    expect(relay.publishInteraction(publisherId, input).status).toBe('pending');
+    relay.resolveInteractionRequest(publisherId, task.id, task.runtimeId!, 'request');
+    const resolved = changes();
+    relay.resolveInteractionRequest(publisherId, task.id, task.runtimeId!, 'request');
+    expect(changes()).toBe(resolved);
+    relay.resolveInteractionRequest(publisherId, task.id, task.runtimeId!, 'before-publish');
+    const tombstone = changes();
+    expect(tombstone).toBe(resolved + 1);
+    relay.resolveInteractionRequest(publisherId, task.id, task.runtimeId!, 'before-publish');
+    expect(changes()).toBe(tombstone);
+    expect(relay.publishInteraction(publisherId, input).status).toBe('resolved');
+    expect(changes()).toBe(tombstone);
+  } finally {
+    relay.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test('task feed and claimed commands survive restart without replay', () => {
   const directory = mkdtempSync(join(tmpdir(), 'waku-task-relay-'));

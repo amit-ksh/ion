@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -21,6 +21,7 @@ use crate::credentials::{
 mod automations;
 mod inbox;
 mod notifications;
+mod pending;
 mod portfolio;
 mod registry;
 
@@ -28,16 +29,30 @@ use crate::model::{ActivityKind, AgentSession, MessageRole};
 
 pub struct GatewayBridge {
     worker: Arc<SharedBridge>,
+    consumer: u64,
+    scope: Option<String>,
 }
 struct SharedBridge {
     daemon: DaemonSupervisor,
     stop: Arc<AtomicBool>,
-    interactions: Sender<InteractionUpdate>,
+    interactions: Sender<ScopedUpdate>,
 }
 static BRIDGES: OnceLock<Mutex<registry::Registry<SharedBridge>>> = OnceLock::new();
+static NEXT_CONSUMER: AtomicU64 = AtomicU64::new(1);
+
+enum ScopedUpdate {
+    Bind {
+        consumer: u64,
+        scope: Option<String>,
+    },
+    Update {
+        consumer: u64,
+        scope: String,
+        update: InteractionUpdate,
+    },
+}
 
 pub enum InteractionUpdate {
-    Reset,
     Publish(GatewayRelayInteraction),
     Computer(GatewayRelayComputerTarget),
     Resolve {
@@ -48,43 +63,134 @@ pub enum InteractionUpdate {
 }
 
 impl InteractionUpdate {
-    fn key(&self) -> Option<(String, String, String)> {
+    fn key(&self) -> (String, String, String) {
         match self {
-            Self::Reset => None,
-            Self::Publish(value) => Some((
+            Self::Publish(value) => (
                 value.task_id.clone(),
                 value.runtime_id.clone(),
                 format!("interaction:{}", value.request_id),
-            )),
-            Self::Computer(value) => Some((
+            ),
+            Self::Computer(value) => (
                 value.task_id.clone(),
                 value.runtime_id.clone(),
                 "computer-target".into(),
-            )),
+            ),
             Self::Resolve {
                 task_id,
                 runtime_id,
                 request_id,
-            } => Some((
+            } => (
                 task_id.to_string(),
                 runtime_id.to_string(),
                 format!("interaction:{request_id}"),
-            )),
+            ),
         }
     }
 }
 
 fn collect_interaction(
-    interactions: &mut HashMap<(String, String, String), InteractionUpdate>,
-    update: InteractionUpdate,
+    interactions: &mut pending::Pending<(String, String, String), InteractionUpdate>,
+    message: ScopedUpdate,
 ) {
-    if let Some(key) = update.key() {
-        interactions.insert(key, update);
-        if interactions.len() > 1_000 {
-            interactions.clear();
+    match message {
+        ScopedUpdate::Bind { consumer, scope } => interactions.bind(consumer, scope),
+        ScopedUpdate::Update {
+            consumer,
+            scope,
+            update,
+        } => {
+            let terminal = matches!(update, InteractionUpdate::Resolve { .. });
+            interactions.insert(consumer, scope, update.key(), update, terminal);
         }
-    } else {
-        interactions.clear();
+    }
+}
+
+#[cfg(test)]
+mod interaction_tests {
+    use super::*;
+
+    fn publish(consumer: u64, request: &str) -> ScopedUpdate {
+        ScopedUpdate::Update {
+            consumer,
+            scope: "pairing-a".into(),
+            update: InteractionUpdate::Publish(GatewayRelayInteraction {
+                task_id: "00000000-0000-0000-0000-000000000001".into(),
+                runtime_id: "00000000-0000-0000-0000-000000000002".into(),
+                request_id: request.into(),
+                kind: "permission".into(),
+                title: "Approve tool".into(),
+                detail: String::new(),
+                options: Vec::new(),
+                questions: Vec::new(),
+            }),
+        }
+    }
+
+    #[test]
+    fn refreshing_one_window_keeps_another_windows_actual_update() {
+        let mut queue = pending::Pending::default();
+        for consumer in [1, 2] {
+            collect_interaction(
+                &mut queue,
+                ScopedUpdate::Bind {
+                    consumer,
+                    scope: Some("pairing-a".into()),
+                },
+            );
+        }
+        collect_interaction(&mut queue, publish(1, "a"));
+        collect_interaction(
+            &mut queue,
+            ScopedUpdate::Bind {
+                consumer: 2,
+                scope: Some("pairing-a".into()),
+            },
+        );
+        collect_interaction(&mut queue, publish(2, "b"));
+        let mut requests = Vec::new();
+        queue.retain_scope("pairing-a", |update| {
+            if let InteractionUpdate::Publish(value) = update {
+                requests.push(value.request_id.clone());
+            }
+            false
+        });
+        requests.sort();
+        assert_eq!(requests, ["a", "b"]);
+    }
+
+    #[test]
+    fn actual_resolve_and_publish_use_the_same_key_and_cannot_reopen_pending_resolution() {
+        let mut queue = pending::Pending::default();
+        for consumer in [1, 2] {
+            collect_interaction(
+                &mut queue,
+                ScopedUpdate::Bind {
+                    consumer,
+                    scope: Some("pairing-a".into()),
+                },
+            );
+        }
+        collect_interaction(&mut queue, publish(1, "a"));
+        collect_interaction(
+            &mut queue,
+            ScopedUpdate::Update {
+                consumer: 1,
+                scope: "pairing-a".into(),
+                update: InteractionUpdate::Resolve {
+                    task_id: "00000000-0000-0000-0000-000000000001".parse().unwrap(),
+                    runtime_id: "00000000-0000-0000-0000-000000000002".parse().unwrap(),
+                    request_id: "a".into(),
+                },
+            },
+        );
+        collect_interaction(&mut queue, publish(2, "a"));
+        let mut deliveries = 0;
+        queue.retain_scope("pairing-a", |update| {
+            assert!(matches!(update, InteractionUpdate::Resolve { .. }));
+            deliveries += 1;
+            false
+        });
+        assert_eq!(deliveries, 1);
     }
 }
 
@@ -115,11 +221,36 @@ impl GatewayBridge {
                 Ok::<_, anyhow::Error>(worker)
             },
         )?;
-        Ok(Self { worker })
+        Ok(Self {
+            worker,
+            consumer: NEXT_CONSUMER.fetch_add(1, Ordering::Relaxed),
+            scope: None,
+        })
+    }
+
+    /// Called with an opaque identity computed by an existing background job.
+    /// UI and streaming paths only copy cached state and enqueue messages.
+    pub fn set_scope(&mut self, scope: Option<String>) -> bool {
+        if self.scope == scope {
+            return false;
+        }
+        self.scope = scope;
+        let _ = self.worker.interactions.send(ScopedUpdate::Bind {
+            consumer: self.consumer,
+            scope: self.scope.clone(),
+        });
+        true
     }
 
     pub fn update_interaction(&self, update: InteractionUpdate) {
-        let _ = self.worker.interactions.send(update);
+        let Some(scope) = &self.scope else {
+            return;
+        };
+        let _ = self.worker.interactions.send(ScopedUpdate::Update {
+            consumer: self.consumer,
+            scope: scope.clone(),
+            update,
+        });
     }
 }
 
@@ -150,19 +281,14 @@ struct SyncActivity {
     active: bool,
 }
 
-fn bridge_loop(
-    daemon: DaemonSupervisor,
-    stop: Arc<AtomicBool>,
-    receiver: Receiver<InteractionUpdate>,
-) {
+fn bridge_loop(daemon: DaemonSupervisor, stop: Arc<AtomicBool>, receiver: Receiver<ScopedUpdate>) {
     let mut published = Published::default();
-    let mut interactions = HashMap::new();
+    let mut interactions = pending::Pending::default();
     let mut warned = false;
     let mut last_regular = Instant::now() - Duration::from_secs(5);
     let mut next_regular = Duration::from_secs(5);
     let mut last_pdf: Option<Instant> = None;
     let mut previous: Option<GatewayApi> = None;
-    let mut paired_before = false;
     let mut cadence = GatewaySyncCadence::default();
     let mut publisher_lease: Option<GatewayPublisherLease> = None;
     while !stop.load(Ordering::Acquire) {
@@ -171,12 +297,9 @@ fn bridge_loop(
         }
         match CredentialService::global().gateway_api() {
             Ok(api) => {
+                let scope = api.interaction_scope_key();
                 let rotated = previous.as_ref().is_none_or(|old| !old.same_pairing(&api));
                 if rotated {
-                    if paired_before {
-                        interactions.clear();
-                    }
-                    paired_before = true;
                     published = Published::default();
                     cadence.reset();
                 }
@@ -187,7 +310,7 @@ fn bridge_loop(
                     last_regular.elapsed(),
                     next_regular,
                     rotated,
-                    !interactions.is_empty(),
+                    interactions.has_scope(&scope),
                 );
                 let pdf_only = !regular
                     && temporary_pairing
@@ -240,17 +363,16 @@ fn bridge_loop(
                             temporary_pairing,
                             &stop,
                         )?;
-                        if !interactions.is_empty() {
+                        if interactions.has_scope(&scope) {
                             if stop.load(Ordering::Acquire) || !authorized(&api)? {
                                 bail!("Task publisher changed");
                             }
                             activity.active = true;
-                            interactions.retain(|_, update| {
+                            interactions.retain_scope(&scope, |update| {
                                 if stop.load(Ordering::Acquire) {
                                     return true;
                                 }
                                 let result = match update {
-                                    InteractionUpdate::Reset => Ok(()),
                                     InteractionUpdate::Publish(value) => {
                                         api.publish_interaction(value)
                                     }
@@ -269,7 +391,7 @@ fn bridge_loop(
                                 };
                                 result.is_err()
                             });
-                            if !interactions.is_empty() {
+                            if interactions.has_scope(&scope) {
                                 bail!("Task interaction publication incomplete");
                             }
                         }
@@ -308,7 +430,9 @@ fn bridge_loop(
                 publisher_lease = None;
                 published.invalidate();
                 cadence.reset();
-                interactions.clear();
+                // A missing/transient credential read is not permission to
+                // discard approvals. Queues remain bound to their old scope;
+                // they cannot wake or publish under another pairing.
             }
         }
         if stop.load(Ordering::Acquire) {

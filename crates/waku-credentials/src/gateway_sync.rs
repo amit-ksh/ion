@@ -93,6 +93,21 @@ impl GatewayApi {
     pub fn task_bridge_lock_key(&self) -> String {
         digest(&serde_json::json!(["desktop-tasks", self.owner_lock_key()]))
     }
+    /// Opaque local queue identity, including token rotation. Compute this on a
+    /// background thread after loading credentials; never log the input token.
+    pub fn interaction_scope_key(&self) -> String {
+        digest(&serde_json::json!([
+            "desktop-interactions",
+            self.owner_lock_key(),
+            self.token,
+            self.managed.as_ref().map(|binding| serde_json::json!([
+                binding.origin,
+                binding.workspace_id,
+                binding.device_id,
+                binding.device_token
+            ]))
+        ]))
+    }
     /// Retain only pairing comparison state across cycles, never cached queues.
     pub fn pairing_snapshot(&self) -> Self {
         Self {
@@ -378,5 +393,47 @@ mod tests {
         let (api, server) = client(vec![(404, serde_json::json!({"error":"older server"}))]);
         assert_eq!(api.with_task_sync().unwrap().task_snapshot_present(), None);
         server.join().unwrap();
+    }
+
+    #[test]
+    fn interaction_scope_tracks_every_pairing_component_but_not_cycle_caches() {
+        let (api, server) = client(Vec::new());
+        server.join().unwrap();
+        let original = api.interaction_scope_key();
+        assert_eq!(original.len(), 64);
+        assert!(original.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert_eq!(original, api.pairing_snapshot().interaction_scope_key());
+        assert_ne!(original, api.owner_lock_key());
+        assert_ne!(original, api.task_bridge_lock_key());
+        let mut rotated = api.pairing_snapshot();
+        rotated.token = "rotated-token".into();
+        assert_ne!(original, rotated.interaction_scope_key());
+        let mut moved = api.pairing_snapshot();
+        moved.device_id = "other-device".into();
+        assert_ne!(original, moved.interaction_scope_key());
+        let mut moved = api.pairing_snapshot();
+        moved.url = gateway_base_url("https://other-gateway.example").unwrap();
+        assert_ne!(original, moved.interaction_scope_key());
+
+        let mut managed = api.pairing_snapshot();
+        managed.managed = Some(crate::cloud::PublisherBinding {
+            origin: "https://gateway.example".into(),
+            workspace_id: "account-a".into(),
+            device_id: "device-a".into(),
+            device_token: "device-token-a".into(),
+        });
+        let managed_scope = managed.interaction_scope_key();
+        assert_ne!(original, managed_scope);
+        for component in 0..4 {
+            let mut changed = managed.pairing_snapshot();
+            let binding = changed.managed.as_mut().unwrap();
+            match component {
+                0 => binding.origin.push_str("-changed"),
+                1 => binding.workspace_id.push_str("-changed"),
+                2 => binding.device_id.push_str("-changed"),
+                _ => binding.device_token.push_str("-changed"),
+            }
+            assert_ne!(managed_scope, changed.interaction_scope_key());
+        }
     }
 }

@@ -516,7 +516,8 @@ impl Waku {
                 .spawn(async move {
                     let service = CredentialService::global();
                     let paired = service.pair_gateway(&url, &invite, "ion desktop");
-                    (paired, service.status(kind))
+                    let scope = service.gateway_api().map(|api| api.interaction_scope_key());
+                    (paired, service.status(kind), scope)
                 })
                 .await;
             let _ = waku.update(cx, |waku, cx| {
@@ -529,6 +530,9 @@ impl Waku {
                     waku.onboarding_ui.failed_tests.remove(&kind);
                     waku.gateway_accounts.clear();
                     waku.gateway_last_proposal = None;
+                    if let (Some(bridge), Ok(scope)) = (&mut waku._gateway_bridge, result.2) {
+                        bridge.set_scope(Some(scope));
+                    }
                     waku.republish_pending_gateway_interactions();
                 }
                 waku.credential_feedback.insert(
@@ -559,7 +563,8 @@ impl Waku {
         let Some(bridge) = &self._gateway_bridge else {
             return;
         };
-        bridge.update_interaction(crate::gateway_bridge::InteractionUpdate::Reset);
+        // Upsert this window's current state. A refresh must never reset another
+        // window's pending requests or erase resolutions awaiting delivery.
         for (&task_id, runtime) in &self.runtimes {
             let Some(runtime_id) = runtime.driver.runtime_id() else {
                 continue;
