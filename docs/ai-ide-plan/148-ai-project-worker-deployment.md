@@ -58,6 +58,14 @@ No paid compute, model request, app tool action, sandbox import or workload was
 started. These checks do not replace authenticated native/device acceptance,
 full model-byte verification already recorded elsewhere, or provider invoices.
 
+The existing native Rust read-only gateway fixture also passed after deployment:
+**one passed, zero failed**, using the current Windows vault session. It read
+account-scoped controls, connected-app catalog and combined usage, with no model
+generation, valid app-action dispatch or switch write. Test binary SHA-256:
+`639b1f2680b778d82efb0d4c29aca2fb07a2daef2afd19887e88bfe9cd3efb13`.
+This verifies the Rust transport remains usable despite Python's client-signature
+block; it is not GUI account-switch, microphone or phone acceptance.
+
 ## Evidence and remaining release gate
 
 Ignored-cache receipts: `ion-ai-project-worker-red-status.log`,
@@ -68,9 +76,16 @@ Ignored-cache receipts: `ion-ai-project-worker-red-status.log`,
 `ion-ai-project-worker-client-verified-deployment.json`,
 `ion-ai-project-public-before-retry1.json`,
 `ion-ai-project-public-after-retry1.json`, and the before/after route reports.
+The native read receipt is `ion-ai-project-native-live-read.log` with exit 0.
 
 SBX-02/03 still need provider-compatible workers, harness bootstrap and confirmed
 pricing before installing a managed policy. The new repository test change is
 backend-only; Windows/mobile runtime source remains at the recorded candidate.
-Reconcile that exact test file against the frozen candidate's source guard before
-packaging. Never bypass source/QA guards just because these tests passed.
+Its source guard was reconciled against exactly
+`packages/ion-cloud-worker/tests/runtime.test.mjs` at reviewed commit `caa2f63`.
+The reconciliation pins that file's checksum and commit; all other post-candidate
+code changes still reject. The unchanged 111-file QA patch, six untracked build
+inputs and 40 native Android inputs were reverified. The original verifiers and
+snapshot were preserved. Evidence:
+`ion-final-candidate-worker-test-reconciliation.json`. No package build or install
+is implied by this successful input check.
