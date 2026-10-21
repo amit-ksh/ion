@@ -96,6 +96,7 @@ export function createCloudAccount(options: {
           path === "/v1/bootstrap" ||
           path === "/v1/speech/sessions" ||
           ["/v1/services/controls", "/v1/services/usage"].includes(path) ||
+          ["/v1/apps/catalog", "/v1/apps/connect", "/v1/apps/disconnect"].includes(path) ||
           path.startsWith("/v1/hosting/")
         ) ||
         /[?#\\]/.test(path) ||

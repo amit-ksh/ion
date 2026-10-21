@@ -76,6 +76,11 @@ function fixture(origin = "https://cloud.example") {
     }
     if (wrongBootstrap && url.endsWith("/bootstrap"))
       return Response.json({ auth: { issuer: "https://attacker.example/" } });
+    if (/\/v1\/apps\/(catalog|connect|disconnect)$/.test(url)) {
+      expect(new Headers(init?.headers).get('Authorization')?.startsWith('Bearer ')).toBe(true);
+      expect(init?.redirect).toBe('error');
+      return Response.json({ path: new URL(url).pathname, method: init?.method });
+    }
     return server.fetch(new Request(url, init));
   }) as typeof fetch;
   const controller = createCloudAccount({
@@ -154,6 +159,18 @@ function fixture(origin = "https://cloud.example") {
   };
 }
 describe("native phone managed-account workflow", () => {
+  test('permits exactly the managed app connection routes while refusing unrelated app capabilities', async () => {
+    const f = fixture();
+    expect(await f.controller.signIn()).toBe(true);
+    for (const route of ['catalog', 'connect', 'disconnect']) {
+      const path = `/v1/apps/${route}`;
+      expect(await f.controller.request(path, 'POST', {})).toEqual({ path, method: 'POST' });
+    }
+    const before = f.network.length;
+    for (const path of ['/v1/apps/actions/execute', '/v1/apps/catalog?extra=true', '/v1/apps/../bootstrap', '/v1/apps/catalog/extra'])
+      await expect(f.controller.request(path, 'POST', {})).rejects.toThrow('Invalid managed service');
+    expect(f.network.length).toBe(before);
+  });
   test("unconfigured build and cancelled sign-in keep local mode and store no account", async () => {
     const unavailable = fixture("");
     expect(await unavailable.controller.status()).toEqual({

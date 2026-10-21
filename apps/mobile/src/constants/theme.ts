@@ -34,11 +34,11 @@ export const Colors = {
     codeWash: 'hsla(220, 10%, 12%, 0.07)',
     inverse: '#202227',
     onInverse: '#f8f8f9',
-    success: '#2f8f52',
+    success: '#237640',
     successSoft: 'rgba(47, 143, 82, 0.12)',
-    warning: '#a66b20',
+    warning: '#875014',
     warningSoft: 'rgba(166, 107, 32, 0.12)',
-    danger: '#c64a42',
+    danger: '#ac3933',
     dangerSoft: 'hsla(4, 55%, 52%, 0.10)',
     shadow: 'rgba(0, 0, 0, 0.12)',
   },
@@ -80,7 +80,7 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
-/** Preserve iOS system tint; Android uses the accessible Ion brand foreground. */
+/** Platform selection tint. Filled brand actions use primary/onPrimary. */
 export const NativeTint: ColorValue =
   Platform.OS === 'ios' ? PlatformColor('systemBlue') : '#3b82f6';
 

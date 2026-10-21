@@ -199,10 +199,10 @@ impl Theme {
             inverse: rgb(0x202227).into(),
             on_inverse: rgb(0xF8F8F9).into(),
 
-            warning: rgb(0xA66B20).into(),
-            success: rgb(0x2F8F52).into(),
+            warning: rgb(0x875014).into(),
+            success: rgb(0x237640).into(),
             favorite: rgb(0xCA8A04).into(),
-            danger: rgb(0xC64A42).into(),
+            danger: rgb(0xAC3933).into(),
             danger_soft: hsla(4.0 / 360.0, 0.55, 0.52, 0.10),
         }
     }

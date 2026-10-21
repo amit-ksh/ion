@@ -15,7 +15,7 @@ function contrast(a: string, b: string) { const values = [luminance(a), luminanc
 for (const mode of ['light', 'dark'] as const) {
   test(`${mode} text and primary action roles retain AA contrast across the workbench`, () => {
     const p = palette(mode);
-    for (const foreground of ['text', 'textSecondary', 'textTertiary', 'textGhost', 'accent'])
+    for (const foreground of ['text', 'textSecondary', 'textTertiary', 'textGhost', 'accent', 'warning', 'danger', 'success'])
       for (const background of ['background', 'surface', 'surfaceMuted', 'raised', 'composer', 'inset'])
         expect(contrast(p[foreground]!, p[background]!), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
     expect(contrast(p.onPrimary!, p.primary!)).toBeGreaterThanOrEqual(7);

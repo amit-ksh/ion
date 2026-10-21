@@ -1018,16 +1018,20 @@ impl Waku {
             .text_color(theme.text)
             .bg(theme.raised)
             .cursor_default()
-            .hover(|style| style.bg(theme.overlay_strong))
-            .active(|style| style.bg(theme.overlay))
+            .hover(move |style| {
+                if primary { style.bg(theme.primary).opacity(0.9) }
+                else { style.bg(theme.overlay_strong) }
+            })
+            .active(move |style| {
+                if primary { style.bg(theme.primary).opacity(0.8) }
+                else { style.bg(theme.overlay) }
+            })
             .when(primary, |button| {
                 button
                     .bg(theme.primary)
                     .text_color(theme.on_primary)
                     .border_color(theme.primary)
                     .font_weight(FontWeight::SEMIBOLD)
-                    .hover(|style| style.bg(theme.primary).opacity(0.9))
-                    .active(|style| style.bg(theme.primary).opacity(0.8))
             })
             .focus_visible(|style| style.border_1().border_color(theme.accent))
             .child(label.into())

@@ -973,9 +973,9 @@ const styles = StyleSheet.create({
     width: 80,
   },
   attachmentName: { fontSize: 11.5 },
-  toolbar: { alignItems: "center", flexDirection: "row", marginTop: 2 },
+  toolbar: { alignItems: "flex-end", flexDirection: "row", marginTop: 2 },
   toolbarSpacer: { flex: 1 },
-  cluster: { alignItems: "center", flexDirection: "row", gap: 2 },
+  cluster: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", flexShrink: 1, gap: 8 },
   iconButton: {
     alignItems: "center",
     borderRadius: Radius.pill,

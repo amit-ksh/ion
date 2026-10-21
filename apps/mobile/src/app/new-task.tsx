@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -70,7 +71,7 @@ type SheetKind =
   | 'branch';
 
 export default function NewTaskScreen() {
-  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string}>();
+  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string;project?:string}>();
   const proposalLoaded = useRef<string | null>(null);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -212,6 +213,10 @@ export default function NewTaskScreen() {
     runtimeMode,
     serviceTier,
   ]);
+
+  useEffect(() => {
+    if (proposalParams.project && taskState.data?.projects.some(project => project.id === proposalParams.project)) setProjectId(proposalParams.project);
+  }, [proposalParams.project, taskState.data?.projects]);
 
   // Cross-device draft: hydrate again whenever this surface becomes active,
   // but persist only real local edits. Echoing a hydrated value would let a
@@ -392,9 +397,8 @@ export default function NewTaskScreen() {
       style={[styles.screen, { backgroundColor: theme.background }]}>
       {/* Title and back button are the native navigation bar's; keep clear of it. */}
       <View style={{ height: headerInset }} />
-      <View style={styles.spacer} />
-
-      <View style={styles.rows}>
+      <ScrollView keyboardShouldPersistTaps="handled" style={styles.configuration} contentContainerStyle={styles.configurationContent}>
+      <View style={[styles.rows, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <SelectorRow
           icon={{ ios: 'laptopcomputer', android: 'laptop_mac', web: 'laptop_mac' }}
           label="Daemon"
@@ -437,6 +441,7 @@ export default function NewTaskScreen() {
         )}
       </View>
 
+      </ScrollView>
       <View style={[styles.composerShell, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         {error && (
           <View
@@ -449,7 +454,6 @@ export default function NewTaskScreen() {
         <ComposerCard
           {...contextPicker.inputProps}
           accessibilityLabel="Task prompt"
-          autoFocus
           editable={!submitting}
           left={(
             <>
@@ -644,8 +648,9 @@ function SelectorRow({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  spacer: { flex: 1 },
-  rows: { gap: 2, paddingBottom: 8, paddingHorizontal: Spacing.three },
+  configuration: { flex: 1 },
+  configurationContent: { flexGrow: 1, justifyContent: 'flex-end', padding: 16 },
+  rows: { gap: 2, padding: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.large },
   row: {
     alignItems: 'center',
     borderRadius: Radius.medium,

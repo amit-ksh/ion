@@ -34,7 +34,7 @@ First viewport: compact Work navigation and task history frame the active task; 
 
 Hierarchy: title/action row, contextual filters, content. Use whitespace and row alignment before adding a container. Cards hold an object or a form group, not another full page.
 
-Memory: Ion's original orbital/particle identity becomes a crisp, reproducible vector mark with lime energy on charcoal. It must remain legible at launcher size.
+Memory: Ion's original dotted stem and rounded loop become a crisp, reproducible vector mark with lime on charcoal. It must remain legible at launcher size.
 
 Motion: existing reduced-motion-aware feedback only; no decorative perpetual animation or new frame clock. No I/O or whole-session scans are introduced into render paths.
 

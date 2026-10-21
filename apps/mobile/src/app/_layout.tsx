@@ -10,7 +10,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View, useColorScheme, useWindowDimensions } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AccountGate } from "@/components/account-gate";
@@ -23,6 +23,7 @@ import {
   type HeaderActionSpec,
 } from "@/components/screen-header";
 import { TaskDrawerHost, useTaskDrawer } from "@/components/task-drawer";
+import { WorkbenchNavigation } from "@/components/workbench-navigation";
 import { DaemonProvider, useDaemon } from "@/lib/daemon-context";
 import { RuntimeProvider } from "@/lib/runtime-context";
 import { listenForGatewayNotifications } from "@/lib/gateway-notifications";
@@ -85,7 +86,7 @@ export default function RootLayout() {
             <DaemonProvider>
               <RuntimeProvider>
                 <TaskDrawerHost>
-                  <AppNavigator />
+                  <WorkbenchShell />
                 </TaskDrawerHost>
                 <StatusBar style="auto" />
               </RuntimeProvider>
@@ -95,6 +96,16 @@ export default function RootLayout() {
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
+}
+
+function WorkbenchShell() {
+  const { width } = useWindowDimensions();
+  const expanded = Platform.OS === 'android' && width >= 600;
+  return <View style={[styles.root, expanded && styles.expanded]}>
+    {expanded && <WorkbenchNavigation rail />}
+    <View style={styles.root}><AppNavigator /></View>
+    {!expanded && <WorkbenchNavigation />}
+  </View>;
 }
 
 function AppNavigator() {
@@ -169,6 +180,11 @@ function AppNavigator() {
        * route from navigation, returning restored and open tasks to home. */}
       <Stack.Screen name="speech" options={{ title: "Dictation" }} />
       <Stack.Protected guard={daemonRoutesAvailable}>
+        <Stack.Screen name="work" options={{ ...drawerHeader, title: "Work" }} />
+        <Stack.Screen name="settings" options={{ ...drawerHeader, title: "Settings" }} />
+        <Stack.Screen name="apps" options={{ ...floatingHeader, title: "Apps" }} />
+        <Stack.Screen name="agent-editor" options={{ ...floatingHeader, title: "Agent" }} />
+        <Stack.Screen name="team-editor" options={{ ...floatingHeader, title: "Team" }} />
         <Stack.Screen
           name="artifacts"
           options={{ ...drawerHeader, title: "Artifacts" }}
@@ -277,4 +293,5 @@ function AppNavigator() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  expanded: { flexDirection: 'row' },
 });
