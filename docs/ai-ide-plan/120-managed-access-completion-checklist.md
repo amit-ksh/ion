@@ -249,3 +249,13 @@ gateway pairing. Sixteen controller/session regressions and the mobile TypeScrip
 check passed; see [136](136-mobile-publishing-account-boundary.md). The refreshed
 APK, signature and actual Moto replacement install/cold start passed in plan 138.
 Actual device account switching, pairing and physical dictation remain open.
+
+Read-only provider billing evidence is now recorded in
+[139](139-provider-billing-evidence.md): the original Drive log is successful,
+the project summary reports zero Instant charges, and its nine tool-call events
+include one Drive and eight other Gmail/Slack events. These totals do not settle
+ordinary-plan charges; the Drive reservation remains held. Cloudflare billing
+history denied the existing DNS token (403/code 10000), so no zero-cost invoice
+claim is made. Actual provider billing, sandbox permissions and the physical/
+interactive acceptance gates remain open. No paid workload or permission change
+was performed to obtain this evidence.

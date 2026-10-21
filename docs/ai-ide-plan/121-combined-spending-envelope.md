@@ -47,3 +47,12 @@ implementation ceiling. No model generation, provider tool effect or compute
 launch was requested by those reads. These checks do not reconcile provider
 invoices or release the Drive action's unknown-cost reservation; those gates
 remain open. Current package/upgrade evidence is in plans 137–138.
+
+The later read-only provider investigation in [139](139-provider-billing-evidence.md)
+verified the original Drive execution receipt and Composio's zero aggregate
+Instant charge for the pilot window. The project also reports eight other
+Gmail/Slack events, which are not attributed to this acceptance. Ordinary-plan
+charges remain unknown, so the 1,000 micro-USD Drive hold was not released.
+Cloudflare billing history rejected the existing DNS token (403/code 10000).
+Provider invoice reconciliation remains incomplete; no additional tool effect,
+inference, compute launch or permission change occurred during those reads.
