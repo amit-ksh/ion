@@ -56,6 +56,12 @@ from main-branch ARM64 release artifacts and is not a physical-device pass.
 
 ## Completion rule
 
+Direct source review [150](150-redesign-app-lifecycle-review.md) reproduces
+two connected-app lifecycle regressions in `81827ff` and saves a locally
+verified proposed patch. It is not applied or a whole-branch approval. Include
+these corrections in authorized redesign integration before accepting reconnect
+and sign-out behavior; no live app connection was changed by the review.
+
 RD-04 source integration: [149](149-mobile-mcp-warning-integration.md) records
 the independent port into `ion-prod` at `fbab54a`, six focused tests/16 assertions
 and a passing mobile typecheck. No redesign merge or new package is claimed.

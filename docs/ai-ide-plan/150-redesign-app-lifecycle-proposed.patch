@@ -1,0 +1,25 @@
+--- a/apps/mobile/src/app/apps.tsx
++++ b/apps/mobile/src/app/apps.tsx
+@@ -58,6 +58,7 @@
+       if (disconnect) {
+         if (result.account.id !== app.account?.id || result.account.status !== 'REVOKED') throw new Error('Disconnect was not confirmed. Refresh before trying again.');
+         operations.current.delete(key);
++        operations.current.delete(`connect:${app.toolkit}`);
+         links.current.delete(app.toolkit);
+         setFeedback(`${app.name} disconnected.`);
+       } else {
+--- a/apps/mobile/src/components/cloud-account-section.tsx
++++ b/apps/mobile/src/components/cloud-account-section.tsx
+@@ -10,7 +10,11 @@
+   const [error, setError] = useState<string | null>(null);
+   async function signOut() {
+     setBusy(true); setError(null);
+-    try { await cloudAccount.signOut(); }
++    try {
++      const result = await cloudAccount.signOut();
++      if (!result.revoked) Alert.alert('Signed out on this phone',
++        'Remote revocation could not be confirmed. Review this device when you reconnect.');
++    }
+     catch { setError('Could not sign out. Try again.'); }
+     finally { setBusy(false); }
+   }

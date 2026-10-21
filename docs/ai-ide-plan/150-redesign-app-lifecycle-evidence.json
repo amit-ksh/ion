@@ -1,0 +1,60 @@
+{
+  "original": {
+    "observedAt": "2026-10-21T13:40:19.250Z",
+    "sourceBranch": "codex/ion-native-redesign",
+    "sourceCommit": "81827ff",
+    "method": "AST-extracted actual AppsScreen.operate and CloudAccountSection.signOut; actual ManagedApps and ServiceStore; local provider fixture",
+    "proposedPatch": false,
+    "reviewedFiles": {
+      "apps/mobile/src/app/apps.tsx": "c475fd9cc3036c2bfbd34ae087e00d3560df7ad4c1f7470666a7eb6e9cf0dea7",
+      "apps/mobile/src/components/cloud-account-section.tsx": "7e524a374e4eb5f3d57aa3168a5cc67eb9ed9c7a788087d1a2cde77b8f2822c5"
+    },
+    "reconnect": {
+      "reproduced": true,
+      "screenRequests": 3,
+      "sameConnectOperationId": true,
+      "actualProviderLinkPosts": 1,
+      "expectedProviderLinkPosts": 2,
+      "reopenedRevokedLink": true
+    },
+    "revocationWarning": {
+      "reproduced": true,
+      "callbackInvocations": 1,
+      "remoteRevoked": false,
+      "userNotices": 0
+    },
+    "realProviderRequests": 0,
+    "changedSourceFiles": 0,
+    "deviceInteractions": 0,
+    "redesignMerged": false
+  },
+  "proposed": {
+    "observedAt": "2026-10-21T13:40:20.203Z",
+    "sourceBranch": "codex/ion-native-redesign",
+    "sourceCommit": "81827ff",
+    "method": "AST-extracted actual AppsScreen.operate and CloudAccountSection.signOut; actual ManagedApps and ServiceStore; local provider fixture",
+    "proposedPatch": true,
+    "reviewedFiles": {
+      "apps/mobile/src/app/apps.tsx": "2e455e357f2535c5c38108528940e36039cc38dd20f088213108fed193bf1434",
+      "apps/mobile/src/components/cloud-account-section.tsx": "6be11e9afd0ca967e415e87878f78a3032d2a2bafea9d86f6351f0797c26fe15"
+    },
+    "reconnect": {
+      "reproduced": false,
+      "screenRequests": 3,
+      "sameConnectOperationId": false,
+      "actualProviderLinkPosts": 2,
+      "expectedProviderLinkPosts": 2,
+      "reopenedRevokedLink": false
+    },
+    "revocationWarning": {
+      "reproduced": false,
+      "callbackInvocations": 1,
+      "remoteRevoked": false,
+      "userNotices": 1
+    },
+    "realProviderRequests": 0,
+    "changedSourceFiles": 0,
+    "deviceInteractions": 0,
+    "redesignMerged": false
+  }
+}
