@@ -144,7 +144,7 @@ function Editor({ owner, slot, id, kind, projectId, state }: {
   function limit(key: keyof TeamRunLimits, value: number | boolean | null) {
     if (record?.kind === 'workflow') update({ ...record, limits: { ...defaultLimits, ...record.limits, [key]: value } });
   }
-  return <KeyboardAvoidingView style={[styles.screen, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <KeyboardAvoidingView style={[styles.screen, { backgroundColor: theme.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.content, { paddingTop: headerInset + 12, paddingBottom: insets.bottom + 24 }]}>
       <ConnectionBanner /><AutomationRefresh refreshing={busy || state.query.isFetching} onRefresh={() => void state.query.refetch()} />
       <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{id ? 'Edit' : 'New'} {record?.kind ?? kind}</Text>

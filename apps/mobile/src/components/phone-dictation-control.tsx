@@ -57,7 +57,7 @@ export function PhoneDictationControl({
     }
     Alert.alert(
       'Record on this phone?',
-      `Ion records up to 60 seconds, then sends it to ${host} for local Parakeet transcription. The first use may download about 146 MB on that desktop. Keep it online. Review the text before sending it to an agent.`,
+      'Record up to 60 seconds. Review the transcript before sending.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

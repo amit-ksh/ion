@@ -274,6 +274,7 @@ export function ModelPickerSheet({
   const listHeight = useModelSheetListHeight(visible);
   const catalog = useAllProviderModels(visible ? providers : []);
   const [browsing, setBrowsing] = useState<ProviderKind | null>(provider);
+  const [page, setPage] = useState<0 | 1>(1);
   const [search, setSearch] = useState('');
   const reduceMotion = useReducedMotion();
   // 0 = providers page, 1 = models page.
@@ -288,18 +289,18 @@ export function ModelPickerSheet({
     const initial = provider ?? providers[0] ?? null;
     setBrowsing(initial);
     setSearch('');
+    setPage(initial ? 1 : 0);
     progress.value = initial ? 1 : 0;
   }, [progress, provider, providers, visible]);
 
   function slideTo(target: 0 | 1) {
+    setPage(target);
     progress.value = reduceMotion
       ? target
       : withTiming(target, { duration: 260, easing: Easing.bezier(0.32, 0.72, 0.25, 1) });
   }
 
   const entry = catalog.find((item) => item.id === browsing);
-  const preferredModelId = entry?.models.find((item) => item.is_default)?.id
-    ?? entry?.models[0]?.id;
   const items = useMemo(
     () => filterModels(entry?.models, search),
     [entry?.models, search],
@@ -326,7 +327,8 @@ export function ModelPickerSheet({
           pageWidth.value = event.nativeEvent.layout.width;
         }}>
         <Animated.View style={[styles.pagerTrack, slideStyle]}>
-          <View style={styles.page}>
+          <View style={styles.page} accessibilityElementsHidden={page !== 0}
+            importantForAccessibility={page === 0 ? 'auto' : 'no-hide-descendants'}>
             <BottomSheetFlatList
               data={providers}
               keyExtractor={(id) => id}
@@ -353,7 +355,8 @@ export function ModelPickerSheet({
               )}
             />
           </View>
-          <View style={styles.page}>
+          <View style={styles.page} accessibilityElementsHidden={page !== 1}
+            importantForAccessibility={page === 1 ? 'auto' : 'no-hide-descendants'}>
             <Pressable
               accessibilityHint="Shows all providers"
               accessibilityLabel={browsing ? providerLabel(browsing) : 'Provider'}
@@ -385,8 +388,7 @@ export function ModelPickerSheet({
                     description={item.sub_provider ?? undefined}
                     label={item.name}
                     onPress={() => pickModel(item)}
-                    selected={provider === browsing &&
-                      (model === item.id || (!model && item.id === preferredModelId))}
+                    selected={provider === browsing && model === item.id}
                   />
                 )}
                 showsVerticalScrollIndicator={false}

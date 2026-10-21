@@ -18,7 +18,6 @@ import { cloudAccount } from "@/lib/cloud-account";
 import { Colors } from "@/constants/theme";
 import {
   HeaderAction,
-  HeaderActionGroup,
   nativeHeaderButtons,
   type HeaderActionSpec,
 } from "@/components/screen-header";
@@ -131,6 +130,10 @@ function AppNavigator() {
   const { openTaskDrawer } = useTaskDrawer();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const surfaceHeader = useMemo<NativeStackNavigationOptions>(() => ({
+    ...floatingHeader,
+    headerStyle: { backgroundColor: Platform.OS === 'android' ? theme.background : 'transparent' },
+  }), [theme.background]);
   const daemonRoutesAvailable = phase === "booting" || profiles.length > 0;
   const drawerAction = useMemo<HeaderActionSpec>(
     () => ({
@@ -142,16 +145,12 @@ function AppNavigator() {
   );
   const drawerHeader = useMemo<NativeStackNavigationOptions>(
     () => ({
-      ...floatingHeader,
+      ...surfaceHeader,
       gestureEnabled: false,
-      headerLeft: () => (
-        <HeaderActionGroup>
-          <HeaderAction {...drawerAction} />
-        </HeaderActionGroup>
-      ),
+      headerLeft: () => <HeaderAction {...drawerAction} />,
       unstable_headerLeftItems: () => nativeHeaderButtons([drawerAction]),
     }),
-    [drawerAction],
+    [drawerAction, surfaceHeader],
   );
 
   useEffect(() => {
@@ -183,16 +182,16 @@ function AppNavigator() {
       <Stack.Protected guard={daemonRoutesAvailable}>
         <Stack.Screen name="work" options={{ ...drawerHeader, title: "Work" }} />
         <Stack.Screen name="settings" options={{ ...drawerHeader, title: "Settings" }} />
-        <Stack.Screen name="apps" options={{ ...floatingHeader, title: "Apps" }} />
-        <Stack.Screen name="agent-editor" options={{ ...floatingHeader, title: "Agent" }} />
-        <Stack.Screen name="team-editor" options={{ ...floatingHeader, title: "Team" }} />
+        <Stack.Screen name="apps" options={{ ...surfaceHeader, title: "Apps" }} />
+        <Stack.Screen name="agent-editor" options={{ ...surfaceHeader, title: "Agent" }} />
+        <Stack.Screen name="team-editor" options={{ ...surfaceHeader, title: "Team" }} />
         <Stack.Screen
           name="artifacts"
           options={{ ...drawerHeader, title: "Artifacts" }}
         />
         <Stack.Screen
           name="artifact-document"
-          options={{ ...floatingHeader, title: "Document" }}
+          options={{ ...surfaceHeader, title: "Document" }}
         />
         <Stack.Screen
           name="usage"
@@ -200,14 +199,14 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="inbox-source"
-          options={{ ...floatingHeader, title: "Review" }}
+          options={{ ...surfaceHeader, title: "Review" }}
         />
         <Stack.Protected guard={MOBILE_CLOUD_SERVICES}>
         <Stack.Screen name="cloud-billing" options={{ title: 'Cloud billing' }} />
         <Stack.Screen name="cloud-deployments" options={{ title: 'Deployments' }} />
         <Stack.Screen
           name="cloud-budgets"
-          options={{ ...floatingHeader, title: "GPU budgets" }}
+          options={{ ...surfaceHeader, title: "GPU budgets" }}
         />
         </Stack.Protected>
         <Stack.Screen
@@ -220,15 +219,15 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="automation-editor"
-          options={{ ...floatingHeader, title: "Automation" }}
+          options={{ ...surfaceHeader, title: "Automation" }}
         />
         <Stack.Screen
           name="automation/[id]"
-          options={{ ...floatingHeader, title: "Run" }}
+          options={{ ...surfaceHeader, title: "Run" }}
         />
         <Stack.Screen
           name="daemons"
-          options={{ ...floatingHeader, title: "Paired desktops" }}
+          options={{ ...surfaceHeader, title: "Paired desktops" }}
         />
         <Stack.Screen
           name="new-task"
@@ -248,7 +247,7 @@ function AppNavigator() {
         name="daemon-editor"
         options={{
           presentation: "pageSheet",
-          title: "Add Daemon",
+          title: "Pair desktop",
         }}
       />
       <Stack.Protected guard={MOBILE_CLOUD_SERVICES}>

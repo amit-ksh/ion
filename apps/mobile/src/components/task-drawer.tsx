@@ -236,7 +236,11 @@ function TaskDrawerContent({
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+    <View
+      accessibilityElementsHidden={!open}
+      importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      pointerEvents={open ? 'auto' : 'none'}
+      style={[styles.screen, { backgroundColor: theme.background }]}>
       <View
         pointerEvents="box-none"
         style={[styles.daemonFloat, { top: insets.top + 8 }]}>

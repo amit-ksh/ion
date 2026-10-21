@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppSymbol } from './app-symbol';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -12,8 +12,8 @@ export function EditorFooter({ busy, disabled, onSave, onClose }: {
   const insets = useSafeAreaInsets();
   return <View style={{ flexDirection: 'row', gap: 8, padding: 16, paddingBottom: Math.max(insets.bottom, 16),
     backgroundColor: theme.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }}>
-    <View style={{ flex: 1 }}><WorkbenchButton label={busy ? 'Saving…' : 'Save'} primary disabled={disabled} onPress={onSave} /></View>
-    <View style={{ flex: 1 }}><WorkbenchButton label="Close" onPress={onClose} /></View>
+    <View style={{ flex: 1 }}><WorkbenchButton label={busy ? 'Saving…' : 'Save'} primary disabled={disabled} onPress={() => { Keyboard.dismiss(); onSave(); }} /></View>
+    <View style={{ flex: 1 }}><WorkbenchButton label="Close" onPress={() => { Keyboard.dismiss(); onClose(); }} /></View>
   </View>;
 }
 

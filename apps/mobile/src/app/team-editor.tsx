@@ -2,7 +2,7 @@ import type { AgentProfile, ControlSnapshot, Team, TeamMember } from '@waku/clie
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { AutomationChoice, AutomationField, AutomationToggle } from '@/components/automation-form-controls';
 import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
@@ -41,7 +41,7 @@ export default function TeamEditor() {
   if (!state.data) return <WorkbenchState title={state.query.isError ? 'Could not load team' : 'Loading team…'} detail={state.query.error?.message}>
     <WorkbenchButton label="Retry" onPress={() => void state.query.refetch()} /></WorkbenchState>;
   if (id && !original) return <WorkbenchState title="Team unavailable" detail="It may have been removed on another device." />;
-  return <View style={{ flex: 1, backgroundColor: theme.background }}><FlatList data={agents} keyExtractor={agent => agent.id} keyboardShouldPersistTaps="handled" style={{ backgroundColor: theme.background }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: theme.background }}><FlatList data={agents} keyExtractor={agent => agent.id} keyboardShouldPersistTaps="handled" style={{ backgroundColor: theme.background }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}
     ListHeaderComponent={<View style={styles.group}>
     <ConnectionBanner />
     <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{id ? 'Edit team' : 'New team'}</Text>
@@ -73,6 +73,6 @@ export default function TeamEditor() {
     {state.conflict && <WorkbenchButton label="Reload from desktop" disabled={state.busy || state.query.isFetching} onPress={() => void state.reloadDraft(hydrateDraft)} />}
     </View>} />
     <EditorFooter busy={state.busy} disabled={Boolean(problem) || !name.trim() || !objective.trim() || !state.fresh || state.busy || state.conflict} onSave={() => void save()} onClose={() => router.back()} />
-    </View>;
+    </KeyboardAvoidingView>;
 }
 const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, gap: 16, paddingBottom: 32 }, group: { gap: 16 }, title: { fontSize: 26, fontWeight: '600' }, section: { fontSize: 17, fontWeight: '600' }, sectionHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });

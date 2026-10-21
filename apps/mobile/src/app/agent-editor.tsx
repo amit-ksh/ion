@@ -2,7 +2,7 @@ import type { AgentAccess, AgentProfile, ControlSnapshot, ProviderKind } from '@
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { AutomationChoice, AutomationField, AutomationToggle } from '@/components/automation-form-controls';
 import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
@@ -60,7 +60,7 @@ export default function AgentEditor() {
   if (!state.data) return <WorkbenchState title={state.query.isError ? 'Could not load agent' : 'Loading agent…'}
     detail={state.query.error?.message}><WorkbenchButton label="Retry" onPress={() => void state.query.refetch()} /></WorkbenchState>;
   if (id && !original) return <WorkbenchState title="Agent unavailable" detail="It may have been removed on another device." />;
-  return <View style={{ flex: 1, backgroundColor: theme.background }}><ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}>
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: theme.background }}><ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}>
     <ConnectionBanner />
     <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{id ? 'Edit agent' : 'New agent'}</Text>
     <WorkbenchCard>
@@ -95,6 +95,6 @@ export default function AgentEditor() {
     <EditorFooter busy={state.busy} disabled={!valid || !state.fresh || state.busy || state.conflict} onSave={() => void save()} onClose={() => router.back()} />
     <ModelPickerSheet visible={picker} onDismiss={() => setPicker(false)} provider={provider} model={model} providers={harnesses}
       onApply={selection => { setProvider(selection.provider); setModel(selection.model); setPicker(false); }} />
-  </View>;
+  </KeyboardAvoidingView>;
 }
 const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, gap: 20, paddingBottom: 32 }, title: { fontSize: 26, fontWeight: '600' }, section: { fontSize: 17, fontWeight: '600' }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });

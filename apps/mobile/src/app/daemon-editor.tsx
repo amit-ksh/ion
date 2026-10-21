@@ -120,7 +120,7 @@ export default function DaemonEditorScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: profile ? "Edit Daemon" : "Add Daemon",
+          title: profile ? "Edit desktop" : "Pair desktop",
           contentStyle: { backgroundColor: colors.background },
           headerBackVisible: false,
           headerStyle: { backgroundColor: colors.background },
