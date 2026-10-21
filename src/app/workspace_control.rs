@@ -1533,8 +1533,6 @@ impl Waku {
             .gap(px(1.0));
         for (index, page) in [
             Page::Decisions,
-            Page::Tasks,
-            Page::Projects,
             Page::Teams,
             Page::Routines,
             Page::Workflows,
@@ -1545,7 +1543,7 @@ impl Waku {
         .into_iter()
         .enumerate()
         {
-            if index == 0 || index == 7 {
+            if index == 0 || index == 5 {
                 nav = nav.child(
                     div()
                         .mt(px(10.0))

@@ -87,22 +87,13 @@ export function ComposerCard({
         selectionColor={NativeTint}
         style={[styles.input, { color: theme.text }]}
         {...inputProps}
+        placeholder={`${inputProps.placeholder ?? "Message agent"}\n@ files, teams & apps · @@ teams · @@@ apps`}
       />
       <View style={styles.toolbar}>
         <View style={styles.cluster}>{left}</View>
         <View style={styles.toolbarSpacer} />
         <View style={styles.cluster}>{right}</View>
       </View>
-    <Text
-        style={{
-          color: theme.textSecondary,
-          fontSize: 12,
-          paddingHorizontal: 12,
-          paddingBottom: 6,
-        }}
-      >
-        @ files, teams &amp; apps · @@ AI teams · @@@ apps
-      </Text>
     </GlassSurface>
   );
 }

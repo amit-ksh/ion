@@ -3848,16 +3848,7 @@ impl Waku {
                     .child(div().flex_1())
                     .children(usage_meter),
             )
-            .child(
-                div()
-                    .w_full()
-                    .max_w(px(CONTENT_MAX_WIDTH))
-                    .mx_auto()
-                    .px(px(17.0))
-                    .text_size(sp(11.5))
-                    .text_color(theme.text_secondary)
-                    .child("@ files, teams & apps · @@ AI teams · @@@ apps"),
-            )
+
     }
 }
 

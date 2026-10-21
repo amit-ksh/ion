@@ -1,8 +1,9 @@
 # Requested sidebar, device and artifact UI changes
 
 21 October 2026. User-requested additions to the active implementation/testing
-queue. All six are **queued**, not implemented or visually accepted by this
-checklist update. Reference: the supplied project popover screenshot.
+queue. UI-03, UI-05 and UI-06 are now implemented in source in
+[151](151-sidebar-and-composer-refinement.md), with native acceptance pending.
+UI-01, UI-02 and UI-04 remain queued. Reference: the supplied project popover screenshot.
 
 | ID | Requested change | Acceptance |
 | --- | --- | --- |

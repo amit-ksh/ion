@@ -2037,7 +2037,14 @@ impl Waku {
                 .count(),
         });
 
-        let composer = cx.new(|cx| ComposerInput::new(window, cx).padding_x(px(14.0), cx));
+        let composer = cx.new(|cx| {
+            let mut input = ComposerInput::new(window, cx).padding_x(px(14.0), cx);
+            input.set_placeholder(
+                format!("{}\n@ files, teams & apps · @@ teams · @@@ apps", tr!("input.do_anything")),
+                cx,
+            );
+            input
+        });
         let user_input_answer = cx
             .new(|cx| TextInput::new(window, cx).placeholder(tr!("user_input.other_placeholder")));
         let command_palette_search = cx.new(|cx| {
