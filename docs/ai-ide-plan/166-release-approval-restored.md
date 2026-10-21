@@ -51,3 +51,28 @@ Plans 163 and 164 describe their then-current jobs, approval limit and incomplet
 native checks. Plan 165 records the native gates' later successful completion.
 Their obsolete job/status wording is historical, not the current running state.
 This report records restored review access and the new actual continuation.
+
+## First continuation stopped before compilation; separate retry prepared
+
+The original session 58114 returned **exit 1**, rather than remaining live.
+Memory had recovered to 2.86 GiB and the wrapper entered preflight, but its
+second strict source check overlapped the completion-checklist documentation
+edit. It correctly refused an uncommitted tracked worktree. This was caused by
+this session's concurrent documentation work, not an application compilation
+failure. Neither Windows nor Android build logs/exit markers exist, so the
+continuation's `buildStarted=true` means wrapper entry, not a compiler launch.
+
+The checklist is now committed as `7813306`; the native reports are committed
+as `4bdd8ba`. Index/worktree are clean, exact candidate code/native/runtime
+inputs and native/worker gates pass again. Original failed continuation, wrapper
+state and log are preserved. No source/security check or resource threshold
+was relaxed.
+
+A separate `continue-ion-reconciled-retry1-packaging.py` and wrapper were
+prepared. The wrapper changes only its owned job receipt filename, while
+retaining the original guarded build sequence and verifiers. The continuation
+uses new receipt/log names and pins the retry wrapper before launch. Preparation
+evidence: `.waku-cache/ion-reconciled-package-retry1-preparation.json`.
+No compiler, Gradle, installer, phone or paid workload was started by the failed
+attempt. Launch the retry through approval only after this report is committed;
+keep tracked files unchanged while its strict preflight/package checks run.
