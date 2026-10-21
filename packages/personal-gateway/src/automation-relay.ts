@@ -85,7 +85,22 @@ export class DurableAutomationRelay {
   publish(publisherId: string, value: unknown): void {
     if (!id(publisherId)) throw new Error('Invalid owner');
     validateProjection(value);
-    this.db.run('INSERT INTO relay_automation_owners VALUES (?1,?2,?3) ON CONFLICT(publisher_id) DO UPDATE SET body=excluded.body,published_at=excluded.published_at', [publisherId, JSON.stringify(value), this.now()]);
+    const body = canonical(value);
+    const row = this.db.query<{ body: string }, [string]>('SELECT body FROM relay_automation_owners WHERE publisher_id=?1').get(publisherId);
+    if (row && canonical(JSON.parse(row.body)) === body) {
+      this.heartbeat(publisherId);
+      return;
+    }
+    this.db.run('INSERT INTO relay_automation_owners VALUES (?1,?2,?3) ON CONFLICT(publisher_id) DO UPDATE SET body=excluded.body,published_at=excluded.published_at', [publisherId, body, this.now()]);
+  }
+  /** Presence is separate from content: an idle cycle never rewrites the body.
+   * A 30s heartbeat leaves margin inside the existing 60s freshness fence. */
+  heartbeat(publisherId: string): void {
+    this.db.run('UPDATE relay_automation_owners SET published_at=?2 WHERE publisher_id=?1 AND (published_at<=?3 OR published_at>?2)', [publisherId, this.now(), this.now() - 30_000]);
+  }
+  projectionDigest(publisherId: string): string | null {
+    const row = this.db.query<{ body: string }, [string]>('SELECT body FROM relay_automation_owners WHERE publisher_id=?1').get(publisherId);
+    return row ? createHash('sha256').update(canonical(JSON.parse(row.body))).digest('hex') : null;
   }
   private owner(publisherId: string): AutomationOwner | null {
     const row = this.db.query<{ body: string; published_at: number }, [string]>('SELECT body,published_at FROM relay_automation_owners WHERE publisher_id=?1').get(publisherId);

@@ -1,6 +1,6 @@
 use super::*;
 pub(super) fn sync(api: &GatewayApi, engine: &OwnerEngine, fence: &StopFence) -> Result<()> {
-    if fence.stopped() || !api.authorized()? || !api.has_inbox_control()? {
+    if fence.stopped() || !api.preflight_authorized()? || !api.has_inbox_control()? {
         return Ok(());
     }
     let started = Instant::now();

@@ -10,9 +10,10 @@ pub const TOKEN_FACTORY_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1
 const COMPOSIO_TOOLS_URL: &str = "https://backend.composio.dev/api/v3.1/tools";
 
 pub mod cloud;
-pub mod inference;
 pub mod composio;
 mod gateway_pairing_file;
+mod gateway_sync;
+pub mod inference;
 pub mod speech;
 pub use composio::ComposioAuthConfig;
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
@@ -187,6 +188,7 @@ pub struct GatewayApi {
     token: String,
     managed: Option<cloud::PublisherBinding>,
     client: reqwest::blocking::Client,
+    owner_sync: Option<gateway_sync::OwnerCycle>,
 }
 
 impl GatewayApi {
@@ -259,7 +261,7 @@ impl GatewayApi {
             .send()
             .map_err(|_| anyhow::anyhow!("Could not reach the gateway"))?;
         if !response.status().is_success() {
-            bail!("Gateway request failed (HTTP {})", response.status());
+            return Err(gateway_sync::HttpFailure(response.status()).into());
         }
         use std::io::Read;
         let mut bytes = Vec::new();
@@ -281,6 +283,7 @@ impl GatewayApi {
             token: binding.device_token.clone(),
             managed: Some(binding),
             client: gateway_client()?,
+            owner_sync: None,
         })
     }
     pub fn has_publish_grant(&self) -> Result<bool> {
@@ -455,10 +458,16 @@ pub enum GatewayAutomationAction {
 
 impl GatewayApi {
     pub fn has_automation_relay(&self) -> Result<bool> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.feature("automationRelay"));
+        }
         let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
         Ok(health["features"]["automationRelay"].as_u64() == Some(1))
     }
     pub fn uncertain_automations(&self) -> Result<Vec<GatewayAutomationCommand>> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.reply.uncertain.clone());
+        }
         #[derive(Deserialize)]
         struct Queue {
             commands: Vec<GatewayAutomationCommand>,
@@ -472,6 +481,15 @@ impl GatewayApi {
             .commands)
     }
     pub fn publish_automations(&self, projection: serde_json::Value) -> Result<()> {
+        if let Some(cycle) = &self.owner_sync {
+            if cycle.reply.projection_digest.as_deref() == Some(&gateway_sync::digest(&projection))
+            {
+                return Ok(());
+            }
+            cycle
+                .active
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         let _: serde_json::Value = self.request(
             reqwest::Method::PUT,
             "v1/device/automations",
@@ -480,6 +498,9 @@ impl GatewayApi {
         Ok(())
     }
     pub fn pending_automations(&self) -> Result<Vec<GatewayAutomationCommand>> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.reply.commands.clone());
+        }
         #[derive(Deserialize)]
         struct Queue {
             commands: Vec<GatewayAutomationCommand>,
@@ -515,10 +536,16 @@ pub struct GatewayPortfolioJob {
 }
 impl GatewayApi {
     pub fn has_portfolio_relay(&self) -> Result<bool> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.feature("portfolioRelay"));
+        }
         let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
         Ok(health["features"]["portfolioRelay"].as_u64() == Some(1))
     }
     pub fn publish_portfolio_owner(&self) -> Result<()> {
+        if self.owner_sync.is_some() {
+            return Ok(());
+        } // Batched presence already acknowledged.
         let _: serde_json::Value = self.request(
             reqwest::Method::PUT,
             "v1/device/portfolio",
@@ -527,6 +554,9 @@ impl GatewayApi {
         Ok(())
     }
     pub fn pending_portfolio(&self) -> Result<Vec<GatewayPortfolioJob>> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.reply.jobs.clone());
+        }
         #[derive(Deserialize)]
         struct Queue {
             jobs: Vec<GatewayPortfolioJob>,
@@ -759,6 +789,7 @@ impl CredentialService {
             token: pairing.token,
             managed: None,
             client: gateway_client()?,
+            owner_sync: None,
         })
     }
 
@@ -829,7 +860,8 @@ impl CredentialService {
             .timeout(std::time::Duration::from_secs(12))
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
-        let response = transport.request(&client, "models")?
+        let response = transport
+            .request(&client, "models")?
             .send()
             .context("could not reach Nebius Token Factory")?;
         if !response.status().is_success() {
@@ -883,10 +915,16 @@ impl CredentialService {
 
 impl GatewayApi {
     pub fn has_inbox_control(&self) -> Result<bool> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.feature("inboxControl"));
+        }
         let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
         Ok(health["features"]["inboxControl"].as_u64() == Some(1))
     }
     pub fn pending_inbox(&self) -> Result<Vec<serde_json::Value>> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.reply.inbox.clone());
+        }
         let response: serde_json::Value =
             self.request(reqwest::Method::GET, "v1/device/inbox/queue", None)?;
         Ok(response["commands"]
@@ -913,10 +951,16 @@ impl GatewayApi {
 
 impl GatewayApi {
     pub fn has_inbox_notifications(&self) -> Result<bool> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.feature("inboxNotifications"));
+        }
         let health: serde_json::Value = self.request(reqwest::Method::GET, "v1/health", None)?;
         Ok(health["features"]["inboxNotifications"].as_u64() == Some(1))
     }
     pub fn inbox_publication_cursor(&self) -> Result<Option<u64>> {
+        if let Some(cycle) = &self.owner_sync {
+            return Ok(cycle.reply.after);
+        }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Cursor {
@@ -931,6 +975,11 @@ impl GatewayApi {
         Ok(reply.after)
     }
     pub fn publish_inbox_notifications(&self, batch: serde_json::Value) -> Result<()> {
+        if let Some(cycle) = &self.owner_sync {
+            cycle
+                .active
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         let next = batch["next"]
             .as_u64()
             .context("Missing notification cursor")?;

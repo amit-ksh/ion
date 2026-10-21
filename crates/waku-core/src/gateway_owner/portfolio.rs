@@ -13,7 +13,7 @@ fn sync_queries(
     fence: &StopFence,
     pdf_only: bool,
 ) -> Result<()> {
-    if fence.stopped() || !api.has_portfolio_relay()? || !api.authorized()? {
+    if fence.stopped() || !api.has_portfolio_relay()? || !api.preflight_authorized()? {
         return Ok(());
     }
     let started = Instant::now();

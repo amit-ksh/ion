@@ -157,8 +157,35 @@ export function createGatewayHandler(
             portfolioRelay: portfolio ? 1 : 0,
             inboxControl: inbox ? 1 : 0,
             inboxNotifications: 1,
+            ownerSync: 1,
           },
         });
+      if (path === "/v1/device/sync" && method === "GET") {
+        // One fresh publisher authentication for this read-only queue batch.
+        // Claims, completions and settlements retain their own current checks;
+        // this response is never an authorization lease for effects.
+        const identity = authorizedDevice(request, authority, "publish");
+        automations?.heartbeat(identity.id);
+        portfolio?.heartbeat(identity.id);
+        const publication = push.publicationState(identity.id);
+        return json({
+          version: 1,
+          publisherId: identity.id,
+          features: {
+            automationRelay: automations ? 1 : 0,
+            portfolioRelay: portfolio ? 1 : 0,
+            inboxControl: inbox ? 1 : 0,
+            inboxNotifications: 1,
+          },
+          projectionDigest: automations?.projectionDigest(identity.id) ?? null,
+          commands: automations?.pending(identity.id) ?? [],
+          uncertain: automations?.uncertain(identity.id) ?? [],
+          jobs: portfolio?.pending(identity.id) ?? [],
+          inbox: inbox?.pending(identity.id) ?? [],
+          after: publication.after,
+          notificationPolicy: publication.policy,
+        });
+      }
       if (path === "/owner" && method === "GET")
         return ownerAsset(ownerHtml, "text/html; charset=utf-8");
       if (path === "/owner/style.css" && method === "GET")

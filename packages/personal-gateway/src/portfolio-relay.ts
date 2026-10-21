@@ -102,9 +102,14 @@ export class DurablePortfolioRelay {
   publish(publisherId: string): void {
     if (!portfolioId(publisherId)) throw new Error("Invalid portfolio owner");
     this.prune();
+    this.heartbeat(publisherId);
+  }
+  /** The batched queue read prunes once; presence does not prune it again. */
+  heartbeat(publisherId: string): void {
+    if (!portfolioId(publisherId)) throw new Error("Invalid portfolio owner");
     this.db.run(
-      "INSERT INTO relay_portfolio_owners VALUES(?1,?2) ON CONFLICT(publisher_id) DO UPDATE SET published_at=excluded.published_at",
-      [publisherId, this.now()],
+      "INSERT INTO relay_portfolio_owners VALUES(?1,?2) ON CONFLICT(publisher_id) DO UPDATE SET published_at=excluded.published_at WHERE published_at<=?3 OR published_at>?2",
+      [publisherId, this.now(), this.now() - 30_000],
     );
   }
   owners(

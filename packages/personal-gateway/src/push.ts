@@ -169,13 +169,15 @@ export class GatewayPush {
     );
   }
   publicationCursor(publisherId: string): number | null {
+    return this.publicationState(publisherId).after;
+  }
+  publicationState(publisherId: string): { after: number | null; policy: string | null } {
     if (!portfolioId(publisherId)) throw new Error("Invalid publisher");
-    return (
-      this.one<{ cursor: number }>(
-        "SELECT cursor FROM gateway_inbox_push_publishers WHERE publisher_id=?1",
+    const row = this.one<{ cursor: number; policy: string }>(
+        "SELECT cursor,policy FROM gateway_inbox_push_publishers WHERE publisher_id=?1",
         [publisherId],
-      )?.cursor ?? null
-    );
+      );
+    return { after: row?.cursor ?? null, policy: row?.policy ?? null };
   }
   publishInbox(publisherId: string, value: unknown): { next: number } {
     if (!portfolioId(publisherId)) throw new Error("Invalid publisher");

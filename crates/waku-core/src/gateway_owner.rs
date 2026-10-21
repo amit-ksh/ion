@@ -22,6 +22,17 @@ use waku_protocol::control::{AutomationRun, AutomationStatus, ControlRecord};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const PASS_BUDGET: Duration = Duration::from_secs(20);
+mod cadence;
+mod lease;
+// There is exactly one owner worker per daemon process. The normal IPC server
+// selects a daemon; this also fences accidentally constructed duplicate owners.
+static OWNER_RUNNING: AtomicBool = AtomicBool::new(false);
+struct OwnerLease;
+impl Drop for OwnerLease {
+    fn drop(&mut self) {
+        OWNER_RUNNING.store(false, Ordering::Release);
+    }
+}
 
 struct StopFence {
     stopping: AtomicBool,
@@ -73,6 +84,11 @@ impl GatewayOwner {
         }
     }
     pub(crate) fn start(&self) -> Result<()> {
+        anyhow::ensure!(
+            !OWNER_RUNNING.swap(true, Ordering::AcqRel),
+            "Gateway owner already running in this process"
+        );
+        let lease = OwnerLease;
         let receiver = self
             .receiver
             .lock()
@@ -83,25 +99,65 @@ impl GatewayOwner {
         let file_managed = self.file_managed;
         std::thread::Builder::new().name("ion-gateway-automations".into()).spawn(move || {
             let mut warned = false; let mut connected = false;
+            let _lease = lease;
+            let mut cadence = cadence::Cadence::default();
             let mut last_regular = Instant::now() - POLL_INTERVAL;
+            let mut next_regular = POLL_INTERVAL;
+            let mut previous: Option<GatewayApi> = None;
+            let mut published_projection = None;
+            let mut publisher_lease: Option<lease::PublisherLease> = None;
             while !fence.stopped() {
                 let result = match CredentialService::global().gateway_api() {
                     Ok(api) => {
                         connected = true;
                         api.with_timeout(Duration::from_secs(5)).and_then(|api| {
-                            if last_regular.elapsed() < POLL_INTERVAL {
-                                return portfolio::sync_pdf(&api, &engine, &fence);
+                            let lock_key = api.owner_lock_key();
+                            if publisher_lease.as_ref().is_none_or(|lease| !lease.matches(&lock_key)) {
+                                publisher_lease = None;
+                                publisher_lease = Some(lease::PublisherLease::acquire(lock_key)?);
+                            }
+                            let rotated = previous.as_ref().is_none_or(|old| !old.same_pairing(&api));
+                            if rotated { cadence.reset(); published_projection = None; }
+                            let projection = engine.projection()?;
+                            let changed = published_projection.as_ref() != Some(&projection);
+                            if !cadence.should_poll(last_regular.elapsed(), next_regular, rotated, changed) {
+                                return if engine.teams.pdf_transfer_active() {
+                                    portfolio::sync_pdf(&api.with_owner_sync()?, &engine, &fence)
+                                } else { Ok(()) };
                             }
                             last_regular = Instant::now();
-                            let controls = engine.sync(&api, &fence);
-                            let reads = portfolio::sync(&api, &engine, &fence);
-                            let notifications = inbox::sync(&api, &engine, &fence);
-                            let alerts = notifications::sync(&api, &engine, &fence);
-                            controls?; reads?; notifications?; alerts
+                            // Remember the attempted pairing even if the request fails;
+                            // otherwise every failure would look like a new pairing and
+                            // reset connectivity backoff on the next local tick.
+                            previous = Some(api.pairing_snapshot());
+                            // A failed batch stops this pass; do not fan an auth or
+                            // connectivity failure out into four more requests.
+                            let result = api.with_owner_sync().and_then(|api| {
+                                let active = api.owner_cycle_active() || changed;
+                                let controls = engine.sync(&api, &fence);
+                                let reads = portfolio::sync(&api, &engine, &fence);
+                                let inbox = inbox::sync(&api, &engine, &fence);
+                                let alerts = notifications::sync(&api, &engine, &fence);
+                                let result = controls.and(reads).and(inbox).and(alerts);
+                                // Include publication activity observed during the pass.
+                                let active = active || api.owner_cycle_active();
+                                previous = Some(api);
+                                result.map(|_| active)
+                            });
+                            next_regular = cadence.observe(&result);
+                            if result.is_ok() { published_projection = Some(projection); }
+                            result.map(|_| ())
                         })
                     }
-                    Err(_) if connected || file_managed => Err(anyhow::anyhow!("Gateway owner pairing unavailable")),
-                    Err(_) => Ok(()), // An unpaired desktop requires no gateway work.
+                    Err(_) if connected || file_managed => {
+                        publisher_lease = None; previous = None; published_projection = None; cadence.reset();
+                        Err(anyhow::anyhow!("Gateway owner pairing unavailable"))
+                    },
+                    Err(_) => {
+                        previous = None; published_projection = None; cadence.reset();
+                        publisher_lease = None;
+                        Ok(()) // An unpaired desktop requires no gateway network work.
+                    },
                 };
                 if result.is_err() && !warned {
                     // No credentials, definition bodies, paths or server payloads in logs.
@@ -135,6 +191,9 @@ impl Drop for GatewayOwner {
 trait Relay {
     fn publisher(&self) -> &str;
     fn authorized(&self) -> Result<bool>;
+    fn preflight_authorized(&self) -> Result<bool> {
+        self.authorized()
+    }
     fn supported(&self) -> Result<bool>;
     fn publish(&self, projection: serde_json::Value) -> Result<()>;
     fn pending(&self) -> Result<Vec<GatewayAutomationCommand>>;
@@ -149,6 +208,10 @@ impl Relay for GatewayApi {
     fn authorized(&self) -> Result<bool> {
         let current = CredentialService::global().gateway_api()?;
         Ok(self.same_pairing(&current) && self.has_publish_grant()?)
+    }
+    fn preflight_authorized(&self) -> Result<bool> {
+        let current = CredentialService::global().gateway_api()?;
+        Ok(self.same_pairing(&current) && self.owner_preflight_grant()?)
     }
     fn supported(&self) -> Result<bool> {
         self.has_automation_relay()
@@ -183,11 +246,7 @@ enum Effect {
     Unknown,
 }
 impl OwnerEngine {
-    fn sync(&self, relay: &dyn Relay, fence: &StopFence) -> Result<()> {
-        let started = Instant::now();
-        if fence.stopped() || !relay.authorized()? || !relay.supported()? {
-            return Ok(());
-        }
+    fn projection(&self) -> Result<serde_json::Value> {
         let snapshot = self.control.load()?;
         let projects = self.tasks.lock().projects.clone();
         let mut runs = Vec::new();
@@ -203,12 +262,20 @@ impl OwnerEngine {
                 }
             }
         }
+        Ok(waku_protocol::gateway::automation_projection(
+            &snapshot, &projects, &runs, more,
+        ))
+    }
+    fn sync(&self, relay: &dyn Relay, fence: &StopFence) -> Result<()> {
+        let started = Instant::now();
+        if fence.stopped() || !relay.preflight_authorized()? || !relay.supported()? {
+            return Ok(());
+        }
+        let projection = self.projection()?;
         if fence.stopped() {
             return Ok(());
         }
-        relay.publish(waku_protocol::gateway::automation_projection(
-            &snapshot, &projects, &runs, more,
-        ))?;
+        relay.publish(projection)?;
         // The durable relay orders stops first. Bound both batch count and time;
         // slow endpoints cannot monopolize subsequent publication passes.
         for pending in relay.pending()?.into_iter().take(32) {
