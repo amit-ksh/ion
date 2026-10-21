@@ -46,6 +46,13 @@ and static-publishing evidence. iOS and deferred harness adapters are excluded.
 
 ## Real desktop and paired-phone dictation
 
+Redesign recording diagnosis RD-02 shares this acceptance gate; see
+[142](142-redesign-remaining-acceptance.md). Emulator-5580 returned to idle after
+Start recording despite granted permission. Cause remains undetermined; disabled
+host audio alone is not an established explanation. Its prompt/contrast checks
+passed, but recording/discard/finalization/transcription did not. This separate
+redesign review was emulator-only and did not exercise the Moto G32.
+
 - [ ] In desktop **Settings → Models & Speech**, download/verify Parakeet.
   Confirm the first-use progress and subsequent verified cache reuse.
 - [ ] In a disposable task composer, dictate one short English sentence, Stop,
@@ -68,6 +75,12 @@ Do not record an unattended person's microphone to satisfy this checklist.
 The 110M model supports English; this release does not claim multilingual ASR.
 
 ## Native tasks, teams and workflow interactions
+
+Link RD-01/RD-05 to the existing desktop keyboard/theme/navigation, spoken
+TalkBack and long-transcript/provider tool/reasoning audit. RD-03 is specifically
+GitLab MCP startup HTTP 422; actual Android Codex completed and reached idle.
+RD-04 tracks source-only warning copy in the next authorized package, not a new
+build request. See plan 142 for passed receipts and test authorization limits.
 
 - [ ] Create a disposable local task with an already supported harness. Verify
   start, streamed progress, completion, cancellation and return visit.
@@ -102,7 +115,8 @@ The 110M model supports English; this release does not claim multilingual ASR.
 
 - [ ] Token Factory sandbox: verify spawn/list/cancel access, compatible immutable
   worker image/manifests and real price bounds before any paid lifecycle test.
-  Current permission discovery denies those capabilities; no sandbox was started.
+  Access passed for `aiproject-e00h49rtswkv9bz46s` in plan 141; reviewed worker
+  images, pricing and real lifecycle remain pending. No sandbox was started.
 - [ ] Reconcile provider invoices/unknown ledger holds. The Drive action's bounded
   reservation is not evidence of its final invoiced cost. Do not release an unknown
   hold merely to make usage look complete.

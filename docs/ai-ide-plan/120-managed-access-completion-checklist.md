@@ -182,6 +182,16 @@ and [131](131-static-only-publishing.md).
 
 ## 9. Managed onboarding, release and final acceptance
 
+Redesign follow-up RD-01–05 is recorded in
+[142](142-redesign-remaining-acceptance.md). It extends the UI, speech, integration
+and release checks below without duplicating passed evidence. Desktop visual/
+keyboard acceptance is unverified after the Computer Use helper failure;
+Android recording lifecycle and GitLab MCP HTTP 422 need diagnosis. Codex chat
+itself completed. The source-only MCP warning correction awaits the next
+independently authorized refresh; the redesign's one-APK/emulator-only scope
+does not authorize another build, merge or Moto test. Spoken TalkBack and long
+transcript/tool/reasoning states remain open; macOS/Linux are outside this goal.
+
 - [x] Make sign-in/model selection/user app connections the normal onboarding;
   move personal provider keys to optional Advanced settings without deleting them.
 - [x] Show accurate unavailable, disconnected, expired-session and budget states.

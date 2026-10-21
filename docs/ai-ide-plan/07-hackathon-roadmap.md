@@ -51,6 +51,13 @@ the installed phone and owner cloud live checks remain open.
 
 ## Milestone 1 acceptance
 
+**21 October follow-up:** remaining redesign identity/navigation/theme and
+keyboard acceptance is tracked in [142](142-redesign-remaining-acceptance.md),
+RD-01–05, linked to the current completion checklist (120) and interaction
+checklist (132). This adds review tasks, not a claim that the separate redesign
+was merged or permission for another build/device test. Historical scope below
+does not override the later agreed Windows/Android managed-access release scope.
+
 - The README and chapters contain the free/BYOK, native Nemotron, local ASR,
   personal gateway, and approval decisions; the developer resource chapter
   links primary sources.
