@@ -41,10 +41,37 @@ assumed to grant Token Factory sandbox access. See the
 
 ## Ordered tasks
 
+### Confirmed beta project (13:32 IST)
+
+The owner supplied **`aiproject-e00h49rtswkv9bz46s`**. With the existing saved
+operator key, `/sandboxes/v1/whoami` returned **HTTP 200** and all six permissions
+(`spawn`, `spawn_disposable`, `list`, `cancel`, `import`, `set_image_tag`) **true**.
+No replacement key is required for this project. This resolves SBX-01; the earlier
+compute-project observations remain historical evidence, not the beta target.
+Sanitized evidence: `.waku-cache/ion-sandbox-beta-aiproject-access-20261021.json`.
+
+The sandbox policy parser previously accepted only `project-` IDs. A regression
+first reproduced rejection of this real `aiproject-` ID. Validation now accepts
+both exact prefixes, rejects malformed/non-string values, and a transport fixture
+checks the unchanged AI-project header. Compute-VM validation is unchanged.
+Sandbox, combined-budget and spending regressions: **17 passed, 160 assertions**.
+This backend source fix does not establish deployed sandbox execution.
+
+At **13:35 IST**, bounded read-only public-image discovery returned HTTP 200
+with 100 entries, including base Python/Linux images. Pagination is incomplete;
+the first page is not a complete registry or proof that an Ion worker exists.
+No base image is approved as an Ion command/harness worker solely by its tag.
+Evidence: `.waku-cache/ion-sandbox-beta-aiproject-images-20261021.json`.
+SBX-02 still needs an inspected immutable worker and its exact manifest.
+SBX-03 still needs confirmed operation/upload/retention price ceilings; the
+[provider guidance](https://docs.tokenfactory.nebius.com/sandboxes/operate/limits-retention-and-usage)
+does not define invoice units for raw `cost`. No import, upload, operation,
+service-switch change or paid resource was issued during these checks.
+
 | ID | Task | Status | Dependency and required evidence |
 | --- | --- | --- | --- |
-| SBX-01 | Verify beta access for the intended key/project | Blocked on intended project/key authorization | Both configured projects now return 200 with execution/list/cancel false. Confirm the enabled project and caller, then repeat discovery after an actual access/key change. Preserve existing credentials. |
-| SBX-02 | Discover and inspect compatible worker images | Queued | SBX-01; immutable image UUID, exact manifest/worker entrypoint, supported harness and reviewed network/resource policy. |
+| SBX-01 | Verify beta access for the intended key/project | Passed | Owner-supplied `aiproject-e00h49rtswkv9bz46s` returns 200 with all six permissions true using the saved key. |
+| SBX-02 | Discover and inspect compatible worker images | In progress: public discovery passed; worker inspection pending | SBX-01; immutable image UUID, exact manifest/worker entrypoint, supported harness and reviewed network/resource policy. |
 | SBX-03 | Verify price, retention and combined-budget bounds | Queued | Provider-confirmed operation/upload/retention units and ceilings; current durable usage and unknown holds; stay below the existing $10 target/$15 cumulative ceiling. |
 | SBX-04 | Enable only the reviewed managed sandbox registry | Queued | SBX-02–03; backend-only credentials, bounded production policy, correct account-bound native config. Save initial service controls for restoration. |
 | SBX-05 | Run one short exact-approved command | Queued | SBX-04; real dispatch receipt, output and process exit. Verify refusal/changed arguments cause no dispatch, foreign account cannot access results, and nonzero exit remains a failure. |

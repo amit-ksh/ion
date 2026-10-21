@@ -86,13 +86,16 @@ queues live sandbox testing. Follow [141](141-sandbox-beta-testing-queue.md)
 bounded execution/transfers, cancellation/recovery, owner stop and confirmed
 cleanup. The initial saved-key observation returned false execution permissions
 for one project and 500 for the other. A bounded follow-up returned 200 with
-false permissions for the latter too; confirm the beta-enabled project and
-caller/key authorization. Do not treat the earlier denial
-as permanent, or beta approval alone as successful live acceptance.
+false permissions for the latter too. The owner subsequently supplied
+`aiproject-e00h49rtswkv9bz46s`: at **13:32 IST**, the saved key returned 200
+with all six sandbox permissions true. SBX-01 passed. The AI-project ID parser
+was fixed with a failing-then-passing regression; 17 sandbox/spending tests pass.
+Public-image discovery passed, but reviewed workers, pricing and real lifecycle
+acceptance remain pending. See plan 141 for the exact evidence and queue.
 
-- [x] Verify existing project key's sandbox access using read-only discovery:
-  `whoami` accepted the key but all spawn/list/cancel/import permissions are false.
-  Activation or project authorization is required before live sandbox acceptance.
+- [x] Verify the owner-supplied beta project's key using read-only discovery:
+  `aiproject-e00h49rtswkv9bz46s` has spawn/list/cancel/import permissions.
+  Reviewed images and verified pricing are still required before dispatch.
 - [ ] Select and verify compatible registered images for supported team harnesses.
 - [x] Backend owns project credentials, provisioning, account-bound command
   approvals, bounded file transfer, status, results and artifact retrieval.

@@ -29,6 +29,22 @@ function provider(){
  };
  return {send,get launches(){return launches;},get cancels(){return cancels;},fail(){fail=true;},deny(){permission=false;}};
 }
+test("sandbox accepts Token Factory AI projects and preserves their provider header",()=>fixture(async store=>{
+ const projectId="aiproject-e00h49rtswkv9bz46s";
+ const registered=sandboxPolicy(JSON.stringify({...policy,projectId}))!;
+ const calls:(string|undefined)[]=[];
+ const sandbox=new Sandbox(store,new Budget(store),()=>false,"server-only",registered,async(url,init)=>{
+  expect(url).toBe("https://api.tokenfactory.nebius.com/sandboxes/v1/whoami");
+  expect(init.method).toBe("GET");
+  calls.push((init.headers as Record<string,string>).Project);
+  return Response.json({permissions:{spawn_disposable:true,list:true,cancel:true}});
+ });
+ expect(await(await sandbox.handle(account(),request("/config"))).json()).toMatchObject({configured:true,available:true,enabled:false,project:projectId});
+ expect(calls).toEqual([projectId]);
+ for(const invalid of ["aiproject-short","ai-project-fixture123","otherproject-fixture123",projectId+"/operations",projectId+"\r\nInjected: yes",null,123])
+  expect(()=>sandboxPolicy(JSON.stringify({...policy,projectId:invalid}))).toThrow();
+}));
+
 test("sandbox is unavailable without verified operator configuration or provider permissions",()=>fixture(async store=>{
  const budget=new Budget(store),upstream=provider();
  expect(await(await new Sandbox(store,budget,()=>false).handle(account(),request("/config"))).json()).toMatchObject({configured:false,available:false});

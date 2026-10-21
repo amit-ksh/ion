@@ -24,7 +24,7 @@ const providerBody = (record:Operation) => ({...record.body,hostname:"ion-"+reco
 export function sandboxPolicy(raw?: string): SandboxPolicy | undefined {
   if (!raw) return;
   const p = JSON.parse(raw) as SandboxPolicy;
-  if (!p || !/^project-[a-z0-9]{8,80}$/.test(p.projectId) || !Array.isArray(p.images) || !p.images.length || p.images.length > 16 ||
+  if (!p || typeof p.projectId !== "string" || !/^(?:aiproject|project)-[a-z0-9]{8,80}$/.test(p.projectId) || !Array.isArray(p.images) || !p.images.length || p.images.length > 16 ||
       !Number.isInteger(p.maxRuntimeSeconds) || p.maxRuntimeSeconds < 10 || p.maxRuntimeSeconds > 180 ||
       !/^https:\/\//.test(p.pricingReference) || !p.limits)
     throw new Error("Verify sandbox images, price ceiling and runtime bounds before enabling execution");
