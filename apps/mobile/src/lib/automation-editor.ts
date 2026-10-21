@@ -14,7 +14,7 @@ export function definitionDraftKey(owner: string, slot: string): string {
 export function newDefinition(kind: 'workflow' | 'routine', id: string, projectId: string, teamId: string | null): AutomationDefinition {
   if (kind === 'workflow') return { kind, id, projectId, name: '', prompt: '', stages: [newStage(teamId)], limits: null };
   return { kind, id, projectId, name: '', instructions: '', intervalMinutes: 1440, paused: true, nextRun: 0,
-    provider: 'nebius', teamId, workflowId: null, lastError: null, missedRunPolicy: 'skip', overlapPolicy: 'skip' };
+    provider: 'codex', teamId, workflowId: null, lastError: null, missedRunPolicy: 'skip', overlapPolicy: 'skip' };
 }
 export function newStage(teamId: string | null = null): WorkflowStage {
   return { title: '', instructions: '', teamId, requiresDecision: false, inheritWorkspace: false, requiredFormats: [], transition: { type: 'next' } };

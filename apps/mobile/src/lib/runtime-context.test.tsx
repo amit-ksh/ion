@@ -155,6 +155,15 @@ describe('mobile runtime history', () => {
     expect(session.messages[0]).toMatchObject({ content: '$deploy production', display_content: '/deploy production' });
   });
 
+  test('blocks live cloud steering before dispatch', async () => {
+    const f = fixture();
+    f.history.provider = 'nebius';
+    f.queryClient.setQueryData(f.key, f.history);
+    await f.runtime.attachSession(f.history);
+    await expect(f.runtime.steerPrompt(f.history, 'Continue')).rejects.toThrow('Cloud inference is disabled');
+    expect(f.commands.some(command => command.type === 'steer')).toBe(false);
+  });
+
   test('keeps expanded command content separate from display text when steering', async () => {
     const f = fixture();
     f.queryClient.setQueryData(f.key, f.history);

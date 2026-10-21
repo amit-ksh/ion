@@ -1,4 +1,5 @@
-import { WakuRpcError, type AutomationRun, type CalendarSchedule, type RoutineTrigger, type WorkflowTarget, type WorkflowTransition, type Command, type ResponsePayload } from '@waku/client';
+import { assertMobileTeam } from './mobile-capabilities';
+import { WakuRpcError, type ControlSnapshot, type AutomationRun, type CalendarSchedule, type RoutineTrigger, type WorkflowTarget, type WorkflowTransition, type Command, type ResponsePayload } from '@waku/client';
 
 export interface AutomationTransport {
   request(command: Command): Promise<ResponsePayload>;
@@ -61,8 +62,41 @@ export async function startSavedAutomation(
   }
 }
 
+/** All positive execution transitions cross the same mobile capability gate.
+ * Run history, stopping, declining and pausing remain available. */
+export async function requestMobileAutomation(transport: AutomationTransport, command: Command): Promise<ResponsePayload> {
+  if (command.type === 'generateWorkflow') throw new Error('Generate workflow stages on desktop.');
+  if (command.type === 'resolveAutomationGate' && command.approved) {
+    // The public run projection does not expose the pinned future-stage profiles.
+    // Current definitions cannot prove what this existing run will execute.
+    throw new Error('Approve workflow stages on desktop, where pinned execution can be verified.');
+  }
+  if (command.type === 'startAutomation' || command.type === 'setRoutinePaused' && !command.paused) {
+    const response = await transport.request({ type: 'loadWorkspaceControl' });
+    if (response.type !== 'workspaceControl') throw new Error('Refresh to verify this automation before running.');
+    assertMobileAutomationDefinition(response.snapshot, command.type === 'startAutomation' ? command.definitionId : command.id);
+  }
+  return transport.request(command);
+}
+
+export function assertMobileAutomationDefinition(snapshot: ControlSnapshot, id: string) {
+  const record = snapshot.records.find(record => record.id === id);
+  if (!record || record.kind !== 'workflow' && record.kind !== 'routine') throw new Error('Automation unavailable. Refresh before running.');
+  const workflowId = record.kind === 'routine' ? record.workflowId : null;
+  const workflow = record.kind === 'workflow' ? record : workflowId
+    ? snapshot.records.find(record => record.id === workflowId && record.kind === 'workflow') : null;
+  const teamIds = workflow?.kind === 'workflow' ? workflow.stages.map(stage => stage.teamId)
+    : record.kind === 'routine' && !record.workflowId ? [record.teamId] : [];
+  if (!teamIds.length) throw new Error('Automation target unavailable. Refresh before running.');
+  for (const teamId of new Set(teamIds)) {
+    const team = snapshot.records.find(record => record.id === teamId && record.kind === 'team');
+    if (!team || team.kind !== 'team') throw new Error('Automation team unavailable. Refresh before running.');
+    assertMobileTeam(team, snapshot);
+  }
+}
+
 export async function runResponse(transport: AutomationTransport, command: Command): Promise<AutomationRun> {
-  const response = await transport.request(command);
+  const response = await requestMobileAutomation(transport, command);
   if (response.type !== 'automationRun') throw new Error('Unexpected automation response. Refresh before trying again.');
   return response.run;
 }

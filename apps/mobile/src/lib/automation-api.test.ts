@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { WakuRpcError, type AutomationRun, type Command, type ResponsePayload } from '@waku/client';
-import { startSavedAutomation, type SubmissionStorage } from './automation-api';
+import { startSavedAutomation, requestMobileAutomation, type SubmissionStorage } from './automation-api';
 const ID = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
 const DEFINITION = '00000000-0000-4000-8000-000000000003';
@@ -18,7 +18,10 @@ function fixture() {
     removeItem: async (key) => { values.delete(key); },
   };
   let answer: (command: Command) => Promise<ResponsePayload> = async () => ({ type: 'automationRun', run: run() });
-  const transport = { request: async (command: Command) => { calls.push(command); return answer(command); } };
+  const transport = { request: async (command: Command): Promise<ResponsePayload> => {
+    if (command.type === 'loadWorkspaceControl') return { type: 'workspaceControl', snapshot: localSnapshot() };
+    calls.push(command); return answer(command);
+  } };
   return { values, calls, storage, transport, answer: (next: typeof answer) => { answer = next; },
     start: (namespace = 'owner', revision = 7, uuid = () => ID) => startSavedAutomation(transport, storage, namespace, DEFINITION, revision, uuid) };
 }
@@ -130,4 +133,43 @@ describe('phone automation identity and reconciliation', () => {
     await expect(f.start()).rejects.toThrow('could not be read');
     expect(f.calls).toHaveLength(0); expect(f.values.get(key)).toBe('{');
   });
+});
+
+function localSnapshot(cloud = false): import('@waku/client').ControlSnapshot {
+  return { revision: 7, records: [
+    { kind: 'workflow', id: DEFINITION, stages: [{ teamId: OTHER }] },
+    { kind: 'routine', id: 'routine', teamId: OTHER, workflowId: null },
+    { kind: 'team', id: OTHER, members: [{ agentId: ID }] },
+    { kind: 'agent', id: ID, provider: cloud ? 'nebius' : 'codex', execution: { environment: 'local' } },
+  ] } as import('@waku/client').ControlSnapshot;
+}
+test('mobile automation checks target profiles before starting or enabling, while stop and decline remain available', async () => {
+  const calls: Command[] = [];
+  const transport = { request: async (command: Command): Promise<ResponsePayload> => {
+    calls.push(command);
+    if (command.type === 'loadWorkspaceControl') return { type: 'workspaceControl', snapshot: localSnapshot(true) };
+    return { type: 'automationRun', run: run() };
+  } };
+  await expect(requestMobileAutomation(transport, { type: 'startAutomation', id: ID, definitionId: DEFINITION, expectedDefinitionRevision: 7 })).rejects.toThrow('cloud inference');
+  expect(calls.map(command => command.type)).toEqual(['loadWorkspaceControl']);
+  await expect(requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: false })).rejects.toThrow('cloud inference');
+  expect(calls.map(command => command.type)).toEqual(['loadWorkspaceControl', 'loadWorkspaceControl']);
+  await expect(requestMobileAutomation(transport, { type: 'generateWorkflow', projectId: ID, prompt: 'Build' })).rejects.toThrow('desktop');
+  await expect(requestMobileAutomation(transport, { type: 'resolveAutomationGate', id: ID, stage: 0, expectedRevision: 1, approved: true })).rejects.toThrow('pinned execution');
+  await requestMobileAutomation(transport, { type: 'stopAutomation', id: ID, expectedRevision: 1 });
+  await requestMobileAutomation(transport, { type: 'resolveAutomationGate', id: ID, stage: 0, expectedRevision: 1, approved: false });
+  await requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: true });
+  expect(calls.slice(2).map(command => command.type)).toEqual(['stopAutomation', 'resolveAutomationGate', 'setRoutinePaused']);
+});
+
+test('mobile can start and enable verified local automation teams', async () => {
+  const calls: Command[] = [];
+  const transport = { request: async (command: Command): Promise<ResponsePayload> => {
+    calls.push(command);
+    return command.type === 'loadWorkspaceControl'
+      ? { type: 'workspaceControl', snapshot: localSnapshot() } : { type: 'automationRun', run: run() };
+  } };
+  await requestMobileAutomation(transport, { type: 'startAutomation', id: ID, definitionId: DEFINITION, expectedDefinitionRevision: 7 });
+  await requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: false });
+  expect(calls.map(command => command.type)).toEqual(['loadWorkspaceControl', 'startAutomation', 'loadWorkspaceControl', 'setRoutinePaused']);
 });

@@ -1685,6 +1685,7 @@ pub use settings::init as init_settings_keys;
 pub use sidebar::init as init_sidebar_keys;
 use sidebar::{SidebarGroup, SidebarRow};
 pub use skills_page::init as init_skills_keys;
+pub use workspace_control::init as init_workspace_control_keys;
 use streaming::*;
 use transcript::*;
 use transcript_view::ConversationNavigationRail;

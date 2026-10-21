@@ -35,6 +35,11 @@ Ion keeps its own identity. The supplied visual references and restrained Nebius
 
 Seven user-supplied reference images in the task brief; existing source; inherited native and Android QA captures under `docs/qa/2026-10-18-ion`. Existing QA images document the previous build, not acceptance of this redesign.
 
+Mobile cannot approve future workflow stages until their pinned execution
+profiles can be verified through the public daemon API. Those approvals and
+Nebius stage generation remain desktop actions; local starts, pause, stop,
+decline and history remain available on mobile.
+
 ## Product Principles
 
 - Put the next useful action beside the object it affects.

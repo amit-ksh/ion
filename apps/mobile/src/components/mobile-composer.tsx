@@ -50,6 +50,7 @@ import { sessionBusy, sessionCwd } from "@/lib/mobile-runtime";
 import { composerProviderPrompt } from "@/lib/composer-completion";
 import { modelHasConfigurableTraits } from "@/lib/model-traits";
 import { useRuntime } from "@/lib/runtime-context";
+import { mobileHarness } from "@/lib/mobile-capabilities";
 import { isDaemonDisconnectError } from "@/lib/runtime-errors";
 
 /**
@@ -201,7 +202,7 @@ export function MobileComposer({
   const [speechPreview, setSpeechPreview] = useState<string | null>(null);
   const [traitsSheetOpen, setTraitsSheetOpen] = useState(false);
   const modelProbe = useProviderModels(session.provider);
-  const providerAvailable = session.provider === "nebius" || Boolean(session.team_assignment);
+  const providerAvailable = mobileHarness(session.provider);
   const models = modelProbe.data?.models ?? [];
   const activeModel = session.model
     ? models.find((item) => item.id === session.model)
@@ -378,7 +379,7 @@ export function MobileComposer({
   async function submit() {
     if (!providerAvailable) {
       setLocalError(
-        "This historical provider is read-only in this ion distribution.",
+        "Cloud inference is disabled here. Open this task on desktop.",
       );
       return;
     }

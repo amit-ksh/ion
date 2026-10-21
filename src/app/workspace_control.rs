@@ -1,6 +1,16 @@
 //! Native workspace navigation and definition editor. All RPC, credential,
 //! model and document work runs on workers; render reads in-memory snapshots.
 use super::*;
+use gpui::{KeyBinding, actions};
+
+actions!(waku_workspace_control, [DismissControlEditor]);
+
+pub fn init(cx: &mut App) {
+    cx.bind_keys([
+        KeyBinding::new("escape", DismissControlEditor, Some("WorkspaceControlEditor")),
+        KeyBinding::new("escape", DismissControlEditor, Some("WorkspaceControlEditor > TextInput")),
+    ]);
+}
 use waku_client::control::*;
 use waku_client::teams::{
     AgentAccess, AgentExecution, AssignmentStatus, ExecutionEnvironment, TeamRunSnapshot,
@@ -2164,16 +2174,19 @@ impl Waku {
         let weak = cx.entity().downgrade();
         let mut content = div()
             .track_focus(&self.control_ui.focus)
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
-                if this.control_ui.form.is_some()
-                    && event.keystroke.key == "escape"
-                    && !this.menus.borrow().values().any(|menu| menu.is_open())
+            .when(self.control_ui.form.is_some(), |content| {
+                content.key_context("WorkspaceControlEditor")
+            })
+            .on_action(cx.listener(|this, _: &DismissControlEditor, _, cx| {
+                if this.control_ui.form.is_none()
+                    || this.menus.borrow().values().any(|menu| menu.is_open())
                 {
-                    this.control_ui.editor_generation += 1;
-                    this.control_ui.form = None;
-                    cx.stop_propagation();
-                    cx.notify();
+                    cx.propagate();
+                    return;
                 }
+                this.control_ui.editor_generation += 1;
+                this.control_ui.form = None;
+                cx.notify();
             }))
             .tab_group()
             .flex_1()

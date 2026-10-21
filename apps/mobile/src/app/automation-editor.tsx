@@ -127,20 +127,6 @@ function Editor({ owner, slot, id, kind, projectId, state }: {
       }, authorization) },
     ]);
   }
-  function generate() {
-    const client = state.daemon.client; const record = draft?.record; if (!client || record?.kind !== 'workflow') return;
-    const authorization = epoch.current.value;
-    Alert.alert('Generate workflow stages?', 'This uses your configured Nebius model and replaces this draft’s stages. Review the result before saving.', [
-      { text: 'Cancel', style: 'cancel' }, { text: 'Generate', onPress: () => void action(async (alive) => {
-        await persistDefinitionDraft(AsyncStorage, key, draft!);
-        const response = await client.request({ type: 'generateWorkflow', projectId: record.projectId, prompt: record.prompt });
-        if (!alive()) return;
-        if (response.type !== 'workflowDraft' || response.workflow.projectId !== record.projectId) throw new Error('The generated draft did not match this project.');
-        const next = { ...draft!, record: { ...record, name: response.workflow.name, stages: response.workflow.stages } };
-        await persistDefinitionDraft(AsyncStorage, key, next); if (alive()) { setDraft(next); setPreview(null); setInvalid({}); setFormGeneration((v) => v + 1); }
-      }, authorization) },
-    ]);
-  }
   function schedulePreview() {
     const client = state.daemon.client; const record = draft?.record; if (!client || record?.kind !== 'routine') return;
     void action(async (alive) => { const response = await client.request({ type: 'previewRoutineSchedule', request: { intervalMinutes: record.intervalMinutes, calendar: record.calendar ?? null } });
@@ -173,7 +159,6 @@ function Editor({ owner, slot, id, kind, projectId, state }: {
         <AutomationField label={record.kind === 'workflow' ? 'Describe the workflow' : 'Instructions'} value={record.kind === 'workflow' ? record.prompt : record.instructions}
           onChangeText={(value) => update(record.kind === 'workflow' ? { ...record, prompt: value } : { ...record, instructions: value })} editable={!disabled} multiline maxLength={16000} />
         {record.kind === 'workflow' ? <>
-          <AutomationButton label="Generate stages" onPress={generate} disabled={disabled || !record.prompt.trim()} />
           {record.stages.map((s, index) => <View key={`${formGeneration}:${index}`} style={styles.section}>
             <Text accessibilityRole="header" style={[styles.heading, { color: theme.text }]}>Stage {index + 1}</Text>
             <AutomationField label="Stage title" value={s.title} onChangeText={(title) => stage(index, { title })} editable={!disabled} maxLength={512} />

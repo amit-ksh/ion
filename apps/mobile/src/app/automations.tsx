@@ -11,7 +11,7 @@ import { useScreenHeaderInset } from '@/components/screen-header';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
-import { automationStatus, routineTime, scheduleLabel, workflowTransition, startSavedAutomation } from '@/lib/automation-api';
+import { automationStatus, routineTime, scheduleLabel, workflowTransition, startSavedAutomation, requestMobileAutomation } from '@/lib/automation-api';
 
 type Tab = 'Workflows' | 'Routines' | 'Runs';
 type Definition = (Workflow & { kind: 'workflow' }) | (Routine & { kind: 'routine' });
@@ -69,7 +69,7 @@ export default function AutomationsScreen() {
     const client = daemon.client;
     if (!client || !data) return;
     void action(routine.id, async () => {
-      const response = await client.request({ type: 'setRoutinePaused', id: routine.id, expectedRevision: data.snapshot.revision, paused: !routine.paused });
+      const response = await requestMobileAutomation(client, { type: 'setRoutinePaused', id: routine.id, expectedRevision: data.snapshot.revision, paused: !routine.paused });
       if (response.type !== 'workspaceControl') throw new Error('Unexpected schedule response. Refresh before retrying.');
     });
   }

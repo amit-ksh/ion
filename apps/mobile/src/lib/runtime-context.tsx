@@ -707,6 +707,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       : providerPromptOverride.trim();
     if (!client || daemon.phase !== 'connected') throw new Error('ion daemon is disconnected');
     const runtime = entries.current.get(session.id);
+    if (!mobileHarness(runtime?.session.provider ?? session.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
     if (session.team_assignment || runtime?.session.team_assignment) {
       await sendPrompt(session, prompt, attachments, providerPrompt);
       return;

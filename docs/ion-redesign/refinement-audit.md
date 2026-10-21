@@ -50,9 +50,12 @@ and kept both footer actions visible and equal. Evidence includes
 `desktop-workflow-sheet-compact-dark.png`.
 
 The compact check exposed an Escape focus defect immediately after opening an
-editor. Trigger callbacks now focus the Name field and the workspace content
-handles Escape above both trigger and editor. Its watcher rebuild and fresh
-keyboard recheck are pending; the failed interaction is not counted as passed.
+editor. Trigger callbacks now focus the Name field. A scoped GPUI action binding
+handles Escape from both controls and text fields, preserving dropdown dismissal
+precedence. The worktree watcher rebuilt successfully, and the actual 982 × 816
+app then passed focus and Escape dismissal. The before/after evidence is
+`desktop-editor-focus-compact-dark.png` and
+`desktop-editor-escape-compact-dark.png`.
 
 Evidence is in `evidence/refinement/`: `desktop-agent-dark.png`,
 `desktop-model-menu-dark.png`, `desktop-agent-scrolled-dark.png`,
@@ -64,20 +67,25 @@ not full provider, populated workflow or long-transcript acceptance.
 
 - Native watcher build: passed; the latest successful launch is recorded in
   `.waku-cache/dev-refinement.log` and `.err`.
-- Mobile TypeScript: passed after the team policy refinement; the result
+- Mobile TypeScript: passed after the final reviewed policy fixes; the result
   is tracked in `.waku-cache/refinement-types-final.log`.
 - Initial focused suite: 27 passed. After further changes, the combined test
   process hit an internal Bun 1.2.1 segmentation fault; it is not a test pass.
-  Re-running runtime/capability tests separately passed 13 tests (45 assertions), including local
+  Re-running runtime/capability tests separately passed 14 tests (47 assertions), including local
   history, steering, goal operations, team follow-ups and cloud rejection. A
   separate non-React suite passed 24 tests (225 assertions) covering palette,
-  icons, Apps, account policy, revisions, hierarchy and model layout.
+  icons, Apps, account policy, revisions, hierarchy and model layout. Final
+  automation persistence/policy tests passed 27 tests (93 assertions).
 - Android APK: assembly in progress using a separate `.redesign` application ID,
   local native dependency sources and an isolated Gradle cache. The first attempt
   exposed cross-drive codegen and missing Expo script-distribution errors, which
   were corrected in the local build environment without dependency version edits.
   A second attempt exposed missing compiled Expo config-plugin distributions.
-  Restoring those files made direct Expo configuration pass; assembly is retrying.
+  Restoring those files made direct Expo configuration pass. Subsequent attempts
+  exposed a cross-drive Expo CLI path and Metro dependency-junction visibility;
+  the isolated CLI copy and temporary Metro config resolved both. Direct Android
+  bundling passed with 2,347 modules. APK assembly is retrying with cached native
+  compilation. The temporary config is environment-only and is not product source.
 - Android emulator: an isolated API 36 x86_64 image and AVD were installed. WHPX
   acceleration is available. The initial Vulkan boot stalled; a diagnostic boot
   used software rendering with Vulkan disabled and reached boot-completed state.
@@ -87,9 +95,18 @@ not full provider, populated workflow or long-transcript acceptance.
   confirmed they can sign in once the APK is installed. Authentication is left
   to the owner; no account-gated device pass is claimed yet.
 
-The independent reviewer could not run because its account usage limit was
-reached. A bounded local source/evidence review substitutes for that pass and is
-explicitly limited to the evidence above. Formal full visual disposition remains
+The independent reviewer initially hit its account usage limit, then completed
+its bounded read-only review after the window reset. It found a stale composer
+availability condition, live steering without the cloud guard and automation
+execution bypasses. These were fixed: local composers remain editable, live
+cloud steering is rejected, automation starts/enabling validate all target teams,
+and Nebius workflow generation is removed from mobile. Automation history,
+stopping, declining and pausing remain available. Future-stage pinned profiles
+are not exposed by the public run projection, so positive workflow gate approval
+is explicitly a desktop action until that capability can be verified on mobile.
+The reviewer rechecked these fixes and found no additional material mistake.
+Automation persistence/policy tests and runtime tests were rerun; no device
+pass is inferred from that review. Formal full visual disposition remains
 **recapture** until phone/tablet and the outstanding desktop state matrix exist.
 
 ## Environment repairs
