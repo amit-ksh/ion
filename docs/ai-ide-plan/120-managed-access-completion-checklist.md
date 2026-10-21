@@ -80,6 +80,14 @@ Evidence and remaining storage/compute prerequisites: [119](119-live-gateway-pil
 
 ## 5. Managed Token Factory sandboxes
 
+**21 October update:** the owner reports beta access is granted and explicitly
+queues live sandbox testing. Follow [141](141-sandbox-beta-testing-queue.md)
+(SBX-01–09) for access verification, image/pricing review, exact approvals,
+bounded execution/transfers, cancellation/recovery, owner stop and confirmed
+cleanup. The fresh saved-key observation is still unresolved (one project denies
+execution permissions; the other returned 500). Do not treat the earlier denial
+as permanent, or beta approval alone as successful live acceptance.
+
 - [x] Verify existing project key's sandbox access using read-only discovery:
   `whoami` accepted the key but all spawn/list/cancel/import permissions are false.
   Activation or project authorization is required before live sandbox acceptance.

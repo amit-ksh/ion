@@ -5,6 +5,11 @@ from long-running app-hosting VMs and does not claim a live sandbox was launched
 
 ## Actual access result
 
+The result below is historical. On 21 October the owner reported receiving beta
+access and queued live testing. See [141](141-sandbox-beta-testing-queue.md) for
+the fresh saved-key results and ordered acceptance tasks; effective access is
+still unresolved, so no live lifecycle is claimed.
+
 The saved operator inference key was tested against the documented read-only
 `GET /sandboxes/v1/whoami`, with both supplied project IDs. Both requests returned
 200, but `spawn`, `spawn_disposable`, `list`, `cancel`, `import` and
