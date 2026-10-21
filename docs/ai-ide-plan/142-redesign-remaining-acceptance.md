@@ -56,6 +56,12 @@ from main-branch ARM64 release artifacts and is not a physical-device pass.
 
 ## Completion rule
 
+RD-04 source integration: [149](149-mobile-mcp-warning-integration.md) records
+the independent port into `ion-prod` at `fbab54a`, six focused tests/16 assertions
+and a passing mobile typecheck. No redesign merge or new package is claimed.
+The newer package preparation includes this source correction; compiled and
+native interaction acceptance remain pending.
+
 RD-03 diagnosis: [145](145-gitlab-mcp-endpoint-diagnosis.md) reproduces HTTP 422
 HTML from the configured endpoint and observes a 401 OAuth challenge from the
 documented MCP endpoint. Correction/authenticated acceptance awaits owner

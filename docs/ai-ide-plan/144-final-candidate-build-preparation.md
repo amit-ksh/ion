@@ -1,5 +1,9 @@
 # Next Ion release candidate: source and build preparation
 
+Superseded preparation: [149](149-mobile-mcp-warning-integration.md) records
+the independent warning port and the newer `ion-mcp-candidate` source snapshot.
+The files and receipts described below remain historical and are preserved.
+
 21 October 2026. Current candidate source is
 `91e275884af394c29844e76413c05705b0b4772a`, plus the preserved 111-file QA patch.
 This is preparation and input verification, not a completed build or acceptance.
