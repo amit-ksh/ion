@@ -37,7 +37,8 @@ function fixture(origin = "https://cloud.example") {
   let subject = "auth0|one",
     cancel = false,
     offline = false,
-    wrongBootstrap = false;
+    wrongBootstrap = false,
+    mockHosting = false;
   let browserCalls = 0,
     clears = 0,
     resets = 0;
@@ -76,6 +77,13 @@ function fixture(origin = "https://cloud.example") {
     }
     if (wrongBootstrap && url.endsWith("/bootstrap"))
       return Response.json({ auth: { issuer: "https://attacker.example/" } });
+    if (mockHosting && url.includes("/v1/hosting/")) {
+      expect(new Headers(init?.headers).get("Authorization")).toStartWith(
+        "Bearer ",
+      );
+      expect(init?.redirect).toBe("error");
+      return Response.json({ items: [] });
+    }
     return server.fetch(new Request(url, init));
   }) as typeof fetch;
   const controller = createCloudAccount({
@@ -148,12 +156,70 @@ function fixture(origin = "https://cloud.example") {
     setBadBootstrap: () => {
       wrongBootstrap = true;
     },
+    setMockHosting: () => {
+      mockHosting = true;
+    },
     setPairing: (value: GatewayPairing) => {
       pairing = value;
     },
   };
 }
 describe("native phone managed-account workflow", () => {
+  test("publishing pins the reviewed identity and rejects stale account actions before dispatch", async () => {
+    const f = fixture();
+    f.setMockHosting();
+    await f.controller.signIn();
+    const workspace = (await f.controller.status()).workspaceId!;
+    expect(
+      await f.controller.hostingRequest(workspace, "/v1/hosting/sites"),
+    ).toEqual({ items: [] });
+    f.setSubject("auth0|two");
+    await f.controller.signIn();
+    expect(f.resets()).toBe(1); // Invalidate old views even without a paired phone.
+    expect(f.clears()).toBe(1);
+    const calls = f.network.length;
+    for (const method of ["GET", "POST", "DELETE"] as const)
+      await expect(
+        f.controller.hostingRequest(workspace, "/v1/hosting/sites", method),
+      ).rejects.toThrow();
+    expect(f.network.length).toBe(calls);
+    const replacement = (await f.controller.status()).workspaceId!;
+    expect(
+      await f.controller.hostingRequest(replacement, "/v1/hosting/sites"),
+    ).toEqual({ items: [] });
+    await f.controller.signOut();
+    const signedOutCalls = f.network.length;
+    await expect(
+      f.controller.hostingRequest(replacement, "/v1/hosting/sites"),
+    ).rejects.toThrow();
+    expect(f.network.length).toBe(signedOutCalls);
+  });
+  test("hosting routes require a valid pinned workspace and cannot use the generic transport", async () => {
+    const f = fixture();
+    f.setMockHosting();
+    await f.controller.signIn();
+    const workspace = (await f.controller.status()).workspaceId!;
+    const calls = f.network.length;
+    for (const path of [
+      "/v1/services/controls",
+      "/v1/hosting/../services/usage",
+      "/v1/hosting/%2e%2e/sites",
+      "/v1/hosting/sites?token=x",
+      "/v1/hosting//sites",
+      "/v1/hosting/sites/",
+      "/v1/hosting/" + "x".repeat(240),
+    ])
+      await expect(
+        f.controller.hostingRequest(workspace, path),
+      ).rejects.toThrow("Invalid account-bound");
+    await expect(
+      f.controller.hostingRequest("", "/v1/hosting/sites"),
+    ).rejects.toThrow("Invalid account-bound");
+    await expect(
+      f.controller.request("/v1/hosting/releases", "POST", {}),
+    ).rejects.toThrow("Invalid managed service");
+    expect(f.network.length).toBe(calls);
+  });
   test("unconfigured build and cancelled sign-in keep local mode and store no account", async () => {
     const unavailable = fixture("");
     expect(await unavailable.controller.status()).toEqual({

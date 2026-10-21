@@ -36,7 +36,7 @@ results, but did not themselves bind the authenticated outbound effect.
   `ion-publishing-account-desktop-check.log` (successful desktop compilation).
   The first targeted regression log is retained separately.
 - Job handles/logs are recorded in `.waku-cache/ion-managed-active-jobs.json`.
-  No GUI acceptance, live-vault rerun or refreshed installer is claimed here.
+  That initial fixture run did not include GUI acceptance or a live vault probe.
 - Approval access returned at the scheduled 7:05 AM continuation. The actual
   signed-in native account passed the opt-in static publication test through the
   new bound transport: private denial, idempotency, HTML/asset bytes, SPA routing,
@@ -46,10 +46,13 @@ results, but did not themselves bind the authenticated outbound effect.
   cleanup confirmed) and the corresponding log/exit marker (one live test passed).
   This verifies the real vault/network request path; account replacement and
   foreign-refresh rejection are covered by the fixture regressions above.
+- The isolated real Windows Credential Manager test subsequently passed under
+  restored host access: one test, dummy entries only, automatic namespace cleanup.
+  Evidence: `.waku-cache/ion-account-bound-native-vault.log` and exit marker.
 - Refreshed Windows release packaging and interactive account-switch acceptance
   remain pending. No approval bypass was attempted.
 
 The package in plan 134 predates this change. Keep its hashes/source record and
 refresh it after committing the verified fix. Live backend publishing was already
-accepted in plan 131; that backend evidence does not prove the newly edited native
-request path until its targeted/live acceptance runs.
+accepted in plan 131; the subsequent live test above verifies the newly edited
+native request path. The mobile counterpart is recorded in plan 136.

@@ -14,6 +14,7 @@ import {
   hostingSites,
   hostingAction,
   removeHostedVersion,
+  type HostedRelease,
   type HostedSite,
 } from "@/lib/cloud-hosting";
 export default function CloudDeployments() {
@@ -33,7 +34,10 @@ export default function CloudDeployments() {
     setBusy(true);
     setError(null);
     try {
-      const items = await hostingSites();
+      const account = await cloudAccount.status();
+      if (!account.signedIn || !account.workspaceId)
+        throw new Error("Sign in to Ion Cloud to view deployments.");
+      const items = await hostingSites(account.workspaceId);
       if (active.current && run === generation.current) setItems(items);
     } catch (error) {
       if (active.current && run === generation.current)
@@ -86,11 +90,32 @@ export default function CloudDeployments() {
           throw new Error("Invalid deployment link");
         await Linking.openURL(url.toString());
       }
-      setItems(await hostingSites());
+      const items = await hostingSites(site.workspaceId);
+      if (active.current && run === generation.current) setItems(items);
     } catch (error) {
       if (active.current && run === generation.current)
         setError(
           error instanceof Error ? error.message : "Deployment update failed.",
+        );
+    } finally {
+      running.current = false;
+      if (active.current && run === generation.current) setBusy(false);
+    }
+  }
+  async function removeVersion(site: HostedSite, release: HostedRelease) {
+    if (running.current) return;
+    running.current = true;
+    const run = ++generation.current;
+    setBusy(true);
+    setError(null);
+    try {
+      await removeHostedVersion(site, release);
+      const items = await hostingSites(site.workspaceId);
+      if (active.current && run === generation.current) setItems(items);
+    } catch (error) {
+      if (active.current && run === generation.current)
+        setError(
+          error instanceof Error ? error.message : "Version removal failed.",
         );
     } finally {
       running.current = false;
@@ -233,9 +258,7 @@ export default function CloudDeployments() {
                               text: "Remove",
                               style: "destructive",
                               onPress: () => {
-                                void removeHostedVersion(item, release)
-                                  .then(() => reload())
-                                  .catch((error) => setError(String(error)));
+                                void removeVersion(item, release);
                               },
                             },
                           ],

@@ -232,3 +232,9 @@ source reconciliation remains documented in plan 133. No new
 Nebius compute or paid app action was started in these checks. The later
 read-only Compute inventory probe stalled and was cancelled locally; the prior
 post-create-denial inventories were empty, and no new inventory result is claimed.
+
+The corresponding mobile publication transport now pins the reviewed account,
+rejects generic hosting requests and invalidates old views without requiring a
+gateway pairing. Sixteen controller/session regressions and the mobile TypeScript
+check passed; see [136](136-mobile-publishing-account-boundary.md). Actual device
+account-switch and refreshed APK acceptance remain open.

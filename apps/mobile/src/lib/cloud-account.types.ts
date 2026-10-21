@@ -17,6 +17,12 @@ export interface CloudAccountActions {
     method?: "GET" | "POST" | "DELETE" | "PUT",
     body?: unknown,
   ): Promise<any>;
+  hostingRequest(
+    workspaceId: string,
+    path: string,
+    method?: "GET" | "POST" | "DELETE",
+    body?: unknown,
+  ): Promise<any>;
   connectPhone(controls: boolean): Promise<void>;
   signOut(): Promise<{ revoked: boolean }>;
 }

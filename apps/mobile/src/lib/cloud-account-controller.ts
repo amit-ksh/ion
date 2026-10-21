@@ -95,14 +95,32 @@ export function createCloudAccount(options: {
         !(
           path === "/v1/bootstrap" ||
           path === "/v1/speech/sessions" ||
-          ["/v1/services/controls", "/v1/services/usage"].includes(path) ||
-          path.startsWith("/v1/hosting/")
+          ["/v1/services/controls", "/v1/services/usage"].includes(path)
         ) ||
         /[?#\\]/.test(path) ||
         path.split("/").some((v) => v === "." || v === "..")
       )
         throw new Error("Invalid managed service request");
       const auth = await account().authorization();
+      return requestJson<any>(send, configuredOrigin() + path, {
+        method,
+        redirect: "error",
+        headers: {
+          Authorization: "Bearer " + auth.token,
+          "Content-Type": "application/json",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    },
+    async hostingRequest(workspaceId, path, method = "GET", body) {
+      if (
+        !/^[a-f0-9]{64}$/.test(workspaceId) ||
+        !["GET", "POST", "DELETE"].includes(method) ||
+        !/^\/v1\/hosting\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+$/.test(path) ||
+        path.length > 240
+      )
+        throw new Error("Invalid account-bound publishing operation");
+      const auth = await account().authorization(workspaceId);
       return requestJson<any>(send, configuredOrigin() + path, {
         method,
         redirect: "error",
@@ -178,6 +196,7 @@ export function createCloudAccount(options: {
       const login = createNativeLogin(config, options.crypto, send);
       busy = true;
       try {
+        const previous = await account().status();
         configuredOrigin();
         const meta = await requestJson<any>(send, origin + "/v1/bootstrap");
         if (
@@ -196,11 +215,14 @@ export function createCloudAccount(options: {
         }
         const next = await login.finish(result.url ?? "");
         const pairing = await readGatewayPairing();
-        if (
+        const foreignPairing =
           pairing?.cloudWorkspaceId &&
-          pairing.cloudWorkspaceId !== next.workspaceId
+          pairing.cloudWorkspaceId !== next.workspaceId;
+        if (foreignPairing) await deleteGatewayPairing();
+        if (
+          foreignPairing ||
+          (previous.workspaceId && previous.workspaceId !== next.workspaceId)
         ) {
-          await deleteGatewayPairing();
           await clearCachedGatewayTasks();
           for (const listener of signedOut) {
             try {

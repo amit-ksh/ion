@@ -10,6 +10,8 @@ export interface HostedRelease {
   logs: string;
 }
 export interface HostedSite {
+  /** Local account scope captured when this site was loaded. */
+  workspaceId: string;
   id: string;
   sourceId: string;
   title: string;
@@ -19,10 +21,16 @@ export interface HostedSite {
   url: string;
   releases: HostedRelease[];
 }
-export async function hostingSites(): Promise<HostedSite[]> {
-  const value = await cloudAccount.request("/v1/hosting/sites");
+export async function hostingSites(workspaceId: string): Promise<HostedSite[]> {
+  const value = await cloudAccount.hostingRequest(
+    workspaceId,
+    "/v1/hosting/sites",
+  );
   if (!Array.isArray(value.items)) throw new Error("Invalid deployment list");
-  return value.items;
+  return value.items.map((site: Omit<HostedSite, "workspaceId">) => ({
+    ...site,
+    workspaceId,
+  }));
 }
 export async function hostingAction(
   site: HostedSite,
@@ -30,7 +38,8 @@ export async function hostingAction(
   body: unknown = {},
 ) {
   if (!/^[a-f0-9]{32}$/.test(site.id)) throw new Error("Invalid deployment");
-  return cloudAccount.request(
+  return cloudAccount.hostingRequest(
+    site.workspaceId,
     "/v1/hosting/sites/" + site.id + "/" + action,
     "POST",
     body,
@@ -105,7 +114,8 @@ export async function removeHostedVersion(
     !/^[A-Za-z0-9_-]{32}$/.test(release.id)
   )
     throw new Error("Choose an inactive finished version");
-  return cloudAccount.request(
+  return cloudAccount.hostingRequest(
+    site.workspaceId,
     "/v1/hosting/sites/" + site.id + "/versions/" + release.id,
     "DELETE",
   );

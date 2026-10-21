@@ -35,7 +35,7 @@ export function CloudArtifactPublish({
     setError(null);
     try {
       const account = await cloudAccount.status();
-      if (!account.signedIn)
+      if (!account.signedIn || !account.workspaceId)
         throw new Error("Sign in to Ion Cloud from Daemons first.");
       const valid = () => alive.current && current();
       const input = await prepareHtmlPublication(
@@ -85,10 +85,15 @@ export function CloudArtifactPublish({
     try {
       if ((await cloudAccount.status()).workspaceId !== workspace)
         throw new Error("Account changed; review this publication again.");
-      await cloudAccount.request("/v1/hosting/releases", "POST", {
-        ...input,
-        visibility,
-      });
+      await cloudAccount.hostingRequest(
+        workspace,
+        "/v1/hosting/releases",
+        "POST",
+        {
+          ...input,
+          visibility,
+        },
+      );
       if (alive.current && current()) router.push("/cloud-deployments");
     } catch (error) {
       if (alive.current)
