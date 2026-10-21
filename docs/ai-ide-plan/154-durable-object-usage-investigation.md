@@ -45,6 +45,12 @@ of rows scanned. Stored bytes do not establish request or row-operation usage.
 
 ## Constraints and integration
 
+First local baseline: [155](155-relay-sync-local-baseline.md) records 340
+handler calls, 4,422 SQL calls and 41 locally changed rows across 20 identical
+source-derived idle passes. These are not live Cloudflare billed counters.
+CF-02 is partial; the native loop, exact Cloudflare SQL cursor metrics and full
+active workload remain unmeasured. No optimization or after-result exists yet.
+
 - No Durable Object data deletion, paid-plan upgrade, expanded permissions,
   weakened security, unauthorized resources or spend.
 - Preserve durable approvals, idempotency, no-replay handling of unknown

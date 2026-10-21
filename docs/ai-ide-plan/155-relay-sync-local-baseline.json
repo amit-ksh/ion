@@ -1,0 +1,113 @@
+{
+  "measuredAt": "2026-10-21T14:15:04.897Z",
+  "sourceRevision": "3216cb7",
+  "method": "Actual createGatewayRuntime HTTP handlers and production durableDatabase adapter backed by Bun SQLite; source-derived 17-call empty owner-pass inventory; AccountRelay flush/pending checks replayed",
+  "nativeOwnerThreadExecuted": false,
+  "liveCloudflareAttributionProven": false,
+  "externalProviderRequests": 0,
+  "metricLimits": "returnedRows is not rows scanned; sqliteChangedRows excludes index accounting and is not Cloudflare rowsWritten; no Cloudflare billed request count or SQL cursor telemetry measured",
+  "first": {
+    "handlerRequests": 17,
+    "sqlCalls": 223,
+    "selectCalls": 158,
+    "mutationCalls": 65,
+    "returnedRows": 118,
+    "sqliteChangedRows": 3,
+    "paths": {
+      "GET /v1/device/session": 5,
+      "GET /v1/health": 4,
+      "PUT /v1/device/automations": 1,
+      "GET /v1/device/automations/queue": 1,
+      "GET /v1/device/automations/uncertain": 1,
+      "PUT /v1/device/portfolio": 1,
+      "GET /v1/device/portfolio/queue": 1,
+      "GET /v1/device/inbox/queue": 1,
+      "GET /v1/device/inbox/publication": 1,
+      "PUT /v1/device/inbox/publication": 1
+    },
+    "tables": {
+      "gateway_push_jobs": 0,
+      "relay_automation_owners": 1,
+      "relay_portfolio_queries": 0,
+      "relay_pdf_tombstones": 0,
+      "relay_portfolio_owners": 1,
+      "relay_inbox_commands": 0,
+      "gateway_inbox_push_publishers": 1
+    }
+  },
+  "idle20": {
+    "handlerRequests": 340,
+    "sqlCalls": 4422,
+    "selectCalls": 3141,
+    "mutationCalls": 1281,
+    "returnedRows": 2381,
+    "sqliteChangedRows": 41,
+    "paths": {
+      "GET /v1/device/session": 100,
+      "GET /v1/health": 80,
+      "PUT /v1/device/automations": 20,
+      "GET /v1/device/automations/queue": 20,
+      "GET /v1/device/automations/uncertain": 20,
+      "PUT /v1/device/portfolio": 20,
+      "GET /v1/device/portfolio/queue": 20,
+      "GET /v1/device/inbox/queue": 20,
+      "GET /v1/device/inbox/publication": 20,
+      "PUT /v1/device/inbox/publication": 20
+    },
+    "tables": {
+      "gateway_push_jobs": 0,
+      "relay_automation_owners": 20,
+      "relay_portfolio_queries": 0,
+      "relay_pdf_tombstones": 0,
+      "relay_portfolio_owners": 20,
+      "relay_inbox_commands": 0,
+      "gateway_inbox_push_publishers": 1
+    }
+  },
+  "idleSimulatedSeconds": 100,
+  "changedProjection": {
+    "handlerRequests": 17,
+    "sqlCalls": 221,
+    "selectCalls": 157,
+    "mutationCalls": 64,
+    "returnedRows": 119,
+    "sqliteChangedRows": 2,
+    "paths": {
+      "GET /v1/device/session": 5,
+      "GET /v1/health": 4,
+      "PUT /v1/device/automations": 1,
+      "GET /v1/device/automations/queue": 1,
+      "GET /v1/device/automations/uncertain": 1,
+      "PUT /v1/device/portfolio": 1,
+      "GET /v1/device/portfolio/queue": 1,
+      "GET /v1/device/inbox/queue": 1,
+      "GET /v1/device/inbox/publication": 1,
+      "PUT /v1/device/inbox/publication": 1
+    },
+    "tables": {
+      "gateway_push_jobs": 0,
+      "relay_automation_owners": 1,
+      "relay_portfolio_queries": 0,
+      "relay_pdf_tombstones": 0,
+      "relay_portfolio_owners": 1,
+      "relay_inbox_commands": 0
+    }
+  },
+  "localAllocatedSqliteBytes": 208896,
+  "afterFixMeasured": false,
+  "prolongedIdleBoundRegressionPassed": false,
+  "fixtureSha256": "dfe5e1516a305850d7e6ca20d15440b91e4918b9887515bac77558e8cecb7234",
+  "sourceInputsSha256": {
+    "crates/waku-core/src/gateway_owner.rs": "5cad4711db828afb6ce8ec491b2384bb9f83dceadd951f02cb76a0b3161bb415",
+    "crates/waku-core/src/gateway_owner/portfolio.rs": "4a11d6c366f3a5949be43759167390dccedba310e004c1305187b06422a7b718",
+    "crates/waku-core/src/gateway_owner/inbox.rs": "48b0b06b34350f88796d446813af438988aeab349e70317d63bf0bff31f5ea1b",
+    "crates/waku-core/src/gateway_owner/notifications.rs": "c86f8cb8e32bd640f802df3a88d89eb5d007e1916e7cf54c3632a3932ad4cbe9",
+    "crates/waku-credentials/src/lib.rs": "c5e7510ea97bc15a984d9025a3ba1e04212ffa36d2194c46800f07a39e21fd3e",
+    "packages/personal-gateway/src/http.ts": "4a334e96b9d9653a44eb535d87328c87fd1b82664d505be7796bd780a810b4c7",
+    "packages/personal-gateway/src/automation-relay.ts": "7a49e2c74aba4e54022eff2c6403ad593dbe9d40c82f3cb8808346725cc38464",
+    "packages/personal-gateway/src/portfolio-relay.ts": "266d21f729cd2cbb7b7ccb2ae21ecdbd87c4249e0152f5a93fcab99bd113b4b4",
+    "packages/personal-gateway/src/push.ts": "b0411929a212aaa1cb97e3dfb3dd9bc8ec8d2d00c10a35136a2812552e130e25",
+    "packages/ion-cloud-worker/src/account.ts": "834a793180a9d5301c8ccdb4b22b025503aa1eead1781d8e6a91c82c1ac123cc",
+    "packages/ion-cloud-worker/src/database.ts": "402064cd5cae738625e2e65fdee82ee29e1d05c1ead19552d98c08a06f6f8002"
+  }
+}
