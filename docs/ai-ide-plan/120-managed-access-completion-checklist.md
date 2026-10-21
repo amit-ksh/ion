@@ -185,6 +185,12 @@ and [131](131-static-only-publishing.md).
 
 ## 9. Managed onboarding, release and final acceptance
 
+- [ ] Complete the six user-requested UI follow-ups in
+  [146](146-requested-sidebar-and-artifact-ui-tasks.md): artifact deployment
+  entry point, identified Android connection, mention-placeholder guidance,
+  visible project ellipsis/Edit/Delete icons, simplified Work navigation and
+  bottom Settings icon/text. These extend existing redesign acceptance.
+
 Redesign follow-up RD-01–05 is recorded in
 [142](142-redesign-remaining-acceptance.md). It extends the UI, speech, integration
 and release checks below without duplicating passed evidence. Desktop visual/

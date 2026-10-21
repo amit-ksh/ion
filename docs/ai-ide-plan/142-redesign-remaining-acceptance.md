@@ -21,6 +21,12 @@ unrelated source/data, current connections and global MCP configuration.
 
 ## Outstanding tasks and existing acceptance links
 
+The user's six additional UI tasks are tracked once in
+[146](146-requested-sidebar-and-artifact-ui-tasks.md), UI-01–06. Device identity,
+project ellipsis/menu icons, Work navigation and bottom Settings extend RD-01;
+mention-placeholder guidance and artifact-only deployment link the existing
+composer/publishing checks. They remain queued, not passed by old receipts.
+
 | ID | Task and acceptance | Status / existing queue |
 | --- | --- | --- |
 | RD-01 | Desktop visual and keyboard matrix: Light/Dark/System; header appearance, connected-mobile status, expandable project/chat hierarchy, Show more, details/rename/delete, visible focus, Enter/Escape, outside dismissal and narrow windows | Unverified. Extends completion section 9 and plan 132 Windows acceptance. Computer Use failed after reset with `failed to write kernel assets: The system cannot find the path specified (os error 3)`. Compilation does not pass this gate. |
