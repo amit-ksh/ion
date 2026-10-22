@@ -32,7 +32,7 @@ composer/publishing checks. They remain queued, not passed by old receipts.
 | RD-01 | Desktop visual and keyboard matrix: Light/Dark/System; header appearance, connected-mobile status, expandable project/chat hierarchy, Show more, details/rename/delete, visible focus, Enter/Escape, outside dismissal and narrow windows | Unverified. Extends completion section 9 and plan 132 Windows acceptance. Computer Use failed after reset with `failed to write kernel assets: The system cannot find the path specified (os error 3)`. Compilation does not pass this gate. |
 | RD-02 | Diagnose Android Start recording returning to idle without observable recording. Verify active recording, discard, Stop/finalization, transcription, background/disconnect recovery and draft preservation | Open diagnosis; extends plan 132 dictation rather than duplicating it. On emulator-5580/API 36 permission was granted, prompt observed and host audio disabled. Cause undetermined; do not attribute the failure solely to muted host audio. Real microphone/playback quality, physical ARM and high-refresh acceptance remain unverified and subject to separate authorization. |
 | RD-03 | Investigate GitLab MCP startup HTTP 422: endpoint/authentication and useful integration failure state | Open integration issue. Actual Android Codex returned `ION_REVIEW_OK` and reached idle; previous thread-open timeout did not reproduce. Owner involvement may be needed. Do not silently disable or change global MCP settings. |
-| RD-04 | Include and validate integration-specific MCP warning copy in the next independently authorized package refresh | Source tests/typecheck passed; installed APK does not contain this correction. Changed redesign files: `apps/mobile/src/components/mobile-composer.tsx`, `apps/mobile/src/lib/runtime-errors.ts`. Message names GitLab rather than claiming the agent failed. Extends the existing release refresh; no additional APK build is authorized by the handoff. |
+| RD-04 | Include and validate integration-specific MCP warning copy in the next independently authorized package refresh | Package-content gate passed in plans 172–173: the verified merged APK contains the warning and matcher and its installed Moto hash matches. Source tests/typecheck also passed. Actual warning presentation remains unverified; no further APK build is implied. |
 | RD-05 | Complete linked audit gaps: spoken TalkBack, live Apps OAuth/account switching, long transcripts/provider tools/reasoning and high-refresh performance | Pending; link existing account, app and transcript acceptance, do not requeue completed focused tests. macOS/Linux launcher checks remain deferred outside this Windows/Android goal unless scope is explicitly extended. |
 
 ## Already passed in the separate redesign
@@ -65,8 +65,11 @@ and sign-out behavior; no live app connection was changed by the review.
 RD-04 source integration: [149](149-mobile-mcp-warning-integration.md) records
 the independent port into `ion-prod` at `fbab54a`, six focused tests/16 assertions
 and a passing mobile typecheck. No redesign merge or new package is claimed.
-The newer package preparation includes this source correction; compiled and
-native interaction acceptance remain pending.
+The refreshed merged ARM64 APK now contains this correction: the verifier checked
+the actual Hermes UTF-16LE warning and server-name matcher, with negative cases,
+and the same APK was installed/hash-checked on Moto G32 (plans 172–173). This
+completes RD-04's package-content gate. Actual warning presentation and the
+underlying owner-approved GitLab endpoint/authentication correction remain open.
 
 RD-03 diagnosis: [145](145-gitlab-mcp-endpoint-diagnosis.md) reproduces HTTP 422
 HTML from the configured endpoint and observes a 401 OAuth challenge from the

@@ -30,15 +30,18 @@ later in this document; completed checks retain their original source scope.
 - The scoped relay Worker is deployed and verified in
   [162](162-relay-recovery-rollout-and-release-gates.md). New-client traffic
   reduction and the original Cloudflare meter/billing interpretation remain open.
-- Approval access returned. The guarded Windows/ARM64 continuation is launched,
-  initially waiting for memory, as recorded in
-  [166](166-release-approval-restored.md). No fresh package or install pass is
-  claimed until the actual run and package verifiers finish.
+- Approval access returned. Windows/ARM64 builds and package checks completed;
+  the Windows data-preserving upgrade and authorized Moto replacement/cold start
+  passed in plans 172–173. Earlier waiting/build observations are historical.
 - Sandbox access passed for `aiproject-e00h49rtswkv9bz46s`. Provider-compatible
   immutable image/kernel/harness, price bounds and real lifecycle remain open.
   No sandbox was launched; production sandbox policy remains unavailable.
-- The last physical-device inventory found only an emulator. Historical Moto
-  installation/sign-in passes do not establish current connectivity or speech.
+- The latest physical-device acceptance found the Moto G32 and verified its
+  installed merged APK and cold start. This does not establish phone speech.
+- The expired managed desktop publish grant was reconnected and verified using
+  the native account. Actual managed catalog/control reads and initial live relay
+  counters passed in [174](174-native-publisher-reconnect-and-live-relay.md).
+  Short shared-service samples do not complete prolonged idle/active attribution.
 - Remaining native UI/account-switch, spoken TalkBack, microphone and paired
   phone checks still require the existing interaction/device authorization.
   The final QA handoff has not been sent.
@@ -272,12 +275,13 @@ transcript/tool/reasoning states remain open; macOS/Linux are outside this goal.
   [138](138-account-bound-android-release-acceptance.md).
 - [ ] Verify refreshed Android account restoration/login/refresh/logout/switching,
   desktop pairing and actual microphone/dictation interactions.
-- [ ] Refresh Windows/Android packages after the additional service-control
+- [x] Refresh Windows/Android packages after the additional service-control
   account-boundary fix in [140](140-service-control-account-boundary.md).
   Earlier package acceptance remains valid only for its recorded source.
   [144](144-final-candidate-build-preparation.md) records new source/QA input
   verification and candidate package checks including the dictation fix.
-  No new build started: physical memory remains below the release guard.
+  Builds subsequently completed after the resource guard passed; the merged
+  source, package and upgrade results are recorded in plans 172–173.
 - [ ] Stop all resources started for acceptance and record the actual result.
 - [ ] Commit each completed milestone and provide exact evidence/blockers to
   **Test and fix Ion** when the agreed handover conditions are satisfied.
