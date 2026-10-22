@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-22T06:31:17.496983+00:00",
+  "sourceRevision": "fd9a36a0b9a6511230873e55fb11718d0ad83ef2",
+  "androidBuildExit": 0,
+  "androidBuildDuration": "18m 29s",
+  "apkBytes": 53542406,
+  "apkSha256": "d75a37f669f6b71a85559bc97b081a017c44ca536167483f2919f28ca6f3de97",
+  "signingIdentityUnchanged": true,
+  "hermesWarningUtf16Verified": true,
+  "adaptiveLauncherSourceBytesAndReferenceVerified": true,
+  "failedReportsPreserved": true,
+  "windowsInstallerExit": 0,
+  "installedFilesMatched": 75,
+  "retainedCounts": {
+    "sessions": 14,
+    "projects": 4,
+    "messages": 67
+  },
+  "databaseIntegrityPassed": true,
+  "windowsUiAccepted": false,
+  "phoneInstalled": false,
+  "phoneInstallBlockedByReview": true,
+  "phoneMicrophoneUsed": false,
+  "goalComplete": false
+}
