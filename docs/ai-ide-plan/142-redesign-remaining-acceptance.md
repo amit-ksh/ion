@@ -75,6 +75,10 @@ RD-03 diagnosis: [145](145-gitlab-mcp-endpoint-diagnosis.md) reproduces HTTP 422
 HTML from the configured endpoint and observes a 401 OAuth challenge from the
 documented MCP endpoint. Correction/authenticated acceptance awaits owner
 approval; no global configuration or cache was changed.
+The fresh installed Windows daemon also emitted the GitLab/MCP warning while
+Codex streamed the expected reply and completed successfully; Claude completed
+its own prompt too. See [175](175-installed-codex-claude-and-extended-relay.md).
+This extends transport evidence without claiming endpoint repair or GUI rendering.
 
 RD-02 source hardening: [143](143-phone-dictation-stop-recovery.md) records a
 separately reproduced native Stop/Discard exception cleanup defect and its fix.

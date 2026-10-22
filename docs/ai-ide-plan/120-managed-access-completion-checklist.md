@@ -42,6 +42,11 @@ later in this document; completed checks retain their original source scope.
   the native account. Actual managed catalog/control reads and initial live relay
   counters passed in [174](174-native-publisher-reconnect-and-live-relay.md).
   Short shared-service samples do not complete prolonged idle/active attribution.
+- The installed daemon's Codex and Claude adapters both passed one real bounded
+  prompt, streamed the expected reply and closed their test runtimes. The longer
+  relay sample and exact limits are in
+  [175](175-installed-codex-claude-and-extended-relay.md). GitLab MCP still warns
+  while Codex itself completes; global MCP settings remain unchanged.
 - Remaining native UI/account-switch, spoken TalkBack, microphone and paired
   phone checks still require the existing interaction/device authorization.
   The final QA handoff has not been sent.
