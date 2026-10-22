@@ -10,6 +10,14 @@ Previously deferred/unstarted harness adapters also remain outside scope.
 
 ## Current status — 22 October
 
+Latest package/device update: the merged Windows release and ARM64 APK passed
+their package checks; Windows upgrade/data retention and the explicitly authorized
+Moto G32 replacement install, installed hash and nonvisual cold startup passed.
+See [172](172-android-package-and-windows-upgrade.md) and
+[173](173-moto-merged-upgrade-acceptance.md). This supersedes the older pending
+build and physical-upgrade block below. Actual native interactions, matched live
+relay-rate acceptance and sandbox image/pricing gates remain open.
+
 This summary supersedes historical device, permission and build observations
 later in this document; completed checks retain their original source scope.
 
