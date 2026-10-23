@@ -8,7 +8,49 @@ Active goal scope: Windows desktop, Android (Moto G32), shared backend services
 and deployments. iOS implementation, builds, signing and acceptance are excluded.
 Previously deferred/unstarted harness adapters also remain outside scope.
 
-## Current status — 22 October
+## Current status — 23 October
+
+Release work is blocked at the required full-source verification gate: the
+latest guarded attempt saw 0.72 GiB free physical memory / 4.12 GiB commit and
+started zero checks; no Ion or compiler process was observed in the final census.
+Five isolated production binding tests passed, but current full types/packages,
+runtime/device checks and sandbox image/pricing gates remain open. The exact
+stop point and scope are in [180](180-personal-project-binding-tests.md).
+
+New UI tasks: icon-led starter options on Teams/Workflows/Routines, recognizable
+app logos, and the refined Do anything… / mention placeholder that disappears on
+typing. See [177](177-starter-options-app-icons-and-composer-placeholder.md).
+Starter-card and app-logo source are in progress. The mobile
+idle/default placeholder wording is refined in source. None is a native visual
+pass or a new installed package.
+
+Graph-based hierarchical Teams and a clean action-led onboarding flow with
+optional personal Nebius key/project setup are tracked in
+[178](178-graph-teams-and-action-led-onboarding.md). Starter-card/graph source is
+in progress; the new desktop type check was deferred before launch by the memory
+guard. Previously verified packages predate these new UI changes.
+Graph source now also covers the mobile Teams list/editor and preserves reporting
+lines when removing a manager. Nine actual Rust layout/edit tests and eleven
+mobile layout/draft tests pass, along with mobile TSX syntax checks. Full desktop
+and mobile type checking, native interaction acceptance and commit remain open;
+see the exact evidence and resource observations in plan 178. Onboarding cleanup
+and optional account-bound personal AI-project access-check source are now in
+progress. Five production project-binding tests now pass in
+[180](180-personal-project-binding-tests.md). Whole-application/transport
+compilation, vault/account/provider and native interaction checks remain pending.
+No sandbox activation is claimed.
+
+The installed Codex path passed actual cancellation during a streamed reply in
+448 ms, then closed its test runtime. Evidence and limits are in
+[176](176-installed-active-cancellation-and-approval-block.md). That report is now
+committed as eb7ee9b. Approval access returned for recent operations; the read-only
+Teams-readiness retry found the daemon unavailable and saved exposure disabled.
+The latest guarded source check did not start at 1.44/3.79 GiB free physical/commit
+memory. See [179](179-local-app-logos-and-current-readiness.md). Existing package
+and native transport results below retain their original dates and scope.
+The validated logo asset/provenance bundle is committed as 5e39303; desktop/mobile
+logo wiring, adaptive catalog columns and new onboarding/team source still await
+full type checks and scoped native acceptance.
 
 Latest package/device update: the merged Windows release and ARM64 APK passed
 their package checks; Windows upgrade/data retention and the explicitly authorized
