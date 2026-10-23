@@ -1,0 +1,47 @@
+{
+  "scope": "Local identity marks for existing integrations; no new connections or runtime network",
+  "entries": [
+    {
+      "toolkit": "github",
+      "asset": "app-icons/github.svg",
+      "sha256": "476ba7aa67b86da7d6e7567b08a4bf0eb1a2fd28da5fc243f8ee39a2f1ea6773",
+      "source": "https://cdn.simpleicons.org/github/181717",
+      "monochrome": true
+    },
+    {
+      "toolkit": "supabase",
+      "asset": "app-icons/supabase.svg",
+      "sha256": "b6188fe14c9cf38c387f9064004d83133ea8f73b50e1bc3b68818b3759fd3b02",
+      "source": "https://cdn.simpleicons.org/supabase/3ECF8E",
+      "monochrome": false
+    },
+    {
+      "toolkit": "gmail",
+      "asset": "app-icons/gmail.png",
+      "sha256": "1f00bf732dfc5a8c7885885117d9c3a44f25ea1f31e92c52237c76d7bf908525",
+      "source": "https://www.gstatic.com/images/branding/product/2x/gmail_2020q4_32dp.png",
+      "monochrome": false
+    },
+    {
+      "toolkit": "googledrive",
+      "asset": "app-icons/googledrive.png",
+      "sha256": "72ea8d2de5e0568158cf48029cb9121564ab20c275465a65453776baf1160ebd",
+      "source": "https://ssl.gstatic.com/images/branding/product/2x/drive_2020q4_48dp.png",
+      "monochrome": false
+    },
+    {
+      "toolkit": "outlook",
+      "asset": "app-icons/outlook.svg",
+      "sha256": "0884e0478f7e073163febe67eaff20be97ae38373b0866c9668f81c2f6bd26c2",
+      "source": "https://res-1.cdn.office.net/files/fabric/assets/brand-icons/product/svg/outlook_48x1.svg",
+      "monochrome": false
+    },
+    {
+      "toolkit": "gitlab",
+      "asset": "icons/file-types/gitlab.svg",
+      "sha256": "5a0f3b0ac1647805268331fdae9b0982d2c29b790058577d40a83de9a61a1649",
+      "source": "existing repository asset",
+      "monochrome": false
+    }
+  ]
+}
