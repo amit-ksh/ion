@@ -997,12 +997,12 @@ impl RenderOnce for MenuCard {
             .id(self.id)
             .min_w(px(176.0))
             .max_w(px(320.0))
-            .py(px(4.0))
-            .rounded(px(9.0))
+            .p(px(6.0))
+            .rounded(px(12.0))
             .border_1()
-            .border_color(theme.border_strong)
+            .border_color(theme.border)
             .bg(theme.raised)
-            .shadow_lg()
+            .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Float))
             .flex()
             .flex_col();
 
@@ -1052,12 +1052,12 @@ impl RenderOnce for MenuCard {
                 .ml(px(-4.0))
                 .min_w(px(176.0))
                 .max_w(px(320.0))
-                .py(px(4.0))
-                .rounded(px(9.0))
+                .p(px(6.0))
+                .rounded(px(12.0))
                 .border_1()
-                .border_color(theme.border_strong)
+                .border_color(theme.border)
                 .bg(theme.raised)
-                .shadow_lg()
+                .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Float))
                 .flex()
                 .flex_col();
             for (index, item) in submenu_items.into_iter().enumerate() {
@@ -1128,14 +1128,14 @@ fn render_menu_item(
             .text_color(color)
             .when(selected, |element| element.font_weight(FontWeight::MEDIUM))
             .when_some(item_icon, |element, path| {
-                element.child(icon(path, 12.0, color))
+                element.child(icon(path, 13.0, color))
             })
             .when_some(image, |element, image| {
                 element.child(img(image).size(px(16.0)).flex_none())
             })
             .child(div().flex_1().min_w_0().truncate().child(label))
             .when(selected, |element| {
-                element.child(icon("icons/check.svg", 11.0, theme.text_tertiary))
+                element.child(icon("icons/check.svg", 12.0, theme.accent))
             });
             track_pointer_highlight(entry, index, in_submenu, disabled, handle).into_any_element()
         }
@@ -1195,7 +1195,7 @@ fn render_menu_item(
                 }
                 // Non-interactive rows still need the row's insets so they
                 // line up with the entries around them.
-                None => div().mx(px(4.0)).px(px(8.0)).child(body).into_any_element(),
+                None => div().px(px(8.0)).child(body).into_any_element(),
             }
         }
     }
@@ -1251,9 +1251,8 @@ fn row(
     let highlight = theme.overlay_strong;
     div()
         .id(index)
-        .mx(px(4.0))
         .px(px(8.0))
-        .min_h(px(26.0))
+        .min_h(px(30.0))
         .rounded(px(6.0))
         .flex()
         .items_center()

@@ -1645,10 +1645,11 @@ impl Waku {
             if index == 0 || index == 5 {
                 nav = nav.child(
                     div()
-                        .mt(px(10.0))
+                        .mt(px(12.0))
                         .mb(px(4.0))
                         .px(px(8.0))
-                        .text_size(sp(10.5))
+                        .text_size(sp(11.5))
+                        .font_weight(FontWeight::MEDIUM)
                         .text_color(theme.text_tertiary)
                         .child(if index == 0 { "Work" } else { "Workspace" }),
                 );
@@ -1832,11 +1833,22 @@ impl Waku {
                     div()
                         .flex()
                         .items_center()
-                        .gap(px(10.0))
-                        .child(icon(page.icon(), 18.0, theme.accent))
+                        .gap(px(12.0))
                         .child(
                             div()
-                                .text_size(sp(20.0))
+                                .size(px(32.0))
+                                .flex_none()
+                                .rounded(px(9.0))
+                                .bg(theme.accent_soft)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(icon(page.icon(), 16.0, theme.accent)),
+                        )
+                        .child(
+                            div()
+                                .text_size(sp(22.0))
+                                .line_height(sp(28.0))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .child(page.label()),
                         ),
@@ -2519,11 +2531,13 @@ impl Waku {
         let mut body = div()
             .min_h(px(68.0))
             .p(px(14.0))
-            .mb(px(8.0))
+            .mx(px(2.0))
+            .mb(px(10.0))
             .rounded(px(12.0))
             .border_1()
-            .border_color(theme.border)
-            .bg(theme.surface)
+            .border_color(theme.ticket_border)
+            .bg(theme.ticket)
+            .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
             .flex()
             .items_center()
             .gap(px(14.0));

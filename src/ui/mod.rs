@@ -45,6 +45,39 @@ pub fn icon(path: &'static str, size: f32, color: Hsla) -> Svg {
         .text_color(color)
 }
 
+/// How far a surface floats above the canvas.
+#[derive(Clone, Copy)]
+pub enum Elevation {
+    /// Resting content objects: tickets, the composer, cards on a page.
+    Rest,
+    /// A resting object under the pointer.
+    Lifted,
+    /// Transient layers: menus, popovers, toasts.
+    Float,
+}
+
+/// Cast depth for a surface: a tight contact shadow under a soft ambient one,
+/// both offset downward so the light reads as coming from above. Borders keep
+/// structure; this carries elevation.
+pub fn elevation(theme: &Theme, level: Elevation) -> Vec<gpui::BoxShadow> {
+    let tint = theme.shadow;
+    let shade = |strength: f32| Hsla {
+        a: (tint.a * strength).min(1.0),
+        ..tint
+    };
+    let (contact, ambient) = match level {
+        Elevation::Rest => ((1.0, 2.0, 0.9), (6.0, 18.0, 0.7)),
+        Elevation::Lifted => ((2.0, 4.0, 1.0), (10.0, 28.0, 1.0)),
+        Elevation::Float => ((4.0, 10.0, 1.0), (18.0, 44.0, 1.3)),
+    };
+    vec![
+        gpui::BoxShadow::new(px(0.0), px(contact.0), shade(contact.2)).blur_radius(px(contact.1)),
+        gpui::BoxShadow::new(px(0.0), px(ambient.0), shade(ambient.2))
+            .blur_radius(px(ambient.1))
+            .spread_radius(px(-4.0)),
+    ]
+}
+
 /// A polychrome file icon rendered as an image so the SVG's authored colors
 /// are preserved. GPUI's `svg()` element intentionally renders an alpha mask
 /// tinted with one text color.
@@ -404,43 +437,50 @@ impl RenderOnce for MenuChip {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::current(cx);
         let badge = self.badge;
+        // Forge-style pill: icon, label, chevron. Plain chips keep a
+        // transparent hairline so the open state can draw an edge without
+        // shifting the label.
         self.base
             .h(self
                 .height
-                .unwrap_or(if self.outlined { px(30.0) } else { px(26.0) }))
-            .px(if self.outlined { px(10.0) } else { px(7.0) })
-            .rounded(if self.outlined { px(7.0) } else { px(6.0) })
+                .unwrap_or(if self.outlined { px(30.0) } else { px(28.0) }))
+            .px(if self.outlined { px(12.0) } else { px(10.0) })
+            .rounded_full()
             .flex()
             .items_center()
             .gap(px(6.0))
-            .text_size(sp(13.0))
+            .text_size(sp(12.5))
             .line_height(sp(16.0))
+            .font_weight(gpui::FontWeight::MEDIUM)
             .cursor_default()
-            .focus_visible(|style| style.border_1().border_color(theme.accent))
+            .border_1()
+            .border_color(gpui::transparent_black())
+            .focus_visible(|style| style.border_color(theme.accent))
             .when(self.outlined, |element| {
                 element
-                    .border_1()
                     .border_color(theme.border_strong)
                     .bg(self.background.unwrap_or(theme.raised))
             })
-            .when(self.selected, |element| element.bg(theme.overlay))
+            .when(self.selected, |element| {
+                element.bg(theme.overlay).border_color(theme.border_strong)
+            })
             .when(!self.disabled, |element| {
                 element.hover(|element| element.bg(theme.overlay))
             })
-            .when(self.disabled, |element| element.opacity(0.7))
+            .when(self.disabled, |element| element.opacity(0.6))
             .when_some(self.icon, |element, (path, color)| {
-                let mark = icon(path, 12.0, color);
+                let mark = icon(path, 13.0, color);
                 match badge {
                     Some((badge, badge_color)) => element.child(
                         div()
                             .relative()
-                            .w(sp(12.0))
-                            .h(sp(12.0))
+                            .w(sp(13.0))
+                            .h(sp(13.0))
                             .flex_none()
                             .child(mark)
                             .child(div().absolute().top_0().left_0().child(icon(
                                 badge,
-                                12.0,
+                                13.0,
                                 badge_color,
                             ))),
                     ),
@@ -455,7 +495,7 @@ impl RenderOnce for MenuChip {
                     .child(self.label),
             )
             .when(self.caret, |element| {
-                element.child(icon("icons/chevron-down.svg", 10.5, theme.text_ghost))
+                element.child(icon("icons/chevron-down.svg", 10.0, theme.text_tertiary))
             })
     }
 }
@@ -552,6 +592,46 @@ mod tests {
         assert!(!nested_scroll_consumed_delta(px(1.0), max_offset));
         assert!(!nested_scroll_consumed_delta(px(-101.0), max_offset));
         assert!(!nested_scroll_consumed_delta(px(0.0), px(0.0)));
+    }
+
+    /// A literal icon path anywhere in the source must resolve: an unembedded
+    /// path renders an invisible but still clickable control.
+    #[test]
+    fn every_icon_path_in_source_is_embedded() {
+        use crate::assets::Assets;
+        use gpui::AssetSource;
+
+        fn visit(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path, out);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        visit(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut files,
+        );
+        let mut missing = Vec::new();
+        for file in files {
+            let source = std::fs::read_to_string(&file).unwrap();
+            for (start, _) in source.match_indices("\"icons/") {
+                let rest = &source[start + 1..];
+                let Some(end) = rest.find('"') else { continue };
+                let path = &rest[..end];
+                let literal = path
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '.' | '_'));
+                if literal && path.ends_with(".svg") && Assets.load(path).unwrap().is_none() {
+                    missing.push(format!("{path} ({})", file.display()));
+                }
+            }
+        }
+        assert!(missing.is_empty(), "unembedded icons: {missing:#?}");
     }
 
     #[test]

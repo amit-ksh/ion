@@ -284,6 +284,10 @@ impl Render for Waku {
 
         let theme = Theme::current(cx);
         let empty = should_render_empty_state(self.selected_session());
+        // Home hosts the composer under its question instead of docking it
+        // at the window's bottom edge.
+        let home =
+            self.control_ui.page.is_none() && empty && self.selected_project().is_some();
         let permission = self.render_permission(cx);
         let computer_use = self.render_computer_use_overlay(window, cx);
         let command_palette = self.render_command_palette(window, cx);
@@ -379,6 +383,8 @@ impl Render for Waku {
                     .child(self.render_header(window, cx))
                     .child(if let Some(page) = self.control_ui.page {
                         self.render_workspace_page(page, window, cx)
+                    } else if home {
+                        self.render_home(window, cx)
                     } else if empty {
                         self.render_empty_state(cx).into_any_element()
                     } else {
@@ -392,7 +398,9 @@ impl Render for Waku {
                     })
                     .children(permission)
                     .when(
-                        self.control_ui.page.is_none() && self.selected_project().is_some(),
+                        self.control_ui.page.is_none()
+                            && self.selected_project().is_some()
+                            && !home,
                         |element| {
                             element
                                 .children(self.render_queued_messages(cx))

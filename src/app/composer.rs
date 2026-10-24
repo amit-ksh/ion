@@ -2884,14 +2884,16 @@ impl Waku {
                 .w_full()
                 .max_w(px(CONTENT_MAX_WIDTH))
                 .mx_auto()
-                .rounded(px(16.0))
+                .rounded(px(18.0))
                 .border_1()
-                .border_color(theme.border_strong)
+                .border_color(theme.border)
                 .bg(theme.composer)
+                .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Lifted))
                 // Horizontal insets live on each row (and inside the field's
                 // scroll viewport, via `padding_x`) rather than on the card,
                 // so the field's overlay scrollbar can hug the card's edge.
-                .py(px(10.0))
+                .pt(px(12.0))
+                .pb(px(10.0))
                 .drag_over::<ExternalPaths>(move |style, _, _, _| {
                     style.bg(drop_wash).border_color(drop_ring)
                 })
@@ -2974,12 +2976,12 @@ impl Waku {
                 )
                 .child(
                     div()
-                        .mt(px(8.0))
+                        .mt(px(10.0))
                         .px(px(10.0))
                         .flex()
                         .flex_wrap()
                         .items_center()
-                        .gap(px(4.0))
+                        .gap(px(6.0))
                         .text_size(sp(12.5))
                         .line_height(sp(14.0))
                         .child(self.render_provider_model_control(cx))
@@ -2997,13 +2999,18 @@ impl Waku {
                                 .size(px(32.0))
                                 .flex_none()
                                 .justify_center()
-                                .rounded(px(7.0))
+                                .rounded_full()
                                 .border_1()
                                 .border_color(if self.speech_recording {
                                     theme.accent
                                 } else {
-                                    theme.border_strong
+                                    gpui::transparent_black()
                                 })
+                                .when(self.speech_recording, |element| {
+                                    element.bg(theme.accent_soft)
+                                })
+                                .hover(|element| element.bg(theme.overlay))
+                                .active(|element| element.bg(theme.overlay_strong))
                                 .flex()
                                 .items_center()
                                 .text_size(sp(11.5))

@@ -707,6 +707,9 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let theme = Theme::current(cx);
+        // New task is the sidebar's one raised object; every other action
+        // stays a flat row so it does not compete.
+        let primary = id == "sidebar-new-session";
         div()
             .id(id)
             .tab_index(0)
@@ -714,18 +717,25 @@ impl Waku {
             .h(px(SIDEBAR_ACTION_ROW_HEIGHT))
             .flex_none()
             .px(px(4.0))
-            .rounded(px(7.0))
-            .bg(if id == "sidebar-new-session" {
-                theme.accent_soft
-            } else {
-                gpui::transparent_black()
+            .rounded(px(9.0))
+            .border_1()
+            .border_color(gpui::transparent_black())
+            .when(primary, |row| {
+                row.bg(theme.raised)
+                    .border_color(theme.border)
+                    .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
             })
             .flex()
             .items_center()
             .gap(px(10.0))
             .cursor_default()
-            .focus_visible(|style| style.border_1().border_color(theme.accent))
-            .hover(|element| element.bg(theme.sidebar_item_background))
+            .focus_visible(|style| style.border_color(theme.accent))
+            .when(!primary, |row| {
+                row.hover(|element| element.bg(theme.sidebar_item_background))
+            })
+            .when(primary, |row| {
+                row.hover(|element| element.border_color(theme.border_strong))
+            })
             .active(|element| element.bg(theme.overlay_strong))
             .child(
                 div()
@@ -749,7 +759,12 @@ impl Waku {
                     .min_w_0()
                     .truncate()
                     .text_size(sp(13.0))
-                    .text_color(theme.text_secondary)
+                    .when(primary, |label| {
+                        label
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme.text)
+                    })
+                    .when(!primary, |label| label.text_color(theme.text_secondary))
                     .child(label),
             )
     }
@@ -1096,15 +1111,25 @@ impl Waku {
             .child(self.render_sidebar_titlebar(window, cx))
             .child(
                 div()
-                    .px(px(18.0))
-                    .pb(px(10.0))
+                    .px(px(16.0))
+                    .pb(px(14.0))
                     .flex()
                     .items_center()
                     .gap(px(10.0))
-                    .child(icon("icons/ion.svg", 22.0, theme.accent))
                     .child(
                         div()
-                            .text_size(sp(18.0))
+                            .size(px(28.0))
+                            .flex_none()
+                            .rounded(px(8.0))
+                            .bg(theme.primary)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(icon("icons/ion.svg", 17.0, theme.on_primary)),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(17.0))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme.text)
                             .child("ion"),
@@ -1114,6 +1139,9 @@ impl Waku {
                 div()
                     .flex_none()
                     .px(px(10.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
                     .child(self.render_sidebar_new_session(cx))
                     .child(self.render_sidebar_search(cx)),
             )
@@ -2503,6 +2531,21 @@ impl Waku {
                         ),
                 );
         }
+        div()
+            .flex_1()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .px_8()
+            .child(self.render_home_headline(cx))
+    }
+
+    /// The home question, with the selected project as an inline picker. Set
+    /// in the mono face at display size: it is the first thing on the page
+    /// and the one place the brand voice speaks.
+    pub(super) fn render_home_headline(&self, cx: &mut Context<Self>) -> Div {
+        let theme = Theme::current(cx);
         let selected_project_id = self.state.selected_project;
         let projectless_selected = self.selected_project().is_some_and(Project::is_projectless);
         let project_name = self
@@ -2579,32 +2622,24 @@ impl Waku {
             },
         );
         div()
-            .flex_1()
+            .max_w(px(680.0))
             .flex()
-            .flex_col()
-            .items_center()
+            .flex_wrap()
             .justify_center()
-            .px_8()
-            .pb(px(52.0))
-            .child(icon("icons/sparkle.svg", 20.0, theme.accent))
-            .child(
-                div()
-                    .mt(px(14.0))
-                    .flex()
-                    .items_baseline()
-                    .text_size(sp(20.0))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme.text)
-                    .when(projectless_selected, |element| {
-                        element.child(tr_cow!("onboarding.what_should_we_build"))
-                    })
-                    .when(!projectless_selected, |element| {
-                        element
-                            .child(tr_cow!("onboarding.what_should_we_build_in"))
-                            .child(project_selector)
-                            .child(tr_cow!("onboarding.question_mark"))
-                    }),
-            )
+            .items_baseline()
+            .font_family(crate::md::render::MONO_FAMILY)
+            .text_size(sp(28.0))
+            .line_height(sp(38.0))
+            .text_color(theme.text)
+            .when(projectless_selected, |element| {
+                element.child(tr_cow!("onboarding.what_should_we_build"))
+            })
+            .when(!projectless_selected, |element| {
+                element
+                    .child(tr_cow!("onboarding.what_should_we_build_in"))
+                    .child(project_selector)
+                    .child(tr_cow!("onboarding.question_mark"))
+            })
     }
 }
 

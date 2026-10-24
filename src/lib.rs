@@ -133,10 +133,23 @@ const TITLEBAR_GRAB_HEIGHT: f32 = 22.0;
 /// any display change.
 fn restored_window_placement(cx: &App) -> (WindowBounds, Option<gpui::DisplayId>) {
     let centered = |cx: &App| {
+        // A 1080p laptop at 125% scaling has about 816 logical pixels of
+        // usable height, less than the default. Fit the first window inside
+        // the visible area so its bottom edge and composer are on screen.
+        let visible = cx.primary_display().map(|display| display.visible_bounds().size);
+        let width = visible.map_or(DEFAULT_WINDOW_WIDTH, |visible| {
+            DEFAULT_WINDOW_WIDTH.min(f32::from(visible.width) * 0.94)
+        });
+        let height = visible.map_or(DEFAULT_WINDOW_HEIGHT, |visible| {
+            DEFAULT_WINDOW_HEIGHT.min(f32::from(visible.height) * 0.94)
+        });
         (
             WindowBounds::Windowed(Bounds::centered(
                 None,
-                size(px(DEFAULT_WINDOW_WIDTH), px(DEFAULT_WINDOW_HEIGHT)),
+                size(
+                    px(width.max(MIN_WINDOW_WIDTH)),
+                    px(height.max(MIN_WINDOW_HEIGHT)),
+                ),
                 cx,
             )),
             None,
@@ -159,8 +172,16 @@ fn restored_window_placement(cx: &App) -> (WindowBounds, Option<gpui::DisplayId>
         return centered(cx);
     };
     let anchor_size = anchor.bounds().size;
-    let width = saved.width.max(MIN_WINDOW_WIDTH);
-    let height = saved.height.max(MIN_WINDOW_HEIGHT);
+    // A frame saved on a larger display must still fit the one it reopens on.
+    let visible_size = anchor.visible_bounds().size;
+    let width = saved
+        .width
+        .min(f32::from(visible_size.width))
+        .max(MIN_WINDOW_WIDTH);
+    let height = saved
+        .height
+        .min(f32::from(visible_size.height))
+        .max(MIN_WINDOW_HEIGHT);
     let x = saved.x.clamp(
         TITLEBAR_GRAB_WIDTH - width,
         (f32::from(anchor_size.width) - TITLEBAR_GRAB_WIDTH).max(0.0),

@@ -91,6 +91,17 @@ pub struct Theme {
     pub favorite: Hsla,
     pub danger: Hsla,
     pub danger_soft: Hsla,
+
+    /// The home glow field: one mint-to-lime wash rising behind the prompt.
+    /// Painted only as a large field, never as scattered tints.
+    pub glow_mint: Hsla,
+    pub glow_lime: Hsla,
+    /// Ticket stock for live work: the card a request becomes on the rail.
+    pub ticket: Hsla,
+    pub ticket_border: Hsla,
+    /// Tint for cast elevation. Light themes use a soft green-black; dark
+    /// themes use deeper black so floating layers separate from the canvas.
+    pub shadow: Hsla,
 }
 
 impl Theme {
@@ -110,33 +121,33 @@ impl Theme {
     pub fn dark() -> Self {
         Self {
             is_dark: true,
-            canvas: rgb(0x181B19).into(),
+            canvas: rgb(0x0F1211).into(),
             sidebar: if cfg!(target_os = "macos") {
                 transparent_black()
             } else {
-                rgb(0x141715).into()
+                rgb(0x0C0F0E).into()
             },
-            sidebar_drag_background: rgb(0x141715).into(),
-            sidebar_item_background: hsla(0.0, 0.0, 0.941, 0.06),
-            surface: rgb(0x1D201E).into(),
-            raised: rgb(0x272B28).into(),
-            composer: rgb(0x222623).into(),
-            inset: rgb(0x131614).into(),
-            terminal: rgb(0x131614).into(),
-            overlay: hsla(220.0 / 360.0, 0.10, 0.90, 0.05),
-            overlay_strong: hsla(220.0 / 360.0, 0.10, 0.90, 0.09),
+            sidebar_drag_background: rgb(0x0C0F0E).into(),
+            sidebar_item_background: hsla(0.0, 0.0, 0.941, 0.05),
+            surface: rgb(0x121615).into(),
+            raised: rgb(0x1A1F1D).into(),
+            composer: rgb(0x171C1A).into(),
+            inset: rgb(0x0D100F).into(),
+            terminal: rgb(0x0D100F).into(),
+            overlay: hsla(150.0 / 360.0, 0.10, 0.90, 0.05),
+            overlay_strong: hsla(150.0 / 360.0, 0.10, 0.90, 0.09),
 
-            border: hsla(220.0 / 360.0, 0.10, 0.90, 0.07),
-            border_strong: hsla(220.0 / 360.0, 0.10, 0.90, 0.14),
-            sidebar_border: hsla(126.93 / 360.0, 0.000_000_1, 0.16077, 1.0),
+            border: hsla(150.0 / 360.0, 0.10, 0.90, 0.075),
+            border_strong: hsla(150.0 / 360.0, 0.10, 0.90, 0.14),
+            sidebar_border: rgb(0x1C2120).into(),
 
-            text: rgb(0xF2F4EF).into(),
-            text_secondary: rgb(0xC2C8C0).into(),
-            text_tertiary: rgb(0xABB3A8).into(),
-            text_ghost: rgb(0x9AA395).into(),
+            text: rgb(0xEEF2EC).into(),
+            text_secondary: rgb(0xBAC2B7).into(),
+            text_tertiary: rgb(0x9DA69A).into(),
+            text_ghost: rgb(0x8A9487).into(),
 
             accent: rgb(0xC2EF68).into(),
-            accent_soft: hsla(80.0 / 360.0, 0.81, 0.67, 0.12),
+            accent_soft: hsla(80.0 / 360.0, 0.81, 0.67, 0.13),
             primary: rgb(0xC2EF68).into(),
             on_primary: rgb(0x1B2510).into(),
             resize_handle: rgb(0x3B82F6).into(),
@@ -154,39 +165,45 @@ impl Theme {
             favorite: rgb(0xEAB308).into(),
             danger: rgb(0xE2726A).into(),
             danger_soft: hsla(4.0 / 360.0, 0.55, 0.63, 0.10),
+
+            glow_mint: hsla(162.0 / 360.0, 0.55, 0.42, 0.20),
+            glow_lime: hsla(80.0 / 360.0, 0.78, 0.58, 0.12),
+            ticket: rgb(0x181D1B).into(),
+            ticket_border: hsla(150.0 / 360.0, 0.10, 0.90, 0.09),
+            shadow: hsla(0.0, 0.0, 0.0, 0.42),
         }
     }
 
     pub fn light() -> Self {
         Self {
             is_dark: false,
-            canvas: rgb(0xF5F6F2).into(),
+            canvas: rgb(0xF6F7F5).into(),
             sidebar: if cfg!(target_os = "macos") {
                 transparent_black()
             } else {
-                rgb(0xECEFE8).into()
+                rgb(0xF3F5F2).into()
             },
-            sidebar_drag_background: rgb(0xECEFE8).into(),
-            sidebar_item_background: hsla(0.0, 0.0, 0.078, 0.06),
-            surface: rgb(0xFAFBF8).into(),
+            sidebar_drag_background: rgb(0xEDF0EB).into(),
+            sidebar_item_background: hsla(0.0, 0.0, 0.078, 0.05),
+            surface: rgb(0xFBFCFA).into(),
             raised: rgb(0xFFFFFF).into(),
             composer: rgb(0xFFFFFF).into(),
-            inset: rgb(0xEBEEE7).into(),
+            inset: rgb(0xF1F3EF).into(),
             terminal: rgb(0xFFFFFF).into(),
-            overlay: hsla(220.0 / 360.0, 0.10, 0.12, 0.05),
-            overlay_strong: hsla(220.0 / 360.0, 0.10, 0.12, 0.09),
+            overlay: hsla(150.0 / 360.0, 0.08, 0.12, 0.05),
+            overlay_strong: hsla(150.0 / 360.0, 0.08, 0.12, 0.085),
 
-            border: hsla(220.0 / 360.0, 0.10, 0.12, 0.08),
-            border_strong: hsla(220.0 / 360.0, 0.10, 0.12, 0.15),
-            sidebar_border: hsla(0.0, 0.0, 0.078, 0.12),
+            border: hsla(150.0 / 360.0, 0.08, 0.12, 0.08),
+            border_strong: hsla(150.0 / 360.0, 0.08, 0.12, 0.14),
+            sidebar_border: hsla(150.0 / 360.0, 0.08, 0.12, 0.08),
 
-            text: rgb(0x20271F).into(),
-            text_secondary: rgb(0x505B4D).into(),
-            text_tertiary: rgb(0x606B5C).into(),
-            text_ghost: rgb(0x626D5E).into(),
+            text: rgb(0x121712).into(),
+            text_secondary: rgb(0x465045).into(),
+            text_tertiary: rgb(0x5A6457).into(),
+            text_ghost: rgb(0x626C5F).into(),
 
-            accent: rgb(0x47651B).into(),
-            accent_soft: hsla(80.0 / 360.0, 0.55, 0.34, 0.10),
+            accent: rgb(0x3D5A12).into(),
+            accent_soft: hsla(80.0 / 360.0, 0.72, 0.55, 0.18),
             primary: rgb(0xC2EF68).into(),
             on_primary: rgb(0x1B2510).into(),
             resize_handle: rgb(0x2563EB).into(),
@@ -204,6 +221,12 @@ impl Theme {
             favorite: rgb(0xCA8A04).into(),
             danger: rgb(0xAC3933).into(),
             danger_soft: hsla(4.0 / 360.0, 0.55, 0.52, 0.10),
+
+            glow_mint: hsla(160.0 / 360.0, 0.62, 0.80, 0.85),
+            glow_lime: hsla(80.0 / 360.0, 0.80, 0.78, 0.42),
+            ticket: rgb(0xFFFFFF).into(),
+            ticket_border: hsla(150.0 / 360.0, 0.08, 0.12, 0.09),
+            shadow: hsla(150.0 / 360.0, 0.25, 0.10, 0.08),
         }
     }
 }

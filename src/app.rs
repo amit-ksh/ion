@@ -1654,6 +1654,7 @@ mod composer;
 mod drafts;
 mod file_search;
 mod goal_dialog;
+mod home;
 mod image_preview;
 mod onboarding;
 mod render;

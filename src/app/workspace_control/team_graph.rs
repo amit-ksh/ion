@@ -213,6 +213,33 @@ impl Waku {
                 .unwrap_or_else(|| "Choose an available agent".into());
             let team = graph.team.clone();
             let selected = team.is_none() && self.control_ui.team_graph_selected == Some(id);
+            let lead = member.parent_id.is_none();
+            // The avatar carries the agent's harness mark; the lead's tile is
+            // the one lime object on the chart, so the hierarchy reads at a
+            // glance without relying on position alone.
+            let avatar = div()
+                .size(px(34.0))
+                .flex_none()
+                .rounded(px(10.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .when(lead, |tile| tile.bg(theme.primary))
+                .when(!lead, |tile| tile.bg(theme.inset))
+                .child(match agent {
+                    Some(agent) => provider_mark(
+                        &theme,
+                        agent.provider,
+                        16.0,
+                        if lead {
+                            theme.on_primary
+                        } else {
+                            provider_color(&theme, agent.provider)
+                        },
+                    )
+                    .into_any_element(),
+                    None => icon("icons/alert.svg", 16.0, theme.warning).into_any_element(),
+                });
             canvas = canvas.child(
                 self.control_button(
                     format!("team-graph-{scope}-{id}"),
@@ -231,28 +258,51 @@ impl Waku {
                 .top(px(node.top))
                 .w(px(geometry::NODE_WIDTH))
                 .h(px(geometry::NODE_HEIGHT))
-                .rounded(px(24.0))
-                .px(px(14.0))
+                .rounded(px(14.0))
+                .pl(px(12.0))
+                .pr(px(14.0))
                 .gap(px(12.0))
-                .bg(theme.surface)
+                .bg(theme.ticket)
+                .border_color(theme.ticket_border)
+                .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
                 .when(selected, |style| style.border_color(theme.accent))
-                .child(icon(
-                    if member.parent_id.is_none() {
-                        "icons/fork.svg"
-                    } else {
-                        "icons/bot.svg"
-                    },
-                    20.0,
-                    theme.text_secondary,
-                ))
+                .child(avatar)
                 .child(
                     div()
                         .flex_1()
                         .min_w_0()
                         .flex()
                         .flex_col()
-                        .gap(px(4.0))
-                        .child(div().truncate().font_weight(FontWeight::MEDIUM).child(name))
+                        .gap(px(3.0))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .truncate()
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .child(name),
+                                )
+                                .when(lead, |row| {
+                                    row.child(
+                                        div()
+                                            .flex_none()
+                                            .h(px(18.0))
+                                            .px(px(6.0))
+                                            .rounded_full()
+                                            .bg(theme.accent_soft)
+                                            .flex()
+                                            .items_center()
+                                            .text_size(sp(10.5))
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(theme.accent)
+                                            .child("Lead"),
+                                    )
+                                }),
+                        )
                         .child(
                             div()
                                 .truncate()

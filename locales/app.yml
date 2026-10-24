@@ -565,6 +565,23 @@ onboarding.what_should_we_build_in:
 onboarding.question_mark:
   en: "?"
 
+home.rail_title:
+  en: Live work
+home.rail_empty:
+  en: Every task you start lands here as a ticket, showing who is on it and what needs you.
+home.all_tasks:
+  en: All tasks
+home.ticket_needs_you:
+  en: Needs you
+home.ticket_working:
+  en: Working
+home.ticket_background:
+  en: Background
+home.ticket_failed:
+  en: Failed
+home.ticket_ready:
+  en: Ready
+
 common.copied:
   en: Copied
 common.copy_message:
