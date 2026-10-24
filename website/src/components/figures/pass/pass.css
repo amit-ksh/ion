@@ -1,0 +1,145 @@
+/* The pass figure, themed to the site: green-grey paper, ink lines, lime for running lamps. */
+.iso.pass[data-theme='light'] {
+  --anatomy-page: #f6f7f5;
+  --anatomy-card: #ffffff;
+  --anatomy-text: #3f463e;
+  --anatomy-strong: #121712;
+  --anatomy-muted: #6b7268;
+  --anatomy-paper: #ffffff;
+  --anatomy-face: #ffffff;
+  --anatomy-top: #ffffff;
+  --anatomy-shade-0: #d9ddd6;
+  --anatomy-shade-1: #e3e6e0;
+  --anatomy-shade-2: #ecefea;
+  --anatomy-shade-3: #f4f6f2;
+  --anatomy-lit-top: #ffffff;
+  --anatomy-lit-shade: #eef0eb;
+  --anatomy-hi: #1d231c;
+  --anatomy-mid: #858b82;
+  --anatomy-lo: #b3b8af;
+  --anatomy-faint: #d3d7cf;
+  --anatomy-lit: #121712;
+  --anatomy-halo: #7f8a78;
+  --anatomy-halo-opacity: 0.3;
+  --anatomy-dot: #2c332b;
+  --anatomy-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --pass-lime: #c2ef68;
+  --pass-lime-side: #a7d34f;
+  --pass-leaf: #3d5a12;
+}
+
+.pass .iso-figure {
+  margin: 0;
+}
+.pass .iso-plate {
+  box-shadow: 0 0 0 1px #121712;
+  padding: 56px 20px 52px;
+  overflow: hidden;
+}
+.pass .iso-legend {
+  margin-top: 14px;
+}
+.pass .iso-caption {
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+
+.pass-stage {
+  touch-action: pan-y;
+  cursor: ew-resize;
+  border-radius: 2px;
+}
+.pass-stage:focus-visible {
+  outline: 1px solid var(--anatomy-muted);
+  outline-offset: 6px;
+}
+
+.pass-void {
+  fill: var(--anatomy-shade-0);
+}
+.pass-punched {
+  fill: var(--anatomy-hi);
+}
+
+.pass-lamp .pass-glow {
+  fill: var(--pass-lime);
+  opacity: 0;
+  filter: blur(4px);
+  transition: opacity 240ms ease-out;
+}
+.pass-lamp[data-on] .pass-glow {
+  opacity: 0.9;
+}
+.pass-lamp[data-on] .iso-top {
+  fill: var(--pass-lime);
+}
+.pass-lamp[data-on] .iso-shade {
+  fill: var(--pass-lime-side);
+}
+.pass-lamp[data-on] .iso-edge {
+  stroke: var(--pass-leaf);
+}
+
+.pass-ink[data-verdict='accept'] .iso-line {
+  stroke: var(--pass-leaf);
+}
+.pass-ink[data-verdict='accept'] .iso-face-text {
+  fill: var(--pass-leaf);
+}
+
+/* The steel bearing ball that holds each ticket: the dot of Ion's "i". */
+.pass-ball {
+  fill: url(#pass-steel);
+  stroke: var(--anatomy-mid);
+  stroke-width: var(--anatomy-weight);
+  vector-effect: non-scaling-stroke;
+}
+.pass-steel-hi {
+  stop-color: #ffffff;
+}
+.pass-steel-mid {
+  stop-color: #c9cec5;
+}
+.pass-steel-lo {
+  stop-color: #7f877c;
+}
+.pass-ink .iso-line {
+  stroke-width: 0.9;
+}
+
+.pass-needle {
+  stroke-width: 1.1;
+}
+
+.pass-hint-touch {
+  display: none;
+}
+@media (hover: none) {
+  .pass-hint-fine {
+    display: none;
+  }
+  .pass-hint-touch {
+    display: inline;
+  }
+}
+
+@media (max-width: 560px) {
+  .pass .iso-plate {
+    padding: 48px 0 64px;
+  }
+  .pass .iso-svg {
+    width: 118%;
+    margin-left: -9%;
+  }
+  .pass .iso-plate-corner[data-corner='readout'] {
+    bottom: 0;
+  }
+  .pass .iso-plate-corner[data-corner='hint'] {
+    bottom: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pass-lamp .pass-glow {
+    transition: none;
+  }
+}

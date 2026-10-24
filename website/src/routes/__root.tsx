@@ -11,9 +11,9 @@ import appCss from '@/styles.css?url'
 
 // Set only when an Ion domain has actually been chosen.
 const SITE_URL = import.meta.env.VITE_ION_SITE_URL?.replace(/\/$/, '')
-const TITLE = 'Ion — a workspace for coding agents, teams and workflows'
+const TITLE = 'Ion - turn requests into reviewed agent work'
 const DESCRIPTION =
-  'Bring coding harnesses, hierarchical agent teams, connected apps, workflows and document artifacts together in Ion. Explore Windows and Android release details.'
+  'Ion is a native desktop IDE and Android companion for coordinating coding agents, teams, approvals and budgets. Every request becomes a ticket; you decide what passes.'
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -39,6 +39,7 @@ export const Route = createRootRouteWithContext<{
       },
     ],
     links: [
+      { rel: 'preload', href: '/fonts/jetbrains-mono-latin-wght-normal.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/ion-favicon.svg' },
       { rel: 'icon', type: 'image/png', href: '/favicon.png' },
