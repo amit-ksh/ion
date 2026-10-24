@@ -15,6 +15,7 @@ mod gateway_pairing_file;
 mod gateway_sync;
 pub use gateway_sync::{Cadence as GatewaySyncCadence, PublisherLease as GatewayPublisherLease};
 pub mod inference;
+pub mod nebius_project;
 pub mod speech;
 pub use composio::ComposioAuthConfig;
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
@@ -44,6 +45,7 @@ fn read_private_nebius_key_file(path: &std::path::Path) -> Result<String> {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CredentialKind {
     NebiusTokenFactoryApiKey,
+    NebiusSandboxProject,
     ComposioScopedProjectKey,
     GatewayPairingToken,
     SpeechService,
@@ -53,6 +55,7 @@ impl CredentialKind {
     pub fn account(self) -> &'static str {
         match self {
             Self::NebiusTokenFactoryApiKey => "nebius-token-factory",
+            Self::NebiusSandboxProject => nebius_project::ACCOUNT_PREFIX,
             Self::ComposioScopedProjectKey => "composio-project",
             Self::GatewayPairingToken => "gateway-pairing",
             Self::SpeechService => "speech-service",
@@ -70,6 +73,7 @@ pub enum CredentialStatus {
 
 pub enum CredentialTest {
     NebiusModels(Vec<String>),
+    NebiusProject(nebius_project::ProjectAccess),
     ComposioVerified,
     SpeechVerified,
     GatewayConnected(GatewaySession),
@@ -612,6 +616,7 @@ fn gateway_client() -> Result<reqwest::blocking::Client> {
 
 pub struct CredentialService {
     volatile: Mutex<HashMap<CredentialKind, String>>,
+    personal_projects: Mutex<HashMap<String, String>>,
     gateway_pairing_file: Mutex<Option<std::path::PathBuf>>,
 }
 
@@ -620,6 +625,7 @@ impl CredentialService {
         static SERVICE: OnceLock<CredentialService> = OnceLock::new();
         SERVICE.get_or_init(|| Self {
             volatile: Mutex::new(HashMap::new()),
+            personal_projects: Mutex::new(HashMap::new()),
             gateway_pairing_file: Mutex::new(None),
         })
     }
@@ -660,7 +666,14 @@ impl CredentialService {
                 serde_json::from_str(value).context("Enter a speech URL and token")?;
             speech::SpeechService::validate_saved(&service)?;
         }
-        match vault::set(kind.account(), value) {
+        if kind == CredentialKind::NebiusSandboxProject {
+            return self.save_nebius_project(value, &nebius_project::signed_in_workspace()?);
+        }
+        self.store(kind, value.to_owned())
+    }
+
+    fn store(&self, kind: CredentialKind, value: String) -> Result<CredentialStatus> {
+        match vault::set(kind.account(), &value) {
             Ok(()) => {
                 self.volatile.lock().unwrap().remove(&kind);
                 Ok(CredentialStatus::StoredInVault)
@@ -673,6 +686,9 @@ impl CredentialService {
     }
 
     pub fn status(&self, kind: CredentialKind) -> CredentialStatus {
+        if kind == CredentialKind::NebiusSandboxProject {
+            return self.nebius_project_status();
+        }
         if kind == CredentialKind::GatewayPairingToken {
             let path = self.gateway_pairing_file.lock().unwrap().clone();
             if let Some(path) = path {
@@ -693,6 +709,9 @@ impl CredentialService {
     }
 
     pub fn delete(&self, kind: CredentialKind) -> Result<()> {
+        if kind == CredentialKind::NebiusSandboxProject {
+            return self.delete_nebius_project_for(&nebius_project::signed_in_workspace()?);
+        }
         self.ensure_gateway_not_file_managed(kind)?;
         self.volatile.lock().unwrap().remove(&kind);
         vault::delete(kind.account()).context("could not confirm OS vault deletion")?;
@@ -700,10 +719,15 @@ impl CredentialService {
     }
 
     fn secret(&self, kind: CredentialKind) -> Result<String> {
+        self.optional_secret(kind)?
+            .context("credential has not been configured")
+    }
+
+    fn optional_secret(&self, kind: CredentialKind) -> Result<Option<String>> {
         if let Some(value) = self.volatile.lock().unwrap().get(&kind) {
-            return Ok(value.clone());
+            return Ok(Some(value.clone()));
         }
-        vault::get(kind.account())?.context("credential has not been configured")
+        vault::get(kind.account())
     }
 
     /// The daemon reads the same user vault entry at runtime. A memory-only
@@ -897,6 +921,9 @@ impl CredentialService {
             }
             CredentialKind::NebiusTokenFactoryApiKey => {
                 Ok(CredentialTest::NebiusModels(self.nebius_model_ids()?))
+            }
+            CredentialKind::NebiusSandboxProject => {
+                Ok(CredentialTest::NebiusProject(self.test_nebius_project()?))
             }
             CredentialKind::ComposioScopedProjectKey => {
                 let secret = self.secret(kind)?;

@@ -1,6 +1,7 @@
 use super::composer::next_picker_highlight;
 use super::*;
 use crate::ui::ActivationExt;
+use anyhow::Context as _;
 
 const SETTINGS_CONTENT_MAX_WIDTH: f32 = 760.0;
 
@@ -452,6 +453,7 @@ impl Waku {
         use crate::credentials::{CredentialKind as Kind, CredentialService};
         let kinds = [
             Kind::NebiusTokenFactoryApiKey,
+            Kind::NebiusSandboxProject,
             Kind::ComposioScopedProjectKey,
             Kind::GatewayPairingToken,
             Kind::SpeechService,
@@ -461,21 +463,41 @@ impl Waku {
             .filter(|kind| !self.credential_busy.contains(kind))
             .collect::<Vec<_>>();
         let generations = self.credential_generation.clone();
+        let refresh_project = !self
+            .credential_busy
+            .contains(&Kind::NebiusTokenFactoryApiKey)
+            && !self.credential_busy.contains(&Kind::NebiusSandboxProject);
         cx.spawn(async move |waku, cx| {
             let statuses = cx
                 .background_executor()
                 .spawn(async move {
-                    kinds
+                    let statuses = kinds
                         .into_iter()
                         .map(|kind| (kind, CredentialService::global().status(kind)))
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>();
+                    let project = if refresh_project {
+                        CredentialService::global()
+                            .nebius_project_summary()
+                            .ok()
+                            .flatten()
+                    } else {
+                        None
+                    };
+                    (statuses, project)
                 })
                 .await;
             let _ = waku.update(cx, |waku, cx| {
-                for (kind, status) in statuses {
+                for (kind, status) in statuses.0 {
                     if waku.credential_generation.get(&kind) == generations.get(&kind) {
                         waku.credential_statuses.insert(kind, status);
                     }
+                }
+                if refresh_project
+                    && [Kind::NebiusTokenFactoryApiKey, Kind::NebiusSandboxProject]
+                        .iter()
+                        .all(|kind| waku.credential_generation.get(kind) == generations.get(kind))
+                {
+                    waku.onboarding_ui.saved_nebius_project = statuses.1;
                 }
                 cx.notify();
             });
@@ -771,6 +793,24 @@ impl Waku {
         cx: &mut Context<Self>,
     ) {
         use crate::credentials::{CredentialKind as Kind, CredentialService, CredentialTest};
+        let project = Kind::NebiusSandboxProject;
+        let key = Kind::NebiusTokenFactoryApiKey;
+        let other = if kind == project {
+            Some(key)
+        } else if kind == key {
+            Some(project)
+        } else {
+            None
+        };
+        if other.is_some_and(|other| self.credential_busy.contains(&other)) {
+            self.credential_feedback.insert(
+                kind,
+                "Wait for the current Nebius connection update.".into(),
+            );
+            cx.notify();
+            return;
+        }
+        let expected_workspace = self.cloud_ui.status.workspace_id.clone();
         if !self.credential_busy.insert(kind) {
             return;
         }
@@ -779,12 +819,26 @@ impl Waku {
             let value = input.read(cx).content().trim().to_owned();
             if value.is_empty() {
                 self.credential_busy.remove(&kind);
-                self.credential_feedback
-                    .insert(kind, "Enter a key or token first.".into());
+                self.credential_feedback.insert(
+                    kind,
+                    if kind == project {
+                        "Enter a Token Factory AI project ID first."
+                    } else {
+                        "Enter a key or token first."
+                    }
+                    .into(),
+                );
                 cx.notify();
                 return;
             }
-            input.update(cx, |input, cx| input.clear(cx));
+            input.update(cx, |input, cx| {
+                // Project IDs are nonsecret drafts: keep them on validation/storage
+                // failure, and while a key is being replaced. Secrets clear at once.
+                if kind != project {
+                    input.clear(cx);
+                }
+                input.set_secure(kind != project, cx);
+            });
             Some(if kind == Kind::SpeechService {
                 serde_json::json!({"baseUrl":self.speech_url_input.read(cx).content().trim(),"token":value}).to_string()
             } else {
@@ -793,6 +847,9 @@ impl Waku {
         } else {
             None
         };
+        if kind == key && matches!(action, CredentialAction::Set | CredentialAction::Delete) {
+            self.invalidate_personal_nebius_project();
+        }
         let generation = self.credential_generation.entry(kind).or_default();
         *generation = generation.wrapping_add(1);
         let generation = *generation;
@@ -806,7 +863,10 @@ impl Waku {
                     let result = (|| -> anyhow::Result<(String, Option<Vec<String>>)> {
                         match action {
                             CredentialAction::Set => {
-                                let status = service.set(kind, value.unwrap())?;
+                                let value = value.unwrap();
+                                let status = if kind == Kind::NebiusSandboxProject {
+                                    service.save_nebius_project(&value, expected_workspace.as_deref().context("Sign in to Ion first")?)?
+                                } else { service.set(kind, value)? };
                                 let note =
                                     if status == crate::credentials::CredentialStatus::MemoryOnly {
                                         "Saved for this app session only; OS vault unavailable."
@@ -816,7 +876,9 @@ impl Waku {
                                     };
                                 Ok((note, None))
                             }
-                            CredentialAction::Test => match service.test(kind)? {
+                            CredentialAction::Test => match if kind == Kind::NebiusSandboxProject {
+                                CredentialTest::NebiusProject(service.test_nebius_project_for(expected_workspace.as_deref().context("Sign in to Ion first")?)?)
+                            } else { service.test(kind)? } {
                                 CredentialTest::SpeechVerified => Ok((
                                     "Speech service connected; Nemotron 3.5 ASR streaming is ready.".into(),
                                     None,
@@ -828,6 +890,10 @@ impl Waku {
                                     ),
                                     Some(models),
                                 )),
+                                CredentialTest::NebiusProject(access) => Ok((
+                                    if access.can_execute && access.can_list && access.can_cancel {
+                                        format!("{}: beta permissions verified. Worker and budget setup are still required.", access.project_id)
+                                    } else { format!("{}: execution, list or cancellation permission is missing.", access.project_id) }, None)),
                                 CredentialTest::ComposioVerified => Ok((
                                     "Composio key verified with Tools read access.".into(),
                                     None,
@@ -843,7 +909,9 @@ impl Waku {
                                 )),
                             },
                             CredentialAction::Delete => {
-                                service.delete(kind)?;
+                                if kind == Kind::NebiusSandboxProject {
+                                    service.delete_nebius_project_for(expected_workspace.as_deref().context("Sign in to Ion first")?)?;
+                                } else { service.delete(kind)?; }
                                 Ok(("Credential deleted.".into(), None))
                             }
                         }
@@ -878,6 +946,10 @@ impl Waku {
                                 waku.nebius_catalog.clear();
                             }
                             waku.refresh_provider_model_discovery(ProviderKind::Nebius);
+                        }
+                        if matches!(kind, Kind::NebiusTokenFactoryApiKey | Kind::NebiusSandboxProject)
+                            && matches!(action, CredentialAction::Set | CredentialAction::Delete) {
+                            waku.refresh_credential_statuses(cx);
                         }
                         if kind == Kind::GatewayPairingToken
                             && matches!(action, CredentialAction::Delete)
@@ -1038,7 +1110,12 @@ impl Waku {
                 .copied()
                 .unwrap_or(CredentialStatus::Missing)
             {
-                CredentialStatus::Missing if kind == Kind::NebiusTokenFactoryApiKey && self.shared_inference_enabled() => "Shared inference enabled; personal key optional",
+                CredentialStatus::Missing
+                    if kind == Kind::NebiusTokenFactoryApiKey
+                        && self.shared_inference_enabled() =>
+                {
+                    "Shared inference enabled; personal key optional"
+                }
                 CredentialStatus::Missing => "Not configured",
                 CredentialStatus::StoredInVault => "Stored in OS vault",
                 CredentialStatus::ManagedFile => "Managed by a private service file",
@@ -1111,6 +1188,18 @@ impl Waku {
                         .text_color(theme.text_secondary)
                         .child(feedback.clone()),
                 );
+            }
+            if kind == Kind::NebiusTokenFactoryApiKey
+                && matches!(
+                    self.credential_statuses.get(&kind),
+                    Some(
+                        CredentialStatus::StoredInVault
+                            | CredentialStatus::MemoryOnly
+                            | CredentialStatus::ManagedFile
+                    )
+                )
+            {
+                card = card.child(self.setup_personal_project(cx));
             }
             if kind == Kind::NebiusTokenFactoryApiKey && !self.nebius_catalog.is_empty() {
                 let models = self
@@ -1398,9 +1487,7 @@ impl Waku {
                     } else {
                         theme.text_secondary
                     })
-                    .when(selected, |element| {
-                        element.bg(theme.accent_soft)
-                    })
+                    .when(selected, |element| element.bg(theme.accent_soft))
                     .hover(|element| element.bg(theme.sidebar_item_background))
                     .active(|element| element.bg(theme.sidebar_item_background))
                     .child(icon(

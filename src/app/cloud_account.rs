@@ -179,6 +179,7 @@ impl Waku {
                             this.refresh_provider_model_discovery(ProviderKind::Nebius);
                         }
                         if this.cloud_ui.status.workspace_id != status.workspace_id {
+                            this.clear_onboarding_account_state(cx);
                             this.control_ui.clear_hosting_account(cx);
                             this.invalidate_composio_apps();
                         }
@@ -226,6 +227,7 @@ impl Waku {
                     self.cloud_ui.require_sign_in = false;
                 }
                 if self.cloud_ui.status.workspace_id != status.workspace_id {
+                    self.clear_onboarding_account_state(cx);
                     self.control_ui.clear_hosting_account(cx);
                     self.invalidate_composio_apps();
                     self.cloud_ui.managed_apps = false;

@@ -1076,6 +1076,17 @@ impl TextInput {
         self
     }
 
+    pub fn is_secure(&self) -> bool {
+        self.secure
+    }
+
+    pub fn set_secure(&mut self, secure: bool, cx: &mut Context<Self>) {
+        if self.secure != secure {
+            self.secure = secure;
+            cx.notify();
+        }
+    }
+
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         let changed = !self.content.is_empty();
         self.content = "".into();

@@ -119,6 +119,10 @@ impl Waku {
         self.control_ui.team_names = seen;
         self.control_ui.snapshot = snapshot;
         self.control_ui.snapshot_loaded = true;
+        if self.control_ui.form == Some(FormKind::Team) {
+            // Refresh cached labels without replacing the unsaved membership draft.
+            self.refresh_team_graph();
+        }
     }
     pub(super) fn start_team_activity_poll(&mut self, cx: &mut Context<Self>) {
         if self.control_ui.activity_polling || !relevant(self.control_ui.page) {

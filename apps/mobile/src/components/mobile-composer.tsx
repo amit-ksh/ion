@@ -88,7 +88,7 @@ export function ComposerCard({
         selectionColor={NativeTint}
         style={[styles.input, { color: theme.text }]}
         {...inputProps}
-        placeholder={`${inputProps.placeholder ?? "Message agent"}\n@ files, teams & apps · @@ teams · @@@ apps`}
+        placeholder={`${inputProps.placeholder ?? "Do anything…"}\n@ files, teams & apps · @@ teams · @@@ apps`}
       />
       <View style={styles.toolbar}>
         <View style={styles.cluster}>{left}</View>
@@ -453,7 +453,7 @@ export function MobileComposer({
       ? "Message the working agent…"
       : busy
         ? "Queue a follow-up…"
-        : "Message agent";
+        : "Do anything…";
 
   return (
     <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, 10) }]}>

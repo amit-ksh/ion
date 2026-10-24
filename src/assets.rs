@@ -213,6 +213,29 @@ const ICONS: &[(&str, &[u8])] = icons![
     "zap",
 ];
 
+const APP_ICONS: &[(&str, &[u8])] = &[
+    (
+        "app-icons/gmail.png",
+        include_bytes!("../assets/app-icons/gmail.png"),
+    ),
+    (
+        "app-icons/googledrive.png",
+        include_bytes!("../assets/app-icons/googledrive.png"),
+    ),
+    (
+        "app-icons/outlook.svg",
+        include_bytes!("../assets/app-icons/outlook.svg"),
+    ),
+    (
+        "app-icons/github.svg",
+        include_bytes!("../assets/app-icons/github.svg"),
+    ),
+    (
+        "app-icons/supabase.svg",
+        include_bytes!("../assets/app-icons/supabase.svg"),
+    ),
+];
+
 const TEXT_FONTS: &[&[u8]] = &[
     include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf"),
     include_bytes!("../assets/fonts/JetBrainsMono-Bold.ttf"),
@@ -241,6 +264,7 @@ impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
         Ok(ICONS
             .iter()
+            .chain(APP_ICONS.iter())
             .find(|(name, _)| *name == path)
             .map(|(_, bytes)| Cow::Borrowed(*bytes)))
     }
@@ -248,6 +272,7 @@ impl AssetSource for Assets {
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         Ok(ICONS
             .iter()
+            .chain(APP_ICONS.iter())
             .filter(|(name, _)| name.starts_with(path))
             .map(|(name, _)| SharedString::from(*name))
             .collect())

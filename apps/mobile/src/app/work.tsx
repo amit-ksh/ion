@@ -1,4 +1,4 @@
-import type { ControlRecord, TeamDecision } from '@waku/client';
+import type { AgentProfile, ControlRecord, Team, TeamDecision } from '@waku/client';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,6 +6,7 @@ import { ConnectionBanner } from '@/components/connection-banner';
 import { RemoteProjectPicker } from '@/components/remote-project-picker';
 import { useScreenHeaderInset } from '@/components/screen-header';
 import { WorkbenchButton, WorkbenchCard, WorkbenchRow, WorkbenchState } from '@/components/workbench';
+import { TeamGraph } from '@/components/team-graph';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,7 +15,7 @@ import { useRuntime } from '@/lib/runtime-context';
 
 const sections = ['Tasks', 'Projects', 'Teams', 'Decisions'] as const;
 type Section = typeof sections[number];
-type WorkRow = { id: string; title: string; detail: string; open: () => void; members?: string[] };
+type WorkRow = { id: string; title: string; detail: string; open: () => void; team?: Team };
 
 export default function WorkScreen() {
   const theme = useTheme();
@@ -39,6 +40,7 @@ export default function WorkScreen() {
     return { snapshot: response.snapshot, decisions, next };
   });
   const records = control.data?.snapshot.records;
+  const teamAgents = useMemo(() => (records ?? []).filter((r): r is AgentProfile & { kind: 'agent' } => r.kind === 'agent'), [records]);
   const owner = control.daemon.activeProfile?.id;
   const rows = useMemo<WorkRow[]>(() => {
     const projects = new Map(tasks.data?.projects.map(project => [project.id, project.name]));
@@ -52,11 +54,10 @@ export default function WorkScreen() {
       open: () => router.push({ pathname: '/new-task', params: { project: project.id } }),
     }));
     if (section === 'Teams') {
-      const agents = new Map((records ?? []).filter((record): record is Extract<ControlRecord, {kind: 'agent'}> => record.kind === 'agent').map(agent => [agent.id, agent]));
-      return (records ?? []).flatMap(record => {
+      return (records ?? []).flatMap<WorkRow>(record => {
         if (record.kind === 'team') return [{ id: record.id, title: record.name,
           detail: record.objective || `${record.members.length} agents`,
-          members: record.members.map(member => `${agents.get(member.agentId)?.name ?? 'Unavailable agent'} · ${member.parentId ? `Reports to ${agents.get(member.parentId)?.name ?? 'unavailable agent'}` : 'Team lead'}`),
+          team: record,
           open: () => router.push({ pathname: '/team-editor', params: { id: record.id } }),
         }];
         if (record.kind === 'agent') return [{ id: record.id, title: record.name,
@@ -111,7 +112,8 @@ export default function WorkScreen() {
         detail={section === 'Decisions' ? 'Approvals and proposals that need your review appear here.' : section === 'Teams' ? 'Create an agent, then organize agents into a team.' : section === 'Projects' ? 'Open a folder on your paired desktop.' : 'Start a task to work with an agent.'} />}
       renderItem={({ item }) => <View style={styles.item}><WorkbenchCard>
         <WorkbenchRow label={item.title} detail={item.detail} icon={{ android: section === 'Projects' ? 'folder' : section === 'Teams' ? 'groups' : section === 'Decisions' ? 'rule' : 'chat_bubble_outline', web: 'work_outline' }} onPress={item.open} />
-        {item.members?.map((member, index) => <Text key={index} style={[styles.member, { color: theme.textSecondary }]}>{member}</Text>)}
+        {item.team && <TeamGraph members={item.team.members} agents={teamAgents}
+          onSelect={agent => router.push({ pathname: '/team-editor', params: { id: item.team!.id, agent } })} />}
       </WorkbenchCard></View>}
       ListFooterComponent={section === 'Decisions' ? <View style={styles.actions}>
         {previous.length > 0 && <WorkbenchButton label="Previous" onPress={() => { setAfter(previous.at(-1) ?? null); setPrevious(previous.slice(0, -1)); }} />}
@@ -123,5 +125,5 @@ export default function WorkScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 }, content: { width: '100%', maxWidth: 1000, alignSelf: 'center', padding: 16, paddingBottom: 24 }, header: { gap: 14, marginBottom: 16 },
   tabs: { gap: 8 }, tab: { minHeight: 48, paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'center', borderRadius: 12 }, tabLabel: { fontSize: 14, fontWeight: '600' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, item: { marginBottom: 10 }, member: { fontSize: 14, lineHeight: 20, paddingLeft: 14 }, loading: { padding: 32 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, item: { marginBottom: 10 }, loading: { padding: 32 },
 });

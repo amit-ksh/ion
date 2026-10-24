@@ -123,6 +123,7 @@ mod tests {
     #[test]
     fn file_managed_pairing_cannot_be_silently_replaced_or_deleted() {
         let service = super::super::CredentialService {
+            personal_projects: std::sync::Mutex::new(std::collections::HashMap::new()),
             volatile: std::sync::Mutex::new(std::collections::HashMap::new()),
             gateway_pairing_file: std::sync::Mutex::new(Some("managed.json".into())),
         };

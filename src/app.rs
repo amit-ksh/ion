@@ -2044,7 +2044,10 @@ impl Waku {
         let composer = cx.new(|cx| {
             let mut input = ComposerInput::new(window, cx).padding_x(px(14.0), cx);
             input.set_placeholder(
-                format!("{}\n@ files, teams & apps · @@ teams · @@@ apps", tr!("input.do_anything")),
+                format!(
+                    "{}\n@ files, teams & apps · @@ teams · @@@ apps",
+                    tr!("input.do_anything")
+                ),
                 cx,
             );
             input
@@ -2116,6 +2119,10 @@ impl Waku {
                 "Nebius API key",
             ),
             (
+                crate::credentials::CredentialKind::NebiusSandboxProject,
+                "aiproject-…",
+            ),
+            (
                 crate::credentials::CredentialKind::ComposioScopedProjectKey,
                 "Composio scoped project key",
             ),
@@ -2124,7 +2131,14 @@ impl Waku {
         .map(|(kind, placeholder)| {
             (
                 kind,
-                cx.new(|cx| TextInput::new(window, cx).secure().placeholder(placeholder)),
+                cx.new(|cx| {
+                    let input = TextInput::new(window, cx).placeholder(placeholder);
+                    if kind == crate::credentials::CredentialKind::NebiusSandboxProject {
+                        input
+                    } else {
+                        input.secure()
+                    }
+                }),
             )
         })
         .collect::<HashMap<_, _>>();

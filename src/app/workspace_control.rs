@@ -7,8 +7,16 @@ actions!(waku_workspace_control, [DismissControlEditor]);
 
 pub fn init(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("escape", DismissControlEditor, Some("WorkspaceControlEditor")),
-        KeyBinding::new("escape", DismissControlEditor, Some("WorkspaceControlEditor > TextInput")),
+        KeyBinding::new(
+            "escape",
+            DismissControlEditor,
+            Some("WorkspaceControlEditor"),
+        ),
+        KeyBinding::new(
+            "escape",
+            DismissControlEditor,
+            Some("WorkspaceControlEditor > TextInput"),
+        ),
     ]);
 }
 use waku_client::control::*;
@@ -16,6 +24,7 @@ use waku_client::teams::{
     AgentAccess, AgentExecution, AssignmentStatus, ExecutionEnvironment, TeamRunSnapshot,
     TeamRunStatus, TeamRunSummary,
 };
+mod app_icons;
 mod artifacts_ui;
 mod automation_ui;
 mod billing_ui;
@@ -27,8 +36,12 @@ mod inbox;
 mod remote_ui;
 mod resource_ui;
 mod routine_ui;
+mod starter_ui;
 mod team_activity;
 mod team_apps;
+mod team_graph;
+mod team_graph_layout;
+mod team_hierarchy;
 mod team_integration;
 mod team_limits;
 mod team_recovery;
@@ -153,6 +166,8 @@ pub(super) struct ControlUi {
     sandbox_target: Entity<TextInput>,
     project: Option<Uuid>,
     members: Vec<TeamMember>,
+    team_graph: Rc<team_graph::Graph>,
+    team_graph_selected: Option<Uuid>,
     limit_inputs: Vec<(team_limits::LimitField, Entity<TextInput>)>,
     child_review: bool,
     stages: Vec<(
@@ -245,7 +260,7 @@ enum Row {
     Task(Uuid),
     Project(Uuid),
     Record(ControlRecord),
-    AgentInTeam(AgentProfile, usize, Option<String>),
+    TeamGraph(Rc<team_graph::Graph>),
     TeamRun(Rc<TeamRunSummary>),
     Assignment(Rc<team_activity::AssignmentRow>),
     TeamFollowUp(Rc<waku_client::teams::TeamFollowUp>),
@@ -259,7 +274,7 @@ enum Row {
     Account(String, String, String),
     Empty(&'static str),
     Notice(Notice),
-    AppPair(Vec<crate::credentials::ComposioAuthConfig>),
+    AppPair(Vec<crate::credentials::ComposioAuthConfig>, usize),
     Automation(Rc<AutomationRun>),
     AutomationStage(Rc<AutomationRun>, usize),
 }
@@ -365,6 +380,8 @@ impl ControlUi {
                 .new(|cx| TextInput::new(window, cx).placeholder("Configured sandbox target")),
             project: None,
             members: Vec::new(),
+            team_graph: Rc::new(team_graph::Graph::default()),
+            team_graph_selected: None,
             limit_inputs: team_limits::inputs(window, cx),
             child_review: true,
             stages: Vec::new(),
@@ -1240,6 +1257,7 @@ impl Waku {
         self.control_ui.routine_team = None;
         self.control_ui.routine_workflow = None;
         self.control_ui.members.clear();
+        self.refresh_team_graph();
         self.set_team_limit_inputs(waku_client::teams::TeamRunLimits::default(), cx);
         self.control_ui.stages.clear();
         self.control_ui.pending_stages = None;
@@ -1338,6 +1356,7 @@ impl Waku {
             ControlRecord::Team(v) => {
                 self.set_team_limit_inputs(v.limits.unwrap_or_default(), cx);
                 self.control_ui.members = v.members;
+                self.refresh_team_graph();
             }
             ControlRecord::Routine(v) => {
                 self.load_routine_editor(&v, cx);
@@ -1825,7 +1844,7 @@ impl Waku {
             )
             .child(actions)
     }
-    fn control_rows(&self, page: Page, cx: &App) -> Vec<Row> {
+    fn control_rows(&self, page: Page, app_columns: usize, cx: &App) -> Vec<Row> {
         if page == Page::Inbox {
             let mut rows = self.inbox_history_rows();
             if rows.is_empty() {
@@ -1933,10 +1952,24 @@ impl Waku {
                         })
                         .cloned()
                         .collect::<Vec<_>>();
-                    rows.extend(configs.chunks(2).map(|pair| Row::AppPair(pair.to_vec())));
+                    rows.extend(
+                        configs
+                            .chunks(app_columns)
+                            .map(|pair| Row::AppPair(pair.to_vec(), app_columns)),
+                    );
                 }
             }
             _ => {
+                let profiles: HashMap<_, _> = self
+                    .control_ui
+                    .snapshot
+                    .records
+                    .iter()
+                    .filter_map(|r| match r {
+                        ControlRecord::Agent(agent) => Some((agent.id, agent)),
+                        _ => None,
+                    })
+                    .collect();
                 for record in &self.control_ui.snapshot.records {
                     if matches!(
                         (page, record),
@@ -1948,34 +1981,11 @@ impl Waku {
                     ) {
                         rows.push(Row::Record(record.clone()));
                         if let ControlRecord::Team(team) = record {
-                            let profiles: HashMap<_, _> = self
-                                .control_ui
-                                .snapshot
-                                .records
-                                .iter()
-                                .filter_map(|r| match r {
-                                    ControlRecord::Agent(a) => Some((a.id, a)),
-                                    _ => None,
-                                })
-                                .collect();
-                            for (id, depth) in team_activity::hierarchy(
-                                &team
-                                    .members
-                                    .iter()
-                                    .map(|m| (m.agent_id, m.parent_id))
-                                    .collect::<Vec<_>>(),
-                            ) {
-                                if let Some(agent) = profiles.get(&id) {
-                                    let parent = team
-                                        .members
-                                        .iter()
-                                        .find(|m| m.agent_id == id)
-                                        .and_then(|m| m.parent_id)
-                                        .and_then(|id| profiles.get(&id))
-                                        .map(|a| a.name.clone());
-                                    rows.push(Row::AgentInTeam((*agent).clone(), depth, parent));
-                                }
-                            }
+                            rows.push(Row::TeamGraph(Rc::new(team_graph::Graph::new(
+                                Some(team.clone()),
+                                &team.members,
+                                &profiles,
+                            ))));
                         }
                     }
                 }
@@ -2115,8 +2125,19 @@ impl Waku {
             }
         }
         use std::hash::{Hash, Hasher};
+        let app_columns = if f32::from(window.viewport_size().width)
+            - self.sidebar_rendered_width
+            - self.right_panel_rendered_width
+            - 56.0
+            >= 760.0
+        {
+            2
+        } else {
+            1
+        };
         let mut key = std::collections::hash_map::DefaultHasher::new();
         page.hash(&mut key);
+        app_columns.hash(&mut key);
         self.state.projects.len().hash(&mut key);
         self.control_ui.snapshot.revision.hash(&mut key);
         self.control_ui.activity_revision.hash(&mut key);
@@ -2163,7 +2184,7 @@ impl Waku {
         }
         let key = key.finish();
         if self.control_ui.rows_key != key {
-            let rows = Rc::new(self.control_rows(page, cx));
+            let rows = Rc::new(self.control_rows(page, app_columns, cx));
             self.control_ui.list.reset(rows.len());
             self.control_ui.rows = rows;
             self.control_ui.rows_key = key;
@@ -2413,20 +2434,28 @@ impl Waku {
             let Row::Empty(message) = rows[0] else {
                 unreachable!()
             };
-            div()
-                .w_full()
-                .flex_1()
-                .flex()
-                .flex_col()
-                .items_center()
-                .justify_center()
-                .pb(px(64.0))
-                .gap(px(12.0))
-                .text_size(sp(14.0))
-                .text_color(theme.text_secondary)
-                .child(icon(page.icon(), 28.0, theme.text_tertiary))
-                .child(message)
-                .into_any_element()
+            if match page {
+                Page::Teams => !self.control_ui.runs_tab,
+                Page::Workflows | Page::Routines => !self.control_ui.automation_history,
+                _ => false,
+            } {
+                self.render_control_starters(page, window, cx)
+            } else {
+                div()
+                    .w_full()
+                    .flex_1()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .pb(px(64.0))
+                    .gap(px(12.0))
+                    .text_size(sp(14.0))
+                    .text_color(theme.text_secondary)
+                    .child(icon(page.icon(), 28.0, theme.text_tertiary))
+                    .child(message)
+                    .into_any_element()
+            }
         } else {
             div()
                 .id("workspace-records")
@@ -2483,6 +2512,10 @@ impl Waku {
     }
     fn render_control_row(&self, row: Row, index: usize, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::workspace(cx);
+        let app_toolkit = match &row {
+            Row::Account(toolkit, _, _) => Some(toolkit.clone()),
+            _ => None,
+        };
         let mut body = div()
             .min_h(px(68.0))
             .p(px(14.0))
@@ -2520,7 +2553,8 @@ impl Waku {
                     .child(conflict)
                     .into_any_element();
             }
-            Row::AppPair(configs) => {
+            Row::TeamGraph(graph) => return self.render_team_graph(graph, cx),
+            Row::AppPair(configs, columns) => {
                 let mut pair = div().w_full().min_w_0().flex().gap(px(28.0)).py(px(12.0));
                 let count = configs.len();
                 for config in configs {
@@ -2548,18 +2582,7 @@ impl Waku {
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .child(icon(
-                                    match config.toolkit.as_str() {
-                                        "github" => "icons/github.svg",
-                                        "gitlab" => "icons/file-types/gitlab.svg",
-                                        "googledocs" | "googlesheets" | "notion" => {
-                                            "icons/file.svg"
-                                        }
-                                        _ => "icons/package.svg",
-                                    },
-                                    20.0,
-                                    theme.accent,
-                                )),
+                                .child(app_icons::render(&config.toolkit, &theme)),
                         )
                         .child(
                             div()
@@ -2620,7 +2643,7 @@ impl Waku {
                     }
                     pair = pair.child(tile);
                 }
-                if count == 1 {
+                if count == 1 && columns == 2 {
                     pair = pair.child(div().flex_1());
                 }
                 return pair.into_any_element();
@@ -2866,26 +2889,6 @@ impl Waku {
                     "icons/package.svg",
                 )
             }
-            Row::AgentInTeam(agent, depth, parent) => {
-                body = body.pl(px(22.0 + depth as f32 * 24.0));
-                (
-                    agent.name,
-                    format!(
-                        "{} · {} · {} · {}",
-                        parent
-                            .map(|name| format!("Reports to {name}"))
-                            .unwrap_or_else(|| "Team lead".into()),
-                        agent.expertise,
-                        agent.provider.display_name(),
-                        agent.execution.environment.label()
-                    ),
-                    if depth == 0 {
-                        "icons/target.svg"
-                    } else {
-                        "icons/corner-down-right.svg"
-                    },
-                )
-            }
             Row::Record(record) => {
                 let id = record.id();
                 let name = record.name().to_owned();
@@ -3078,7 +3081,11 @@ impl Waku {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(icon(icon_path, 18.0, theme.text_secondary)),
+                    .child(if let Some(toolkit) = &app_toolkit {
+                        app_icons::render(toolkit, &theme)
+                    } else {
+                        icon(icon_path, 18.0, theme.text_secondary).into_any_element()
+                    }),
             )
             .child(
                 div()
@@ -3456,6 +3463,8 @@ impl Waku {
         }
         if kind == FormKind::Team {
             form = form.child(self.render_team_limit_inputs(cx));
+            form = form.child(self.render_team_graph(self.control_ui.team_graph.clone(), cx));
+            form = form.child(self.render_team_graph_selection(cx));
             form = form.child(
                 div()
                     .text_size(sp(14.0))
@@ -3494,32 +3503,29 @@ impl Waku {
                         label,
                         cx,
                         move |this, _, cx| {
-                            if included {
-                                this.control_ui.members.retain(|m| m.agent_id != id);
-                            } else {
-                                let parent_id = this.control_ui.members.first().map(|m| m.agent_id);
-                                this.control_ui.members.push(TeamMember {
-                                    agent_id: id,
-                                    parent_id,
-                                });
-                            }
-                            cx.notify();
+                            this.toggle_team_member(id, cx);
                         },
                     ));
                 if included {
                     let parents = agents
                         .iter()
-                        .filter(|a| {
-                            a.id != id && self.control_ui.members.iter().any(|m| m.agent_id == a.id)
-                        })
+                        .filter(|a| self.team_parent_allowed(id, a.id))
                         .cloned()
                         .collect::<Vec<_>>();
                     let weak = cx.entity().downgrade();
                     let menu =
                         self.menu_handle(SharedString::from(format!("parent-menu-{id}")), cx);
                     let label = parent
-                        .and_then(|id| agents.iter().find(|a| a.id == id))
-                        .map(|a| format!("Reports to {}", a.name))
+                        .map(|id| {
+                            format!(
+                                "Reports to {}",
+                                agents
+                                    .iter()
+                                    .find(|a| a.id == id)
+                                    .map(|a| a.name.as_str())
+                                    .unwrap_or("unavailable agent")
+                            )
+                        })
                         .unwrap_or_else(|| "Team lead".into());
                     row = row.child(dropdown_menu(
                         self.control_button(format!("parent-{id}"), label, cx, |_, _, _| {}),
@@ -3535,15 +3541,7 @@ impl Waku {
                                     let weak = weak.clone();
                                     MenuItem::new(label, move |_, cx| {
                                         let _ = weak.update(cx, |this, cx| {
-                                            if let Some(m) = this
-                                                .control_ui
-                                                .members
-                                                .iter_mut()
-                                                .find(|m| m.agent_id == id)
-                                            {
-                                                m.parent_id = parent;
-                                            }
-                                            cx.notify();
+                                            this.set_team_parent(id, parent, cx);
                                         });
                                     })
                                 })
@@ -3552,6 +3550,45 @@ impl Waku {
                     ));
                 }
                 form = form.child(row);
+            }
+            if self.control_ui.team_graph.has_unavailable_agents() {
+                form = form.child(self.control_button(
+                    "team-remove-unavailable",
+                    "Remove unavailable agents",
+                    cx,
+                    |this, _, cx| {
+                        if !this.control_ui.snapshot_loaded {
+                            this.control_ui.error =
+                                Some("Refresh teams before removing unavailable agents.".into());
+                            cx.notify();
+                            return;
+                        }
+                        // Resolve against the current in-memory snapshot, not stale button captures.
+                        let available: HashSet<_> = this
+                            .control_ui
+                            .snapshot
+                            .records
+                            .iter()
+                            .filter_map(|record| {
+                                if let ControlRecord::Agent(agent) = record {
+                                    Some(agent.id)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        let missing: Vec<_> = this
+                            .control_ui
+                            .members
+                            .iter()
+                            .filter(|m| !available.contains(&m.agent_id))
+                            .map(|m| m.agent_id)
+                            .collect();
+                        for id in missing {
+                            this.toggle_team_member(id, cx);
+                        }
+                    },
+                ));
             }
         }
         if kind == FormKind::Workflow {

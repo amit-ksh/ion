@@ -10,6 +10,9 @@ pub(super) struct OnboardingUi {
     focus: FocusHandle,
     indicator_focus: FocusHandle,
     scroll: ScrollHandle,
+    personal_nebius: bool,
+    personal_gateway: bool,
+    pub(super) saved_nebius_project: Option<crate::credentials::nebius_project::ProjectSummary>,
     pub(super) failed_tests: HashSet<Kind>,
 }
 impl OnboardingUi {
@@ -20,6 +23,9 @@ impl OnboardingUi {
             focus: cx.focus_handle(),
             indicator_focus: cx.focus_handle(),
             scroll: ScrollHandle::new(),
+            personal_nebius: false,
+            personal_gateway: false,
+            saved_nebius_project: None,
             failed_tests: HashSet::new(),
         }
     }
@@ -72,8 +78,18 @@ impl Waku {
         self.refresh_credential_statuses(cx);
     }
     fn setup_needs_attention(&self, step: Step) -> bool {
-        if step == Step::Models && self.shared_inference_enabled() { return false; }
-        if step == Step::Apps && self.cloud_ui.status.signed_in && self.cloud_ui.managed_apps { return false; }
+        if step == Step::Models
+            && self.shared_inference_enabled()
+            && self
+                .credential_statuses
+                .get(&Kind::NebiusTokenFactoryApiKey)
+                == Some(&CredentialStatus::Missing)
+        {
+            return false;
+        }
+        if step == Step::Apps && self.cloud_ui.status.signed_in && self.cloud_ui.managed_apps {
+            return false;
+        }
         if step == Step::Gateway && self.cloud_ui.status.connected {
             return false;
         }
@@ -94,30 +110,24 @@ impl Waku {
             .count()
     }
     fn setup_status(&self, kind: Kind) -> &'static str {
-        if kind == Kind::NebiusTokenFactoryApiKey && self.shared_inference_enabled() {
-            return "Shared Token Factory is enabled. A personal key is optional.";
-        }
-        if kind == Kind::GatewayPairingToken && self.cloud_ui.status.connected {
-            return "This computer is linked to Ion Cloud.";
-        }
         if self.credential_busy.contains(&kind) {
-            return "Connection request in progress…";
+            return "Updating connection…";
         }
         if self.onboarding_ui.failed_tests.contains(&kind) {
-            return "Connection test failed. Update the details and test again.";
+            return "Test failed · update the details and retry";
         }
         match self.credential_statuses.get(&kind) {
             None => "Checking saved details…",
-            Some(CredentialStatus::Missing) => "Not configured",
-            Some(CredentialStatus::StoredInVault) => {
-                "Saved in your OS credential vault. Test to verify the connection."
+            Some(CredentialStatus::Missing) if kind == Kind::GatewayPairingToken => {
+                "No personal gateway paired"
             }
-            Some(CredentialStatus::ManagedFile) => {
-                "Configured by your private service file. Test to verify the connection."
+            Some(CredentialStatus::Missing) if kind == Kind::NebiusSandboxProject => {
+                "No AI project saved for this account and key"
             }
-            Some(CredentialStatus::MemoryOnly) => {
-                "Saved for this app session only. An available OS vault is needed to keep these details and share keys with the execution service."
-            }
+            Some(CredentialStatus::Missing) => "No personal key saved",
+            Some(CredentialStatus::StoredInVault) => "Saved in OS vault",
+            Some(CredentialStatus::ManagedFile) => "Configured by your service file",
+            Some(CredentialStatus::MemoryOnly) => "Session only · OS vault needed for tasks",
         }
     }
     pub(super) fn open_onboarding(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -133,6 +143,13 @@ impl Waku {
         self.refresh_credential_statuses(cx);
     }
     fn set_setup_step(&mut self, step: Step, window: &mut Window, cx: &mut Context<Self>) {
+        for (kind, input) in &self.credential_inputs {
+            input.update(cx, |input, cx| {
+                input.set_secure(*kind != Kind::NebiusSandboxProject, cx)
+            });
+        }
+        self.gateway_invite_input
+            .update(cx, |input, cx| input.set_secure(true, cx));
         self.onboarding_ui.step = step;
         self.onboarding_ui.scroll.set_offset(gpui::Point::default());
         self.state.set_onboarding_progress(Progress::new(step));
@@ -148,11 +165,16 @@ impl Waku {
         self.state
             .set_onboarding_progress(Progress::new(self.onboarding_ui.step).with_dismissed(true));
         // Unsaved secrets never survive skipping the form in a hidden input.
-        for input in self.credential_inputs.values() {
-            input.update(cx, |input, cx| input.clear(cx));
+        for (kind, input) in &self.credential_inputs {
+            input.update(cx, |input, cx| {
+                input.clear(cx);
+                input.set_secure(*kind != Kind::NebiusSandboxProject, cx);
+            });
         }
-        self.gateway_invite_input
-            .update(cx, |input, cx| input.clear(cx));
+        self.gateway_invite_input.update(cx, |input, cx| {
+            input.clear(cx);
+            input.set_secure(true, cx);
+        });
         self.save();
         if self.setup_pending_count() > 0 {
             self.onboarding_ui.indicator_focus.focus(window, cx);
@@ -250,6 +272,93 @@ impl Waku {
         )
         .into_any_element()
     }
+    pub(super) fn clear_onboarding_account_state(&mut self, cx: &mut Context<Self>) {
+        self.invalidate_personal_nebius_project();
+        // Account changes cannot leave another account's unsaved setup visible,
+        // including a key that was temporarily revealed in this window.
+        for (kind, input) in &self.credential_inputs {
+            input.update(cx, |input, cx| {
+                input.clear(cx);
+                input.set_secure(*kind != Kind::NebiusSandboxProject, cx);
+            });
+        }
+        self.gateway_invite_input.update(cx, |input, cx| {
+            input.clear(cx);
+            input.set_secure(true, cx);
+        });
+        self.onboarding_ui.personal_nebius = false;
+        self.onboarding_ui.personal_gateway = false;
+    }
+
+    pub(super) fn invalidate_personal_nebius_project(&mut self) {
+        let kind = Kind::NebiusSandboxProject;
+        self.onboarding_ui.saved_nebius_project = None;
+        self.onboarding_ui.failed_tests.remove(&kind);
+        self.credential_statuses.remove(&kind);
+        self.credential_feedback.remove(&kind);
+        self.credential_busy.remove(&kind);
+        let generation = self.credential_generation.entry(kind).or_default();
+        *generation = generation.wrapping_add(1);
+    }
+
+    pub(super) fn setup_personal_project(&self, cx: &mut Context<Self>) -> Div {
+        let theme = Theme::current(cx);
+        let kind = Kind::NebiusSandboxProject;
+        let saved = self
+            .onboarding_ui
+            .saved_nebius_project
+            .as_ref()
+            .filter(|p| Some(&p.workspace_id) == self.cloud_ui.status.workspace_id.as_ref());
+        let mut form = div()
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .pt(px(12.0))
+            .child(self.setup_field(
+                "Sandbox access check · AI project (optional)",
+                "setup-personal-nebius-project",
+                self.credential_inputs[&kind].clone(),
+                "icons/server.svg",
+                cx,
+            ));
+        let mut actions = div()
+            .flex()
+            .flex_wrap()
+            .gap(px(8.0))
+            .child(self.credential_button(kind, CredentialAction::Set, "Save project", cx));
+        if let Some(saved) = saved {
+            form = form.child(
+                div()
+                    .text_size(sp(12.5))
+                    .text_color(theme.text_secondary)
+                    .child(format!("Saved: {}", saved.project_id)),
+            );
+            actions = actions
+                .child(self.credential_button(kind, CredentialAction::Test, "Check access", cx))
+                .child(self.credential_button(
+                    kind,
+                    CredentialAction::Delete,
+                    "Remove project",
+                    cx,
+                ));
+        }
+        form = form.child(actions).child(
+            div()
+                .text_size(sp(12.5))
+                .text_color(theme.text_secondary)
+                .child("Checks beta access only. Execution needs a reviewed worker and budget."),
+        );
+        if let Some(feedback) = self.credential_feedback.get(&kind) {
+            form = form.child(
+                div()
+                    .text_size(sp(13.0))
+                    .text_color(theme.text_secondary)
+                    .child(feedback.clone()),
+            );
+        }
+        form
+    }
+
     fn setup_credential_form(
         &self,
         kind: Kind,
@@ -257,6 +366,29 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = Theme::current(cx);
+        let input = self.credential_inputs[&kind].clone();
+        let hidden = input.read(cx).is_secure();
+        let reveal = input.clone();
+        let mut actions = div()
+            .flex()
+            .flex_wrap()
+            .gap(px(8.0))
+            .child(self.credential_button(kind, CredentialAction::Set, "Save key", cx));
+        if matches!(
+            self.credential_statuses.get(&kind),
+            Some(
+                CredentialStatus::StoredInVault
+                    | CredentialStatus::MemoryOnly
+                    | CredentialStatus::ManagedFile
+            )
+        ) {
+            actions = actions.child(self.credential_button(
+                kind,
+                CredentialAction::Test,
+                "Test connection",
+                cx,
+            ));
+        }
         let mut form = div()
             .flex()
             .flex_col()
@@ -268,27 +400,46 @@ impl Waku {
                     .child(label),
             )
             .child(
-                TextField::new(
-                    SharedString::from(format!("setup-credential-{}", kind.account())),
-                    self.credential_inputs[&kind].clone(),
-                )
-                .comfortable()
-                .icon("icons/lock.svg", 16.0)
-                .w_full(),
-            )
-            .child(
                 div()
                     .flex()
-                    .flex_wrap()
+                    .items_center()
                     .gap(px(8.0))
-                    .child(self.credential_button(kind, CredentialAction::Set, "Save key", cx))
-                    .child(self.credential_button(
-                        kind,
-                        CredentialAction::Test,
-                        "Test connection",
-                        cx,
-                    )),
+                    .child(
+                        TextField::new(
+                            SharedString::from(format!("setup-credential-{}", kind.account())),
+                            input,
+                        )
+                        .comfortable()
+                        .icon("icons/lock.svg", 16.0)
+                        .flex_1()
+                        .min_w_0(),
+                    )
+                    .child(
+                        self.control_button(
+                            format!("setup-reveal-{}", kind.account()),
+                            if hidden { "Show key" } else { "Hide key" },
+                            cx,
+                            move |_, _, cx| {
+                                reveal.update(cx, |input, cx| {
+                                    let hidden = input.is_secure();
+                                    input.set_secure(!hidden, cx);
+                                });
+                                cx.notify();
+                            },
+                        )
+                        .h(px(42.0))
+                        .child(icon(
+                            if hidden {
+                                "icons/eye.svg"
+                            } else {
+                                "icons/eye-off.svg"
+                            },
+                            16.0,
+                            theme.text_secondary,
+                        )),
+                    ),
             )
+            .child(actions)
             .child(
                 div()
                     .text_size(sp(13.0))
@@ -304,6 +455,49 @@ impl Waku {
             );
         }
         form
+    }
+    fn setup_choice(
+        &self,
+        step: Step,
+        detail: &'static str,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let theme = Theme::current(cx);
+        self.control_button(
+            format!("setup-choice-{}", index(step)),
+            "",
+            cx,
+            move |this, window, cx| this.set_setup_step(step, window, cx),
+        )
+        .w_full()
+        .h_auto()
+        .min_h(px(68.0))
+        .py(px(12.0))
+        .gap(px(14.0))
+        .bg(gpui::transparent_black())
+        .border_color(theme.border)
+        .child(icon(step_icon(step), 22.0, theme.text_secondary))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .child(
+                    div()
+                        .text_size(sp(14.0))
+                        .font_weight(FontWeight::MEDIUM)
+                        .child(title(step)),
+                )
+                .child(
+                    div()
+                        .text_size(sp(13.0))
+                        .text_color(theme.text_secondary)
+                        .child(detail),
+                ),
+        )
+        .child(icon("icons/chevron-right.svg", 16.0, theme.text_secondary))
     }
     fn setup_field(
         &self,
@@ -418,8 +612,8 @@ impl Waku {
             .flex_none()
             .flex()
             .flex_col()
-            .gap(px(20.0))
-            .p(px(28.0))
+            .gap(px(16.0))
+            .p(px(24.0))
             .rounded(px(13.0))
             .bg(theme.raised)
             .child(
@@ -427,7 +621,7 @@ impl Waku {
                     .flex()
                     .items_center()
                     .gap(px(12.0))
-                    .text_size(sp(24.0))
+                    .text_size(sp(20.0))
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(icon(step_icon(step), 24.0, theme.accent))
                     .child(title(step)),
@@ -439,18 +633,14 @@ impl Waku {
                 navigation = navigation.child(
                     self.control_button(
                         format!("setup-step-{}", index(next)),
-                        label,
+                        "",
                         cx,
                         move |this, window, cx| this.set_setup_step(next, window, cx),
                     )
                     .h(px(36.0))
                     .text_size(sp(12.0))
                     .child(icon(
-                        if !self.setup_needs_attention(next) {
-                            "icons/check.svg"
-                        } else {
-                            step_icon(next)
-                        },
+                        step_icon(next),
                         14.0,
                         if next == step {
                             theme.accent
@@ -458,6 +648,7 @@ impl Waku {
                             theme.text_secondary
                         },
                     ))
+                    .child(label)
                     .bg(if next == step {
                         theme.overlay_strong
                     } else {
@@ -474,77 +665,165 @@ impl Waku {
         }
         match step {
             Step::Welcome => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Connect your AI provider, apps and devices. Skip any step and add the details later."));
-                for (image, label, detail) in [
+                form = form.child(
+                    div()
+                        .text_size(sp(14.0))
+                        .text_color(theme.text_secondary)
+                        .child("Choose what to connect. Finish the rest later."),
+                );
+                for (next, detail) in [
                     (
-                        "icons/bot.svg",
-                        "AI providers",
-                        "Nebius models or a coding harness you already use",
+                        Step::Models,
+                        "Nebius models or your installed coding harness",
                     ),
-                    (
-                        "icons/package.svg",
-                        "Connected apps",
-                        "App access for your tasks and agent teams",
-                    ),
-                    (
-                        "icons/mic.svg",
-                        "Speech",
-                        "Local Parakeet dictation for desktop and paired phones",
-                    ),
-                    (
-                        "icons/server.svg",
-                        "Remote access",
-                        "Sign in to Ion Cloud or connect your own gateway",
-                    ),
+                    (Step::Apps, "Connect the apps your agents use"),
+                    (Step::Speech, "Download local English dictation"),
+                    (Step::Gateway, "Link this desktop to your phone"),
                 ] {
-                    form = form.child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(14.0))
-                            .child(icon(image, 20.0, theme.text_secondary))
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(4.0))
-                                    .child(div().text_size(sp(15.0)).child(label))
-                                    .child(
-                                        div()
-                                            .text_size(sp(13.0))
-                                            .text_color(theme.text_secondary)
-                                            .child(detail),
-                                    ),
-                            ),
-                    );
+                    form = form.child(self.setup_choice(next, detail, cx));
                 }
             }
             Step::Models => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary).child("Use shared Token Factory when enabled by the owner, or add your own key for personal billing. Installed coding harnesses use their own sign-in."))
-                    .child(self.setup_credential_form(Kind::NebiusTokenFactoryApiKey,"Nebius API key",cx))
-                    .child(self.control_button("setup-harnesses","Configure harnesses",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)))
-                    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child("Cloud execution targets, permissions and budgets are configured separately for each agent. Saving a model key does not enable cloud spending."));
+                let personal = matches!(
+                    self.credential_statuses
+                        .get(&Kind::NebiusTokenFactoryApiKey),
+                    Some(
+                        CredentialStatus::StoredInVault
+                            | CredentialStatus::ManagedFile
+                            | CredentialStatus::MemoryOnly
+                    )
+                );
+                form = form
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .child(icon("icons/sparkle.svg", 22.0, theme.accent))
+                            .child(
+                                div().flex_1().text_size(sp(14.0)).child(
+                                    if self
+                                        .credential_statuses
+                                        .get(&Kind::NebiusTokenFactoryApiKey)
+                                        == Some(&CredentialStatus::MemoryOnly)
+                                    {
+                                        "Personal key · session only"
+                                    } else if personal {
+                                        "Personal Nebius key · your billing"
+                                    } else if self.shared_inference_enabled() {
+                                        "Ion-managed models · available"
+                                    } else {
+                                        "Ion-managed models · not enabled"
+                                    },
+                                ),
+                            ),
+                    )
+                    .child(self.control_button(
+                        "setup-personal-nebius",
+                        if self.onboarding_ui.personal_nebius {
+                            "Hide personal setup"
+                        } else if personal {
+                            "Manage personal key"
+                        } else {
+                            "Use my own Nebius key"
+                        },
+                        cx,
+                        |this, _, cx| {
+                            this.onboarding_ui.personal_nebius =
+                                !this.onboarding_ui.personal_nebius;
+                            this.credential_inputs[&Kind::NebiusTokenFactoryApiKey]
+                                .update(cx, |input, cx| input.set_secure(true, cx));
+                            cx.notify();
+                        },
+                    ));
+                if self.onboarding_ui.personal_nebius {
+                    form = form
+                        .child(self.setup_credential_form(
+                            Kind::NebiusTokenFactoryApiKey,
+                            "Token Factory API key",
+                            cx,
+                        ))
+                        .child(
+                            div()
+                                .text_size(sp(12.5))
+                                .text_color(theme.text_secondary)
+                                .child(
+                                    "Create the key in the Token Factory project you want to bill.",
+                                ),
+                        )
+                        .child(
+                            self.control_button(
+                                "setup-open-tokenfactory",
+                                "Open Token Factory",
+                                cx,
+                                |_, _, cx| cx.open_url("https://tokenfactory.nebius.com/"),
+                            )
+                            .child(icon(
+                                "icons/external-link.svg",
+                                14.0,
+                                theme.text_secondary,
+                            )),
+                        );
+                    if personal {
+                        form = form.child(self.setup_personal_project(cx));
+                        form = form.child(self.credential_button(
+                            Kind::NebiusTokenFactoryApiKey,
+                            CredentialAction::Delete,
+                            "Remove personal key",
+                            cx,
+                        ));
+                    }
+                }
+                form = form.child(self.control_button("setup-harnesses", "Configure coding harnesses", cx,
+                    |this, window, cx| this.setup_settings(SettingsPage::Providers, window, cx)))
+                    .child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
+                        .child("Coding harnesses use their own sign-in. Sandbox access is configured separately."));
             }
             Step::Apps => {
-                form=form.child(div().text_size(sp(15.0)).text_color(theme.text_secondary)
-                    .child("Connect your own app accounts through Ion. App sign-in is handled by Composio; you do not need a Composio project key."))
-                    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child(
-                        if self.cloud_ui.managed_apps { "Managed app connections are available for your Ion account." }
-                        else { "Managed app connections are not available yet. You can skip this step and connect later." }))
+                form=form.child(div().text_size(sp(14.0)).text_color(theme.text_secondary)
+                    .child(if self.cloud_ui.managed_apps { "Choose an app, then sign in to connect it." }
+                        else { "App connections are not enabled for this account yet. Skip and connect later." }))
                     .child(self.control_button("setup-connect-apps","Connect apps",cx,|this,window,cx|this.setup_apps(window,cx)))
-                    .child(self.control_button("setup-personal-apps","Advanced: personal project",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)));
+                    .child(self.control_button("setup-personal-apps","Personal Composio project…",cx,|this,window,cx|this.setup_settings(SettingsPage::Providers,window,cx)));
             }
             Step::Speech => {
                 form = form
-                    .child(div().text_size(sp(14.0)).line_height(sp(21.0)).text_color(theme.text_secondary)
-                        .child("Dictation uses NVIDIA Parakeet TDT-CTC 110M on this computer. Download the model now, or let Ion download it when you first use the microphone. The download is about 146 MB."))
-                    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary)
-                        .child("After download, speech recognition runs on this computer. Phone dictation requires this paired desktop to be online. English dictation only."))
-                    .child(self.control_button("setup-download-speech", if self.speech_busy { "Cancel download" } else { "Download / verify Parakeet" }, cx, |this, _, cx| {
-                        if this.speech_busy { this.cancel_speech_recording(cx); } else { this.prepare_local_speech_model(cx); }
-                    }));
+                    .child(
+                        div()
+                            .text_size(sp(14.0))
+                            .line_height(sp(21.0))
+                            .text_color(theme.text_secondary)
+                            .child("Parakeet 110M · English · about 146 MB · runs locally"),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(13.0))
+                            .text_color(theme.text_secondary)
+                            .child("Phone dictation uses this paired desktop."),
+                    )
+                    .child(self.control_button(
+                        "setup-download-speech",
+                        if self.speech_busy {
+                            "Cancel download"
+                        } else {
+                            "Download / verify Parakeet"
+                        },
+                        cx,
+                        |this, _, cx| {
+                            if this.speech_busy {
+                                this.cancel_speech_recording(cx);
+                            } else {
+                                this.prepare_local_speech_model(cx);
+                            }
+                        },
+                    ));
                 if let Some(feedback) = &self.speech_feedback {
-                    form = form.child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child(feedback.clone()));
+                    form = form.child(
+                        div()
+                            .text_size(sp(13.0))
+                            .text_color(theme.text_secondary)
+                            .child(feedback.clone()),
+                    );
                 }
                 if let Some(status) = &self.speech_runtime_status {
                     form = form.child(
@@ -556,15 +835,109 @@ impl Waku {
                 }
             }
             Step::Gateway => {
-                form=form.child(self.render_cloud_account(cx))
-                    .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).child("Your own gateway"))
-                    .child(div().text_size(sp(13.0)).line_height(sp(20.0)).text_color(theme.text_secondary).child("Optional: connect a self-hosted gateway using its HTTPS URL and owner invite. Disconnect Ion Cloud before pairing it."))
-                    .child(self.setup_field("Gateway URL", "setup-gateway-url", self.gateway_url_input.clone(), "icons/server.svg", cx))
-                    .child(self.setup_field("One-use pairing invite", "setup-gateway-invite", self.gateway_invite_input.clone(), "icons/lock.svg", cx))
-                    .child(div().flex().flex_wrap().gap(px(8.0))
-                        .child(self.gateway_button(GatewayAction::Pair,"Pair gateway",cx))
-                        .child(self.credential_button(Kind::GatewayPairingToken,CredentialAction::Test,"Test pairing",cx)))
-                    .child(div().text_size(sp(13.0)).text_color(theme.text_secondary).child(self.setup_status(Kind::GatewayPairingToken)));
+                let connected = self.cloud_ui.status.connected;
+                form = form
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .child(icon("icons/laptop.svg", 22.0, theme.text_secondary))
+                            .child(if connected {
+                                "Desktop linked to Ion"
+                            } else {
+                                "Link this desktop for phone access"
+                            }),
+                    )
+                    .child(self.control_button(
+                        "setup-cloud-connect",
+                        if connected {
+                            "Test connection"
+                        } else {
+                            "Link desktop"
+                        },
+                        cx,
+                        move |this, _, cx| {
+                            this.run_cloud_action(
+                                if connected {
+                                    super::cloud_account::CloudAction::Refresh
+                                } else {
+                                    super::cloud_account::CloudAction::Connect
+                                },
+                                cx,
+                            )
+                        },
+                    ))
+                    .child(self.control_button(
+                        "setup-personal-gateway",
+                        if self.onboarding_ui.personal_gateway {
+                            "Hide personal gateway"
+                        } else {
+                            "Use my own gateway…"
+                        },
+                        cx,
+                        |this, _, cx| {
+                            this.onboarding_ui.personal_gateway =
+                                !this.onboarding_ui.personal_gateway;
+                            cx.notify();
+                        },
+                    ));
+                if let Some(feedback) = &self.cloud_ui.feedback {
+                    form = form.child(
+                        div()
+                            .text_size(sp(13.0))
+                            .text_color(theme.text_secondary)
+                            .child(feedback.clone()),
+                    );
+                }
+                if self.onboarding_ui.personal_gateway {
+                    form = form
+                        .child(
+                            div()
+                                .text_size(sp(13.0))
+                                .text_color(theme.text_secondary)
+                                .child("Use your gateway's HTTPS URL and one-use owner invite."),
+                        )
+                        .child(self.setup_field(
+                            "Gateway URL",
+                            "setup-gateway-url",
+                            self.gateway_url_input.clone(),
+                            "icons/server.svg",
+                            cx,
+                        ))
+                        .child(self.setup_field(
+                            "One-use pairing invite",
+                            "setup-gateway-invite",
+                            self.gateway_invite_input.clone(),
+                            "icons/lock.svg",
+                            cx,
+                        ))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .gap(px(8.0))
+                                .child(self.gateway_button(GatewayAction::Pair, "Pair gateway", cx))
+                                .child(self.credential_button(
+                                    Kind::GatewayPairingToken,
+                                    CredentialAction::Test,
+                                    "Test pairing",
+                                    cx,
+                                )),
+                        )
+                        .child(
+                            div()
+                                .text_size(sp(13.0))
+                                .text_color(theme.text_secondary)
+                                .child(self.setup_status(Kind::GatewayPairingToken)),
+                        );
+                    if connected {
+                        form = form.child(div().text_size(sp(12.5)).text_color(theme.text_secondary)
+                            .child("Disconnect Ion Cloud in account settings before pairing another gateway."))
+                            .child(self.control_button("setup-account-settings", "Account settings", cx,
+                                |this, window, cx| this.setup_settings(SettingsPage::Providers, window, cx)));
+                    }
+                }
                 if let Some(feedback) = self.credential_feedback.get(&Kind::GatewayPairingToken) {
                     form = form.child(
                         div()
@@ -624,7 +997,17 @@ impl Waku {
             cx,
             |this, window, cx| this.leave_setup(window, cx),
         ));
-        form=form.child(actions).child(div().flex().items_start().gap(px(8.0)).text_size(sp(12.0)).line_height(sp(18.0)).text_color(theme.text_secondary).child(icon("icons/lock.svg", 14.0, theme.text_secondary)).child("Keys stay in your OS credential vault. You can finish skipped steps from the top bar."));
+        form = form.child(actions).child(
+            div()
+                .flex()
+                .items_start()
+                .gap(px(8.0))
+                .text_size(sp(12.0))
+                .line_height(sp(18.0))
+                .text_color(theme.text_secondary)
+                .child(icon("icons/settings.svg", 14.0, theme.text_secondary))
+                .child("Finish skipped steps from the top bar."),
+        );
         div()
             .id("ion-onboarding")
             .track_focus(&self.onboarding_ui.focus)

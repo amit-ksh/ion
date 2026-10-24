@@ -9,15 +9,7 @@ import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTheme } from '@/hooks/use-theme';
 import { appConnectionPending, appConnectionUrl, parseAppsCatalog, type CatalogApp } from '@/lib/apps-catalog';
 import { cloudAccount } from '@/lib/cloud-account';
-import { AppSymbol } from '@/components/app-symbol';
-
-type AndroidSymbol = NonNullable<Exclude<Parameters<typeof AppSymbol>[0]['name'], string>['android']>;
-function appSymbol(toolkit: string): AndroidSymbol {
-  return ({ gmail: 'mail_outline', outlook: 'mail_outline', slack: 'forum', discord: 'forum',
-    github: 'code', gitlab: 'code', notion: 'article', googledocs: 'description',
-    googlesheets: 'table_chart', googledrive: 'folder', googlecalendar: 'calendar_month',
-    linear: 'checklist', trello: 'view_kanban' } as Record<string, AndroidSymbol>)[toolkit] ?? 'extension';
-}
+import { AppIcon } from '@/components/app-icon';
 
 export default function AppsScreen() {
   const theme = useTheme();
@@ -96,7 +88,7 @@ export default function AppsScreen() {
         <View style={styles.appHeading}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
             <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
-              <AppSymbol name={{ android: appSymbol(item.toolkit), web: appSymbol(item.toolkit) }} size={22} tintColor={theme.textSecondary} />
+              <AppIcon toolkit={item.toolkit} />
             </View><Text style={[styles.name, { color: theme.text, flexShrink: 1 }]}>{item.name}</Text>
           </View>
           <Text style={[styles.status, { color: active ? theme.accent : theme.textSecondary }]}>{active ? 'Connected' : pending ? 'Sign-in pending' : item.account ? item.account.status : 'Not connected'}</Text></View>

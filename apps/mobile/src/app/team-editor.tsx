@@ -7,12 +7,14 @@ import { AutomationChoice, AutomationField, AutomationToggle } from '@/component
 import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
 import { EditorFooter, WorkbenchButton, WorkbenchCard, WorkbenchState } from '@/components/workbench';
+import { TeamGraph } from '@/components/team-graph';
 import { useWorkspaceDefinition } from '@/hooks/use-workspace-definition';
 import { useTheme } from '@/hooks/use-theme';
 import { teamDraftProblem } from '@/lib/team-draft';
+import { addTeamMember, removeTeamMember, reparentTeamMember, teamParentAllowed } from '@/lib/team-graph';
 
 export default function TeamEditor() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, agent: initialAgent } = useLocalSearchParams<{ id?: string; agent?: string }>();
   const state = useWorkspaceDefinition(id);
   const theme = useTheme();
   const header = useScreenHeaderInset();
@@ -21,6 +23,7 @@ export default function TeamEditor() {
   const [name, setName] = useState('');
   const [objective, setObjective] = useState('');
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const original = state.data?.records.find((record): record is Team & { kind: 'team' } => record.kind === 'team' && record.id === id);
   const agents = useMemo(() => (state.data?.records ?? []).filter((record): record is AgentProfile & { kind: 'agent' } => record.kind === 'agent'), [state.data]);
   const problem = useMemo(() => teamDraftProblem(members, new Set(agents.map(agent => agent.id))), [members, agents]);
@@ -29,11 +32,15 @@ export default function TeamEditor() {
     hydrated.current = `${state.scope}:${id ?? 'new'}`;
     state.bindDraftRevision(snapshot.revision);
     setName(saved?.name ?? ''); setObjective(saved?.objective ?? ''); setMembers(saved?.members ?? []);
+    setSelectedAgent(saved?.members.some(m => m.agentId === initialAgent) ? initialAgent! : null);
   }
   useEffect(() => {
     if (!state.fresh || !state.data || hydrated.current === `${state.scope}:${id ?? 'new'}`) return;
     hydrateDraft(state.data);
   }, [state.fresh, state.scope, id, original]);
+  useEffect(() => {
+    if (selectedAgent && !members.some(m => m.agentId === selectedAgent)) setSelectedAgent(null);
+  }, [members, selectedAgent]);
   async function save() {
     if (problem || !name.trim() || !objective.trim()) return;
     if (await state.save({ kind: 'team', id: id ?? draftId, name: name.trim(), objective: objective.trim(), members, ...(original?.limits ? { limits: original.limits } : {}) })) router.back();
@@ -49,23 +56,37 @@ export default function TeamEditor() {
       <AutomationField label="Objective" value={objective} onChangeText={setObjective} multiline editable={!state.busy} /></WorkbenchCard>
     <View style={styles.sectionHeader}><Text accessibilityRole="header" style={[styles.section, { color: theme.text }]}>Agents & hierarchy</Text>
       <WorkbenchButton label="New agent" onPress={() => router.push('/agent-editor')} disabled={state.busy} /></View>
+    <TeamGraph members={members} agents={agents} selectedId={selectedAgent} onSelect={setSelectedAgent} disabled={state.busy || !state.fresh} />
+    {selectedAgent && members.some(m => m.agentId === selectedAgent) && <WorkbenchCard>
+      <Text accessibilityRole="header" style={[styles.section, { color: theme.text }]}>{agents.find(a => a.id === selectedAgent)?.name ?? 'Unavailable agent'}</Text>
+      <AutomationChoice label="Reports to" value={members.find(m => m.agentId === selectedAgent)?.parentId ?? ''} disabled={state.busy || !state.fresh}
+        options={[{ value: '', label: 'Team lead' }, ...members.filter(m => teamParentAllowed(members, selectedAgent, m.agentId))
+          .map(m => ({ value: m.agentId, label: agents.find(a => a.id === m.agentId)?.name ?? 'Unavailable agent' }))]}
+        onChange={parent => setMembers(current => reparentTeamMember(current, selectedAgent, parent || null))} />
+      {members.length < 32 && agents.some(a => !members.some(m => m.agentId === a.id)) && <AutomationChoice label="Add direct report" value="" disabled={state.busy || !state.fresh}
+        options={[{ value: '', label: 'Choose agent' }, ...agents.filter(a => !members.some(m => m.agentId === a.id)).map(a => ({ value: a.id, label: a.name }))]}
+        onChange={report => { if (report) setMembers(current => current.some(m => m.agentId === selectedAgent) ? addTeamMember(current, report, selectedAgent) : current); }} />}
+      <WorkbenchButton label="Remove from team" destructive disabled={state.busy || !state.fresh}
+        onPress={() => setMembers(current => removeTeamMember(current, selectedAgent))} />
+    </WorkbenchCard>}
     </View>}
     ListEmptyComponent={<WorkbenchState title="Create an agent first" detail="Then choose a lead and add agents to this team." />}
     renderItem={({ item: agent }) => {
       const member = members.find(item => item.agentId === agent.id);
       return <WorkbenchCard key={agent.id}>
-        <AutomationToggle label={agent.name} value={Boolean(member)} disabled={state.busy || !state.fresh}
-          onChange={selected => setMembers(current => selected ? [...current, { agentId: agent.id, parentId: current[0]?.agentId ?? null }]
-            : current.filter(item => item.agentId !== agent.id).map(item => item.parentId === agent.id ? { ...item, parentId: null } : item))} />
-        {member && <AutomationChoice label={`${agent.name} reports to`} value={member.parentId ?? ''} disabled={state.busy}
-          options={[{ value: '', label: 'Team lead' }, ...members.filter(item => item.agentId !== agent.id).map(item => ({ value: item.agentId, label: agents.find(candidate => candidate.id === item.agentId)?.name ?? 'Unavailable agent' }))]}
-          onChange={parentId => setMembers(current => current.map(item => item.agentId === agent.id ? { ...item, parentId: parentId || null } : item))} />}
+        <AutomationToggle label={agent.name} value={Boolean(member)} disabled={state.busy || !state.fresh || !member && members.length >= 32}
+          onChange={selected => setMembers(current => selected ? addTeamMember(current, agent.id, selectedAgent) : removeTeamMember(current, agent.id))} />
+        {member && <AutomationChoice label={`${agent.name} reports to`} value={member.parentId ?? ''} disabled={state.busy || !state.fresh}
+          options={[{ value: '', label: 'Team lead' }, ...members.filter(item => teamParentAllowed(members, agent.id, item.agentId)).map(item => ({ value: item.agentId, label: agents.find(candidate => candidate.id === item.agentId)?.name ?? 'Unavailable agent' }))]}
+          onChange={parentId => setMembers(current => reparentTeamMember(current, agent.id, parentId || null))} />}
       </WorkbenchCard>;
     }}
     ListFooterComponent={<View style={styles.group}>
     {members.some(member => !agents.some(agent => agent.id === member.agentId)) && <WorkbenchCard>
       <Text style={{ color: theme.warning }}>This team contains an unavailable agent.</Text>
-      <WorkbenchButton label="Remove unavailable agents" onPress={() => setMembers(current => current.filter(member => agents.some(agent => agent.id === member.agentId)))} />
+      <WorkbenchButton label="Remove unavailable agents" disabled={state.busy || !state.fresh} onPress={() => setMembers(current => current
+        .filter(member => !agents.some(agent => agent.id === member.agentId))
+        .reduce((remaining, missing) => removeTeamMember(remaining, missing.agentId), current))} />
     </WorkbenchCard>}
     {problem && members.length > 0 && <Text accessibilityLiveRegion="polite" style={{ color: theme.warning }}>{problem}</Text>}
     {state.error && <Text accessibilityLiveRegion="polite" style={{ color: theme.danger }}>{state.error}</Text>}
