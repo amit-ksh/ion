@@ -811,11 +811,7 @@ fn execute_tool(
     let result = match call.name.as_str() {
         "list_files" => {
             let mut names = Vec::new();
-            let directory = args["directory"]
-                .as_str()
-                .map(|relative| checked_path(cwd, relative))
-                .transpose()?
-                .unwrap_or_else(|| cwd.to_owned());
+            let directory = listed_directory(cwd, args["directory"].as_str())?;
             if !directory.is_dir() {
                 bail!("not a project directory")
             }
@@ -956,6 +952,14 @@ fn execute_tool(
         complete: true,
     });
     Ok(result)
+}
+
+/// The directory `list_files` names. Models call the project root "." or "".
+fn listed_directory(root: &Path, directory: Option<&str>) -> Result<PathBuf> {
+    match directory.map(|relative| relative.trim_end_matches(['/', '\\'])) {
+        None | Some("" | ".") => Ok(root.to_owned()),
+        Some(relative) => checked_path(root, relative),
+    }
 }
 
 fn required_str<'a>(args: &'a Value, field: &str) -> Result<&'a str> {
@@ -1382,6 +1386,14 @@ data: [DONE]
         assert!(checked_path(root, "../other.txt").is_err());
         assert!(checked_path(root, ".git/config").is_err());
         assert!(checked_path(root, ".env.local").is_err());
+        for name in [None, Some(""), Some("."), Some("./")] {
+            assert_eq!(listed_directory(root, name).unwrap(), root);
+        }
+        assert_eq!(
+            listed_directory(root, Some("src/")).unwrap(),
+            root.join("src")
+        );
+        assert!(listed_directory(root, Some("..")).is_err());
     }
 
     #[test]
