@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-21T01:10:24.365Z",
+  "generatedAt": "2026-10-25T10:35:29.000Z",
   "title": "Design System: Ion",
   "extensions": {
     "colorMeta": {
@@ -8,877 +8,1163 @@
         "role": "primary",
         "displayName": "Ion Lime",
         "tonalRamp": [
-          "oklch(15% 0.1697 125.15)",
+          "oklch(15.00% 0.1697 125.15)",
           "oklch(26.43% 0.1697 125.15)",
           "oklch(37.86% 0.1697 125.15)",
           "oklch(49.29% 0.1697 125.15)",
           "oklch(60.71% 0.1697 125.15)",
           "oklch(72.14% 0.1697 125.15)",
           "oklch(83.57% 0.1697 125.15)",
-          "oklch(95% 0.1697 125.15)"
+          "oklch(95.00% 0.1697 125.15)"
         ]
       },
       "on-primary": {
-        "role": "neutral",
-        "displayName": "Ink on Lime",
+        "role": "primary",
+        "displayName": "Lime Ink",
         "tonalRamp": [
-          "oklch(15% 0.0396 129.71)",
+          "oklch(15.00% 0.0396 129.71)",
           "oklch(26.43% 0.0396 129.71)",
           "oklch(37.86% 0.0396 129.71)",
           "oklch(49.29% 0.0396 129.71)",
           "oklch(60.71% 0.0396 129.71)",
           "oklch(72.14% 0.0396 129.71)",
           "oklch(83.57% 0.0396 129.71)",
-          "oklch(95% 0.0396 129.71)"
+          "oklch(95.00% 0.0396 129.71)"
         ]
       },
       "dark-canvas": {
         "role": "neutral",
-        "displayName": "Charcoal Canvas",
+        "displayName": "Dark Canvas",
         "tonalRamp": [
-          "oklch(15% 0.0060 156.70)",
-          "oklch(26.43% 0.0060 156.70)",
-          "oklch(37.86% 0.0060 156.70)",
-          "oklch(49.29% 0.0060 156.70)",
-          "oklch(60.71% 0.0060 156.70)",
-          "oklch(72.14% 0.0060 156.70)",
-          "oklch(83.57% 0.0060 156.70)",
-          "oklch(95% 0.0060 156.70)"
+          "oklch(15.00% 0.0052 173.72)",
+          "oklch(26.43% 0.0052 173.72)",
+          "oklch(37.86% 0.0052 173.72)",
+          "oklch(49.29% 0.0052 173.72)",
+          "oklch(60.71% 0.0052 173.72)",
+          "oklch(72.14% 0.0052 173.72)",
+          "oklch(83.57% 0.0052 173.72)",
+          "oklch(95.00% 0.0052 173.72)"
         ]
       },
       "dark-sidebar": {
         "role": "neutral",
-        "displayName": "Deep Sidebar",
+        "displayName": "Dark Sidebar",
         "tonalRamp": [
-          "oklch(15% 0.0061 156.63)",
-          "oklch(26.43% 0.0061 156.63)",
-          "oklch(37.86% 0.0061 156.63)",
-          "oklch(49.29% 0.0061 156.63)",
-          "oklch(60.71% 0.0061 156.63)",
-          "oklch(72.14% 0.0061 156.63)",
-          "oklch(83.57% 0.0061 156.63)",
-          "oklch(95% 0.0061 156.63)"
+          "oklch(15.00% 0.0053 173.62)",
+          "oklch(26.43% 0.0053 173.62)",
+          "oklch(37.86% 0.0053 173.62)",
+          "oklch(49.29% 0.0053 173.62)",
+          "oklch(60.71% 0.0053 173.62)",
+          "oklch(72.14% 0.0053 173.62)",
+          "oklch(83.57% 0.0053 173.62)",
+          "oklch(95.00% 0.0053 173.62)"
         ]
       },
       "dark-surface": {
         "role": "neutral",
-        "displayName": "Object Surface — Dark",
+        "displayName": "Dark Surface",
         "tonalRamp": [
-          "oklch(15% 0.0058 156.76)",
-          "oklch(26.43% 0.0058 156.76)",
-          "oklch(37.86% 0.0058 156.76)",
-          "oklch(49.29% 0.0058 156.76)",
-          "oklch(60.71% 0.0058 156.76)",
-          "oklch(72.14% 0.0058 156.76)",
-          "oklch(83.57% 0.0058 156.76)",
-          "oklch(95% 0.0058 156.76)"
+          "oklch(15.00% 0.0065 178.89)",
+          "oklch(26.43% 0.0065 178.89)",
+          "oklch(37.86% 0.0065 178.89)",
+          "oklch(49.29% 0.0065 178.89)",
+          "oklch(60.71% 0.0065 178.89)",
+          "oklch(72.14% 0.0065 178.89)",
+          "oklch(83.57% 0.0065 178.89)",
+          "oklch(95.00% 0.0065 178.89)"
         ]
       },
       "dark-raised": {
         "role": "neutral",
-        "displayName": "Raised Neutral — Dark",
+        "displayName": "Dark Raised",
         "tonalRamp": [
-          "oklch(15% 0.0078 153.40)",
-          "oklch(26.43% 0.0078 153.40)",
-          "oklch(37.86% 0.0078 153.40)",
-          "oklch(49.29% 0.0078 153.40)",
-          "oklch(60.71% 0.0078 153.40)",
-          "oklch(72.14% 0.0078 153.40)",
-          "oklch(83.57% 0.0078 153.40)",
-          "oklch(95% 0.0078 153.40)"
+          "oklch(15.00% 0.0083 169.57)",
+          "oklch(26.43% 0.0083 169.57)",
+          "oklch(37.86% 0.0083 169.57)",
+          "oklch(49.29% 0.0083 169.57)",
+          "oklch(60.71% 0.0083 169.57)",
+          "oklch(72.14% 0.0083 169.57)",
+          "oklch(83.57% 0.0083 169.57)",
+          "oklch(95.00% 0.0083 169.57)"
         ]
       },
       "dark-composer": {
         "role": "neutral",
-        "displayName": "Composer Charcoal",
+        "displayName": "Dark Composer",
         "tonalRamp": [
-          "oklch(15% 0.0080 153.35)",
-          "oklch(26.43% 0.0080 153.35)",
-          "oklch(37.86% 0.0080 153.35)",
-          "oklch(49.29% 0.0080 153.35)",
-          "oklch(60.71% 0.0080 153.35)",
-          "oklch(72.14% 0.0080 153.35)",
-          "oklch(83.57% 0.0080 153.35)",
-          "oklch(95% 0.0080 153.35)"
+          "oklch(15.00% 0.0084 169.49)",
+          "oklch(26.43% 0.0084 169.49)",
+          "oklch(37.86% 0.0084 169.49)",
+          "oklch(49.29% 0.0084 169.49)",
+          "oklch(60.71% 0.0084 169.49)",
+          "oklch(72.14% 0.0084 169.49)",
+          "oklch(83.57% 0.0084 169.49)",
+          "oklch(95.00% 0.0084 169.49)"
         ]
       },
       "dark-inset": {
         "role": "neutral",
-        "displayName": "Inset Charcoal",
+        "displayName": "Dark Inset",
         "tonalRamp": [
-          "oklch(15% 0.0061 156.62)",
-          "oklch(26.43% 0.0061 156.62)",
-          "oklch(37.86% 0.0061 156.62)",
-          "oklch(49.29% 0.0061 156.62)",
-          "oklch(60.71% 0.0061 156.62)",
-          "oklch(72.14% 0.0061 156.62)",
-          "oklch(83.57% 0.0061 156.62)",
-          "oklch(95% 0.0061 156.62)"
+          "oklch(15.00% 0.0052 173.65)",
+          "oklch(26.43% 0.0052 173.65)",
+          "oklch(37.86% 0.0052 173.65)",
+          "oklch(49.29% 0.0052 173.65)",
+          "oklch(60.71% 0.0052 173.65)",
+          "oklch(72.14% 0.0052 173.65)",
+          "oklch(83.57% 0.0052 173.65)",
+          "oklch(95.00% 0.0052 173.65)"
+        ]
+      },
+      "dark-ticket": {
+        "role": "neutral",
+        "displayName": "Dark Ticket",
+        "tonalRamp": [
+          "oklch(15.00% 0.0084 169.51)",
+          "oklch(26.43% 0.0084 169.51)",
+          "oklch(37.86% 0.0084 169.51)",
+          "oklch(49.29% 0.0084 169.51)",
+          "oklch(60.71% 0.0084 169.51)",
+          "oklch(72.14% 0.0084 169.51)",
+          "oklch(83.57% 0.0084 169.51)",
+          "oklch(95.00% 0.0084 169.51)"
         ]
       },
       "dark-text": {
         "role": "neutral",
-        "displayName": "Primary Ink — Dark",
+        "displayName": "Dark Text",
         "tonalRamp": [
-          "oklch(15% 0.0069 124.45)",
-          "oklch(26.43% 0.0069 124.45)",
-          "oklch(37.86% 0.0069 124.45)",
-          "oklch(49.29% 0.0069 124.45)",
-          "oklch(60.71% 0.0069 124.45)",
-          "oklch(72.14% 0.0069 124.45)",
-          "oklch(83.57% 0.0069 124.45)",
-          "oklch(95% 0.0069 124.45)"
+          "oklch(15.00% 0.0090 134.87)",
+          "oklch(26.43% 0.0090 134.87)",
+          "oklch(37.86% 0.0090 134.87)",
+          "oklch(49.29% 0.0090 134.87)",
+          "oklch(60.71% 0.0090 134.87)",
+          "oklch(72.14% 0.0090 134.87)",
+          "oklch(83.57% 0.0090 134.87)",
+          "oklch(95.00% 0.0090 134.87)"
         ]
       },
       "dark-text-secondary": {
         "role": "neutral",
-        "displayName": "Supporting Ink — Dark",
+        "displayName": "Dark Text Secondary",
         "tonalRamp": [
-          "oklch(15% 0.0128 137.79)",
-          "oklch(26.43% 0.0128 137.79)",
-          "oklch(37.86% 0.0128 137.79)",
-          "oklch(49.29% 0.0128 137.79)",
-          "oklch(60.71% 0.0128 137.79)",
-          "oklch(72.14% 0.0128 137.79)",
-          "oklch(83.57% 0.0128 137.79)",
-          "oklch(95% 0.0128 137.79)"
+          "oklch(15.00% 0.0176 137.04)",
+          "oklch(26.43% 0.0176 137.04)",
+          "oklch(37.86% 0.0176 137.04)",
+          "oklch(49.29% 0.0176 137.04)",
+          "oklch(60.71% 0.0176 137.04)",
+          "oklch(72.14% 0.0176 137.04)",
+          "oklch(83.57% 0.0176 137.04)",
+          "oklch(95.00% 0.0176 137.04)"
         ]
       },
       "dark-text-tertiary": {
         "role": "neutral",
-        "displayName": "Metadata Ink — Dark",
+        "displayName": "Dark Text Tertiary",
         "tonalRamp": [
-          "oklch(15% 0.0178 137.04)",
-          "oklch(26.43% 0.0178 137.04)",
-          "oklch(37.86% 0.0178 137.04)",
-          "oklch(49.29% 0.0178 137.04)",
-          "oklch(60.71% 0.0178 137.04)",
-          "oklch(72.14% 0.0178 137.04)",
-          "oklch(83.57% 0.0178 137.04)",
-          "oklch(95% 0.0178 137.04)"
+          "oklch(15.00% 0.0199 137.81)",
+          "oklch(26.43% 0.0199 137.81)",
+          "oklch(37.86% 0.0199 137.81)",
+          "oklch(49.29% 0.0199 137.81)",
+          "oklch(60.71% 0.0199 137.81)",
+          "oklch(72.14% 0.0199 137.81)",
+          "oklch(83.57% 0.0199 137.81)",
+          "oklch(95.00% 0.0199 137.81)"
         ]
       },
       "dark-text-ghost": {
         "role": "neutral",
-        "displayName": "Quiet Ink — Dark",
+        "displayName": "Dark Text Ghost",
         "tonalRamp": [
-          "oklch(15% 0.0225 134.15)",
-          "oklch(26.43% 0.0225 134.15)",
-          "oklch(37.86% 0.0225 134.15)",
-          "oklch(49.29% 0.0225 134.15)",
-          "oklch(60.71% 0.0225 134.15)",
-          "oklch(72.14% 0.0225 134.15)",
-          "oklch(83.57% 0.0225 134.15)",
-          "oklch(95% 0.0225 134.15)"
+          "oklch(15.00% 0.0222 138.45)",
+          "oklch(26.43% 0.0222 138.45)",
+          "oklch(37.86% 0.0222 138.45)",
+          "oklch(49.29% 0.0222 138.45)",
+          "oklch(60.71% 0.0222 138.45)",
+          "oklch(72.14% 0.0222 138.45)",
+          "oklch(83.57% 0.0222 138.45)",
+          "oklch(95.00% 0.0222 138.45)"
         ]
       },
       "dark-border": {
         "role": "neutral",
         "displayName": "Dark Border",
         "tonalRamp": [
-          "oklch(15% 0.0049 264.53)",
-          "oklch(26.43% 0.0049 264.53)",
-          "oklch(37.86% 0.0049 264.53)",
-          "oklch(49.29% 0.0049 264.53)",
-          "oklch(60.71% 0.0049 264.53)",
-          "oklch(72.14% 0.0049 264.53)",
-          "oklch(83.57% 0.0049 264.53)",
-          "oklch(95% 0.0049 264.53)"
+          "oklch(15.00% 0.0064 164.96)",
+          "oklch(26.43% 0.0064 164.96)",
+          "oklch(37.86% 0.0064 164.96)",
+          "oklch(49.29% 0.0064 164.96)",
+          "oklch(60.71% 0.0064 164.96)",
+          "oklch(72.14% 0.0064 164.96)",
+          "oklch(83.57% 0.0064 164.96)",
+          "oklch(95.00% 0.0064 164.96)"
         ]
       },
       "dark-border-strong": {
         "role": "neutral",
         "displayName": "Dark Border Strong",
         "tonalRamp": [
-          "oklch(15% 0.0049 264.53)",
-          "oklch(26.43% 0.0049 264.53)",
-          "oklch(37.86% 0.0049 264.53)",
-          "oklch(49.29% 0.0049 264.53)",
-          "oklch(60.71% 0.0049 264.53)",
-          "oklch(72.14% 0.0049 264.53)",
-          "oklch(83.57% 0.0049 264.53)",
-          "oklch(95% 0.0049 264.53)"
+          "oklch(15.00% 0.0064 164.96)",
+          "oklch(26.43% 0.0064 164.96)",
+          "oklch(37.86% 0.0064 164.96)",
+          "oklch(49.29% 0.0064 164.96)",
+          "oklch(60.71% 0.0064 164.96)",
+          "oklch(72.14% 0.0064 164.96)",
+          "oklch(83.57% 0.0064 164.96)",
+          "oklch(95.00% 0.0064 164.96)"
+        ]
+      },
+      "dark-ticket-border": {
+        "role": "neutral",
+        "displayName": "Dark Ticket Border",
+        "tonalRamp": [
+          "oklch(15.00% 0.0064 164.96)",
+          "oklch(26.43% 0.0064 164.96)",
+          "oklch(37.86% 0.0064 164.96)",
+          "oklch(49.29% 0.0064 164.96)",
+          "oklch(60.71% 0.0064 164.96)",
+          "oklch(72.14% 0.0064 164.96)",
+          "oklch(83.57% 0.0064 164.96)",
+          "oklch(95.00% 0.0064 164.96)"
         ]
       },
       "dark-overlay": {
         "role": "neutral",
         "displayName": "Dark Overlay",
         "tonalRamp": [
-          "oklch(15% 0.0049 264.53)",
-          "oklch(26.43% 0.0049 264.53)",
-          "oklch(37.86% 0.0049 264.53)",
-          "oklch(49.29% 0.0049 264.53)",
-          "oklch(60.71% 0.0049 264.53)",
-          "oklch(72.14% 0.0049 264.53)",
-          "oklch(83.57% 0.0049 264.53)",
-          "oklch(95% 0.0049 264.53)"
+          "oklch(15.00% 0.0064 164.96)",
+          "oklch(26.43% 0.0064 164.96)",
+          "oklch(37.86% 0.0064 164.96)",
+          "oklch(49.29% 0.0064 164.96)",
+          "oklch(60.71% 0.0064 164.96)",
+          "oklch(72.14% 0.0064 164.96)",
+          "oklch(83.57% 0.0064 164.96)",
+          "oklch(95.00% 0.0064 164.96)"
         ]
       },
       "dark-overlay-strong": {
         "role": "neutral",
         "displayName": "Dark Overlay Strong",
         "tonalRamp": [
-          "oklch(15% 0.0049 264.53)",
-          "oklch(26.43% 0.0049 264.53)",
-          "oklch(37.86% 0.0049 264.53)",
-          "oklch(49.29% 0.0049 264.53)",
-          "oklch(60.71% 0.0049 264.53)",
-          "oklch(72.14% 0.0049 264.53)",
-          "oklch(83.57% 0.0049 264.53)",
-          "oklch(95% 0.0049 264.53)"
+          "oklch(15.00% 0.0064 164.96)",
+          "oklch(26.43% 0.0064 164.96)",
+          "oklch(37.86% 0.0064 164.96)",
+          "oklch(49.29% 0.0064 164.96)",
+          "oklch(60.71% 0.0064 164.96)",
+          "oklch(72.14% 0.0064 164.96)",
+          "oklch(83.57% 0.0064 164.96)",
+          "oklch(95.00% 0.0064 164.96)"
         ]
       },
-      "desktop-dark-accent-soft": {
+      "dark-accent": {
         "role": "primary",
-        "displayName": "Desktop Dark Accent Soft",
+        "displayName": "Dark Accent",
         "tonalRamp": [
-          "oklch(15% 0.1710 125.19)",
-          "oklch(26.43% 0.1710 125.19)",
-          "oklch(37.86% 0.1710 125.19)",
-          "oklch(49.29% 0.1710 125.19)",
-          "oklch(60.71% 0.1710 125.19)",
-          "oklch(72.14% 0.1710 125.19)",
-          "oklch(83.57% 0.1710 125.19)",
-          "oklch(95% 0.1710 125.19)"
-        ]
-      },
-      "mobile-dark-accent-soft": {
-        "role": "primary",
-        "displayName": "Mobile Dark Accent Soft",
-        "tonalRamp": [
-          "oklch(15% 0.1697 125.15)",
+          "oklch(15.00% 0.1697 125.15)",
           "oklch(26.43% 0.1697 125.15)",
           "oklch(37.86% 0.1697 125.15)",
           "oklch(49.29% 0.1697 125.15)",
           "oklch(60.71% 0.1697 125.15)",
           "oklch(72.14% 0.1697 125.15)",
           "oklch(83.57% 0.1697 125.15)",
-          "oklch(95% 0.1697 125.15)"
+          "oklch(95.00% 0.1697 125.15)"
         ]
       },
-      "mobile-dark-selected": {
-        "role": "neutral",
-        "displayName": "Mobile Dark Selected",
+      "dark-accent-soft": {
+        "role": "primary",
+        "displayName": "Dark Accent Soft",
         "tonalRamp": [
-          "oklch(15% 0.0378 128.97)",
-          "oklch(26.43% 0.0378 128.97)",
-          "oklch(37.86% 0.0378 128.97)",
-          "oklch(49.29% 0.0378 128.97)",
-          "oklch(60.71% 0.0378 128.97)",
-          "oklch(72.14% 0.0378 128.97)",
-          "oklch(83.57% 0.0378 128.97)",
-          "oklch(95% 0.0378 128.97)"
+          "oklch(15.00% 0.1710 125.19)",
+          "oklch(26.43% 0.1710 125.19)",
+          "oklch(37.86% 0.1710 125.19)",
+          "oklch(49.29% 0.1710 125.19)",
+          "oklch(60.71% 0.1710 125.19)",
+          "oklch(72.14% 0.1710 125.19)",
+          "oklch(83.57% 0.1710 125.19)",
+          "oklch(95.00% 0.1710 125.19)"
+        ]
+      },
+      "dark-glow-mint": {
+        "role": "tertiary",
+        "displayName": "Dark Glow Mint",
+        "tonalRamp": [
+          "oklch(15.00% 0.1163 168.55)",
+          "oklch(26.43% 0.1163 168.55)",
+          "oklch(37.86% 0.1163 168.55)",
+          "oklch(49.29% 0.1163 168.55)",
+          "oklch(60.71% 0.1163 168.55)",
+          "oklch(72.14% 0.1163 168.55)",
+          "oklch(83.57% 0.1163 168.55)",
+          "oklch(95.00% 0.1163 168.55)"
+        ]
+      },
+      "dark-glow-lime": {
+        "role": "tertiary",
+        "displayName": "Dark Glow Lime",
+        "tonalRamp": [
+          "oklch(15.00% 0.1970 126.53)",
+          "oklch(26.43% 0.1970 126.53)",
+          "oklch(37.86% 0.1970 126.53)",
+          "oklch(49.29% 0.1970 126.53)",
+          "oklch(60.71% 0.1970 126.53)",
+          "oklch(72.14% 0.1970 126.53)",
+          "oklch(83.57% 0.1970 126.53)",
+          "oklch(95.00% 0.1970 126.53)"
         ]
       },
       "dark-success": {
-        "role": "semantic",
+        "role": "functional",
         "displayName": "Dark Success",
         "tonalRamp": [
-          "oklch(15% 0.1361 153.55)",
+          "oklch(15.00% 0.1361 153.55)",
           "oklch(26.43% 0.1361 153.55)",
           "oklch(37.86% 0.1361 153.55)",
           "oklch(49.29% 0.1361 153.55)",
           "oklch(60.71% 0.1361 153.55)",
           "oklch(72.14% 0.1361 153.55)",
           "oklch(83.57% 0.1361 153.55)",
-          "oklch(95% 0.1361 153.55)"
+          "oklch(95.00% 0.1361 153.55)"
         ]
       },
       "dark-warning": {
-        "role": "semantic",
+        "role": "functional",
         "displayName": "Dark Warning",
         "tonalRamp": [
-          "oklch(15% 0.1051 78.43)",
+          "oklch(15.00% 0.1051 78.43)",
           "oklch(26.43% 0.1051 78.43)",
           "oklch(37.86% 0.1051 78.43)",
           "oklch(49.29% 0.1051 78.43)",
           "oklch(60.71% 0.1051 78.43)",
           "oklch(72.14% 0.1051 78.43)",
           "oklch(83.57% 0.1051 78.43)",
-          "oklch(95% 0.1051 78.43)"
+          "oklch(95.00% 0.1051 78.43)"
         ]
       },
       "dark-danger": {
-        "role": "semantic",
+        "role": "functional",
         "displayName": "Dark Danger",
         "tonalRamp": [
-          "oklch(15% 0.1409 25.65)",
+          "oklch(15.00% 0.1409 25.65)",
           "oklch(26.43% 0.1409 25.65)",
           "oklch(37.86% 0.1409 25.65)",
           "oklch(49.29% 0.1409 25.65)",
           "oklch(60.71% 0.1409 25.65)",
           "oklch(72.14% 0.1409 25.65)",
           "oklch(83.57% 0.1409 25.65)",
-          "oklch(95% 0.1409 25.65)"
-        ]
-      },
-      "light-canvas": {
-        "role": "neutral",
-        "displayName": "Warm Workbench Canvas",
-        "tonalRamp": [
-          "oklch(15% 0.0054 117.92)",
-          "oklch(26.43% 0.0054 117.92)",
-          "oklch(37.86% 0.0054 117.92)",
-          "oklch(49.29% 0.0054 117.92)",
-          "oklch(60.71% 0.0054 117.92)",
-          "oklch(72.14% 0.0054 117.92)",
-          "oklch(83.57% 0.0054 117.92)",
-          "oklch(95% 0.0054 117.92)"
-        ]
-      },
-      "light-sidebar": {
-        "role": "neutral",
-        "displayName": "Pale Sidebar",
-        "tonalRamp": [
-          "oklch(15% 0.0098 125.68)",
-          "oklch(26.43% 0.0098 125.68)",
-          "oklch(37.86% 0.0098 125.68)",
-          "oklch(49.29% 0.0098 125.68)",
-          "oklch(60.71% 0.0098 125.68)",
-          "oklch(72.14% 0.0098 125.68)",
-          "oklch(83.57% 0.0098 125.68)",
-          "oklch(95% 0.0098 125.68)"
-        ]
-      },
-      "light-surface": {
-        "role": "neutral",
-        "displayName": "Object Surface — Light",
-        "tonalRamp": [
-          "oklch(15% 0.0041 121.56)",
-          "oklch(26.43% 0.0041 121.56)",
-          "oklch(37.86% 0.0041 121.56)",
-          "oklch(49.29% 0.0041 121.56)",
-          "oklch(60.71% 0.0041 121.56)",
-          "oklch(72.14% 0.0041 121.56)",
-          "oklch(83.57% 0.0041 121.56)",
-          "oklch(95% 0.0041 121.56)"
-        ]
-      },
-      "light-raised": {
-        "role": "neutral",
-        "displayName": "White Raised Surface",
-        "tonalRamp": [
-          "oklch(15% 0.0000 89.88)",
-          "oklch(26.43% 0.0000 89.88)",
-          "oklch(37.86% 0.0000 89.88)",
-          "oklch(49.29% 0.0000 89.88)",
-          "oklch(60.71% 0.0000 89.88)",
-          "oklch(72.14% 0.0000 89.88)",
-          "oklch(83.57% 0.0000 89.88)",
-          "oklch(95% 0.0000 89.88)"
-        ]
-      },
-      "light-inset": {
-        "role": "neutral",
-        "displayName": "Pale Inset Well",
-        "tonalRamp": [
-          "oklch(15% 0.0098 125.68)",
-          "oklch(26.43% 0.0098 125.68)",
-          "oklch(37.86% 0.0098 125.68)",
-          "oklch(49.29% 0.0098 125.68)",
-          "oklch(60.71% 0.0098 125.68)",
-          "oklch(72.14% 0.0098 125.68)",
-          "oklch(83.57% 0.0098 125.68)",
-          "oklch(95% 0.0098 125.68)"
-        ]
-      },
-      "light-text": {
-        "role": "neutral",
-        "displayName": "Primary Ink — Light",
-        "tonalRamp": [
-          "oklch(15% 0.0177 141.64)",
-          "oklch(26.43% 0.0177 141.64)",
-          "oklch(37.86% 0.0177 141.64)",
-          "oklch(49.29% 0.0177 141.64)",
-          "oklch(60.71% 0.0177 141.64)",
-          "oklch(72.14% 0.0177 141.64)",
-          "oklch(83.57% 0.0177 141.64)",
-          "oklch(95% 0.0177 141.64)"
-        ]
-      },
-      "light-text-secondary": {
-        "role": "neutral",
-        "displayName": "Supporting Ink — Light",
-        "tonalRamp": [
-          "oklch(15% 0.0262 138.99)",
-          "oklch(26.43% 0.0262 138.99)",
-          "oklch(37.86% 0.0262 138.99)",
-          "oklch(49.29% 0.0262 138.99)",
-          "oklch(60.71% 0.0262 138.99)",
-          "oklch(72.14% 0.0262 138.99)",
-          "oklch(83.57% 0.0262 138.99)",
-          "oklch(95% 0.0262 138.99)"
-        ]
-      },
-      "light-text-tertiary": {
-        "role": "neutral",
-        "displayName": "Metadata Ink — Light",
-        "tonalRamp": [
-          "oklch(15% 0.0268 137.32)",
-          "oklch(26.43% 0.0268 137.32)",
-          "oklch(37.86% 0.0268 137.32)",
-          "oklch(49.29% 0.0268 137.32)",
-          "oklch(60.71% 0.0268 137.32)",
-          "oklch(72.14% 0.0268 137.32)",
-          "oklch(83.57% 0.0268 137.32)",
-          "oklch(95% 0.0268 137.32)"
-        ]
-      },
-      "light-text-ghost": {
-        "role": "neutral",
-        "displayName": "Quiet Ink — Light",
-        "tonalRamp": [
-          "oklch(15% 0.0267 137.31)",
-          "oklch(26.43% 0.0267 137.31)",
-          "oklch(37.86% 0.0267 137.31)",
-          "oklch(49.29% 0.0267 137.31)",
-          "oklch(60.71% 0.0267 137.31)",
-          "oklch(72.14% 0.0267 137.31)",
-          "oklch(83.57% 0.0267 137.31)",
-          "oklch(95% 0.0267 137.31)"
-        ]
-      },
-      "light-border": {
-        "role": "neutral",
-        "displayName": "Light Border",
-        "tonalRamp": [
-          "oklch(15% 0.0084 264.40)",
-          "oklch(26.43% 0.0084 264.40)",
-          "oklch(37.86% 0.0084 264.40)",
-          "oklch(49.29% 0.0084 264.40)",
-          "oklch(60.71% 0.0084 264.40)",
-          "oklch(72.14% 0.0084 264.40)",
-          "oklch(83.57% 0.0084 264.40)",
-          "oklch(95% 0.0084 264.40)"
-        ]
-      },
-      "light-border-strong": {
-        "role": "neutral",
-        "displayName": "Light Border Strong",
-        "tonalRamp": [
-          "oklch(15% 0.0084 264.40)",
-          "oklch(26.43% 0.0084 264.40)",
-          "oklch(37.86% 0.0084 264.40)",
-          "oklch(49.29% 0.0084 264.40)",
-          "oklch(60.71% 0.0084 264.40)",
-          "oklch(72.14% 0.0084 264.40)",
-          "oklch(83.57% 0.0084 264.40)",
-          "oklch(95% 0.0084 264.40)"
-        ]
-      },
-      "light-overlay": {
-        "role": "neutral",
-        "displayName": "Light Overlay",
-        "tonalRamp": [
-          "oklch(15% 0.0084 264.40)",
-          "oklch(26.43% 0.0084 264.40)",
-          "oklch(37.86% 0.0084 264.40)",
-          "oklch(49.29% 0.0084 264.40)",
-          "oklch(60.71% 0.0084 264.40)",
-          "oklch(72.14% 0.0084 264.40)",
-          "oklch(83.57% 0.0084 264.40)",
-          "oklch(95% 0.0084 264.40)"
-        ]
-      },
-      "light-overlay-strong": {
-        "role": "neutral",
-        "displayName": "Light Overlay Strong",
-        "tonalRamp": [
-          "oklch(15% 0.0084 264.40)",
-          "oklch(26.43% 0.0084 264.40)",
-          "oklch(37.86% 0.0084 264.40)",
-          "oklch(49.29% 0.0084 264.40)",
-          "oklch(60.71% 0.0084 264.40)",
-          "oklch(72.14% 0.0084 264.40)",
-          "oklch(83.57% 0.0084 264.40)",
-          "oklch(95% 0.0084 264.40)"
-        ]
-      },
-      "light-accent": {
-        "role": "primary",
-        "displayName": "Leaf Ink",
-        "tonalRamp": [
-          "oklch(15% 0.1065 129.02)",
-          "oklch(26.43% 0.1065 129.02)",
-          "oklch(37.86% 0.1065 129.02)",
-          "oklch(49.29% 0.1065 129.02)",
-          "oklch(60.71% 0.1065 129.02)",
-          "oklch(72.14% 0.1065 129.02)",
-          "oklch(83.57% 0.1065 129.02)",
-          "oklch(95% 0.1065 129.02)"
-        ]
-      },
-      "desktop-light-accent-soft": {
-        "role": "primary",
-        "displayName": "Desktop Light Accent Soft",
-        "tonalRamp": [
-          "oklch(15% 0.1269 126.15)",
-          "oklch(26.43% 0.1269 126.15)",
-          "oklch(37.86% 0.1269 126.15)",
-          "oklch(49.29% 0.1269 126.15)",
-          "oklch(60.71% 0.1269 126.15)",
-          "oklch(72.14% 0.1269 126.15)",
-          "oklch(83.57% 0.1269 126.15)",
-          "oklch(95% 0.1269 126.15)"
-        ]
-      },
-      "mobile-light-accent-soft": {
-        "role": "primary",
-        "displayName": "Mobile Light Accent Soft",
-        "tonalRamp": [
-          "oklch(15% 0.1291 127.44)",
-          "oklch(26.43% 0.1291 127.44)",
-          "oklch(37.86% 0.1291 127.44)",
-          "oklch(49.29% 0.1291 127.44)",
-          "oklch(60.71% 0.1291 127.44)",
-          "oklch(72.14% 0.1291 127.44)",
-          "oklch(83.57% 0.1291 127.44)",
-          "oklch(95% 0.1291 127.44)"
-        ]
-      },
-      "mobile-light-selected": {
-        "role": "neutral",
-        "displayName": "Mobile Light Selected",
-        "tonalRamp": [
-          "oklch(15% 0.0263 123.44)",
-          "oklch(26.43% 0.0263 123.44)",
-          "oklch(37.86% 0.0263 123.44)",
-          "oklch(49.29% 0.0263 123.44)",
-          "oklch(60.71% 0.0263 123.44)",
-          "oklch(72.14% 0.0263 123.44)",
-          "oklch(83.57% 0.0263 123.44)",
-          "oklch(95% 0.0263 123.44)"
-        ]
-      },
-      "light-success": {
-        "role": "semantic",
-        "displayName": "Light Success",
-        "tonalRamp": [
-          "oklch(15% 0.1159 151.15)",
-          "oklch(26.43% 0.1159 151.15)",
-          "oklch(37.86% 0.1159 151.15)",
-          "oklch(49.29% 0.1159 151.15)",
-          "oklch(60.71% 0.1159 151.15)",
-          "oklch(72.14% 0.1159 151.15)",
-          "oklch(83.57% 0.1159 151.15)",
-          "oklch(95% 0.1159 151.15)"
-        ]
-      },
-      "light-warning": {
-        "role": "semantic",
-        "displayName": "Light Warning",
-        "tonalRamp": [
-          "oklch(15% 0.1018 62.30)",
-          "oklch(26.43% 0.1018 62.30)",
-          "oklch(37.86% 0.1018 62.30)",
-          "oklch(49.29% 0.1018 62.30)",
-          "oklch(60.71% 0.1018 62.30)",
-          "oklch(72.14% 0.1018 62.30)",
-          "oklch(83.57% 0.1018 62.30)",
-          "oklch(95% 0.1018 62.30)"
-        ]
-      },
-      "light-danger": {
-        "role": "semantic",
-        "displayName": "Light Danger",
-        "tonalRamp": [
-          "oklch(15% 0.1515 26.86)",
-          "oklch(26.43% 0.1515 26.86)",
-          "oklch(37.86% 0.1515 26.86)",
-          "oklch(49.29% 0.1515 26.86)",
-          "oklch(60.71% 0.1515 26.86)",
-          "oklch(72.14% 0.1515 26.86)",
-          "oklch(83.57% 0.1515 26.86)",
-          "oklch(95% 0.1515 26.86)"
+          "oklch(95.00% 0.1409 25.65)"
         ]
       },
       "dark-code": {
         "role": "functional",
-        "displayName": "Warm Code — Dark",
+        "displayName": "Dark Code",
         "tonalRamp": [
-          "oklch(15% 0.0838 55.29)",
+          "oklch(15.00% 0.0838 55.29)",
           "oklch(26.43% 0.0838 55.29)",
           "oklch(37.86% 0.0838 55.29)",
           "oklch(49.29% 0.0838 55.29)",
           "oklch(60.71% 0.0838 55.29)",
           "oklch(72.14% 0.0838 55.29)",
           "oklch(83.57% 0.0838 55.29)",
-          "oklch(95% 0.0838 55.29)"
+          "oklch(95.00% 0.0838 55.29)"
+        ]
+      },
+      "dark-shadow": {
+        "role": "neutral",
+        "displayName": "Dark Shadow",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 0.00)",
+          "oklch(26.43% 0.0000 0.00)",
+          "oklch(37.86% 0.0000 0.00)",
+          "oklch(49.29% 0.0000 0.00)",
+          "oklch(60.71% 0.0000 0.00)",
+          "oklch(72.14% 0.0000 0.00)",
+          "oklch(83.57% 0.0000 0.00)",
+          "oklch(95.00% 0.0000 0.00)"
+        ]
+      },
+      "light-canvas": {
+        "role": "neutral",
+        "displayName": "Light Canvas",
+        "tonalRamp": [
+          "oklch(15.00% 0.0028 128.49)",
+          "oklch(26.43% 0.0028 128.49)",
+          "oklch(37.86% 0.0028 128.49)",
+          "oklch(49.29% 0.0028 128.49)",
+          "oklch(60.71% 0.0028 128.49)",
+          "oklch(72.14% 0.0028 128.49)",
+          "oklch(83.57% 0.0028 128.49)",
+          "oklch(95.00% 0.0028 128.49)"
+        ]
+      },
+      "light-sidebar": {
+        "role": "neutral",
+        "displayName": "Light Sidebar",
+        "tonalRamp": [
+          "oklch(15.00% 0.0045 134.85)",
+          "oklch(26.43% 0.0045 134.85)",
+          "oklch(37.86% 0.0045 134.85)",
+          "oklch(49.29% 0.0045 134.85)",
+          "oklch(60.71% 0.0045 134.85)",
+          "oklch(72.14% 0.0045 134.85)",
+          "oklch(83.57% 0.0045 134.85)",
+          "oklch(95.00% 0.0045 134.85)"
+        ]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "Light Surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.0028 128.49)",
+          "oklch(26.43% 0.0028 128.49)",
+          "oklch(37.86% 0.0028 128.49)",
+          "oklch(49.29% 0.0028 128.49)",
+          "oklch(60.71% 0.0028 128.49)",
+          "oklch(72.14% 0.0028 128.49)",
+          "oklch(83.57% 0.0028 128.49)",
+          "oklch(95.00% 0.0028 128.49)"
+        ]
+      },
+      "light-raised": {
+        "role": "neutral",
+        "displayName": "Light Raised",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "light-composer": {
+        "role": "neutral",
+        "displayName": "Light Composer",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "light-inset": {
+        "role": "neutral",
+        "displayName": "Light Inset",
+        "tonalRamp": [
+          "oklch(15.00% 0.0057 128.53)",
+          "oklch(26.43% 0.0057 128.53)",
+          "oklch(37.86% 0.0057 128.53)",
+          "oklch(49.29% 0.0057 128.53)",
+          "oklch(60.71% 0.0057 128.53)",
+          "oklch(72.14% 0.0057 128.53)",
+          "oklch(83.57% 0.0057 128.53)",
+          "oklch(95.00% 0.0057 128.53)"
+        ]
+      },
+      "light-ticket": {
+        "role": "neutral",
+        "displayName": "Light Ticket",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "light-text": {
+        "role": "neutral",
+        "displayName": "Light Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.0125 145.08)",
+          "oklch(26.43% 0.0125 145.08)",
+          "oklch(37.86% 0.0125 145.08)",
+          "oklch(49.29% 0.0125 145.08)",
+          "oklch(60.71% 0.0125 145.08)",
+          "oklch(72.14% 0.0125 145.08)",
+          "oklch(83.57% 0.0125 145.08)",
+          "oklch(95.00% 0.0125 145.08)"
+        ]
+      },
+      "light-text-secondary": {
+        "role": "neutral",
+        "displayName": "Light Text Secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0220 142.67)",
+          "oklch(26.43% 0.0220 142.67)",
+          "oklch(37.86% 0.0220 142.67)",
+          "oklch(49.29% 0.0220 142.67)",
+          "oklch(60.71% 0.0220 142.67)",
+          "oklch(72.14% 0.0220 142.67)",
+          "oklch(83.57% 0.0220 142.67)",
+          "oklch(95.00% 0.0220 142.67)"
+        ]
+      },
+      "light-text-tertiary": {
+        "role": "neutral",
+        "displayName": "Light Text Tertiary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0238 138.47)",
+          "oklch(26.43% 0.0238 138.47)",
+          "oklch(37.86% 0.0238 138.47)",
+          "oklch(49.29% 0.0238 138.47)",
+          "oklch(60.71% 0.0238 138.47)",
+          "oklch(72.14% 0.0238 138.47)",
+          "oklch(83.57% 0.0238 138.47)",
+          "oklch(95.00% 0.0238 138.47)"
+        ]
+      },
+      "light-text-ghost": {
+        "role": "neutral",
+        "displayName": "Light Text Ghost",
+        "tonalRamp": [
+          "oklch(15.00% 0.0235 138.46)",
+          "oklch(26.43% 0.0235 138.46)",
+          "oklch(37.86% 0.0235 138.46)",
+          "oklch(49.29% 0.0235 138.46)",
+          "oklch(60.71% 0.0235 138.46)",
+          "oklch(72.14% 0.0235 138.46)",
+          "oklch(83.57% 0.0235 138.46)",
+          "oklch(95.00% 0.0235 138.46)"
+        ]
+      },
+      "light-border": {
+        "role": "neutral",
+        "displayName": "Light Border",
+        "tonalRamp": [
+          "oklch(15.00% 0.0085 164.18)",
+          "oklch(26.43% 0.0085 164.18)",
+          "oklch(37.86% 0.0085 164.18)",
+          "oklch(49.29% 0.0085 164.18)",
+          "oklch(60.71% 0.0085 164.18)",
+          "oklch(72.14% 0.0085 164.18)",
+          "oklch(83.57% 0.0085 164.18)",
+          "oklch(95.00% 0.0085 164.18)"
+        ]
+      },
+      "light-border-strong": {
+        "role": "neutral",
+        "displayName": "Light Border Strong",
+        "tonalRamp": [
+          "oklch(15.00% 0.0085 164.18)",
+          "oklch(26.43% 0.0085 164.18)",
+          "oklch(37.86% 0.0085 164.18)",
+          "oklch(49.29% 0.0085 164.18)",
+          "oklch(60.71% 0.0085 164.18)",
+          "oklch(72.14% 0.0085 164.18)",
+          "oklch(83.57% 0.0085 164.18)",
+          "oklch(95.00% 0.0085 164.18)"
+        ]
+      },
+      "light-ticket-border": {
+        "role": "neutral",
+        "displayName": "Light Ticket Border",
+        "tonalRamp": [
+          "oklch(15.00% 0.0085 164.18)",
+          "oklch(26.43% 0.0085 164.18)",
+          "oklch(37.86% 0.0085 164.18)",
+          "oklch(49.29% 0.0085 164.18)",
+          "oklch(60.71% 0.0085 164.18)",
+          "oklch(72.14% 0.0085 164.18)",
+          "oklch(83.57% 0.0085 164.18)",
+          "oklch(95.00% 0.0085 164.18)"
+        ]
+      },
+      "light-overlay": {
+        "role": "neutral",
+        "displayName": "Light Overlay",
+        "tonalRamp": [
+          "oklch(15.00% 0.0085 164.18)",
+          "oklch(26.43% 0.0085 164.18)",
+          "oklch(37.86% 0.0085 164.18)",
+          "oklch(49.29% 0.0085 164.18)",
+          "oklch(60.71% 0.0085 164.18)",
+          "oklch(72.14% 0.0085 164.18)",
+          "oklch(83.57% 0.0085 164.18)",
+          "oklch(95.00% 0.0085 164.18)"
+        ]
+      },
+      "light-overlay-strong": {
+        "role": "neutral",
+        "displayName": "Light Overlay Strong",
+        "tonalRamp": [
+          "oklch(15.00% 0.0085 164.18)",
+          "oklch(26.43% 0.0085 164.18)",
+          "oklch(37.86% 0.0085 164.18)",
+          "oklch(49.29% 0.0085 164.18)",
+          "oklch(60.71% 0.0085 164.18)",
+          "oklch(72.14% 0.0085 164.18)",
+          "oklch(83.57% 0.0085 164.18)",
+          "oklch(95.00% 0.0085 164.18)"
+        ]
+      },
+      "light-accent": {
+        "role": "primary",
+        "displayName": "Light Accent",
+        "tonalRamp": [
+          "oklch(15.00% 0.1030 129.42)",
+          "oklch(26.43% 0.1030 129.42)",
+          "oklch(37.86% 0.1030 129.42)",
+          "oklch(49.29% 0.1030 129.42)",
+          "oklch(60.71% 0.1030 129.42)",
+          "oklch(72.14% 0.1030 129.42)",
+          "oklch(83.57% 0.1030 129.42)",
+          "oklch(95.00% 0.1030 129.42)"
+        ]
+      },
+      "light-accent-soft": {
+        "role": "primary",
+        "displayName": "Light Accent Soft",
+        "tonalRamp": [
+          "oklch(15.00% 0.1943 126.71)",
+          "oklch(26.43% 0.1943 126.71)",
+          "oklch(37.86% 0.1943 126.71)",
+          "oklch(49.29% 0.1943 126.71)",
+          "oklch(60.71% 0.1943 126.71)",
+          "oklch(72.14% 0.1943 126.71)",
+          "oklch(83.57% 0.1943 126.71)",
+          "oklch(95.00% 0.1943 126.71)"
+        ]
+      },
+      "light-glow-mint": {
+        "role": "tertiary",
+        "displayName": "Light Glow Mint",
+        "tonalRamp": [
+          "oklch(15.00% 0.0702 172.04)",
+          "oklch(26.43% 0.0702 172.04)",
+          "oklch(37.86% 0.0702 172.04)",
+          "oklch(49.29% 0.0702 172.04)",
+          "oklch(60.71% 0.0702 172.04)",
+          "oklch(72.14% 0.0702 172.04)",
+          "oklch(83.57% 0.0702 172.04)",
+          "oklch(95.00% 0.0702 172.04)"
+        ]
+      },
+      "light-glow-lime": {
+        "role": "tertiary",
+        "displayName": "Light Glow Lime",
+        "tonalRamp": [
+          "oklch(15.00% 0.1187 123.71)",
+          "oklch(26.43% 0.1187 123.71)",
+          "oklch(37.86% 0.1187 123.71)",
+          "oklch(49.29% 0.1187 123.71)",
+          "oklch(60.71% 0.1187 123.71)",
+          "oklch(72.14% 0.1187 123.71)",
+          "oklch(83.57% 0.1187 123.71)",
+          "oklch(95.00% 0.1187 123.71)"
+        ]
+      },
+      "light-success": {
+        "role": "functional",
+        "displayName": "Light Success",
+        "tonalRamp": [
+          "oklch(15.00% 0.1159 151.15)",
+          "oklch(26.43% 0.1159 151.15)",
+          "oklch(37.86% 0.1159 151.15)",
+          "oklch(49.29% 0.1159 151.15)",
+          "oklch(60.71% 0.1159 151.15)",
+          "oklch(72.14% 0.1159 151.15)",
+          "oklch(83.57% 0.1159 151.15)",
+          "oklch(95.00% 0.1159 151.15)"
+        ]
+      },
+      "light-warning": {
+        "role": "functional",
+        "displayName": "Light Warning",
+        "tonalRamp": [
+          "oklch(15.00% 0.1018 62.30)",
+          "oklch(26.43% 0.1018 62.30)",
+          "oklch(37.86% 0.1018 62.30)",
+          "oklch(49.29% 0.1018 62.30)",
+          "oklch(60.71% 0.1018 62.30)",
+          "oklch(72.14% 0.1018 62.30)",
+          "oklch(83.57% 0.1018 62.30)",
+          "oklch(95.00% 0.1018 62.30)"
+        ]
+      },
+      "light-danger": {
+        "role": "functional",
+        "displayName": "Light Danger",
+        "tonalRamp": [
+          "oklch(15.00% 0.1515 26.86)",
+          "oklch(26.43% 0.1515 26.86)",
+          "oklch(37.86% 0.1515 26.86)",
+          "oklch(49.29% 0.1515 26.86)",
+          "oklch(60.71% 0.1515 26.86)",
+          "oklch(72.14% 0.1515 26.86)",
+          "oklch(83.57% 0.1515 26.86)",
+          "oklch(95.00% 0.1515 26.86)"
         ]
       },
       "light-code": {
         "role": "functional",
-        "displayName": "Warm Code — Light",
+        "displayName": "Light Code",
         "tonalRamp": [
-          "oklch(15% 0.1086 51.17)",
+          "oklch(15.00% 0.1086 51.17)",
           "oklch(26.43% 0.1086 51.17)",
           "oklch(37.86% 0.1086 51.17)",
           "oklch(49.29% 0.1086 51.17)",
           "oklch(60.71% 0.1086 51.17)",
           "oklch(72.14% 0.1086 51.17)",
           "oklch(83.57% 0.1086 51.17)",
-          "oklch(95% 0.1086 51.17)"
+          "oklch(95.00% 0.1086 51.17)"
+        ]
+      },
+      "light-shadow": {
+        "role": "neutral",
+        "displayName": "Light Shadow",
+        "tonalRamp": [
+          "oklch(15.00% 0.0218 162.32)",
+          "oklch(26.43% 0.0218 162.32)",
+          "oklch(37.86% 0.0218 162.32)",
+          "oklch(49.29% 0.0218 162.32)",
+          "oklch(60.71% 0.0218 162.32)",
+          "oklch(72.14% 0.0218 162.32)",
+          "oklch(83.57% 0.0218 162.32)",
+          "oklch(95.00% 0.0218 162.32)"
         ]
       },
       "selection-blue": {
         "role": "functional",
-        "displayName": "Native Blue",
+        "displayName": "Selection Blue",
         "tonalRamp": [
-          "oklch(15% 0.1880 259.81)",
+          "oklch(15.00% 0.1880 259.81)",
           "oklch(26.43% 0.1880 259.81)",
           "oklch(37.86% 0.1880 259.81)",
           "oklch(49.29% 0.1880 259.81)",
           "oklch(60.71% 0.1880 259.81)",
           "oklch(72.14% 0.1880 259.81)",
           "oklch(83.57% 0.1880 259.81)",
-          "oklch(95% 0.1880 259.81)"
+          "oklch(95.00% 0.1880 259.81)"
+        ]
+      },
+      "site-ink": {
+        "role": "neutral",
+        "displayName": "Site Ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.0125 145.08)",
+          "oklch(26.43% 0.0125 145.08)",
+          "oklch(37.86% 0.0125 145.08)",
+          "oklch(49.29% 0.0125 145.08)",
+          "oklch(60.71% 0.0125 145.08)",
+          "oklch(72.14% 0.0125 145.08)",
+          "oklch(83.57% 0.0125 145.08)",
+          "oklch(95.00% 0.0125 145.08)"
+        ]
+      },
+      "site-ink-2": {
+        "role": "neutral",
+        "displayName": "Site Ink 2",
+        "tonalRamp": [
+          "oklch(15.00% 0.0162 141.72)",
+          "oklch(26.43% 0.0162 141.72)",
+          "oklch(37.86% 0.0162 141.72)",
+          "oklch(49.29% 0.0162 141.72)",
+          "oklch(60.71% 0.0162 141.72)",
+          "oklch(72.14% 0.0162 141.72)",
+          "oklch(83.57% 0.0162 141.72)",
+          "oklch(95.00% 0.0162 141.72)"
+        ]
+      },
+      "site-quiet": {
+        "role": "neutral",
+        "displayName": "Site Quiet",
+        "tonalRamp": [
+          "oklch(15.00% 0.0174 136.14)",
+          "oklch(26.43% 0.0174 136.14)",
+          "oklch(37.86% 0.0174 136.14)",
+          "oklch(49.29% 0.0174 136.14)",
+          "oklch(60.71% 0.0174 136.14)",
+          "oklch(72.14% 0.0174 136.14)",
+          "oklch(83.57% 0.0174 136.14)",
+          "oklch(95.00% 0.0174 136.14)"
+        ]
+      },
+      "site-rule": {
+        "role": "neutral",
+        "displayName": "Site Rule",
+        "tonalRamp": [
+          "oklch(15.00% 0.0087 128.57)",
+          "oklch(26.43% 0.0087 128.57)",
+          "oklch(37.86% 0.0087 128.57)",
+          "oklch(49.29% 0.0087 128.57)",
+          "oklch(60.71% 0.0087 128.57)",
+          "oklch(72.14% 0.0087 128.57)",
+          "oklch(83.57% 0.0087 128.57)",
+          "oklch(95.00% 0.0087 128.57)"
+        ]
+      },
+      "site-paper": {
+        "role": "neutral",
+        "displayName": "Site Paper",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "site-lime-hover": {
+        "role": "primary",
+        "displayName": "Site Lime Hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.1786 125.66)",
+          "oklch(26.43% 0.1786 125.66)",
+          "oklch(37.86% 0.1786 125.66)",
+          "oklch(49.29% 0.1786 125.66)",
+          "oklch(60.71% 0.1786 125.66)",
+          "oklch(72.14% 0.1786 125.66)",
+          "oklch(83.57% 0.1786 125.66)",
+          "oklch(95.00% 0.1786 125.66)"
+        ]
+      },
+      "site-night": {
+        "role": "neutral",
+        "displayName": "Site Night",
+        "tonalRamp": [
+          "oklch(15.00% 0.0052 173.72)",
+          "oklch(26.43% 0.0052 173.72)",
+          "oklch(37.86% 0.0052 173.72)",
+          "oklch(49.29% 0.0052 173.72)",
+          "oklch(60.71% 0.0052 173.72)",
+          "oklch(72.14% 0.0052 173.72)",
+          "oklch(83.57% 0.0052 173.72)",
+          "oklch(95.00% 0.0052 173.72)"
+        ]
+      },
+      "site-night-2": {
+        "role": "neutral",
+        "displayName": "Site Night 2",
+        "tonalRamp": [
+          "oklch(15.00% 0.0084 169.51)",
+          "oklch(26.43% 0.0084 169.51)",
+          "oklch(37.86% 0.0084 169.51)",
+          "oklch(49.29% 0.0084 169.51)",
+          "oklch(60.71% 0.0084 169.51)",
+          "oklch(72.14% 0.0084 169.51)",
+          "oklch(83.57% 0.0084 169.51)",
+          "oklch(95.00% 0.0084 169.51)"
+        ]
+      },
+      "site-night-text": {
+        "role": "neutral",
+        "displayName": "Site Night Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.0090 134.87)",
+          "oklch(26.43% 0.0090 134.87)",
+          "oklch(37.86% 0.0090 134.87)",
+          "oklch(49.29% 0.0090 134.87)",
+          "oklch(60.71% 0.0090 134.87)",
+          "oklch(72.14% 0.0090 134.87)",
+          "oklch(83.57% 0.0090 134.87)",
+          "oklch(95.00% 0.0090 134.87)"
+        ]
+      },
+      "site-night-quiet": {
+        "role": "neutral",
+        "displayName": "Site Night Quiet",
+        "tonalRamp": [
+          "oklch(15.00% 0.0164 145.40)",
+          "oklch(26.43% 0.0164 145.40)",
+          "oklch(37.86% 0.0164 145.40)",
+          "oklch(49.29% 0.0164 145.40)",
+          "oklch(60.71% 0.0164 145.40)",
+          "oklch(72.14% 0.0164 145.40)",
+          "oklch(83.57% 0.0164 145.40)",
+          "oklch(95.00% 0.0164 145.40)"
         ]
       }
     },
     "typographyMeta": {
-      "desktop-heading": {
-        "displayName": "Desktop Page Heading",
-        "purpose": "Native compact workspace heading; authored at the default UI setting, scaled by sp()."
+      "desktop-headline": {
+        "displayName": "Home Question",
+        "purpose": "Mono home and onboarding question; one per screen."
       },
-      "desktop-section": {
-        "displayName": "Desktop Section",
-        "purpose": "Semibold form titles."
+      "desktop-ticket-title": {
+        "displayName": "Desktop Ticket Title",
+        "purpose": "Ticket titles, two lines max."
       },
       "desktop-body": {
         "displayName": "Desktop Body",
-        "purpose": "Native workbench body and section copy; content fonts follow their own settings."
+        "purpose": "Rows, descriptions, rail heading."
       },
-      "desktop-label": {
-        "displayName": "Desktop Control Label",
-        "purpose": "Compact action and navigation labels; primary button weight is semibold."
+      "desktop-control": {
+        "displayName": "Desktop Control",
+        "purpose": "Chips, segments, menu items, default fields; the dominant chrome size."
       },
-      "desktop-detail": {
-        "displayName": "Desktop Supporting Copy",
-        "purpose": "Metadata and supporting labels."
+      "desktop-field-comfortable": {
+        "displayName": "Desktop Comfortable Field",
+        "purpose": "42px form fields."
       },
-      "desktop-field": {
-        "displayName": "Desktop Comfortable Input",
-        "purpose": "Single-line TextField comfortable variant."
+      "desktop-meta": {
+        "displayName": "Desktop Meta",
+        "purpose": "Status pills, counters, legend labels."
+      },
+      "desktop-ticket-number": {
+        "displayName": "Ticket Number",
+        "purpose": "Mono #XXXX ids and clocks in the ticket stub."
+      },
+      "mobile-headline": {
+        "displayName": "Android Home Question",
+        "purpose": "Mono home, sign-in and onboarding question."
       },
       "mobile-title": {
-        "displayName": "Android Editor Title",
-        "purpose": "Agent/team editor titles using the platform default sans."
-      },
-      "mobile-heading": {
-        "displayName": "Android State Heading",
-        "purpose": "Empty/recovery state heading."
+        "displayName": "Android Page Title",
+        "purpose": "Editor page titles."
       },
       "mobile-section": {
-        "displayName": "Android Form Section",
-        "purpose": "Execution and access group headings."
+        "displayName": "Android Section",
+        "purpose": "Form section headings."
       },
-      "mobile-field": {
-        "displayName": "Android Form Text",
-        "purpose": "AutomationField labels and inputs; React Native units scale with the platform."
+      "mobile-ticket-title": {
+        "displayName": "Android Ticket Title",
+        "purpose": "Ticket titles."
       },
-      "mobile-row": {
-        "displayName": "Android Object Label",
-        "purpose": "WorkbenchRow primary text."
+      "mobile-body": {
+        "displayName": "Android Body",
+        "purpose": "Notes and transcript copy."
       },
-      "mobile-button": {
-        "displayName": "Android Action Label",
-        "purpose": "WorkbenchButton text."
+      "mobile-control": {
+        "displayName": "Android Control",
+        "purpose": "Chip labels."
       },
-      "mobile-detail": {
-        "displayName": "Android Row Detail",
-        "purpose": "WorkbenchRow supporting text."
+      "mobile-meta": {
+        "displayName": "Android Meta",
+        "purpose": "Status pill labels."
       },
-      "mobile-navigation": {
-        "displayName": "Android Destination Label",
-        "purpose": "Labelled bottom navigation and rail; medium inactive, bold selected."
+      "mobile-ticket-number": {
+        "displayName": "Android Ticket Number",
+        "purpose": "Mono ticket ids, tabular."
       },
-      "mobile-code": {
-        "displayName": "Android Request Code",
-        "purpose": "Monospace approval/request details; desktop code uses bundled JetBrains Mono."
+      "site-display": {
+        "displayName": "Forge Display",
+        "purpose": "Website uppercase display; display-lg and display-md clamp smaller."
+      },
+      "site-hero-prompt": {
+        "displayName": "Website Hero Prompt",
+        "purpose": "Mono hero question mirroring the app home."
+      },
+      "site-cta": {
+        "displayName": "Website CTA",
+        "purpose": "Uppercase block-link labels."
       }
     },
     "shadows": [
       {
-        "name": "desktop-floating-layer",
-        "value": "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-        "purpose": "GPUI shadow_lg() in floating composer menus/popovers. Derived from the locked f9bad894 GPUI style macro; CSS notation illustrates the two native layers. Not an Android or content-card shadow."
+        "name": "elevation-rest",
+        "value": "0 1px 2px shadow*0.9, 0 6px 18px -4px shadow*0.7",
+        "purpose": "Tickets, toggle knob, active segment. src/ui/mod.rs elevation(); Android elevationRest."
+      },
+      {
+        "name": "elevation-lifted",
+        "value": "0 2px 4px shadow*1.0, 0 10px 28px -4px shadow*1.0",
+        "purpose": "Composer, permission and question cards, org nodes, hovered tickets. Desktop only."
+      },
+      {
+        "name": "elevation-float",
+        "value": "0 4px 10px shadow*1.0, 0 18px 44px -4px shadow*1.3",
+        "purpose": "Menus and popovers; Android composer and request panel via elevationFloat."
+      },
+      {
+        "name": "site-shadow-ticket",
+        "value": "0 0 0 1px rgb(18 23 18 / .07), 0 1px 2px -1px rgb(18 23 18 / .08), 0 2px 4px 0 rgb(18 23 18 / .04)",
+        "purpose": "Website ticket ring shadow."
+      },
+      {
+        "name": "site-shadow-float",
+        "value": "0 0 0 1px rgb(18 23 18 / .06), 0 2px 4px -2px rgb(18 23 18 / .06), 0 12px 32px -12px rgb(18 23 18 / .18)",
+        "purpose": "Website hero composer."
       }
     ],
     "motion": [
       {
         "name": "panel-slide",
-        "value": "200ms ease-out-quint",
-        "purpose": "Existing desktop panel width movement; system reduce motion skips decorative requests. Native easing, not a new CSS animation."
+        "value": "200ms",
+        "purpose": "Desktop side panel width (src/ui/motion.rs PANEL_SLIDE)."
       },
       {
         "name": "spinner-period",
         "value": "900ms",
-        "purpose": "Existing rotating loader cycle from src/ui/motion.rs; shared self-parking clock, at most 60Hz."
+        "purpose": "Shared desktop loader cycle; reduce motion holds phase zero."
       },
       {
-        "name": "pulse-cadence",
-        "value": "30Hz maximum for ordinary pulses",
-        "purpose": "Existing strided pulse clock; expensive views can use roughly 15Hz. Reduce motion holds phase zero and schedules nothing."
+        "name": "press-scale",
+        "value": "150ms cubic-bezier(0,0,0.58,1)",
+        "purpose": "Android PressableScale; website block-link scales to 0.96 over 150ms ease-out."
+      },
+      {
+        "name": "org-canvas-fit",
+        "value": "220ms cubic-bezier(0.25,1,0.5,1)",
+        "purpose": "Android org canvas zoom and fit."
       }
     ],
     "breakpoints": [
       {
         "name": "android-navigation-rail",
         "value": "600dp",
-        "purpose": "Actual Android window-width threshold; 96dp rail replaces compact bottom navigation."
+        "purpose": "Android switches from compact navigation to the rail."
       },
       {
-        "name": "desktop-workspace-side-form",
-        "value": "900px remaining content width",
-        "purpose": "Workspace definition form switches from full width to 420px; sidebar/right panel widths are subtracted first."
-      }
-    ],
-    "refinement": {
-      "editorFooter": {
-        "desktopPadding": 20,
-        "mobilePadding": 16,
-        "gap": 8,
-        "equalColumns": true,
-        "savePrimary": true,
-        "outsideClickDismiss": true
+        "name": "home-rail-columns",
+        "value": "floor((width + 12) / (220 + 12))",
+        "purpose": "Desktop home rail: whole tickets only, max width 1040px."
       },
-      "mobileHome": "Model selector, contextual setup entry, conversation and composer.",
-      "mobileCloudServices": false,
-      "source": "docs/ion-redesign/refinement-audit.md"
-    }
+      {
+        "name": "site-org-connectors",
+        "value": "767px",
+        "purpose": "Website org chart connectors hide below md."
+      }
+    ]
   },
   "components": [
     {
-      "name": "Desktop Primary Button",
-      "kind": "button",
-      "refersTo": "desktop-button-primary",
-      "description": "GPUI control_button create/open variant: 32px, 8px corners, visible accent focus, semibold label. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<button class=\"ds-desktop-primary\">New agent</button>",
-      "css": ".ds-desktop-primary {font-family:system-ui,sans-serif;height:32px;padding:0 12px;border:1px solid #c2ef68;border-radius:8px;background:#c2ef68;color:#1b2510;font-size:13px;font-weight:600;cursor:default;} .ds-desktop-primary:hover {opacity:.9;} .ds-desktop-primary:active {opacity:.8;} .ds-desktop-primary:focus-visible {outline:1px solid #c2ef68;outline-offset:2px;}"
-    },
-    {
-      "name": "Desktop Secondary Button — Dark",
-      "kind": "button",
-      "refersTo": "desktop-button-secondary-dark",
-      "description": "GPUI control_button neutral variant. The native focus refinement changes its 1px border to accent. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<button class=\"ds-desktop-secondary\">Reload</button>",
-      "css": ".ds-desktop-secondary {font-family:system-ui,sans-serif;height:32px;padding:0 12px;border:1px solid hsla(220,10%,90%,.14);border-radius:8px;background:#272b28;color:#f2f4ef;font-size:13px;cursor:default;} .ds-desktop-secondary:hover {background:hsla(220,10%,90%,.09);} .ds-desktop-secondary:active {background:hsla(220,10%,90%,.05);} .ds-desktop-secondary:focus-visible {outline:none;border-color:#c2ef68;}"
-    },
-    {
-      "name": "Desktop Comfortable Field — Dark",
-      "kind": "input",
-      "refersTo": "desktop-field-dark",
-      "description": "GPUI TextField::comfortable(): 42px high, inset fill, 14/22 authored text, and focus border. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<label class=\"ds-desktop-field-label\">Name<input class=\"ds-desktop-field\" value=\"Code reviewer\" /></label>",
-      "css": ".ds-desktop-field-label {font-family:system-ui,sans-serif;display:flex;flex-direction:column;gap:6px;color:#f2f4ef;font-size:12.5px;} .ds-desktop-field {font-family:system-ui,sans-serif;height:42px;box-sizing:border-box;padding:0 12px;border:1px solid hsla(220,10%,90%,.14);border-radius:8px;background:#131614;color:#f2f4ef;font-size:14px;line-height:22px;} .ds-desktop-field:hover {border-color:hsla(220,10%,90%,.14);} .ds-desktop-field:focus-visible {outline:none;border-color:#c2ef68;}"
-    },
-    {
-      "name": "Android Primary Button",
-      "kind": "button",
-      "refersTo": "mobile-button-primary",
-      "description": "WorkbenchButton primary: minimum 48dp target, medium corners, 2dp focus border; pressed .75, disabled .45. HTML uses CSS pixels as a logical-unit illustration. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<button class=\"ds-mobile-primary\">Save agent</button>",
-      "css": ".ds-mobile-primary {font-family:system-ui,sans-serif;min-height:48px;padding:10px 14px;border:2px solid transparent;border-radius:12px;background:#c2ef68;color:#1b2510;font-size:14px;line-height:20px;font-weight:600;} .ds-mobile-primary:hover {background:#c2ef68;} .ds-mobile-primary:active {opacity:.75;} .ds-mobile-primary:focus-visible {outline:none;border-color:#c2ef68;} .ds-mobile-primary:disabled {opacity:.45;}"
-    },
-    {
-      "name": "Android Secondary Button — Dark",
-      "kind": "button",
-      "refersTo": "mobile-button-secondary-dark",
-      "description": "WorkbenchButton secondary uses surfaceMuted; a destructive variant changes label ink to theme.danger. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<button class=\"ds-mobile-secondary\">Reload from desktop</button>",
-      "css": ".ds-mobile-secondary {font-family:system-ui,sans-serif;min-height:48px;padding:10px 14px;border:2px solid transparent;border-radius:12px;background:#272b28;color:#f2f4ef;font-size:14px;line-height:20px;font-weight:600;} .ds-mobile-secondary:hover {background:#272b28;} .ds-mobile-secondary:active {background:hsla(220,10%,90%,.09);opacity:.75;} .ds-mobile-secondary:focus-visible {outline:none;border-color:#c2ef68;} .ds-mobile-secondary:disabled {opacity:.45;}"
-    },
-    {
-      "name": "Android Form Field — Dark",
-      "kind": "input",
-      "refersTo": "mobile-field-dark",
-      "description": "AutomationField used by agent/team editors: label, muted fill, 48dp minimum, 8dp corners, 16/24 text, accent focus. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<label class=\"ds-mobile-field-label\">Name<input class=\"ds-mobile-field\" value=\"Code reviewer\" /></label>",
-      "css": ".ds-mobile-field-label {font-family:system-ui,sans-serif;display:flex;flex-direction:column;gap:8px;color:#f2f4ef;font-size:16px;line-height:24px;} .ds-mobile-field {font-family:system-ui,sans-serif;min-height:48px;box-sizing:border-box;padding:12px;border:1px solid hsla(220,10%,90%,.07);border-radius:8px;background:#272b28;color:#f2f4ef;font-size:16px;line-height:24px;} .ds-mobile-field:hover {border-color:hsla(220,10%,90%,.07);} .ds-mobile-field:focus-visible {outline:none;border-color:#c2ef68;}"
-    },
-    {
-      "name": "Android Object Card — Dark",
+      "name": "Desktop Ticket - Dark",
       "kind": "card",
-      "refersTo": "mobile-card-dark",
-      "description": "WorkbenchCard: surface fill, hairline stroke, 16dp corners/padding, 12dp internal gap, no shadow. The hairline is approximated as a CSS border. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<section class=\"ds-mobile-card\"><span class=\"ds-mobile-card-title\">Execution</span><span class=\"ds-mobile-card-detail\">Harness and environment</span></section>",
-      "css": ".ds-mobile-card {font-family:system-ui,sans-serif;display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid hsla(220,10%,90%,.07);border-radius:16px;background:#1d201e;color:#f2f4ef;} .ds-mobile-card-title {font-size:17px;font-weight:600;} .ds-mobile-card-detail {font-size:13px;line-height:19px;color:#c2c8c0;}"
+      "refersTo": "desktop-ticket-dark",
+      "description": "Home rail ticket: mono number stub, dashed perforation, title, station and state pill. Rest elevation. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<article class=\"ds-ticket\"><div class=\"ds-stub\"><span>#8CE6</span><span>6d</span></div><hr class=\"ds-perf\"><div class=\"ds-body\"><b>Workflow: QA bounded retry</b><div class=\"ds-meta\"><span>waku</span><span class=\"ds-pill\">Ready</span></div></div></article>",
+      "css": ".ds-ticket{font-family:system-ui,sans-serif;width:260px;background:#181d1b;color:#eef2ec;border:1px solid hsla(150,10%,90%,.09);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.38),0 6px 18px -4px rgba(0,0,0,.29)} .ds-stub{display:flex;justify-content:space-between;padding:9px 12px 8px;font:11.5px \"JetBrains Mono\",monospace;color:#9da69a} .ds-perf{margin:0 12px;border:0;border-top:1px dashed hsla(150,10%,90%,.09)} .ds-body{padding:9px 12px 12px;display:grid;gap:12px;font-size:13.5px} .ds-body b{font-weight:500} .ds-meta{display:flex;justify-content:space-between;font-size:12px;color:#bac2b7} .ds-pill{height:20px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;display:inline-flex;align-items:center;color:#62c987;background:rgba(98,201,135,.14)}"
     },
     {
-      "name": "Desktop Selected Settings Navigation — Dark",
-      "kind": "nav",
-      "refersTo": "desktop-navigation-selected-dark",
-      "description": "Selected GPUI Settings row: 36px high, 8px corners, 15-unit icon, 13-unit label, soft accent selection. Native GPUI adds its focus border; the preview uses an inset outline to avoid moving layout. SVG path comes from assets/icons/settings.svg. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<nav aria-label=\"Settings\"><button class=\"ds-settings-nav\" aria-current=\"page\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg><span>General</span></button></nav>",
-      "css": ".ds-settings-nav {font-family:system-ui,sans-serif;height:36px;padding:0 11px;display:flex;align-items:center;gap:10px;border:0;border-radius:8px;background:hsla(80,81%,67%,.12);color:#f2f4ef;font-size:13px;cursor:default;} .ds-settings-nav svg {color:#c2ef68;} .ds-settings-nav:hover,.ds-settings-nav:active {background:hsla(0,0%,94.1%,.06);} .ds-settings-nav:focus-visible {outline:1px solid #c2ef68;outline-offset:-1px;}"
+      "name": "Desktop Ticket Needs You - Light",
+      "kind": "card",
+      "refersTo": "desktop-ticket-needs-you-light",
+      "description": "Lime border, accent-soft stub and the inline Allow/Deny pass. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<article class=\"ds-nt\"><div class=\"ds-nstub\"><span>#D4AD</span><span>Working for 1m 33s</span></div><hr class=\"ds-nperf\"><div class=\"ds-nbody\"><b>Create ion-perm-probe.txt</b><div class=\"ds-pass\"><button class=\"allow\">Allow once</button><button class=\"deny\">Deny</button></div></div></article>",
+      "css": ".ds-nt{font-family:system-ui,sans-serif;width:280px;background:#fff;color:#121712;border:1px solid #c2ef68;border-radius:12px;box-shadow:0 1px 2px hsla(150,25%,10%,.072),0 6px 18px -4px hsla(150,25%,10%,.056)} .ds-nstub{display:flex;justify-content:space-between;padding:9px 12px 8px;border-radius:11px 11px 0 0;background:hsla(80,72%,55%,.18);font:11.5px \"JetBrains Mono\",monospace;color:#5a6457} .ds-nperf{margin:0 12px;border:0;border-top:1px dashed hsla(150,8%,12%,.09)} .ds-nbody{padding:9px 12px 12px;display:grid;gap:12px;font-size:13.5px} .ds-nbody b{font-weight:500} .ds-pass{display:flex;gap:8px} .ds-pass button{flex:1;height:30px;border-radius:8px;font:600 12.5px system-ui} .allow{background:#c2ef68;color:#1b2510;border:0} .deny{background:none;border:1px solid hsla(150,8%,12%,.14);color:#465045}"
     },
     {
-      "name": "Android Work Filter — Dark",
+      "name": "Desktop Filled Menu Chip - Dark",
       "kind": "chip",
-      "refersTo": "mobile-filter-selected-dark",
-      "description": "Work section tab, not a generic badge: 48dp minimum, 12dp corners, 14-unit semibold label. Native source has selected fill/text and accessibility state but no custom focus/hover refinement; browser focus remains the preview default. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<div role=\"tablist\" aria-label=\"Work sections\"><button class=\"ds-work-filter\" role=\"tab\" aria-selected=\"true\">Teams</button></div>",
-      "css": ".ds-work-filter {font-family:system-ui,sans-serif;min-height:48px;padding:12px 16px;border:0;border-radius:12px;background:rgba(194,239,104,.12);color:#c2ef68;font-size:14px;font-weight:600;} .ds-work-filter:hover,.ds-work-filter:active {background:rgba(194,239,104,.12);} .ds-work-filter:focus-visible {outline:auto;}"
+      "refersTo": "desktop-menu-chip-filled-dark",
+      "description": "MenuChip.filled(): composer model, effort and access selectors. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<button class=\"ds-chip\">GPT-6-Luna</button>",
+      "css": ".ds-chip{font-family:system-ui,sans-serif;height:28px;padding:0 10px;border-radius:999px;border:1px solid hsla(150,10%,90%,.075);background:hsla(150,10%,90%,.05);color:#eef2ec;font-size:12.5px;font-weight:500} .ds-chip:hover{background:hsla(150,10%,90%,.09)} .ds-chip:focus-visible{outline:none;border-color:#c2ef68}"
     },
     {
-      "name": "Android Composer — Dark",
-      "kind": "custom",
-      "refersTo": "mobile-composer-dark",
-      "description": "ComposerCard opaque Android fallback: 16dp corners, hairline, 16/21 multiline text, a 48dp circular send control and visible context hint. This snippet illustrates the composer/send primitive, not every attachment, dictation, approval, or streaming state. Arrow path comes from assets/icons/arrow-up.svg as an illustrative equivalent of Android's arrow_upward symbol. Illustrative HTML translation of the actual native primitive; CSS is preview-only and is not application source.",
-      "html": "<section class=\"ds-composer\"><textarea class=\"ds-composer-input\" aria-label=\"Message\" placeholder=\"Ask Ion to work on a task\"></textarea><div class=\"ds-composer-toolbar\"><button class=\"ds-composer-send\" aria-label=\"Send message\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/></svg></button></div><span class=\"ds-composer-hint\"></span></section>",
-      "css": ".ds-composer {font-family:system-ui,sans-serif;padding:6px 10px 8px;border:1px solid hsla(220,10%,90%,.07);border-radius:16px;background:#222623;color:#f2f4ef;} .ds-composer-input {font-family:system-ui,sans-serif;display:block;width:calc(100% - 12px);min-height:42px;max-height:120px;padding:8px 6px;border:0;resize:none;background:transparent;color:#f2f4ef;font-size:16px;line-height:21px;} .ds-composer-input::placeholder {color:#abb3a8;} .ds-composer-input:focus-visible {outline:auto;outline-color:#3b82f6;} .ds-composer-toolbar {display:flex;justify-content:flex-end;align-items:flex-end;gap:8px;margin-top:2px;} .ds-composer-send {width:48px;height:48px;margin-left:4px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:#c2ef68;color:#1b2510;} .ds-composer-send:hover {background:#c2ef68;} .ds-composer-send:active {opacity:.6;} .ds-composer-send:focus-visible {outline:auto;} .ds-composer-send:disabled {background:#272b28;color:#abb3a8;} .ds-composer-hint {display:block;padding:0 12px 6px;color:#c2c8c0;font-size:12px;}"
+      "name": "Desktop Composer - Dark",
+      "kind": "input",
+      "refersTo": "desktop-composer-dark",
+      "description": "18px composer card with Lifted elevation and a round lime send. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<div class=\"ds-comp\"><div>Do anything... type @ to add files, teams or apps</div><div class=\"ds-row\"><span class=\"ds-c\">Medium</span><button class=\"ds-send\">&#8593;</button></div></div>",
+      "css": ".ds-comp{font-family:system-ui,sans-serif;width:420px;padding:12px 14px 10px;border-radius:18px;background:#171c1a;border:1px solid hsla(150,10%,90%,.075);box-shadow:0 2px 4px rgba(0,0,0,.42),0 10px 28px -4px rgba(0,0,0,.42);color:#8a9487;font-size:14px} .ds-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px} .ds-c{height:28px;padding:0 10px;border-radius:999px;background:hsla(150,10%,90%,.05);color:#eef2ec;font-size:12.5px;display:inline-flex;align-items:center} .ds-send{width:32px;height:32px;border-radius:999px;border:0;background:#c2ef68;color:#1b2510}"
+    },
+    {
+      "name": "Desktop Toggle Switch",
+      "kind": "toggle",
+      "refersTo": "desktop-toggle-on",
+      "description": "Shared toggle_switch: lime when on; the knob position carries the state. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<span class=\"ds-tg on\"><i></i></span> <span class=\"ds-tg\"><i></i></span>",
+      "css": ".ds-tg{display:inline-flex;width:38px;height:22px;padding:2px;box-sizing:border-box;border-radius:999px;background:#0d100f;border:1px solid hsla(150,10%,90%,.14)} .ds-tg i{width:16px;height:16px;border-radius:999px;background:#9da69a} .ds-tg.on{background:#c2ef68;border-color:#c2ef68;justify-content:flex-end} .ds-tg.on i{background:#1b2510}"
+    },
+    {
+      "name": "Desktop Segmented Track - Dark",
+      "kind": "tabs",
+      "refersTo": "desktop-segment-active-dark",
+      "description": "Inset pill track; the active segment rises as a raised pill. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<div class=\"ds-seg\"><span class=\"on\">Org chart</span><span>List</span></div>",
+      "css": ".ds-seg{font-family:system-ui,sans-serif;display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:#0d100f;border:1px solid hsla(150,10%,90%,.075)} .ds-seg span{height:26px;padding:0 12px;border-radius:999px;display:inline-flex;align-items:center;font-size:12.5px;font-weight:500;color:#bac2b7} .ds-seg .on{background:#1a1f1d;color:#eef2ec;box-shadow:0 1px 2px rgba(0,0,0,.38)}"
+    },
+    {
+      "name": "Desktop Comfortable Field - Dark",
+      "kind": "input",
+      "refersTo": "desktop-field-comfortable-dark",
+      "description": "TextField.comfortable(): 42px form field; the default is 28px and toolbar() is 32px. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<input class=\"ds-field\" placeholder=\"Agent name\">",
+      "css": ".ds-field{font-family:system-ui,sans-serif;height:42px;padding:0 12px;border-radius:8px;background:#0d100f;border:1px solid hsla(150,10%,90%,.14);color:#eef2ec;font-size:14px} .ds-field:focus{outline:none;border-color:#c2ef68}"
+    },
+    {
+      "name": "Mention Legend - Dark",
+      "kind": "legend",
+      "refersTo": "desktop-menu-dark",
+      "description": "Footer of the mention picker naming @, @@ and @@@; the active sigil is lit. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<div class=\"ds-leg\"><span><kbd class=\"lit\">@</kbd>Files, teams &amp; apps</span><span><kbd>@@</kbd>Teams</span><span><kbd>@@@</kbd>Apps</span></div>",
+      "css": ".ds-leg{font-family:system-ui,sans-serif;display:flex;gap:16px;height:32px;align-items:center;padding:0 12px;border-top:1px solid hsla(150,10%,90%,.075);background:#1a1f1d;font-size:11.5px;color:#9da69a} .ds-leg span{display:flex;gap:6px;align-items:center} .ds-leg kbd{font:11px \"JetBrains Mono\",monospace;padding:0 5px;height:18px;line-height:16px;border-radius:4px;border:1px solid hsla(150,10%,90%,.075)} .ds-leg kbd.lit{border-color:#c2ef68;background:hsla(80,81%,67%,.13);color:#c2ef68}"
+    },
+    {
+      "name": "Android Ticket - Light",
+      "kind": "card",
+      "refersTo": "mobile-ticket-light",
+      "description": "TicketCard: 12dp card, 14dp insets, 15.5 title, elevationRest. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<article class=\"dm-t\"><div class=\"dm-s\"><span>#8CE6</span><span>6d</span></div><hr><div class=\"dm-b\">Approve the database migration</div></article>",
+      "css": ".dm-t{font-family:Roboto,system-ui,sans-serif;width:300px;background:#fff;border:1px solid hsla(150,8%,12%,.09);border-radius:12px;box-shadow:0 1px 2px rgba(18,32,22,.09),0 6px 18px -4px rgba(18,32,22,.07)} .dm-s{display:flex;justify-content:space-between;min-height:34px;align-items:center;padding:0 14px;font:12px monospace;color:#5a6457} .dm-t hr{margin:0 14px;border:0;border-top:1px dashed hsla(150,8%,12%,.09)} .dm-b{padding:10px 14px 14px;font-size:15.5px;font-weight:500;line-height:21px;color:#121712}"
+    },
+    {
+      "name": "Android Chip - Active Light",
+      "kind": "chip",
+      "refersTo": "mobile-chip-active-light",
+      "description": "Chip: 36dp pill inside a 48dp target; active uses accent-soft and leaf text. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<button class=\"dm-chip\">Supervised</button>",
+      "css": ".dm-chip{font-family:Roboto,system-ui,sans-serif;min-height:36px;padding:0 12px 0 10px;border-radius:999px;border:0;background:rgba(150,205,60,.18);color:#3d5a12;font-size:13.5px;font-weight:500}"
+    },
+    {
+      "name": "Website Block Link - Lime",
+      "kind": "button",
+      "refersTo": "site-block-link-lime",
+      "description": "Forge CTA: square 2px block, uppercase label, arrow at the end. Website only. Illustrative HTML translation of a native primitive; preview CSS only.",
+      "html": "<a class=\"ds-block\" href=\"#\">Download Ion <span>&#8594;</span></a>",
+      "css": ".ds-block{font-family:\"Geist Variable\",system-ui,sans-serif;display:inline-flex;gap:28px;align-items:center;justify-content:space-between;min-height:52px;padding:0 14px 0 18px;border-radius:2px;background:#c2ef68;color:#1b2510;font-size:13px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;text-decoration:none} .ds-block:hover{background:#b3e352} .ds-block:active{scale:.96}"
     }
   ],
   "narrative": {
-    "northStar": "Operate",
-    "overview": "Ion is a native workbench: quiet charcoal or warm pale surfaces, compact contextual controls, and a restrained lime signal for the next useful action. Alignment and readable hierarchy do most of the work. Rounded groups hold an object, editor, or composer without turning every region into a card.\n\nDesktop uses GPUI; Android uses React Native and Expo. Their shared palette and vocabulary establish one product while their control sizes and navigation remain native. The independent dotted-stem-and-loop Ion mark is canonical in `assets/icons/ion.svg`; `scripts/assets/ion-icon.py` produces platform assets with lime on charcoal.\n\nThis is a source-extracted record of the implemented redesign, not a visual acceptance record. The session was code led; there is no approved comp. Fresh native evidence now covers the desktop agent model menu, fixed equal-width Save/Close footer, scrolling and outside dismissal in dark mode, plus Appearance and home in light mode (`docs/ion-redesign/evidence/refinement/`). The original System theme preference was restored. Earlier Teams evidence proves its crash correction. Android emulator evidence now covers signed-in phone, 320dp at 130% font scale, expanded rail, model selection, save/reopen and keyboard handling. Broader desktop provider/state coverage, hardware checks and full visual acceptance remain incomplete. Formal visual disposition is **recapture**; the seven source findings resolved in `docs/ion-redesign/reviewer-verdict.md` do not establish full parity or visual acceptance. See `docs/ion-redesign/ux-audit.md` for the complete evidence boundary.",
+    "northStar": "The Ticket Rail",
+    "overview": "Ion turns a request into a ticket and keeps every ticket on a live rail until it is settled. The home is a question set in mono (\"What should we build in waku?\"), one composer under it, and a grid of ticket cards rising out of a mint-to-lime glow field at the bottom of the window. Everything else (Decisions, Teams, Routines, Workflows, Artifacts, Apps, Harnesses) is a Paperclip-like workspace in a quiet sidebar: an org canvas for teams, pipelines for workflows, rows for routines, cards with real brand marks for apps.\n\nLime `#c2ef68` is the signal, not the paint. It fills the one action that moves work forward (send, Allow, an enabled switch) and outlines the ticket that needs you. Broad surfaces stay neutral green-grey in both themes; light and dark are designed with equal care and share one token schema.\n\nThree clients, one vocabulary:\n\n- **Desktop** (Rust/GPUI): compact chrome, `sp()` scaled type, the full workspace. Tokens in `src/theme.rs`; shared parts in `src/ui/`.\n- **Android** (Expo/React Native): the same palette mirrored in `apps/mobile/src/constants/theme.ts`, with 36-48dp touch targets and larger type.\n- **Website** (TanStack Start + Tailwind, `website/src/styles.css`): the \"forge\" register. Light only, oversized uppercase Geist display, square 2px CTA blocks and dark \"night\" bands. It reuses the app's ink, canvas, lime, leaf and glow, and shows the product through a hero demo of the composer and rail.",
     "keyCharacteristics": [
-      "Neutral surfaces with selective lime emphasis.",
-      "Compact desktop controls and larger Android touch targets.",
-      "Real state, short contextual labels, and nearby actions.",
-      "Flat content groups with depth reserved for transient layers.",
-      "Visible focus, readable themes, and motion that respects system settings."
+      "One lime action per context; status keeps its own hue and always a label.",
+      "Tickets: mono `#XXXX` number in a stub, a dashed perforation, then title, station and state pill.",
+      "Mono for identity and the home question; system sans for everything operational.",
+      "Hairline translucent borders for structure; layered soft shadows for elevation.",
+      "Pills for controls (chips, segments, toggles, send); 12px corners for objects."
     ],
     "rules": [
       {
-        "name": "The Intentional Lime Rule",
-        "body": "Use filled lime for the contextual primary action and selected brand affordances; keep broad work surfaces neutral.",
+        "name": "The One Lime Action Rule",
+        "body": "Lime fills at most one control per context: the action that moves this ticket or this prompt forward. Everything beside it is outlined or quiet.",
         "section": "colors"
       },
       {
-        "name": "The Semantic Foreground Rule",
-        "body": "Resolve status and accent text from the current theme. Pair meaning with a label or icon, not color alone.",
+        "name": "The Label Carries Meaning Rule",
+        "body": "Every state colour ships with an icon and a word (Needs you, Working, Failed, Ready). Hue is never the only signal; toggles also move their knob.",
         "section": "colors"
       },
       {
-        "name": "The Native Type Rule",
-        "body": "Preserve platform text scaling and existing content font settings; do not replace chrome with a branded display font.",
+        "name": "The Glow Is One Field Rule",
+        "body": "The mint-to-lime glow is painted once, as a large field behind home (and the site hero). Never as scattered tints on cards.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Means Identity Rule",
+        "body": "Mono marks things with an identity (ticket numbers, the home question, `@` sigils, code). It is not used for ordinary labels.",
         "section": "typography"
-      },
-      {
-        "name": "The Flat Content Rule",
-        "body": "Establish everyday grouping with surface tone, spacing, and hairlines; reserve cast shadow for floating desktop layers.",
-        "section": "elevation"
       }
     ],
     "dos": [
-      "**Do** use neutral layers for broad surfaces and lime for the contextual primary action.",
-      "**Do** resolve text, status, and focus colors from the current theme.",
-      "**Do** preserve native system typography, platform scaling, and the bundled desktop code face.",
-      "**Do** pair status with text or an icon and keep actions keyboard/touch operable.",
-      "**Do** retain Android's labelled compact navigation and expanded rail.",
-      "**Do** keep real connection, draft, busy, error, approval, and conflict states visible.",
-      "**Do** use the canonical Ion vector and reproducible platform assets.",
-      "**Do** recapture missing theme, viewport, and interaction evidence before claiming visual acceptance."
+      "**Do** give each context at most one lime fill, and make it the action that moves work forward.",
+      "**Do** put new live work on the rail as a ticket with a stable mono number and a labelled state.",
+      "**Do** design every surface in light and dark from the same tokens; check both.",
+      "**Do** use `elevation()` levels (or Android's `elevation*` strings) instead of ad hoc shadows.",
+      "**Do** keep desktop chrome type in `sp()` and Android targets at 48dp.",
+      "**Do** use bundled or cached real brand marks for apps and providers."
     ],
     "donts": [
-      "**Don't** spread the primary lime across large canvas regions or use it as light-theme body text.",
-      "**Don't** add fictional metrics, decorative charts, stacked glass, or perpetual decorative motion.",
-      "**Don't** replace Android's opaque workbench surfaces with a simulated glass treatment.",
-      "**Don't** force desktop control geometry onto Android touch controls.",
-      "**Don't** treat parent rounding as clipping for GPUI descendant paint.",
-      "**Don't** add I/O, whole-session scans, or a new frame clock to a rendering path.",
-      "**Don't** claim full desktop/Android parity or hardware validation from source checks or one screenshot."
+      "**Don't** use lime as light-theme text or as a large surface fill; use leaf `#3d5a12` for text.",
+      "**Don't** scatter the glow as tints on cards or sections; it is one field.",
+      "**Don't** set ordinary labels in mono or in uppercase tracking inside the apps.",
+      "**Don't** add uppercase eyebrow labels above headings on any surface.",
+      "**Don't** let a ticket be cut at the rail edge or reorder settled tickets by state.",
+      "**Don't** carry the website's 2px blocks and uppercase display into the native apps; the forge register is the site's alone."
     ]
   }
 }
