@@ -385,13 +385,13 @@ impl Waku {
             }
             let key = state.key.clone();
             footer = footer.child(
-                self.control_button(
+                self.control_button_tone(
                     format!("inbox-action-{index}-{n}"),
                     label,
+                    ControlTone::Ghost,
                     cx,
                     move |this, _, cx| this.update_inbox_item(key.clone(), action, cx),
                 )
-                .border_0()
                 .tooltip(Tooltip::text(match action {
                     InboxAction::Acknowledge => {
                         "Acknowledge this notification; pending work still needs its own approval."

@@ -1401,7 +1401,7 @@ fn skills_status_row(theme: &Theme, message: String) -> Div {
         .child(SharedString::from(message))
 }
 
-fn format_bytes(bytes: u64) -> String {
+pub(super) fn format_bytes(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{bytes} B")
     } else if bytes < 1024 * 1024 {

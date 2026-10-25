@@ -235,6 +235,29 @@ struct MenuState {
     trigger_click_toggles: bool,
 }
 
+thread_local! {
+    /// Menus opened on this thread, held weakly so a dropped handle can never
+    /// pin the answer below.
+    static OPEN_MENUS: RefCell<Vec<std::rc::Weak<RefCell<MenuState>>>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// Whether any menu or popover is open. Tooltips stay quiet while one is, so
+/// a trigger's hint never lands on top of the menu it just opened.
+pub fn any_menu_open() -> bool {
+    OPEN_MENUS.with(|menus| {
+        let mut menus = menus.borrow_mut();
+        menus.retain(|menu| {
+            menu.upgrade().is_some_and(|state| {
+                state
+                    .try_borrow()
+                    .map_or(true, |state| state.open.is_some())
+            })
+        });
+        !menus.is_empty()
+    })
+}
+
 /// Cross-frame state for one context menu. The owner keeps one per menu site.
 #[derive(Clone)]
 pub struct ContextMenuHandle {
@@ -273,6 +296,9 @@ impl ContextMenuHandle {
     }
 
     fn notify_toggle(&self, open: bool, window: &mut Window, cx: &mut App) {
+        if open {
+            OPEN_MENUS.with(|menus| menus.borrow_mut().push(Rc::downgrade(&self.state)));
+        }
         for handler in self.on_toggle.iter() {
             handler(open, window, cx);
         }

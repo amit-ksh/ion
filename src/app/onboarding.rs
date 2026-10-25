@@ -266,7 +266,7 @@ impl Waku {
     pub(super) fn render_setup_launcher(&self, cx: &mut Context<Self>) -> AnyElement {
         self.control_button(
             "open-ion-setup",
-            "Connection setup",
+            "Open setup",
             cx,
             |this, window, cx| this.open_onboarding(window, cx),
         )
@@ -471,12 +471,19 @@ impl Waku {
         )
         .w_full()
         .h_auto()
-        .min_h(px(68.0))
-        .py(px(12.0))
+        .min_h(px(72.0))
+        .px(px(16.0))
+        .py(px(14.0))
         .gap(px(14.0))
-        .bg(gpui::transparent_black())
-        .border_color(theme.border)
-        .child(icon(step_icon(step), 22.0, theme.text_secondary))
+        .rounded(px(14.0))
+        .bg(theme.ticket)
+        .border_color(theme.ticket_border)
+        .shadow(elevation(&theme, Elevation::Rest))
+        .hover(move |style| style.bg(theme.ticket).border_color(theme.border_strong))
+        .child(
+            avatar_tile(40.0, theme.accent_soft, gpui::transparent_black())
+                .child(icon(step_icon(step), 18.0, theme.accent)),
+        )
         .child(
             div()
                 .flex_1()
@@ -596,8 +603,17 @@ impl Waku {
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(icon("icons/ion.svg", 20.0, theme.accent))
-                        .child(div().text_size(sp(14.0)).child("Set up Ion")),
+                        .child(
+                            avatar_tile(26.0, theme.primary, theme.primary)
+                                .rounded(px(8.0))
+                                .child(icon("icons/ion.svg", 15.0, theme.on_primary)),
+                        )
+                        .child(
+                            div()
+                                .text_size(sp(14.0))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child("Set up Ion"),
+                        ),
                     cx,
                 ),
             )
@@ -613,56 +629,63 @@ impl Waku {
             .flex()
             .flex_col()
             .gap(px(16.0))
-            .p(px(24.0))
-            .rounded(px(13.0))
-            .bg(theme.raised)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(12.0))
-                    .text_size(sp(20.0))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(icon(step_icon(step), 24.0, theme.accent))
-                    .child(title(step)),
-            );
+            .p(px(28.0))
+            .rounded(px(20.0))
+            .border_1()
+            .border_color(theme.ticket_border)
+            .bg(theme.ticket)
+            .shadow(elevation(&theme, Elevation::Float));
         if step != Step::Welcome {
-            let mut navigation = div().flex().flex_wrap().gap(px(8.0));
+            // A stepper on the shared segmented track: the current step rises,
+            // steps still waiting on the user carry a lime dot.
+            let mut navigation = segmented_track(&theme).flex_wrap();
             for next in Step::ALL.into_iter().filter(|s| *s != Step::Welcome) {
-                let label = title(next);
+                let active = next == step;
+                let pending = self.setup_needs_attention(next);
                 navigation = navigation.child(
-                    self.control_button(
-                        format!("setup-step-{}", index(next)),
-                        "",
-                        cx,
-                        move |this, window, cx| this.set_setup_step(next, window, cx),
-                    )
-                    .h(px(36.0))
-                    .text_size(sp(12.0))
-                    .child(icon(
-                        step_icon(next),
-                        14.0,
-                        if next == step {
-                            theme.accent
-                        } else {
-                            theme.text_secondary
-                        },
-                    ))
-                    .child(label)
-                    .bg(if next == step {
-                        theme.overlay_strong
-                    } else {
-                        gpui::transparent_black()
-                    })
-                    .border_color(if next == step {
-                        theme.accent
-                    } else {
-                        theme.border_strong
-                    }),
+                    segment(format!("setup-step-{}", index(next)), "", active, &theme)
+                        .h(px(30.0))
+                        .gap(px(7.0))
+                        .child(icon(
+                            step_icon(next),
+                            13.0,
+                            if active {
+                                theme.accent
+                            } else {
+                                theme.text_tertiary
+                            },
+                        ))
+                        .child(title(next))
+                        .when(pending && !active, |segment| {
+                            segment.child(div().size(px(6.0)).rounded_full().bg(theme.primary))
+                        })
+                        .on_activation(cx, move |this, window, cx| {
+                            this.set_setup_step(next, window, cx)
+                        }),
                 );
             }
-            form = form.child(navigation);
+            form = form.child(div().flex().child(navigation));
         }
+        form = form.child(
+            div()
+                .mt(px(4.0))
+                .flex()
+                .items_center()
+                .gap(px(14.0))
+                .child(
+                    avatar_tile(44.0, theme.accent_soft, gpui::transparent_black())
+                        .rounded(px(13.0))
+                        .child(icon(step_icon(step), 20.0, theme.accent)),
+                )
+                .child(
+                    div()
+                        .font_family(crate::md::render::MONO_FAMILY)
+                        .text_size(sp(22.0))
+                        .line_height(sp(30.0))
+                        .font_weight(FontWeight::MEDIUM)
+                        .child(title(step)),
+                ),
+        );
         match step {
             Step::Welcome => {
                 form = form.child(
@@ -965,8 +988,24 @@ impl Waku {
                 move |this, window, cx| this.set_setup_step(previous, window, cx),
             ));
         }
-        actions = actions.child(
-            self.control_button(
+        if step != Step::Welcome && step != Step::Gateway {
+            actions = actions.child(self.control_button_tone(
+                "setup-skip-step",
+                "Skip this step",
+                super::workspace_control::ControlTone::Ghost,
+                cx,
+                |this, window, cx| this.skip_setup_step(window, cx),
+            ));
+        }
+        actions = actions.child(self.control_button_tone(
+            "setup-skip-all",
+            "Skip for now",
+            super::workspace_control::ControlTone::Ghost,
+            cx,
+            |this, window, cx| this.leave_setup(window, cx),
+        ));
+        actions = actions.child(div().flex_1()).child(
+            self.control_button_tone(
                 "setup-next",
                 if step == Step::Welcome {
                     "Set up Ion"
@@ -975,28 +1014,14 @@ impl Waku {
                 } else {
                     "Next"
                 },
+                super::workspace_control::ControlTone::Primary,
                 cx,
                 |this, window, cx| this.next_setup_step(window, cx),
             )
             .h(px(38.0))
-            .border_color(theme.accent)
-            .bg(theme.overlay_strong)
-            .child(icon("icons/arrow-right.svg", 14.0, theme.accent)),
+            .px(px(18.0))
+            .child(icon("icons/arrow-right.svg", 14.0, theme.on_primary)),
         );
-        if step != Step::Welcome && step != Step::Gateway {
-            actions = actions.child(self.control_button(
-                "setup-skip-step",
-                "Skip this step",
-                cx,
-                |this, window, cx| this.skip_setup_step(window, cx),
-            ));
-        }
-        actions = actions.child(self.control_button(
-            "setup-skip-all",
-            "Skip for now",
-            cx,
-            |this, window, cx| this.leave_setup(window, cx),
-        ));
         form = form.child(actions).child(
             div()
                 .flex()
@@ -1027,21 +1052,31 @@ impl Waku {
                     .when(!(tiling.bottom || tiling.left), |r| r.rounded_bl(radius))
                     .when(!(tiling.bottom || tiling.right), |r| r.rounded_br(radius))
             })
-            .bg(theme.surface)
+            .bg(theme.canvas)
+            .relative()
+            .overflow_hidden()
             .on_key_down(cx.listener(|this, event, window, cx| this.setup_key(event, window, cx)))
-            .child(header)
+            .children(super::home::glow_field(&theme))
             .child(
                 div()
-                    .id("onboarding-scroll")
-                    .track_scroll(&self.onboarding_ui.scroll)
-                    .overflow_y_scroll()
-                    .flex_1()
-                    .min_h_0()
+                    .absolute()
+                    .inset_0()
                     .flex()
                     .flex_col()
-                    .items_center()
-                    .p(px(28.0))
-                    .child(form),
+                    .child(header)
+                    .child(
+                        div()
+                            .id("onboarding-scroll")
+                            .track_scroll(&self.onboarding_ui.scroll)
+                            .overflow_y_scroll()
+                            .flex_1()
+                            .min_h_0()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .p(px(28.0))
+                            .child(form),
+                    ),
             )
             .into_any_element()
     }

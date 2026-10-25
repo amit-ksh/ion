@@ -847,9 +847,34 @@ impl Waku {
             TeamDecisionStatus::Declined => "Declined",
             TeamDecisionStatus::Canceled => "Canceled",
         };
-        let mut actions = div().flex().flex_wrap().gap(px(8.0));
-        if decision.status == TeamDecisionStatus::Pending {
+        let pending = decision.status == TeamDecisionStatus::Pending;
+        let task = decision.task_id;
+        let run = decision.run_id;
+        // Navigation stays quiet on the left; the verdict sits on the right,
+        // with lime reserved for sending the work out.
+        let mut actions = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(px(6.0))
+            .child(self.control_button_tone(
+                format!("decision-task-{id}"),
+                "Open task",
+                ControlTone::Ghost,
+                cx,
+                move |this, _, cx| this.open_team_activity_task(task, cx),
+            ))
+            .child(self.control_button_tone(
+                format!("decision-run-{id}"),
+                "Open run",
+                ControlTone::Ghost,
+                cx,
+                move |this, _, cx| this.open_workspace_run(run, cx),
+            ))
+            .child(div().flex_1());
+        if pending {
             for (approve, label) in [
+                (false, "Decline"),
                 (
                     true,
                     if decision.app_action.is_some() {
@@ -858,89 +883,143 @@ impl Waku {
                         "Approve proposal"
                     },
                 ),
-                (false, "Decline"),
             ] {
                 let decision = (*decision).clone();
-                actions = actions.child(self.control_button(
+                actions = actions.child(self.control_button_tone(
                     format!("decision-answer-{id}-{approve}"),
                     label,
+                    if approve {
+                        ControlTone::Primary
+                    } else {
+                        ControlTone::Secondary
+                    },
                     cx,
                     move |this, _, cx| this.answer_team_decision(decision.clone(), approve, cx),
                 ));
             }
         }
-        let task = decision.task_id;
-        let run = decision.run_id;
-        actions = actions
-            .child(self.control_button(
-                format!("decision-task-{id}"),
-                "Open task",
-                cx,
-                move |this, _, cx| this.open_team_activity_task(task, cx),
-            ))
-            .child(self.control_button(
-                format!("decision-run-{id}"),
-                "Open run",
-                cx,
-                move |this, _, cx| this.open_workspace_run(run, cx),
-            ));
+        let pill = match decision.status {
+            TeamDecisionStatus::Pending => {
+                status_pill("icons/alert.svg", state, theme.accent, theme.accent_soft)
+            }
+            TeamDecisionStatus::Approved => {
+                status_pill("icons/check.svg", state, theme.accent, theme.accent_soft)
+            }
+            TeamDecisionStatus::Declined => {
+                status_pill("icons/x.svg", state, theme.danger, theme.danger_soft)
+            }
+            TeamDecisionStatus::Canceled => {
+                status_pill("icons/stop.svg", state, theme.text_secondary, theme.overlay)
+            }
+        };
+        let short_id = id.simple().to_string()[..4].to_uppercase();
         div()
             .id(SharedString::from(format!("team-decision-{id}")))
-            .py(px(18.0))
-            .border_b_1()
-            .border_color(theme.border)
+            .mx(px(2.0))
+            .mb(px(12.0))
+            .rounded(px(14.0))
+            .border_1()
+            .border_color(if pending {
+                theme.primary
+            } else {
+                theme.ticket_border
+            })
+            .bg(theme.ticket)
+            .shadow(elevation(&theme, Elevation::Rest))
             .flex()
             .flex_col()
-            .gap(px(10.0))
             .child(
                 div()
-                    .text_size(sp(14.0))
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(decision.title.clone()),
+                    .h(px(38.0))
+                    .px(px(16.0))
+                    .rounded_t(px(13.0))
+                    .when(pending, |stub| stub.bg(theme.accent_soft))
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .child(
+                        div()
+                            .font_family(crate::md::render::MONO_FAMILY)
+                            .text_size(sp(11.5))
+                            .text_color(theme.text_secondary)
+                            .child(format!("#{short_id}")),
+                    )
+                    .child(pill)
+                    .child(div().flex_1())
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(sp(12.0))
+                            .text_color(theme.text_tertiary)
+                            .child(format!("{project} · {}", decision.host)),
+                    ),
             )
+            .child(super::super::home::perforation(theme.border_strong))
             .child(
                 div()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text_secondary)
-                    .child(format!(
-                        "{project} · {state} · {} · Decision revision {} · Team definition {}",
-                        decision.host, decision.revision, decision.definition_revision
-                    )),
+                    .px(px(16.0))
+                    .pt(px(12.0))
+                    .pb(px(12.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.0))
+                    .child(
+                        div()
+                            .text_size(sp(15.0))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(theme.text)
+                            .child(decision.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(13.5))
+                            .line_height(sp(20.0))
+                            .text_color(theme.text)
+                            .child(decision.proposal.clone()),
+                    )
+                    .child(
+                        div()
+                            .font_family(crate::md::render::MONO_FAMILY)
+                            .text_size(sp(11.0))
+                            .text_color(theme.text_tertiary)
+                            .child(format!(
+                                "decision r{} · team definition r{}",
+                                decision.revision, decision.definition_revision
+                            )),
+                    )
+                    .child(div().mt(px(4.0)).child(actions)),
             )
-            .child(
-                div()
-                    .text_size(sp(13.0))
-                    .text_color(theme.text)
-                    .child(decision.proposal.clone()),
-            )
-            .child(actions)
             .into_any_element()
     }
     pub(super) fn render_team_view_tabs(&self, cx: &mut Context<Self>) -> Div {
         let theme = Theme::workspace(cx);
-        let mut tabs = div().flex().items_center().gap(px(8.0));
-        for (id, label, runs) in [
-            ("teams-definitions", "Teams", false),
-            ("teams-runs", "Runs", true),
+        let mut tabs = crate::ui::segmented_track(&theme);
+        // Org chart and list are two views of the same definitions.
+        for (id, label, runs, list) in [
+            ("teams-chart", "Org chart", false, false),
+            ("teams-definitions", "List", false, true),
+            ("teams-runs", "Runs", true, false),
         ] {
+            let active = self.control_ui.runs_tab == runs
+                && (runs || self.control_ui.team_list == list);
             tabs = tabs.child(
-                self.control_button(id, label, cx, move |this, _, cx| {
-                    this.control_ui.runs_tab = runs;
-                    this.control_ui.selected_run = None;
-                    this.clear_team_integration();
-                    this.clear_team_recovery();
-                    this.control_ui.team_run = None;
-                    this.control_ui.runs_team = None;
-                    this.control_ui.runs_after = None;
-                    this.control_ui.runs_previous.clear();
-                    this.refresh_team_activity(true, cx);
-                    cx.notify();
-                })
-                .bg(if self.control_ui.runs_tab == runs {
-                    theme.overlay_strong
-                } else {
-                    gpui::transparent_black()
-                }),
+                crate::ui::segment(id, label, active, &theme)
+                    .on_activation(cx, move |this, _, cx| {
+                        this.control_ui.runs_tab = runs;
+                        if !runs {
+                            this.control_ui.team_list = list;
+                        }
+                        this.control_ui.selected_run = None;
+                        this.clear_team_integration();
+                        this.clear_team_recovery();
+                        this.control_ui.team_run = None;
+                        this.control_ui.runs_team = None;
+                        this.control_ui.runs_after = None;
+                        this.control_ui.runs_previous.clear();
+                        this.refresh_team_activity(true, cx);
+                        cx.notify();
+                    }),
             );
         }
         tabs

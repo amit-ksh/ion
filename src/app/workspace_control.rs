@@ -30,11 +30,14 @@ mod automation_ui;
 mod billing_ui;
 mod budget_ui;
 mod collector_ui;
+mod definition_ui;
 mod document_preview;
 mod hosting_ui;
 mod inbox;
+mod org_canvas;
 mod remote_ui;
 mod resource_ui;
+mod roster_ui;
 mod routine_ui;
 mod starter_ui;
 mod team_activity;
@@ -122,6 +125,14 @@ impl Page {
         }
     }
 }
+/// Visual weight of a workspace action. See `control_button_tone`.
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum ControlTone {
+    Primary,
+    Secondary,
+    Ghost,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum FormKind {
     Agent,
@@ -168,6 +179,11 @@ pub(super) struct ControlUi {
     members: Vec<TeamMember>,
     team_graph: Rc<team_graph::Graph>,
     team_graph_selected: Option<Uuid>,
+    /// Teams page shows the definitions as a list instead of the org chart.
+    team_list: bool,
+    org: org_canvas::View,
+    /// A subagent being created from the org chart, attached once it saves.
+    pending_report: Option<org_canvas::PendingReport>,
     limit_inputs: Vec<(team_limits::LimitField, Entity<TextInput>)>,
     child_review: bool,
     stages: Vec<(
@@ -188,6 +204,8 @@ pub(super) struct ControlUi {
     automation_selected: Option<Uuid>,
     automation_definition: Option<Uuid>,
     automation_history: bool,
+    /// Show the starter templates even when the page already has records.
+    show_templates: bool,
     automation_after: Option<Uuid>,
     automation_cursor: Option<Uuid>,
     automation_previous: Vec<Option<Uuid>>,
@@ -260,6 +278,10 @@ enum Row {
     Task(Uuid),
     Project(Uuid),
     Record(ControlRecord),
+    /// A labelled group heading with its item count.
+    Section(&'static str, usize),
+    /// One agent in the Teams page roster.
+    Roster(Rc<RosterRow>),
     TeamGraph(Rc<team_graph::Graph>),
     TeamRun(Rc<TeamRunSummary>),
     Assignment(Rc<team_activity::AssignmentRow>),
@@ -277,6 +299,14 @@ enum Row {
     AppPair(Vec<crate::credentials::ComposioAuthConfig>, usize),
     Automation(Rc<AutomationRun>),
     AutomationStage(Rc<AutomationRun>, usize),
+}
+struct RosterRow {
+    agent: AgentProfile,
+    /// Each team the agent belongs to, and whether it leads that team.
+    teams: Vec<(String, bool)>,
+    /// Ends of the roster, which carry the group's rounded corners.
+    first: bool,
+    last: bool,
 }
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 enum NoticeKind {
@@ -382,6 +412,9 @@ impl ControlUi {
             members: Vec::new(),
             team_graph: Rc::new(team_graph::Graph::default()),
             team_graph_selected: None,
+            team_list: false,
+            org: org_canvas::View::default(),
+            pending_report: None,
             limit_inputs: team_limits::inputs(window, cx),
             child_review: true,
             stages: Vec::new(),
@@ -393,6 +426,7 @@ impl ControlUi {
             automation_selected: None,
             automation_definition: None,
             automation_history: false,
+            show_templates: false,
             automation_after: None,
             automation_cursor: None,
             automation_previous: Vec::new(),
@@ -1019,6 +1053,51 @@ impl Waku {
         cx: &mut Context<Self>,
         action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
     ) -> Stateful<Div> {
+        let id = id.into();
+        let tone = if matches!(
+            id.as_ref(),
+            "workspace-create" | "workspace-open-project" | "save-control-definition"
+        ) {
+            ControlTone::Primary
+        } else {
+            ControlTone::Secondary
+        };
+        self.control_button_tone(id, label, tone, cx, action)
+    }
+    /// A workspace action in one of three weights: the page's single lime
+    /// fire action, a quiet pill for ordinary actions, and a borderless ghost
+    /// for low-frequency row actions so a card never reads as a wall of boxes.
+    pub(super) fn control_button_tone(
+        &self,
+        id: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+        tone: ControlTone,
+        cx: &mut Context<Self>,
+        action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+    ) -> Stateful<Div> {
+        self.control_button_with(id, None, label, tone, cx, action)
+    }
+    /// A toned workspace action led by an icon in the label color.
+    pub(super) fn control_button_icon(
+        &self,
+        id: impl Into<SharedString>,
+        icon_path: &'static str,
+        label: impl Into<SharedString>,
+        tone: ControlTone,
+        cx: &mut Context<Self>,
+        action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+    ) -> Stateful<Div> {
+        self.control_button_with(id, Some(icon_path), label, tone, cx, action)
+    }
+    fn control_button_with(
+        &self,
+        id: impl Into<SharedString>,
+        leading: Option<&'static str>,
+        label: impl Into<SharedString>,
+        tone: ControlTone,
+        cx: &mut Context<Self>,
+        action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+    ) -> Stateful<Div> {
         let theme = if self.control_ui.page.is_some() && self.settings_page.is_none() {
             Theme::workspace(cx)
         } else {
@@ -1026,50 +1105,59 @@ impl Waku {
         };
         let action = Rc::new(action);
         let click = action.clone();
-        let id = id.into();
-        let primary = matches!(
-            id.as_ref(),
-            "workspace-create" | "workspace-open-project" | "save-control-definition"
-        );
+        let primary_hover = Hsla {
+            l: theme.primary.l - 0.05,
+            ..theme.primary
+        };
+        let primary_active = Hsla {
+            l: theme.primary.l - 0.09,
+            ..theme.primary
+        };
+        let leading_color = match tone {
+            ControlTone::Primary => theme.on_primary,
+            ControlTone::Secondary => theme.text,
+            ControlTone::Ghost => theme.text_secondary,
+        };
         div()
-            .id(id)
+            .id(id.into())
             .tab_index(0)
             .tab_stop(true)
             .h(px(32.0))
             .flex_shrink_0()
-            .px(px(12.0))
-            .rounded(px(8.0))
+            .px(px(14.0))
+            .rounded_full()
             .border_1()
-            .border_color(theme.border_strong)
             .flex()
             .items_center()
             .gap(px(7.0))
             .text_size(sp(13.0))
-            .text_color(theme.text)
-            .bg(theme.raised)
+            .font_weight(FontWeight::MEDIUM)
             .cursor_default()
-            .hover(move |style| {
-                if primary {
-                    style.bg(theme.primary).opacity(0.9)
-                } else {
-                    style.bg(theme.overlay_strong)
-                }
-            })
-            .active(move |style| {
-                if primary {
-                    style.bg(theme.primary).opacity(0.8)
-                } else {
-                    style.bg(theme.overlay)
-                }
-            })
-            .when(primary, |button| {
-                button
+            .map(|button| match tone {
+                ControlTone::Primary => button
                     .bg(theme.primary)
-                    .text_color(theme.on_primary)
                     .border_color(theme.primary)
+                    .text_color(theme.on_primary)
                     .font_weight(FontWeight::SEMIBOLD)
+                    .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
+                    .hover(move |style| style.bg(primary_hover).border_color(primary_hover))
+                    .active(move |style| style.bg(primary_active).border_color(primary_active)),
+                ControlTone::Secondary => button
+                    .bg(theme.raised)
+                    .border_color(theme.border_strong)
+                    .text_color(theme.text)
+                    .hover(move |style| style.bg(theme.overlay_strong))
+                    .active(move |style| style.bg(theme.overlay)),
+                ControlTone::Ghost => button
+                    .border_color(gpui::transparent_black())
+                    .text_color(theme.text_secondary)
+                    .hover(move |style| style.bg(theme.overlay).text_color(theme.text))
+                    .active(move |style| style.bg(theme.overlay_strong)),
             })
             .focus_visible(|style| style.border_1().border_color(theme.accent))
+            .when_some(leading, |button, path| {
+                button.child(icon(path, 14.0, leading_color))
+            })
             .child(label.into())
             .on_click(cx.listener(move |this, _, window, cx| click(this, window, cx)))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
@@ -1082,6 +1170,7 @@ impl Waku {
             }))
     }
     pub(super) fn open_workspace_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.control_ui.show_templates = false;
         self.control_ui.hosting.open = false;
         self.control_ui.remote.close();
         self.control_ui.resources.close();
@@ -1214,6 +1303,7 @@ impl Waku {
                             this.refresh_cloud_budgets(cx);
                         }
                         if saving && this.control_ui.editor_generation==editor_generation {this.control_ui.form = None;}
+                        if saving {this.attach_pending_report(cx);}
                         if saving && let Some(proposal) = this.control_ui.accepted_proposal.take() {
                             if this.control_ui.snapshot.records.iter().any(|r| matches!(r, ControlRecord::Action(a) if a.id==proposal.id && a.status==WorkspaceActionStatus::Accepted)) {
                                 this.prepare_control_task(proposal.project_id, ProviderKind::Nebius, format!("{}\n\n{}", proposal.title, proposal.detail), cx);
@@ -1253,6 +1343,7 @@ impl Waku {
         self.control_ui.editor_generation += 1;
         self.control_ui.form = Some(kind);
         self.control_ui.edit_id = None;
+        self.control_ui.pending_report = None;
         self.control_ui.error = None;
         self.control_ui.routine_team = None;
         self.control_ui.routine_workflow = None;
@@ -1379,7 +1470,18 @@ impl Waku {
         cx.notify();
     }
     fn save_control_form(&mut self, cx: &mut Context<Self>) {
-        let id = self.control_ui.edit_id.unwrap_or_else(Uuid::new_v4);
+        // A subagent keeps the id it was promised so it can be attached once saved.
+        let pending = self
+            .control_ui
+            .pending_report
+            .as_ref()
+            .filter(|_| self.control_ui.form == Some(FormKind::Agent))
+            .map(|pending| pending.agent);
+        let id = self
+            .control_ui
+            .edit_id
+            .or(pending)
+            .unwrap_or_else(Uuid::new_v4);
         let name = self.control_ui.name.read(cx).content().trim().to_owned();
         let instructions = self
             .control_ui
@@ -1725,6 +1827,35 @@ impl Waku {
         if page == Page::Teams {
             actions = actions.child(self.render_team_view_tabs(cx));
         }
+        if matches!(page, Page::Workflows | Page::Routines) {
+            let history = self.control_ui.automation_history;
+            actions = actions.child(
+                segmented_track(&theme)
+                    .child(
+                        segment("automation-definitions", "Definitions", !history, &theme)
+                            .on_activation(cx, |this, _, cx| {
+                                this.control_ui.automation_history = false;
+                                this.control_ui.automation_selected = None;
+                                this.control_ui.activity_revision += 1;
+                                cx.notify();
+                            }),
+                    )
+                    .child(
+                        segment("automation-runs", "Runs", history, &theme).on_activation(
+                            cx,
+                            |this, _, cx| {
+                                this.control_ui.automation_history = true;
+                                this.control_ui.automation_selected = None;
+                                this.control_ui.automation_definition = None;
+                                this.control_ui.automation_after = None;
+                                this.control_ui.automation_previous.clear();
+                                this.refresh_team_activity(true, cx);
+                                cx.notify();
+                            },
+                        ),
+                    ),
+            );
+        }
         let busy =
             self.control_ui.busy || self.control_ui.apps_busy || self.control_ui.activity_busy;
         actions = actions.child(
@@ -1748,41 +1879,36 @@ impl Waku {
             Page::Workflows => Some((FormKind::Workflow, "New workflow")),
             _ => None,
         };
-        if matches!(page, Page::Workflows | Page::Routines) {
-            actions = actions.child(
-                self.control_button(
-                    "automation-definitions",
-                    "Definitions",
-                    cx,
-                    |this, _, cx| {
-                        this.control_ui.automation_history = false;
-                        this.control_ui.automation_selected = None;
-                        this.control_ui.activity_revision += 1;
-                        cx.notify();
-                    },
-                )
-                .bg(if !self.control_ui.automation_history {
-                    theme.overlay_strong
+        let has_records = !matches!(
+            self.control_ui.rows.first(),
+            None | Some(Row::Empty(_))
+        );
+        let templates_page = match page {
+            Page::Teams => !self.control_ui.runs_tab,
+            Page::Workflows | Page::Routines => !self.control_ui.automation_history,
+            _ => false,
+        };
+        if templates_page && has_records {
+            let showing = self.control_ui.show_templates;
+            actions = actions.child(self.control_button_icon(
+                "workspace-templates",
+                if showing {
+                    "icons/arrow-left.svg"
                 } else {
-                    gpui::transparent_black()
-                }),
-            );
-            actions = actions.child(
-                self.control_button("automation-runs", "Runs", cx, |this, _, cx| {
-                    this.control_ui.automation_history = true;
-                    this.control_ui.automation_selected = None;
-                    this.control_ui.automation_definition = None;
-                    this.control_ui.automation_after = None;
-                    this.control_ui.automation_previous.clear();
-                    this.refresh_team_activity(true, cx);
+                    "icons/sparkle.svg"
+                },
+                if showing { "Back to list" } else { "Templates" },
+                if showing {
+                    ControlTone::Secondary
+                } else {
+                    ControlTone::Ghost
+                },
+                cx,
+                |this, _, cx| {
+                    this.control_ui.show_templates = !this.control_ui.show_templates;
                     cx.notify();
-                })
-                .bg(if self.control_ui.automation_history {
-                    theme.overlay_strong
-                } else {
-                    gpui::transparent_black()
-                }),
-            );
+                },
+            ));
         }
         if let Some((kind, label)) = form {
             actions = actions.child(self.control_button(
@@ -1808,13 +1934,14 @@ impl Waku {
         }
         if page == Page::Projects {
             actions = actions.child(
-                self.control_button(
+                self.control_button_icon(
                     "workspace-open-project",
+                    "icons/folder.svg",
                     "Open folder",
+                    ControlTone::Primary,
                     cx,
                     |this, _, cx| this.add_project(cx),
-                )
-                .child(icon("icons/folder.svg", 14.0, theme.on_primary)),
+                ),
             );
         }
         div()
@@ -1982,23 +2109,69 @@ impl Waku {
                         _ => None,
                     })
                     .collect();
+                if page == Page::Teams {
+                    // Teams read as org charts first, then every agent in one
+                    // roster, the way Paperclip pairs its chart with its list.
+                    let teams: Vec<_> = self
+                        .control_ui
+                        .snapshot
+                        .records
+                        .iter()
+                        .filter_map(|r| match r {
+                            ControlRecord::Team(team) => Some(team),
+                            _ => None,
+                        })
+                        .collect();
+                    let agents: Vec<_> = self
+                        .control_ui
+                        .snapshot
+                        .records
+                        .iter()
+                        .filter_map(|r| match r {
+                            ControlRecord::Agent(agent) => Some(agent),
+                            _ => None,
+                        })
+                        .collect();
+                    if !teams.is_empty() {
+                        rows.push(Row::Section("Teams", teams.len()));
+                    }
+                    for team in &teams {
+                        rows.push(Row::TeamGraph(Rc::new(team_graph::Graph::new(
+                            Some((*team).clone()),
+                            &team.members,
+                            &profiles,
+                        ))));
+                    }
+                    if !agents.is_empty() {
+                        rows.push(Row::Section("Agents", agents.len()));
+                    }
+                    let last = agents.len().saturating_sub(1);
+                    for (index, agent) in agents.into_iter().enumerate() {
+                        let teams = teams
+                            .iter()
+                            .filter_map(|team| {
+                                team.members
+                                    .iter()
+                                    .find(|m| m.agent_id == agent.id)
+                                    .map(|m| (team.name.clone(), m.parent_id.is_none()))
+                            })
+                            .collect();
+                        rows.push(Row::Roster(Rc::new(RosterRow {
+                            agent: agent.clone(),
+                            teams,
+                            first: index == 0,
+                            last: index == last,
+                        })));
+                    }
+                }
                 for record in &self.control_ui.snapshot.records {
                     if matches!(
                         (page, record),
-                        (Page::Teams, ControlRecord::Team(_))
-                            | (Page::Teams, ControlRecord::Agent(_))
-                            | (Page::Workflows, ControlRecord::Workflow(_))
+                        (Page::Workflows, ControlRecord::Workflow(_))
                             | (Page::Routines, ControlRecord::Routine(_))
                             | (Page::Artifacts, ControlRecord::Artifact(_))
                     ) {
                         rows.push(Row::Record(record.clone()));
-                        if let ControlRecord::Team(team) = record {
-                            rows.push(Row::TeamGraph(Rc::new(team_graph::Graph::new(
-                                Some(team.clone()),
-                                &team.members,
-                                &profiles,
-                            ))));
-                        }
                     }
                 }
             }
@@ -2055,7 +2228,7 @@ impl Waku {
             rows.push(Row::Empty(match page {
                 Page::Dashboard | Page::Tasks => "Your tasks will appear here.",
                 Page::Inbox => "No actions match these filters.",
-                Page::Decisions => "No decisions waiting for you.",
+                Page::Decisions => "Approvals, questions and reviews from your agents land here the moment they need you.",
                 Page::Teams => "Create an agent, then build a team.",
                 Page::Workflows => "Describe a workflow to create its stages.",
                 Page::Routines => "Create a routine for recurring agent work.",
@@ -2108,6 +2281,10 @@ impl Waku {
                         .w_full()
                         .max_w(px(1280.0))
                         .mx_auto()
+                        .flex()
+                        .flex_col()
+                        .gap(px(16.0))
+                        .child(self.render_workspace_header(page, cx))
                         .child(self.render_providers_settings(cx))
                         .child(self.render_models_speech_settings(cx)),
                 )
@@ -2240,7 +2417,13 @@ impl Waku {
                 );
             }
         }
-        if let Some(error) = &self.control_ui.error {
+        // An open editor shows its own error beside Save, where the eye is.
+        if let Some(error) = self
+            .control_ui
+            .error
+            .as_ref()
+            .filter(|_| self.control_ui.form.is_none())
+        {
             content = content.child(
                 div()
                     .text_size(sp(13.0))
@@ -2384,39 +2567,31 @@ impl Waku {
             );
             let connected = self.control_ui.apps_connected_only;
             content = content.child(
-                div()
-                    .flex()
-                    .gap(px(8.0))
-                    .child(
-                        self.control_button("apps-all", "All apps", cx, |this, _, cx| {
-                            this.control_ui.apps_connected_only = false;
-                            this.control_ui.apps_after = None;
-                            this.control_ui.apps_previous.clear();
-                            this.refresh_composio_apps(cx);
-                            cx.notify();
-                        })
-                        .border_0()
-                        .bg(if !connected {
-                            theme.overlay_strong
-                        } else {
-                            gpui::transparent_black()
-                        }),
-                    )
-                    .child(
-                        self.control_button("apps-connected", "Connected", cx, |this, _, cx| {
-                            this.control_ui.apps_connected_only = true;
-                            this.control_ui.apps_after = None;
-                            this.control_ui.apps_previous.clear();
-                            this.refresh_composio_apps(cx);
-                            cx.notify();
-                        })
-                        .border_0()
-                        .bg(if connected {
-                            theme.overlay_strong
-                        } else {
-                            gpui::transparent_black()
-                        }),
-                    ),
+                div().flex().child(
+                    segmented_track(&theme)
+                        .child(segment("apps-all", "All apps", !connected, &theme).on_activation(
+                            cx,
+                            |this, _, cx| {
+                                this.control_ui.apps_connected_only = false;
+                                this.control_ui.apps_after = None;
+                                this.control_ui.apps_previous.clear();
+                                this.refresh_composio_apps(cx);
+                                cx.notify();
+                            },
+                        ))
+                        .child(
+                            segment("apps-connected", "Connected", connected, &theme).on_activation(
+                                cx,
+                                |this, _, cx| {
+                                    this.control_ui.apps_connected_only = true;
+                                    this.control_ui.apps_after = None;
+                                    this.control_ui.apps_previous.clear();
+                                    this.refresh_composio_apps(cx);
+                                    cx.notify();
+                                },
+                            ),
+                        ),
+                ),
             );
         }
         if matches!(page, Page::Inbox | Page::Decisions) {
@@ -2442,7 +2617,21 @@ impl Waku {
         if matches!(page, Page::Inbox | Page::Dashboard) {
             content = content.child(self.render_team_collection_pages(cx));
         }
-        let collection = if rows.len() == 1 && matches!(rows[0], Row::Empty(_)) {
+        let templates_available = match page {
+            Page::Teams => !self.control_ui.runs_tab,
+            Page::Workflows | Page::Routines => !self.control_ui.automation_history,
+            _ => false,
+        };
+        let empty = rows.len() == 1 && matches!(rows[0], Row::Empty(_));
+        let collection = if templates_available && self.control_ui.show_templates {
+            self.render_control_starters(page, window, cx)
+        } else if page == Page::Teams
+            && !self.control_ui.runs_tab
+            && !self.control_ui.team_list
+            && !empty
+        {
+            self.render_org_canvas(window, cx)
+        } else if empty {
             let Row::Empty(message) = rows[0] else {
                 unreachable!()
             };
@@ -2453,6 +2642,10 @@ impl Waku {
             } {
                 self.render_control_starters(page, window, cx)
             } else {
+                let title = match page {
+                    Page::Decisions | Page::Inbox => Some("The pass is clear"),
+                    _ => None,
+                };
                 div()
                     .w_full()
                     .flex_1()
@@ -2461,11 +2654,31 @@ impl Waku {
                     .items_center()
                     .justify_center()
                     .pb(px(64.0))
-                    .gap(px(12.0))
-                    .text_size(sp(14.0))
-                    .text_color(theme.text_secondary)
-                    .child(icon(page.icon(), 28.0, theme.text_tertiary))
-                    .child(message)
+                    .gap(px(10.0))
+                    .child(
+                        avatar_tile(56.0, theme.accent_soft, gpui::transparent_black())
+                            .rounded(px(16.0))
+                            .mb(px(6.0))
+                            .child(icon(page.icon(), 24.0, theme.accent)),
+                    )
+                    .when_some(title, |empty, title| {
+                        empty.child(
+                            div()
+                                .text_size(sp(17.0))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(theme.text)
+                                .child(title),
+                        )
+                    })
+                    .child(
+                        div()
+                            .max_w(px(420.0))
+                            .text_center()
+                            .text_size(sp(13.5))
+                            .line_height(sp(20.0))
+                            .text_color(theme.text_secondary)
+                            .child(message),
+                    )
                     .into_any_element()
             }
         } else {
@@ -2479,8 +2692,16 @@ impl Waku {
                     list(self.control_ui.list.clone(), move |index, _, cx| {
                         weak.upgrade()
                             .map(|entity| {
+                                // A row fills the list's width rather than its own content.
                                 entity.update(cx, |this, cx| {
-                                    this.render_control_row(rows[index].clone(), index, cx)
+                                    div()
+                                        .w_full()
+                                        .child(this.render_control_row(
+                                            rows[index].clone(),
+                                            index,
+                                            cx,
+                                        ))
+                                        .into_any_element()
                                 })
                             })
                             .unwrap_or_else(|| div().into_any_element())
@@ -2505,7 +2726,7 @@ impl Waku {
                     .flex()
                     .gap(px(24.0))
                     .when(show_collection, |row| {
-                        row.child(div().flex_1().min_w_0().child(collection))
+                        row.child(div().flex_1().min_w_0().flex().flex_col().child(collection))
                     })
                     .child(self.render_control_form(window, cx)),
             );
@@ -2529,11 +2750,11 @@ impl Waku {
             _ => None,
         };
         let mut body = div()
-            .min_h(px(68.0))
-            .p(px(14.0))
+            .min_h(px(72.0))
+            .px(px(16.0)).py(px(14.0))
             .mx(px(2.0))
             .mb(px(10.0))
-            .rounded(px(12.0))
+            .rounded(px(14.0))
             .border_1()
             .border_color(theme.ticket_border)
             .bg(theme.ticket)
@@ -2541,7 +2762,11 @@ impl Waku {
             .flex()
             .items_center()
             .gap(px(14.0));
-        let mut actions = div().flex_none().flex().gap(px(8.0));
+        let mut actions = div().flex_none().flex().items_center().gap(px(6.0));
+        // Agents and tasks wear their harness mark; definitions wear their
+        // page glyph on lime-soft; anything with a lifecycle shows a pill.
+        let mut mark: Option<ProviderKind> = None;
+        let mut pill: Option<Div> = None;
         let (title, detail, icon_path) = match row {
             Row::Inbox(row) => return self.render_inbox_row(row, index, cx),
             Row::InboxEvent(entry) => return self.render_inbox_history_row(entry, cx),
@@ -2568,8 +2793,16 @@ impl Waku {
                     .into_any_element();
             }
             Row::TeamGraph(graph) => return self.render_team_graph(graph, cx),
+            Row::Section(label, count) => return roster_ui::render_section_heading(label, count, &theme),
+            Row::Roster(row) => return self.render_roster_row(row, cx),
             Row::AppPair(configs, columns) => {
-                let mut pair = div().w_full().min_w_0().flex().gap(px(28.0)).py(px(12.0));
+                let mut pair = div()
+                    .w_full()
+                    .min_w_0()
+                    .flex()
+                    .gap(px(14.0))
+                    .px(px(2.0))
+                    .pb(px(14.0));
                 let count = configs.len();
                 for config in configs {
                     let account = self
@@ -2578,83 +2811,109 @@ impl Waku {
                         .iter()
                         .find(|a| a.toolkit == config.toolkit && a.status == "ACTIVE");
                     let id = config.id.clone();
-                    let mut tile = div()
+                    let mut footer = div().mt(px(14.0)).flex().items_center().gap(px(8.0));
+                    if let Some(account) = account {
+                        let account_id = account.id.clone();
+                        footer = footer
+                            .child(status_pill(
+                                "icons/check.svg",
+                                "Connected",
+                                theme.accent,
+                                theme.accent_soft,
+                            ))
+                            .child(div().flex_1())
+                            .child(self.control_button_tone(
+                                format!("app-disconnect-{}", account.id),
+                                "Disconnect",
+                                ControlTone::Ghost,
+                                cx,
+                                move |this, _, cx| {
+                                    this.disconnect_composio_app(account_id.clone(), cx)
+                                },
+                            ));
+                    } else {
+                        let (label, available) = if id.starts_with("configure:") {
+                            ("Configure", true)
+                        } else if id.starts_with("available:") {
+                            ("Available", false)
+                        } else if id.starts_with("unavailable:") {
+                            ("Unavailable", false)
+                        } else {
+                            ("Connect", true)
+                        };
+                        footer = footer.child(div().flex_1());
+                        footer = if available {
+                            footer.child(self.control_button(
+                                format!("app-connect-{id}"),
+                                label,
+                                cx,
+                                move |this, _, cx| {
+                                    if account_is_active(this, &id) {
+                                        return;
+                                    }
+                                    this.connect_composio_app(id.clone(), cx);
+                                },
+                            ))
+                        } else {
+                            footer.child(
+                                div()
+                                    .text_size(sp(12.0))
+                                    .text_color(theme.text_tertiary)
+                                    .child(label),
+                            )
+                        };
+                    }
+                    let tile = div()
                         .flex_1()
                         .min_w_0()
+                        .p(px(16.0))
+                        .rounded(px(14.0))
+                        .border_1()
+                        .border_color(theme.ticket_border)
+                        .bg(theme.ticket)
+                        .shadow(elevation(&theme, Elevation::Rest))
                         .flex()
-                        .items_center()
-                        .gap(px(14.0))
-                        .py(px(12.0));
-                    tile = tile
+                        .flex_col()
                         .child(
                             div()
-                                .size(px(38.0))
-                                .flex_none()
-                                .rounded(px(10.0))
-                                .border_1()
-                                .border_color(theme.border)
                                 .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(app_icons::render(&config.toolkit, &theme)),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .flex()
-                                .flex_col()
-                                .gap(px(6.0))
+                                .items_start()
+                                .gap(px(14.0))
                                 .child(
-                                    div()
-                                        .text_size(sp(14.0))
-                                        .font_weight(FontWeight::MEDIUM)
-                                        .text_color(theme.text)
-                                        .truncate()
-                                        .child(config.name.clone()),
+                                    avatar_tile(40.0, theme.raised, theme.border)
+                                        .child(app_icons::render(&config.toolkit, &theme)),
                                 )
                                 .child(
                                     div()
-                                        .text_size(sp(12.5))
-                                        .text_color(theme.text_secondary)
-                                        .truncate()
-                                        .child(if account.is_some() {
-                                            "Connected".into()
-                                        } else {
-                                            config.description.clone()
-                                        }),
+                                        .flex_1()
+                                        .min_w_0()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(4.0))
+                                        .child(
+                                            div()
+                                                .text_size(sp(14.0))
+                                                .font_weight(FontWeight::SEMIBOLD)
+                                                .text_color(theme.text)
+                                                .truncate()
+                                                .child(config.name.clone()),
+                                        )
+                                        .child(
+                                            div()
+                                                .h(sp(36.0))
+                                                .text_size(sp(12.5))
+                                                .line_height(sp(18.0))
+                                                .text_color(theme.text_secondary)
+                                                .line_clamp(2)
+                                                .child(if config.description.is_empty() {
+                                                    SharedString::from("Connected app")
+                                                } else {
+                                                    config.description.clone().into()
+                                                }),
+                                        ),
                                 ),
                         )
-                        .child(self.control_button(
-                            format!("app-connect-{id}"),
-                            if account.is_some() {
-                                "Connected"
-                            } else if id.starts_with("configure:") {
-                                "Configure"
-                            } else if id.starts_with("available:") {
-                                "Available"
-                            } else if id.starts_with("unavailable:") {
-                                "Unavailable"
-                            } else {
-                                "Connect"
-                            },
-                            cx,
-                            move |this, _, cx| {
-                                if account_is_active(this, &id) {
-                                    return;
-                                }
-                                this.connect_composio_app(id.clone(), cx);
-                            },
-                        ));
-                    if let Some(account) = account {
-                        let account_id = account.id.clone();
-                        tile = tile.child(self.control_button(
-                            format!("app-disconnect-{}", account.id),
-                            "Disconnect",
-                            cx,
-                            move |this, _, cx| this.disconnect_composio_app(account_id.clone(), cx),
-                        ));
-                    }
+                        .child(footer);
                     pair = pair.child(tile);
                 }
                 if count == 1 && columns == 2 {
@@ -2696,9 +2955,10 @@ impl Waku {
                                     this.resolve_workspace_action(accept.clone(), true, cx)
                                 },
                             ))
-                            .child(self.control_button(
+                            .child(self.control_button_tone(
                                 format!("action-decline-{}", action.id),
                                 "Decline",
+                                ControlTone::Ghost,
                                 cx,
                                 move |this, _, cx| {
                                     this.resolve_workspace_action(decline.clone(), false, cx)
@@ -2738,9 +2998,10 @@ impl Waku {
                             },
                         ));
                     }
-                    actions = actions.child(self.control_button(
+                    actions = actions.child(self.control_button_tone(
                         format!("notice-document-{index}"),
                         "Save document",
+                        ControlTone::Ghost,
                         cx,
                         move |this, _, cx| this.export_control_artifact(record.clone(), cx),
                     ));
@@ -2827,10 +3088,38 @@ impl Waku {
                     SessionStatus::Background => "Background",
                     SessionStatus::Failed => "Failed",
                 };
+                mark = Some(session.provider);
+                pill = Some(match session.status {
+                    SessionStatus::Waiting => status_pill(
+                        "icons/alert.svg",
+                        status,
+                        theme.accent,
+                        theme.accent_soft,
+                    ),
+                    SessionStatus::Failed => status_pill(
+                        "icons/x.svg",
+                        status,
+                        theme.danger,
+                        theme.danger_soft,
+                    ),
+                    SessionStatus::Working | SessionStatus::Connecting => status_pill(
+                        "icons/loader-circle.svg",
+                        status,
+                        theme.text_secondary,
+                        theme.overlay,
+                    ),
+                    _ => status_pill(
+                        "icons/check.svg",
+                        status,
+                        theme.text_secondary,
+                        theme.overlay,
+                    ),
+                });
                 actions = actions.child(
-                    self.control_button(
+                    self.control_button_tone(
                         format!("remove-task-{id}"),
                         "",
+                        ControlTone::Ghost,
                         cx,
                         move |this, window, cx| this.request_remove_session(id, window, cx),
                     )
@@ -2842,7 +3131,7 @@ impl Waku {
                 );
                 (
                     session.title.clone(),
-                    format!("{} · {}", session.provider.display_name(), status),
+                    session.provider.display_name().to_string(),
                     "icons/compose.svg",
                 )
             }
@@ -2860,9 +3149,10 @@ impl Waku {
                     },
                 ));
                 actions = actions.child(
-                    self.control_button(
+                    self.control_button_tone(
                         format!("remove-project-{id}"),
                         "Remove",
+                        ControlTone::Ghost,
                         cx,
                         move |this, window, cx| this.request_remove_project(id, window, cx),
                     )
@@ -2903,6 +3193,12 @@ impl Waku {
                     "icons/package.svg",
                 )
             }
+            Row::Record(ControlRecord::Workflow(workflow)) => {
+                return self.render_workflow_board(&workflow, cx);
+            }
+            Row::Record(ControlRecord::Routine(routine)) => {
+                return self.render_routine_row(&routine, cx);
+            }
             Row::Record(record) => {
                 let id = record.id();
                 let name = record.name().to_owned();
@@ -2928,12 +3224,7 @@ impl Waku {
                     ),
                     ControlRecord::Routine(routine) => (
                         format!(
-                            "{} · {}{}",
-                            if routine.paused {
-                                "Paused"
-                            } else {
-                                "Scheduled"
-                            },
+                            "{}{}",
                             routine_ui::schedule_label(
                                 routine.interval_minutes,
                                 routine.calendar.as_ref()
@@ -2978,11 +3269,35 @@ impl Waku {
                         "icons/chart-column.svg",
                     ),
                 };
+                match &record {
+                    ControlRecord::Agent(agent) => mark = Some(agent.provider),
+                    ControlRecord::Team(team) => {
+                        // The budget a run will be held to, visible without
+                        // opening the editor.
+                        pill = team
+                            .limits
+                            .as_ref()
+                            .and_then(|limits| limits.max_tokens)
+                            .map(|tokens| {
+                                status_pill(
+                                    "icons/gauge.svg",
+                                    format!(
+                                        "{} token budget",
+                                        super::usage_page::format_tokens_compact(tokens as f64)
+                                    ),
+                                    theme.text_secondary,
+                                    theme.overlay,
+                                )
+                            });
+                    }
+                    _ => {}
+                }
                 if let ControlRecord::Team(team) = &record {
                     let id = team.id;
-                    actions = actions.child(self.control_button(
+                    actions = actions.child(self.control_button_tone(
                         format!("team-runs-{id}"),
                         "Runs",
+                        ControlTone::Ghost,
                         cx,
                         move |this, _, cx| {
                             this.control_ui.runs_team = Some(id);
@@ -2997,53 +3312,6 @@ impl Waku {
                         },
                     ));
                 }
-                if matches!(
-                    record,
-                    ControlRecord::Workflow(_) | ControlRecord::Routine(_)
-                ) {
-                    actions = actions.child(self.control_button(
-                        format!("automation-start-{id}"),
-                        if self.control_ui.automation_requests.contains_key(&id) {
-                            "Retry run"
-                        } else {
-                            "Run now"
-                        },
-                        cx,
-                        move |this, _, cx| this.start_control_automation(id, cx),
-                    ));
-                    actions = actions.child(self.control_button(
-                        format!("automation-history-{id}"),
-                        "Runs",
-                        cx,
-                        move |this, _, cx| {
-                            this.control_ui.automation_history = true;
-                            this.control_ui.automation_selected = None;
-                            this.control_ui.automation_definition = Some(id);
-                            this.control_ui.automation_after = None;
-                            this.control_ui.automation_previous.clear();
-                            this.refresh_team_activity(true, cx);
-                            cx.notify();
-                        },
-                    ));
-                    if let ControlRecord::Routine(r) = &record {
-                        let paused = r.paused;
-                        actions = actions.child(self.control_button(
-                            format!("routine-schedule-{id}"),
-                            if paused { "Enable schedule" } else { "Pause" },
-                            cx,
-                            move |this, _, cx| {
-                                this.control_request(
-                                    Rpc::SetRoutinePaused {
-                                        id,
-                                        expected_revision: this.control_ui.snapshot.revision,
-                                        paused: !paused,
-                                    },
-                                    cx,
-                                )
-                            },
-                        ));
-                    }
-                }
                 if let ControlRecord::Artifact(artifact) = &record {
                     let artifact = artifact.clone();
                     actions = actions.child(self.control_button(
@@ -3054,27 +3322,24 @@ impl Waku {
                             this.open_document_preview(artifact.clone(), window, cx)
                         },
                     ));
-                    actions = actions.child(self.control_button(
+                    actions = actions.child(self.control_button_tone(
                         format!("document-export-{id}"),
                         "Save document",
+                        ControlTone::Ghost,
                         cx,
                         move |this, _, cx| this.export_control_artifact(run.clone(), cx),
                     ));
                 } else {
-                    if !matches!(
-                        record,
-                        ControlRecord::Workflow(_) | ControlRecord::Routine(_)
-                    ) {
-                        actions = actions.child(self.control_button(
-                            format!("record-run-{id}"),
-                            "New task",
-                            cx,
-                            move |this, _, cx| this.prepare_record_task(run.clone(), cx),
-                        ));
-                    }
                     actions = actions.child(self.control_button(
+                        format!("record-run-{id}"),
+                        "New task",
+                        cx,
+                        move |this, _, cx| this.prepare_record_task(run.clone(), cx),
+                    ));
+                    actions = actions.child(self.control_button_tone(
                         format!("record-edit-{id}"),
                         "Edit",
+                        ControlTone::Ghost,
                         cx,
                         move |this, window, cx| {
                             this.edit_control_record(edit.clone(), cx);
@@ -3085,36 +3350,44 @@ impl Waku {
                 (name, detail, icon_path)
             }
         };
+        let avatar = if let Some(toolkit) = &app_toolkit {
+            avatar_tile(36.0, theme.raised, theme.border).child(app_icons::render(toolkit, &theme))
+        } else if let Some(provider) = mark {
+            avatar_tile(36.0, theme.raised, theme.border).child(provider_mark(
+                &theme,
+                provider,
+                18.0,
+                provider_color(&theme, provider),
+            ))
+        } else {
+            avatar_tile(36.0, theme.accent_soft, gpui::transparent_black())
+                .child(icon(icon_path, 16.0, theme.accent))
+        };
         body = body
-            .child(
-                div()
-                    .size(px(32.0))
-                    .flex_none()
-                    .rounded(px(7.0))
-                    .bg(theme.overlay)
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(if let Some(toolkit) = &app_toolkit {
-                        app_icons::render(toolkit, &theme)
-                    } else {
-                        icon(icon_path, 18.0, theme.text_secondary).into_any_element()
-                    }),
-            )
+            .child(avatar)
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap(px(5.0))
+                    .gap(px(4.0))
                     .child(
                         div()
-                            .text_size(sp(14.0))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.text)
-                            .truncate()
-                            .child(title),
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .text_size(sp(14.0))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(theme.text)
+                                    .truncate()
+                                    .child(title),
+                            )
+                            .children(pill),
                     )
                     .child(
                         div()
@@ -3127,7 +3400,7 @@ impl Waku {
             .child(actions);
         div()
             .id(SharedString::from(format!("control-row-{index}")))
-            .child(body)
+            .child(body.hover(|style| style.border_color(theme.border_strong)))
             .into_any_element()
     }
     fn render_control_form(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -3142,18 +3415,54 @@ impl Waku {
             .flex()
             .flex_col()
             .gap(px(14.0));
+        let reports_to = self
+            .control_ui
+            .pending_report
+            .as_ref()
+            .filter(|_| kind == FormKind::Agent)
+            .map(|pending| {
+                let name_of = |id: Uuid| {
+                    self.control_ui.snapshot.records.iter().find_map(|r| match r {
+                        ControlRecord::Agent(a) if a.id == id => Some(a.name.clone()),
+                        ControlRecord::Team(t) if t.id == id => Some(t.name.clone()),
+                        _ => None,
+                    })
+                };
+                let parent = name_of(pending.parent).unwrap_or_default();
+                match pending.team.and_then(name_of) {
+                    Some(team) => format!("Reports to {parent} in {team}"),
+                    None => format!("Reports to {parent} in a new team they lead"),
+                }
+            });
         form = form
             .child(
                 div()
                     .text_size(sp(17.0))
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(match kind {
+                        FormKind::Agent if reports_to.is_some() => "New subagent",
                         FormKind::Agent => "Agent",
                         FormKind::Team => "Team",
                         FormKind::Workflow => "Workflow",
                         FormKind::Routine => "Routine",
                     }),
             )
+            .when_some(reports_to, |form, line| {
+                form.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .px(px(10.0))
+                        .py(px(8.0))
+                        .rounded(px(10.0))
+                        .bg(theme.accent_soft)
+                        .text_size(sp(12.5))
+                        .text_color(theme.text)
+                        .child(icon("icons/fork.svg", 13.0, theme.accent))
+                        .child(line),
+                )
+            })
             .child(control_field(
                 "Name",
                 self.control_ui.name.clone(),
@@ -3178,13 +3487,20 @@ impl Waku {
                     }),
             )
             .child(
+                // The whole box is the field: a click below the last line
+                // still puts the caret in the instructions.
                 div()
+                    .id("control-instructions-box")
                     .h(px(120.0))
                     .flex_shrink_0()
                     .p(px(10.0))
                     .rounded(px(8.0))
                     .bg(theme.inset)
                     .overflow_hidden()
+                    .cursor_text()
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.control_ui.instructions.read(cx).focus().focus(window, cx);
+                    }))
                     .child(self.control_ui.instructions.clone()),
             );
         if kind == FormKind::Agent {
@@ -3254,7 +3570,8 @@ impl Waku {
                 .child(div().text_size(sp(12.5)).child("Model"))
                 .child(dropdown_menu(
                     self.control_button("control-model", model_label, cx, |_, _, _| {})
-                        .w_full(),
+                        .w_full()
+                        .rounded(px(8.0)),
                     "control-model-menu",
                     &model_menu,
                     MenuAlign::BelowLeft,
@@ -3702,6 +4019,23 @@ impl Waku {
                 },
             ));
         }
+        let error = self.control_ui.error.clone().map(|error| {
+            div()
+                .flex_shrink_0()
+                .mx(px(20.0))
+                .mb(px(-8.0))
+                .px(px(12.0))
+                .py(px(9.0))
+                .rounded(px(10.0))
+                .bg(theme.danger_soft)
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .text_size(sp(12.5))
+                .text_color(theme.danger)
+                .child(icon("icons/alert.svg", 13.0, theme.danger))
+                .child(error)
+        });
         let footer = div()
             .flex()
             .flex_shrink_0()
@@ -3730,6 +4064,7 @@ impl Waku {
                     self.control_button("cancel-control-editor", "Close", cx, |this, _, cx| {
                         this.control_ui.editor_generation += 1;
                         this.control_ui.form = None;
+                        this.control_ui.pending_report = None;
                         cx.notify();
                     })
                     .w_full()
@@ -3763,13 +4098,20 @@ impl Waku {
             .bg(theme.raised)
             .overflow_hidden()
             .on_mouse_down_out(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                if !menu_open && event.button == MouseButton::Left {
+                // On the org chart a click outside is usually a pan or the next
+                // agent to open, so the editor stays until it is closed.
+                let org_chart = this.control_ui.page == Some(Page::Teams)
+                    && !this.control_ui.runs_tab
+                    && !this.control_ui.team_list;
+                if !menu_open && !org_chart && event.button == MouseButton::Left {
                     this.control_ui.editor_generation += 1;
                     this.control_ui.form = None;
+                    this.control_ui.pending_report = None;
                     cx.notify();
                 }
             }))
             .child(form)
+            .children(error)
             .child(footer)
             .into_any_element()
     }

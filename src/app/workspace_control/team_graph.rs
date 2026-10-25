@@ -4,12 +4,12 @@ use super::*;
 
 #[derive(Default)]
 pub(super) struct Graph {
-    team: Option<Team>,
-    members: Vec<TeamMember>,
+    pub(super) team: Option<Team>,
+    pub(super) members: Vec<TeamMember>,
     parents: HashMap<Uuid, Option<Uuid>>,
-    agents: Vec<Option<AgentProfile>>,
-    layout: Layout,
-    error: Option<String>,
+    pub(super) agents: Vec<Option<AgentProfile>>,
+    pub(super) layout: Layout,
+    pub(super) error: Option<String>,
 }
 impl Graph {
     pub(super) fn has_unavailable_agents(&self) -> bool {
@@ -159,18 +159,179 @@ impl Waku {
         cx.notify();
     }
 
+    /// A saved team renders as a Paperclip-style board: the team's identity
+    /// and actions over its org chart. The editor shows the chart alone.
     pub(super) fn render_team_graph(&self, graph: Rc<Graph>, cx: &mut Context<Self>) -> AnyElement {
+        let chart = self.render_team_chart(&graph, cx);
+        match graph.team.clone() {
+            Some(team) => self.render_team_board(team, chart, cx),
+            None => div()
+                .w_full()
+                .min_w_0()
+                .py(px(18.0))
+                .child(chart)
+                .into_any_element(),
+        }
+    }
+
+    fn render_team_board(&self, team: Team, chart: AnyElement, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::workspace(cx);
+        let id = team.id;
+        let reports = team.members.len().saturating_sub(1);
+        let summary = match reports {
+            0 => "Lead only".to_owned(),
+            1 => "Lead + 1 agent".to_owned(),
+            n => format!("Lead + {n} agents"),
+        };
+        let budget = team
+            .limits
+            .as_ref()
+            .and_then(|limits| limits.max_tokens)
+            .map(|tokens| {
+                status_pill(
+                    "icons/gauge.svg",
+                    format!(
+                        "{} token budget",
+                        super::super::usage_page::format_tokens_compact(tokens as f64)
+                    ),
+                    theme.text_secondary,
+                    theme.overlay,
+                )
+            });
+        let record = ControlRecord::Team(team.clone());
+        let edit = record.clone();
+        let actions = div()
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .child(self.control_button_icon(
+                format!("record-run-{id}"),
+                "icons/compose.svg",
+                "New task",
+                ControlTone::Secondary,
+                cx,
+                move |this, _, cx| this.prepare_record_task(record.clone(), cx),
+            ))
+            .child(self.control_button_tone(
+                format!("team-runs-{id}"),
+                "Runs",
+                ControlTone::Ghost,
+                cx,
+                move |this, _, cx| {
+                    this.control_ui.runs_team = Some(id);
+                    this.control_ui.runs_tab = true;
+                    this.clear_team_recovery();
+                    this.control_ui.selected_run = None;
+                    this.control_ui.team_run = None;
+                    this.control_ui.runs_after = None;
+                    this.control_ui.runs_previous.clear();
+                    this.refresh_team_activity(true, cx);
+                    cx.notify();
+                },
+            ))
+            .child(self.control_button_tone(
+                format!("record-edit-{id}"),
+                "Edit",
+                ControlTone::Ghost,
+                cx,
+                move |this, window, cx| {
+                    this.edit_control_record(edit.clone(), cx);
+                    this.control_ui.name.read(cx).focus().focus(window, cx);
+                },
+            ));
+        let header = div()
+            .px(px(18.0))
+            .py(px(14.0))
+            .flex()
+            .items_center()
+            .gap(px(14.0))
+            .child(
+                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black())
+                    .child(icon("icons/fork.svg", 17.0, theme.accent)),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(sp(15.0))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(theme.text)
+                                    .child(team.name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .font_family(crate::md::render::MONO_FAMILY)
+                                    .text_size(sp(11.5))
+                                    .text_color(theme.text_tertiary)
+                                    .child(summary),
+                            )
+                            .children(budget),
+                    )
+                    .when(!team.objective.trim().is_empty(), |column| {
+                        column.child(
+                            div()
+                                .truncate()
+                                .text_size(sp(12.5))
+                                .text_color(theme.text_secondary)
+                                .child(team.objective.clone()),
+                        )
+                    }),
+            )
+            .child(actions);
+        div()
+            .id(SharedString::from(format!("team-board-{id}")))
+            .mx(px(2.0))
+            .mb(px(14.0))
+            .rounded(px(16.0))
+            .border_1()
+            .border_color(theme.ticket_border)
+            .bg(theme.ticket)
+            .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
+            .overflow_hidden()
+            .flex()
+            .flex_col()
+            .child(header)
+            .child(
+                div()
+                    .border_t_1()
+                    .border_color(theme.border)
+                    .bg(theme.canvas)
+                    .py(px(26.0))
+                    .child(chart),
+            )
+            .into_any_element()
+    }
+
+    /// The org chart itself: elbow connectors from each manager's bottom
+    /// edge to its reports, and a card per agent carrying its harness mark,
+    /// readiness dot, role and adapter, after Paperclip's org chart.
+    fn render_team_chart(&self, graph: &Graph, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::workspace(cx);
         if let Some(error) = &graph.error {
             return div()
-                .p(px(16.0))
+                .px(px(16.0))
                 .text_color(theme.danger)
                 .child(error.clone())
                 .into_any_element();
         }
         if graph.members.is_empty() {
             return div()
-                .py(px(12.0))
+                .px(px(16.0))
                 .text_color(theme.text_secondary)
                 .child("Add agents below to build your team.")
                 .into_any_element();
@@ -182,6 +343,7 @@ impl Waku {
             .unwrap_or_else(|| "editor".into());
         let mut canvas = div()
             .relative()
+            .flex_none()
             .w(px(graph.layout.width))
             .h(px(graph.layout.height));
         for line in &graph.layout.lines {
@@ -190,127 +352,30 @@ impl Waku {
                     .absolute()
                     .left(px(line.left))
                     .top(px(line.top))
-                    .w(px(line.width))
-                    .h(px(line.height))
+                    .w(px(line.width.max(1.5)))
+                    .h(px(line.height.max(1.5)))
+                    .rounded_full()
                     .bg(theme.border_strong),
             );
         }
         for node in &graph.layout.nodes {
             let member = &graph.members[node.index];
-            let id = member.agent_id;
             let agent = graph.agents[node.index].as_ref();
-            let name = agent
-                .map(|a| a.name.clone())
-                .unwrap_or_else(|| "Unavailable agent".into());
-            let detail = agent
-                .map(|a| {
-                    format!(
-                        "{} · {}",
-                        a.provider.display_name(),
-                        a.execution.environment.label()
-                    )
-                })
-                .unwrap_or_else(|| "Choose an available agent".into());
             let team = graph.team.clone();
+            let id = member.agent_id;
             let selected = team.is_none() && self.control_ui.team_graph_selected == Some(id);
-            let lead = member.parent_id.is_none();
-            // The avatar carries the agent's harness mark; the lead's tile is
-            // the one lime object on the chart, so the hierarchy reads at a
-            // glance without relying on position alone.
-            let avatar = div()
-                .size(px(34.0))
-                .flex_none()
-                .rounded(px(10.0))
-                .flex()
-                .items_center()
-                .justify_center()
-                .when(lead, |tile| tile.bg(theme.primary))
-                .when(!lead, |tile| tile.bg(theme.inset))
-                .child(match agent {
-                    Some(agent) => provider_mark(
-                        &theme,
-                        agent.provider,
-                        16.0,
-                        if lead {
-                            theme.on_primary
-                        } else {
-                            provider_color(&theme, agent.provider)
-                        },
-                    )
-                    .into_any_element(),
-                    None => icon("icons/alert.svg", 16.0, theme.warning).into_any_element(),
-                });
             canvas = canvas.child(
-                self.control_button(
-                    format!("team-graph-{scope}-{id}"),
-                    "",
-                    cx,
-                    move |this, _, cx| {
+                self.render_team_node(&scope, member, agent, selected, 1.0, cx)
+                    .absolute()
+                    .left(px(node.left))
+                    .top(px(node.top))
+                    .on_activation(cx, move |this, _, cx| {
                         if let Some(team) = &team {
                             this.edit_control_record(ControlRecord::Team(team.clone()), cx);
                         }
                         this.control_ui.team_graph_selected = Some(id);
                         cx.notify();
-                    },
-                )
-                .absolute()
-                .left(px(node.left))
-                .top(px(node.top))
-                .w(px(geometry::NODE_WIDTH))
-                .h(px(geometry::NODE_HEIGHT))
-                .rounded(px(14.0))
-                .pl(px(12.0))
-                .pr(px(14.0))
-                .gap(px(12.0))
-                .bg(theme.ticket)
-                .border_color(theme.ticket_border)
-                .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
-                .when(selected, |style| style.border_color(theme.accent))
-                .child(avatar)
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .gap(px(3.0))
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(6.0))
-                                .child(
-                                    div()
-                                        .min_w_0()
-                                        .truncate()
-                                        .font_weight(FontWeight::SEMIBOLD)
-                                        .child(name),
-                                )
-                                .when(lead, |row| {
-                                    row.child(
-                                        div()
-                                            .flex_none()
-                                            .h(px(18.0))
-                                            .px(px(6.0))
-                                            .rounded_full()
-                                            .bg(theme.accent_soft)
-                                            .flex()
-                                            .items_center()
-                                            .text_size(sp(10.5))
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .text_color(theme.accent)
-                                            .child("Lead"),
-                                    )
-                                }),
-                        )
-                        .child(
-                            div()
-                                .truncate()
-                                .text_size(sp(12.0))
-                                .text_color(theme.text_secondary)
-                                .child(detail),
-                        ),
-                ),
+                    }),
             );
         }
         div()
@@ -318,9 +383,186 @@ impl Waku {
             .w_full()
             .min_w_0()
             .overflow_x_scroll()
-            .py(px(18.0))
-            .child(canvas)
+            .child(
+                div()
+                    .min_w(gpui::relative(1.0))
+                    .px(px(24.0))
+                    .flex()
+                    .justify_center()
+                    .child(canvas),
+            )
             .into_any_element()
+    }
+
+    /// One agent card at zoom `z`, sized from the layout grid.
+    pub(super) fn render_team_node(
+        &self,
+        scope: &str,
+        member: &TeamMember,
+        agent: Option<&AgentProfile>,
+        selected: bool,
+        z: f32,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let theme = Theme::workspace(cx);
+        let lead = member.parent_id.is_none();
+        let (name, role, adapter) = match agent {
+            Some(agent) => (
+                agent.name.clone(),
+                agent.expertise.clone(),
+                format!(
+                    "{} · {}",
+                    agent.provider.display_name(),
+                    agent.execution.environment.label()
+                ),
+            ),
+            None => (
+                "Unavailable agent".to_owned(),
+                "Choose an available agent".to_owned(),
+                "Missing".to_owned(),
+            ),
+        };
+        div()
+            .id(SharedString::from(format!("team-graph-{scope}-{}", member.agent_id)))
+            .tab_index(0)
+            .w(px(geometry::NODE_WIDTH * z))
+            .h(px(geometry::NODE_HEIGHT * z))
+            .px(px(14.0 * z))
+            .rounded(px(14.0 * z))
+            .border_1()
+            .border_color(if selected {
+                theme.accent
+            } else {
+                theme.ticket_border
+            })
+            .bg(theme.ticket)
+            .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Rest))
+            .cursor_default()
+            .hover(move |style| {
+                style
+                    .border_color(theme.border_strong)
+                    .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Lifted))
+            })
+            .focus_visible(move |style| style.border_color(theme.accent))
+            .flex()
+            .items_center()
+            .gap(px(12.0 * z))
+            .child(self.agent_avatar(agent, 38.0 * z, lead, &theme))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(3.0 * z))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0 * z))
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(sp(13.5 * z))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(theme.text)
+                                    .child(name),
+                            )
+                            .when(lead, |row| {
+                                row.child(
+                                    div()
+                                        .flex_none()
+                                        .h(px(18.0 * z))
+                                        .px(px(6.0 * z))
+                                        .rounded_full()
+                                        .bg(theme.accent_soft)
+                                        .flex()
+                                        .items_center()
+                                        .text_size(sp(10.5 * z))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(theme.accent)
+                                        .child("Lead"),
+                                )
+                            }),
+                    )
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(sp(12.0 * z))
+                            .text_color(theme.text_secondary)
+                            .child(role),
+                    )
+                    .child(
+                        div()
+                            .truncate()
+                            .font_family(crate::md::render::MONO_FAMILY)
+                            .text_size(sp(10.5 * z))
+                            .text_color(theme.text_tertiary)
+                            .child(adapter),
+                    ),
+            )
+    }
+
+    /// A round harness avatar with a readiness dot: green when the agent's
+    /// harness is installed, amber when it is missing, red when the agent
+    /// itself no longer exists. The lead's avatar is the chart's lime object.
+    pub(super) fn agent_avatar(
+        &self,
+        agent: Option<&AgentProfile>,
+        size: f32,
+        lead: bool,
+        theme: &Theme,
+    ) -> Div {
+        let theme = *theme;
+        let dot = match agent {
+            None => theme.danger,
+            Some(agent) => match self.provider_probe(agent.provider) {
+                Some(probe) if probe.installed => theme.success,
+                Some(_) => theme.warning,
+                None => theme.text_tertiary,
+            },
+        };
+        let mark = match agent {
+            Some(agent) => provider_mark(
+                &theme,
+                agent.provider,
+                (size * 0.44).round(),
+                if lead {
+                    theme.on_primary
+                } else {
+                    provider_color(&theme, agent.provider)
+                },
+            )
+            .into_any_element(),
+            None => icon("icons/alert.svg", (size * 0.42).round(), theme.warning).into_any_element(),
+        };
+        let dot_size = (size * 0.3).round().max(9.0);
+        div()
+            .relative()
+            .flex_none()
+            .size(px(size))
+            .child(
+                div()
+                    .size_full()
+                    .rounded_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .bg(if lead { theme.primary } else { theme.inset })
+                    .child(mark),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .right(px(-1.0))
+                    .bottom(px(-1.0))
+                    .size(px(dot_size))
+                    .rounded_full()
+                    .border_2()
+                    .border_color(theme.ticket)
+                    .bg(dot),
+            )
     }
 
     pub(super) fn render_team_graph_selection(&self, cx: &mut Context<Self>) -> Div {

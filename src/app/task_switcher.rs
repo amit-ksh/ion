@@ -714,7 +714,7 @@ impl Waku {
             .border_1()
             .border_color(theme.border_strong)
             .bg(theme.raised)
-            .shadow_xl()
+            .shadow(elevation(&theme, Elevation::Float))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(task_list);
         let layer = div()

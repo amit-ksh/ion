@@ -2043,7 +2043,7 @@ impl Waku {
                 .overflow_hidden()
                 .rounded(px(15.0))
                 .bg(theme.raised)
-                .shadow_xl()
+                .shadow(elevation(&theme, Elevation::Float))
                 .relative()
                 .flex()
                 .flex_col()

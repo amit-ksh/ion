@@ -7,7 +7,6 @@ use crate::credentials::cloud::{
 use std::sync::Arc;
 #[derive(Clone)]
 enum Source {
-    Project(Project),
     Artifact(Artifact),
 }
 pub(super) struct HostingUi {
@@ -51,7 +50,6 @@ impl HostingUi {
     }
     fn source_id(&self) -> Option<String> {
         self.source.as_ref().map(|s| match s {
-            Source::Project(p) => format!("project-{}", p.id),
             Source::Artifact(a) => format!("artifact-{}", a.id),
         })
     }
@@ -171,12 +169,6 @@ fn artifact_bundle(
     bundle::resources(sources, manifest.entry_path)
 }
 impl Waku {
-    pub(super) fn open_project_hosting(&mut self, id: Uuid, cx: &mut Context<Self>) {
-        let Some(project) = self.state.projects.iter().find(|p| p.id == id).cloned() else {
-            return;
-        };
-        self.prepare_hosting(Some(Source::Project(project)), cx);
-    }
     pub(super) fn open_artifact_hosting(&mut self, artifact: Artifact, cx: &mut Context<Self>) {
         self.prepare_hosting(Some(Source::Artifact(artifact)), cx);
     }
@@ -188,12 +180,11 @@ impl Waku {
         if self.control_ui.hosting.busy {
             return;
         }
-        self.prepare_hosting_export(source, None, cx);
+        self.prepare_hosting_export(source, cx);
     }
     fn prepare_hosting_export(
         &mut self,
         source: Option<Source>,
-        directory: Option<String>,
         cx: &mut Context<Self>,
     ) {
         if self.control_ui.hosting.busy {
@@ -217,9 +208,8 @@ impl Waku {
         } else {
             "static"
         };
-        ui.output.update(cx, |input, cx| {
-            input.set_content(directory.clone().unwrap_or_default(), cx)
-        });
+        ui.output
+            .update(cx, |input, cx| input.set_content(String::new(), cx));
         let generation = ui.generation;
         let client = self.daemon.client();
         cx.spawn(async move |view, cx| {
@@ -227,12 +217,6 @@ impl Waku {
                 .background_executor()
                 .spawn(async move {
                     let bundle = match source {
-                        Some(Source::Project(p)) => match directory {
-                            Some(directory) => {
-                                bundle::static_project(&p.path, &directory).map(Some)
-                            }
-                            None => bundle::project(&p.path).map(Some),
-                        },
                         Some(Source::Artifact(a)) => artifact_bundle(client, a).map(Some),
                         None => Ok(None),
                     };
@@ -288,7 +272,6 @@ impl Waku {
         };
         let source_id = ui.source_id().unwrap();
         let (title, kind) = match source {
-            Source::Project(p) => (p.name, "project"),
             Source::Artifact(a) => (a.name, "artifact"),
         };
         if bundle
@@ -450,17 +433,6 @@ impl Waku {
                         }),
                     ),
             );
-        if matches!(&ui.source, Some(Source::Project(_))) {
-            content = content
-                .child(div().text_size(sp(13.0)).text_color(theme.text_secondary)
-                    .child("Publish a static app export to Cloudflare. Build locally first, then review the output folder. Backend servers and cloud builds are unavailable."))
-                .child(self.hosting_field("Static export folder · relative to project", ui.output.clone(), cx))
-                .child(self.control_button("hosting-review-export", "Review static export", cx, |this, _, cx| {
-                    let source = this.control_ui.hosting.source.clone();
-                    let directory = this.control_ui.hosting.output.read(cx).content().trim().to_owned();
-                    this.prepare_hosting_export(source, Some(directory), cx);
-                }));
-        }
         if let Some(bundle) = &ui.bundle {
             content = content.child(
                 div()
@@ -478,9 +450,6 @@ impl Waku {
                     && runtime != "document"
                     && runtime != "static"
                 {
-                    continue;
-                }
-                if matches!(&ui.source, Some(Source::Project(_))) && runtime == "document" {
                     continue;
                 }
                 modes = modes.child(self.control_button(

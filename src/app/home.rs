@@ -87,7 +87,7 @@ fn ticket_number(id: Uuid) -> String {
 }
 
 /// The tear line between a ticket's stub and its body.
-fn perforation(color: Hsla) -> impl IntoElement {
+pub(super) fn perforation(color: Hsla) -> impl IntoElement {
     div().mx(px(12.0)).h(px(1.0)).child(
         canvas(
             |_, _, _| {},
@@ -105,6 +105,45 @@ fn perforation(color: Hsla) -> impl IntoElement {
     )
 }
 
+/// The home glow field: one mint-to-lime wash rising from the bottom edge.
+/// Both layers fade vertically to zero alpha at their top edge; GPUI
+/// gradients have two stops and no mask, so a diagonal layer would end on a
+/// visible seam. Place it first inside a `relative()` container.
+pub(super) fn glow_field(theme: &Theme) -> [Div; 2] {
+    let clear_mint = Hsla {
+        a: 0.0,
+        ..theme.glow_mint
+    };
+    let clear_lime = Hsla {
+        a: 0.0,
+        ..theme.glow_lime
+    };
+    [
+        div()
+            .absolute()
+            .left_0()
+            .bottom_0()
+            .w_full()
+            .h(relative(0.62))
+            .bg(linear_gradient(
+                180.0,
+                linear_color_stop(clear_mint, 0.0),
+                linear_color_stop(theme.glow_mint, 1.0),
+            )),
+        div()
+            .absolute()
+            .left_0()
+            .bottom_0()
+            .w_full()
+            .h(relative(0.30))
+            .bg(linear_gradient(
+                180.0,
+                linear_color_stop(clear_lime, 0.0),
+                linear_color_stop(theme.glow_lime, 1.0),
+            )),
+    ]
+}
+
 impl Waku {
     /// Home: the question, the composer under it, and the live rail of
     /// tickets, over one mint-to-lime glow field rising from the bottom edge.
@@ -115,49 +154,13 @@ impl Waku {
         let composer = self.render_composer(window, cx);
         let footer = self.render_workspace_footer(cx);
         let rail = self.render_home_rail(window, cx);
-        let clear_mint = Hsla {
-            a: 0.0,
-            ..theme.glow_mint
-        };
-        let clear_lime = Hsla {
-            a: 0.0,
-            ..theme.glow_lime
-        };
 
         div()
             .flex_1()
             .min_h_0()
             .relative()
             .overflow_hidden()
-            .child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .bottom_0()
-                    .w_full()
-                    .h(relative(0.62))
-                    .bg(linear_gradient(
-                        180.0,
-                        linear_color_stop(clear_mint, 0.0),
-                        linear_color_stop(theme.glow_mint, 1.0),
-                    )),
-            )
-            // Both layers fade vertically to zero alpha at their top edge;
-            // GPUI gradients have two stops and no mask, so a diagonal layer
-            // would end on a visible seam.
-            .child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .bottom_0()
-                    .w_full()
-                    .h(relative(0.30))
-                    .bg(linear_gradient(
-                        180.0,
-                        linear_color_stop(clear_lime, 0.0),
-                        linear_color_stop(theme.glow_lime, 1.0),
-                    )),
-            )
+            .children(glow_field(&theme))
             .child(
                 div()
                     .id("home-scroll")

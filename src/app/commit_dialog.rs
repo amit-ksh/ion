@@ -700,7 +700,7 @@ impl Waku {
             .overflow_hidden()
             .rounded(px(18.0))
             .bg(theme.composer)
-            .shadow_xl()
+            .shadow(elevation(&theme, Elevation::Float))
             .flex()
             .flex_col()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())

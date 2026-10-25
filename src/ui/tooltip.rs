@@ -23,8 +23,12 @@ impl Tooltip {
         }
     }
 
-    /// Build the view GPUI's `.tooltip(..)` expects.
+    /// Build the view GPUI's `.tooltip(..)` expects. While a menu is open the
+    /// hint renders empty so it cannot cover the menu.
     pub fn build(self, _window: &mut Window, cx: &mut App) -> AnyView {
+        if super::menu::any_menu_open() {
+            return cx.new(|_| Hidden).into();
+        }
         cx.new(|_| self).into()
     }
 
@@ -38,6 +42,14 @@ impl Tooltip {
     }
 }
 
+struct Hidden;
+
+impl Render for Hidden {
+    fn render(&mut self, _window: &mut Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        div()
+    }
+}
+
 impl Render for Tooltip {
     fn render(&mut self, _window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         let theme = Theme::current(cx);
@@ -45,13 +57,13 @@ impl Render for Tooltip {
         // cursor; the shadow needs a parent that does not clip it.
         div().pt(px(4.0)).pl(px(2.0)).child(
             div()
-                .px(px(7.0))
-                .py(px(4.0))
-                .rounded(px(6.0))
+                .px(px(8.0))
+                .py(px(5.0))
+                .rounded(px(8.0))
                 .border_1()
-                .border_color(theme.border_strong)
+                .border_color(theme.border)
                 .bg(theme.raised)
-                .shadow_md()
+                .shadow(super::elevation(&theme, super::Elevation::Float))
                 .flex()
                 .items_center()
                 .gap(px(6.0))

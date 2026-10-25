@@ -420,17 +420,39 @@ impl Waku {
             .tab_index(0)
             .tab_stop(true)
             .focus_visible(|style| style.border_color(theme.accent))
-            .min_h(px(34.0))
-            .px(px(12.0))
-            .rounded(px(7.0))
+            .min_h(px(36.0))
+            .px(px(16.0))
+            .rounded_full()
             .border_1()
-            .border_color(theme.border_strong)
             .flex()
             .items_center()
-            .text_size(sp(12.5))
-            .text_color(theme.text)
+            .justify_center()
+            .text_size(sp(13.0))
+            .font_weight(FontWeight::MEDIUM)
             .opacity(if disabled { 0.5 } else { 1.0 })
-            .hover(|style| style.bg(theme.overlay))
+            .map(|button| {
+                // Signing in is the one action that moves the gate forward,
+                // so it alone carries the lime fill.
+                if matches!(action, CloudAction::SignIn) {
+                    let hover = Hsla {
+                        l: theme.primary.l - 0.05,
+                        ..theme.primary
+                    };
+                    button
+                        .bg(theme.primary)
+                        .border_color(theme.primary)
+                        .text_color(theme.on_primary)
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .shadow(elevation(&theme, Elevation::Rest))
+                        .hover(move |style| style.bg(hover).border_color(hover))
+                } else {
+                    button
+                        .bg(theme.raised)
+                        .border_color(theme.border_strong)
+                        .text_color(theme.text)
+                        .hover(|style| style.bg(theme.overlay_strong))
+                }
+            })
             .child(label)
             .on_click(cx.listener(move |this, _, _, cx| {
                 if !disabled {
@@ -493,52 +515,79 @@ impl Waku {
                     window,
                     cx,
                 ));
+        // The gate stands in the same world as home: the glow field rising
+        // behind one ticket-stock card holding the brand tile and the ask.
         div()
             .size_full()
-            .bg(theme.surface)
+            .relative()
+            .overflow_hidden()
+            .bg(theme.canvas)
             .text_color(theme.text)
             .font_family(".SystemUIFont")
-            .flex()
-            .flex_col()
-            .child(header)
+            .children(super::home::glow_field(&theme))
             .child(
                 div()
-                    .flex_1()
-                    .w_full()
+                    .absolute()
+                    .inset_0()
                     .flex()
-                    .items_center()
-                    .justify_center()
-                    .p(px(28.0))
+                    .flex_col()
+                    .child(header)
                     .child(
                         div()
+                            .flex_1()
                             .w_full()
-                            .max_w(px(440.0))
                             .flex()
-                            .flex_col()
-                            .gap(px(18.0))
-                            .child(icon("icons/ion.svg", 36.0, theme.accent))
+                            .items_center()
+                            .justify_center()
+                            .p(px(28.0))
                             .child(
                                 div()
-                                    .text_size(sp(26.0))
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(theme.text)
-                                    .child("Sign in to Ion"),
-                            )
-                            .child(
-                                div()
-                                    .text_size(sp(14.0))
-                                    .text_color(theme.text_secondary)
-                                    .child(copy),
-                            )
-                            .child(actions)
-                            .when_some(self.cloud_ui.feedback.clone(), |view, feedback| {
-                                view.child(
-                                    div()
-                                        .text_size(sp(13.0))
-                                        .text_color(theme.text_secondary)
-                                        .child(feedback),
-                                )
-                            }),
+                                    .w_full()
+                                    .max_w(px(460.0))
+                                    .p(px(32.0))
+                                    .rounded(px(20.0))
+                                    .border_1()
+                                    .border_color(theme.ticket_border)
+                                    .bg(theme.ticket)
+                                    .shadow(elevation(&theme, Elevation::Float))
+                                    .flex()
+                                    .flex_col()
+                                    .items_center()
+                                    .gap(px(16.0))
+                                    .child(
+                                        avatar_tile(56.0, theme.primary, theme.primary)
+                                            .rounded(px(16.0))
+                                            .child(icon("icons/ion.svg", 30.0, theme.on_primary)),
+                                    )
+                                    .child(
+                                        div()
+                                            .mt(px(6.0))
+                                            .font_family(crate::md::render::MONO_FAMILY)
+                                            .text_size(sp(24.0))
+                                            .line_height(sp(32.0))
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .text_color(theme.text)
+                                            .child("Sign in to Ion"),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(sp(14.0))
+                                            .line_height(sp(21.0))
+                                            .text_center()
+                                            .text_color(theme.text_secondary)
+                                            .child(copy),
+                                    )
+                                    .child(div().mt(px(8.0)).child(actions.justify_center()))
+                                    .when_some(self.cloud_ui.feedback.clone(), |view, feedback| {
+                                        view.child(
+                                            div()
+                                                .text_size(sp(13.0))
+                                                .text_center()
+                                                .text_color(theme.text_secondary)
+                                                .child(feedback),
+                                        )
+                                    }),
+                            ),
                     ),
             )
             .into_any_element()

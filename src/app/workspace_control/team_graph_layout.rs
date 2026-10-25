@@ -1,8 +1,8 @@
 //! In-memory tree layout. Parent indices retain the team's existing member order.
-pub(super) const NODE_WIDTH: f32 = 216.0;
-pub(super) const NODE_HEIGHT: f32 = 68.0;
-const GAP: f32 = 28.0;
-const LEVEL: f32 = 112.0;
+pub(super) const NODE_WIDTH: f32 = 252.0;
+pub(super) const NODE_HEIGHT: f32 = 92.0;
+const GAP: f32 = 32.0;
+const LEVEL: f32 = 156.0;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Node {

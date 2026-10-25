@@ -62,8 +62,8 @@ use crate::terminal::TerminalView;
 use crate::theme::{Theme, ThemePreference, sp};
 use crate::ui::text_field::TextField;
 use crate::ui::{
-    MenuChip, ProjectNameSelector, activity_icon, activity_noun, contain_scroll, file_icon, icon,
-    icon_button, motion, provider_color, provider_mark, status_color, toggle_switch,
+    ActivationExt, Elevation, MenuChip, ProjectNameSelector, activity_icon, activity_noun, contain_scroll, file_icon, icon,
+    icon_button, motion, provider_color, provider_mark, status_color, toggle_switch, avatar_tile, elevation, segment, segmented_track, status_pill,
 };
 use crate::{
     CancelTaskSwitch, CancelTurn, CloseFind, CloseWindow, ConfirmTaskSwitch, CopySelection,
@@ -1515,9 +1515,6 @@ pub struct Waku {
     sidebar_rows_snapshot: RefCell<Rc<Vec<SidebarRow>>>,
     /// Branch labels for ordinary local project paths, resolved together on a
     /// background executor so sidebar rows only read memory.
-    sidebar_branch_labels: RefCell<HashMap<PathBuf, SharedString>>,
-    sidebar_branch_scan_fingerprint: Cell<Option<u64>>,
-    sidebar_branch_scan_generation: Cell<u64>,
     transcript_row_kinds: RefCell<Vec<TranscriptRowKind>>,
     /// Fingerprint of the transcript inputs `transcript_row_kinds` was folded
     /// from, so an unchanged transcript costs nothing on a frame. `None` until
@@ -3190,9 +3187,6 @@ impl Waku {
                 sidebar_row_cache: RefCell::new(Vec::new()),
                 sidebar_rows_fingerprint: Cell::new(None),
                 sidebar_rows_snapshot: RefCell::new(Rc::new(Vec::new())),
-                sidebar_branch_labels: RefCell::new(HashMap::new()),
-                sidebar_branch_scan_fingerprint: Cell::new(None),
-                sidebar_branch_scan_generation: Cell::new(0),
                 transcript_row_kinds: RefCell::new(Vec::new()),
                 transcript_row_kinds_fingerprint: Cell::new(None),
                 transcript_navigation_turns: RefCell::new(Rc::new(Vec::new())),

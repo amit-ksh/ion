@@ -1154,7 +1154,10 @@ impl Waku {
             .flex_1()
             .min_h_0()
             .pb(px(8.0))
-            .rounded(px(13.0))
+            .rounded(px(14.0))
+            .border_1()
+            .border_color(theme.border)
+            .shadow(elevation(&theme, Elevation::Rest))
             .bg(theme.raised)
             .flex()
             .flex_col()
@@ -1520,7 +1523,7 @@ fn usage_chart_readout(
         .border_1()
         .border_color(theme.border_strong)
         .bg(theme.raised)
-        .shadow_md()
+        .shadow(elevation(&theme, Elevation::Lifted))
         .flex()
         .flex_col()
         .gap(px(3.0))
@@ -2022,7 +2025,10 @@ fn usage_skeleton(view: UsageViewMode, theme: &Theme) -> AnyElement {
             let mut card = div()
                 .mt(px(20.0))
                 .px(px(20.0))
-                .rounded(px(13.0))
+                .rounded(px(14.0))
+                .border_1()
+                .border_color(theme.border)
+                .shadow(elevation(&theme, Elevation::Rest))
                 .bg(theme.raised)
                 .flex()
                 .flex_col()
@@ -2479,7 +2485,10 @@ fn usage_month_list(
         .flex_1()
         .min_h_0()
         .pb(px(8.0))
-        .rounded(px(13.0))
+        .rounded(px(14.0))
+        .border_1()
+        .border_color(theme.border)
+        .shadow(elevation(&theme, Elevation::Rest))
         .bg(theme.raised)
         .flex()
         .flex_col()
@@ -2794,7 +2803,7 @@ fn format_count(value: u64) -> String {
 
 /// Compacts a token count to three significant figures with a unit suffix, so
 /// columns of numbers line up at a glance (`19.9B`, `76.7M`, `804K`).
-fn format_tokens_compact(value: f64) -> String {
+pub(super) fn format_tokens_compact(value: f64) -> String {
     let abs = value.abs();
     let (scaled, suffix) = if abs >= 1e12 {
         (value / 1e12, "T")

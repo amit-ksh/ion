@@ -19,6 +19,39 @@ fn status(status: AutomationStatus) -> &'static str {
         AutomationStatus::Skipped => "Skipped",
     }
 }
+/// The run's state as an icon and color, the way Paperclip leads each run row.
+fn status_glyph(status: AutomationStatus, theme: &Theme) -> (&'static str, Hsla) {
+    match status {
+        AutomationStatus::Running => ("icons/loader-circle.svg", theme.accent),
+        AutomationStatus::WaitingDecision => ("icons/shield-check.svg", theme.accent),
+        AutomationStatus::Blocked => ("icons/alert.svg", theme.danger),
+        AutomationStatus::Completed => ("icons/check.svg", theme.success),
+        AutomationStatus::Canceled => ("icons/stop.svg", theme.text_tertiary),
+        AutomationStatus::Skipped => ("icons/arrow-right.svg", theme.text_tertiary),
+    }
+}
+fn ago(at: u64) -> String {
+    let seconds = unix_time().saturating_sub(at);
+    if seconds < 60 {
+        super::super::sidebar::format_time_ago(seconds)
+    } else {
+        format!("{} ago", super::super::sidebar::format_time_ago(seconds))
+    }
+}
+/// Daemon reasons can end in a raw Unix time ("Stopped by user at
+/// 1792396687"); say how long ago instead.
+fn readable_reason(reason: &str) -> String {
+    reason
+        .rsplit_once(" at ")
+        .and_then(|(head, tail)| {
+            tail.trim()
+                .parse::<u64>()
+                .ok()
+                .filter(|at| *at > 1_000_000_000)
+                .map(|at| format!("{head} {}", ago(at)))
+        })
+        .unwrap_or_else(|| reason.to_owned())
+}
 pub(super) fn next_fire(at: u64) -> String {
     i64::try_from(at)
         .ok()
@@ -219,7 +252,7 @@ impl Waku {
         }
     }
     pub(super) fn render_automation_header(&self, cx: &mut Context<Self>) -> Div {
-        let mut header = div().flex().gap(px(8.0)).px(px(24.0)).py(px(10.0));
+        let mut header = div().flex().gap(px(8.0));
         if self.control_ui.automation_selected.is_some() {
             return header.child(self.control_button(
                 "automation-back",
@@ -385,9 +418,10 @@ impl Waku {
         } else {
             if self.control_ui.automation_selected != Some(id) {
                 let value = run.clone();
-                actions = actions.child(self.control_button(
+                actions = actions.child(self.control_button_tone(
                     format!("automation-open-{id}"),
                     "Open",
+                    ControlTone::Ghost,
                     cx,
                     move |this, _, cx| this.open_control_automation(value.clone(), cx),
                 ));
@@ -433,9 +467,10 @@ impl Waku {
                 run.status,
                 AutomationStatus::Running | AutomationStatus::Blocked
             ) {
-                actions = actions.child(self.control_button(
+                actions = actions.child(self.control_button_tone(
                     format!("automation-stop-{id}"),
                     "Stop",
+                    ControlTone::Ghost,
                     cx,
                     move |this, _, cx| {
                         this.control_request(
@@ -448,39 +483,26 @@ impl Waku {
                     },
                 ));
             }
-            (
-                run.name.clone(),
-                format!(
-                    "{} · {} of {} stages{}{}",
-                    status(run.status),
-                    run.stages.iter().filter(|s| s.completed).count(),
-                    run.stages.len(),
-                    if self.control_ui.automation_selected == Some(id) {
-                        run.trigger
-                            .as_ref()
-                            .map(|t| format!("\n{}", routine_ui::trigger_label(t)))
-                            .unwrap_or_default()
-                    } else {
-                        String::new()
-                    },
-                    run.reason
-                        .as_ref()
-                        .map(|r| format!(" · {r}"))
-                        .unwrap_or_default()
-                ),
-                "icons/rotate-cw.svg",
-            )
+            let done = run.stages.iter().filter(|s| s.completed).count();
+            return self.render_run_summary(&run, done, actions, &theme);
         };
         div()
             .id(SharedString::from(format!("automation-row-{id}-{stage:?}")))
+            .mx(px(2.0))
+            .mb(px(8.0))
+            .px(px(16.0))
+            .py(px(12.0))
+            .rounded(px(12.0))
+            .border_1()
+            .border_color(theme.ticket_border)
+            .bg(theme.ticket)
             .flex()
             .items_center()
             .gap(px(14.0))
-            .px(px(24.0))
-            .py(px(14.0))
-            .border_b_1()
-            .border_color(theme.border)
-            .child(icon(icon_path, 18.0, theme.accent))
+            .child(
+                avatar_tile(32.0, theme.accent_soft, gpui::transparent_black())
+                    .child(icon(icon_path, 15.0, theme.accent)),
+            )
             .child(
                 div()
                     .flex_1()
@@ -490,16 +512,147 @@ impl Waku {
                     .gap(px(5.0))
                     .child(
                         div()
-                            .text_size(sp(14.0))
-                            .font_weight(FontWeight::MEDIUM)
+                            .text_size(sp(13.5))
+                            .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme.text)
                             .child(title),
                     )
                     .child(
                         div()
                             .text_size(sp(12.5))
+                            .line_height(sp(18.0))
                             .text_color(theme.text_secondary)
                             .child(detail),
+                    ),
+            )
+            .child(actions)
+            .into_any_element()
+    }
+
+    /// One run in the history: state glyph, name and short id, a stage
+    /// progress meter, when it started and why it ended, then its actions.
+    fn render_run_summary(
+        &self,
+        run: &AutomationRun,
+        done: usize,
+        actions: Div,
+        theme: &Theme,
+    ) -> AnyElement {
+        let theme = *theme;
+        let id = run.id;
+        let (glyph, tone) = status_glyph(run.status, &theme);
+        let total = run.stages.len().max(1);
+        let selected = self.control_ui.automation_selected == Some(id);
+        let mut facts = vec![format!("{done} of {} stages", run.stages.len()), format!("started {}", ago(run.created_at))];
+        if selected {
+            if let Some(trigger) = run.trigger.as_ref() {
+                facts.push(routine_ui::trigger_label(trigger));
+            }
+        }
+        if let Some(reason) = run.reason.as_ref() {
+            facts.push(readable_reason(reason));
+        }
+        let short_id = format!("#{}", &id.simple().to_string()[..6].to_uppercase());
+        let pill_bg = match run.status {
+            AutomationStatus::Blocked => theme.danger_soft,
+            AutomationStatus::Running | AutomationStatus::WaitingDecision => theme.accent_soft,
+            _ => theme.overlay,
+        };
+        let pill_fg = match run.status {
+            AutomationStatus::Blocked => theme.danger,
+            AutomationStatus::Running | AutomationStatus::WaitingDecision => theme.accent,
+            _ => theme.text_secondary,
+        };
+        div()
+            .id(SharedString::from(format!("automation-row-{id}")))
+            .mx(px(2.0))
+            .mb(px(8.0))
+            .px(px(16.0))
+            .py(px(12.0))
+            .rounded(px(12.0))
+            .border_1()
+            .border_color(theme.ticket_border)
+            .bg(theme.ticket)
+            .hover(move |style| style.border_color(theme.border_strong))
+            .flex()
+            .items_center()
+            .gap(px(14.0))
+            .child(
+                div()
+                    .flex_none()
+                    .size(px(32.0))
+                    .rounded_full()
+                    .bg(theme.inset)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon(glyph, 15.0, tone)),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(5.0))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(sp(13.5))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(theme.text)
+                                    .child(run.name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .font_family(crate::md::render::MONO_FAMILY)
+                                    .text_size(sp(11.0))
+                                    .text_color(theme.text_tertiary)
+                                    .child(short_id),
+                            )
+                            .child(status_pill(glyph, status(run.status), pill_fg, pill_bg)),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .w(px(64.0))
+                                    .h(px(4.0))
+                                    .rounded_full()
+                                    .bg(theme.overlay_strong)
+                                    .child(
+                                        div()
+                                            .h_full()
+                                            .rounded_full()
+                                            .bg(if run.status == AutomationStatus::Completed {
+                                                theme.success
+                                            } else {
+                                                theme.primary
+                                            })
+                                            .w(px(64.0 * done.min(total) as f32 / total as f32)),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(sp(12.0))
+                                    .text_color(theme.text_secondary)
+                                    .child(facts.join(" · ")),
+                            ),
                     ),
             )
             .child(actions)

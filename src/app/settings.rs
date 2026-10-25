@@ -1696,8 +1696,8 @@ impl Waku {
                 div()
                     .pt(px(2.0))
                     .flex_none()
-                    .text_size(sp(18.0))
-                    .font_weight(FontWeight::MEDIUM)
+                    .text_size(sp(22.0))
+                    .font_weight(FontWeight::SEMIBOLD)
                     .text_color(theme.text)
                     .child(match page {
                         SettingsPage::General => tr!("settings.general"),
@@ -1803,155 +1803,82 @@ impl Waku {
             cx,
             move |this, _, cx| this.set_analytics_enabled(!analytics_enabled, cx),
         );
+        let render_math = self.state.render_math;
+        let math_toggle = toggle_switch(
+            "render-math-toggle",
+            render_math,
+            false,
+            theme,
+            cx,
+            move |this, _, cx| this.set_render_math(!render_math, cx),
+        );
         div()
-            .child(self.render_setup_launcher(cx))
             .child(
-                div()
-                    .mt(px(15.0))
-                    .w_full()
-                    .px(px(20.0))
-                    .py(px(14.0))
-                    .rounded(px(13.0))
-                    .bg(theme.raised)
-                    .child(
-                        div()
-                            .text_size(sp(13.5))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.text)
-                            .child(tr!("settings.local_by_default")),
+                settings_group(&theme).child(
+                    settings_row(
+                        &theme,
+                        true,
+                        tr!("settings.connection_setup"),
+                        tr!("settings.connection_setup_description"),
                     )
-                    .child(
-                        div()
-                            .mt(px(5.0))
-                            .text_size(sp(12.5))
-                            .line_height(sp(18.0))
-                            .text_color(theme.text_secondary)
-                            .child(tr!("settings.local_by_default_description")),
-                    ),
+                    .child(self.render_setup_launcher(cx)),
+                ),
             )
             .child(
-                div()
-                    .mt(px(15.0))
-                    .w_full()
-                    .min_h(px(60.0))
-                    .px(px(20.0))
-                    .py(px(12.0))
-                    .rounded(px(13.0))
-                    .bg(theme.raised)
-                    .flex()
-                    .items_center()
-                    .gap(px(24.0))
+                settings_group(&theme)
                     .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(
-                                div()
-                                    .text_size(sp(13.5))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(theme.text)
-                                    .child(tr!("settings.share_anonymous_usage_data")),
-                            )
-                            .child(
-                                div()
-                                    .mt(px(5.0))
-                                    .text_size(sp(12.5))
-                                    .line_height(sp(18.0))
-                                    .text_color(theme.text_secondary)
-                                    .child(tr!("settings.share_anonymous_usage_data_description")),
-                            ),
-                    )
-                    .child(analytics_toggle),
-            )
-            .child(
-                div()
-                    .mt(px(15.0))
-                    .w_full()
-                    .min_h(px(60.0))
-                    .px(px(20.0))
-                    .py(px(12.0))
-                    .rounded(px(13.0))
-                    .bg(theme.raised)
-                    .flex()
-                    .items_center()
-                    .gap(px(24.0))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(
-                                div()
-                                    .text_size(sp(13.5))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(theme.text)
-                                    .child(tr!("settings.render_math")),
-                            )
-                            .child(
-                                div()
-                                    .mt(px(5.0))
-                                    .text_size(sp(12.5))
-                                    .line_height(sp(18.0))
-                                    .text_color(theme.text_secondary)
-                                    .child(tr!("settings.render_math_description")),
-                            ),
-                    )
-                    .child(toggle_switch(
-                        "render-math-toggle",
-                        self.state.render_math,
-                        false,
-                        theme,
-                        cx,
-                        {
-                            let enabled = self.state.render_math;
-                            move |this, _, cx| this.set_render_math(!enabled, cx)
-                        },
-                    )),
-            )
-            .when(updater_available, |column| {
-                let enabled = self.automatic_updates_enabled;
-                let toggle = toggle_switch(
-                    "automatic-updates-toggle",
-                    enabled,
-                    false,
-                    theme,
-                    cx,
-                    move |this, _, cx| this.set_automatic_updates_enabled(!enabled, cx),
-                );
-                column.child(
-                    div()
-                        .mt(px(15.0))
-                        .w_full()
-                        .min_h(px(60.0))
-                        .px(px(20.0))
-                        .py(px(12.0))
-                        .rounded(px(13.0))
-                        .bg(theme.raised)
-                        .flex()
-                        .items_center()
-                        .gap(px(24.0))
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .child(
-                                    div()
-                                        .text_size(sp(13.5))
-                                        .font_weight(FontWeight::MEDIUM)
-                                        .text_color(theme.text)
-                                        .child(tr!("settings.automatic_updates")),
-                                )
-                                .child(
-                                    div()
-                                        .mt(px(5.0))
-                                        .text_size(sp(12.5))
-                                        .line_height(sp(18.0))
-                                        .text_color(theme.text_secondary)
-                                        .child(tr!("settings.automatic_updates_description")),
-                                ),
+                        settings_row(
+                            &theme,
+                            true,
+                            tr!("settings.local_by_default"),
+                            tr!("settings.local_by_default_description"),
                         )
-                        .child(toggle),
-                )
-            })
+                        .child(status_pill(
+                            "icons/laptop.svg",
+                            tr!("settings.on_this_computer"),
+                            theme.accent,
+                            theme.accent_soft,
+                        )),
+                    )
+                    .child(
+                        settings_row(
+                            &theme,
+                            false,
+                            tr!("settings.share_anonymous_usage_data"),
+                            tr!("settings.share_anonymous_usage_data_description"),
+                        )
+                        .child(analytics_toggle),
+                    )
+                    .child(
+                        settings_row(
+                            &theme,
+                            false,
+                            tr!("settings.render_math"),
+                            tr!("settings.render_math_description"),
+                        )
+                        .child(math_toggle),
+                    )
+                    .when(updater_available, |group| {
+                        let enabled = self.automatic_updates_enabled;
+                        let toggle = toggle_switch(
+                            "automatic-updates-toggle",
+                            enabled,
+                            false,
+                            theme,
+                            cx,
+                            move |this, _, cx| this.set_automatic_updates_enabled(!enabled, cx),
+                        );
+                        group.child(
+                            settings_row(
+                                &theme,
+                                false,
+                                tr!("settings.automatic_updates"),
+                                tr!("settings.automatic_updates_description"),
+                            )
+                            .child(toggle),
+                        )
+                    }),
+            )
             .into_any_element()
     }
 
@@ -1981,7 +1908,10 @@ impl Waku {
                 .w_full()
                 .px(px(20.0))
                 .py(px(16.0))
-                .rounded(px(13.0))
+                .rounded(px(14.0))
+                .border_1()
+                .border_color(theme.border)
+                .shadow(elevation(&theme, Elevation::Rest))
                 .bg(theme.raised)
                 .child(
                     div()
@@ -2236,7 +2166,10 @@ impl Waku {
                     .min_h(px(66.0))
                     .px(px(20.0))
                     .py(px(13.0))
-                    .rounded(px(13.0))
+                    .rounded(px(14.0))
+                    .border_1()
+                    .border_color(theme.border)
+                    .shadow(elevation(&theme, Elevation::Rest))
                     .bg(theme.raised)
                     .flex()
                     .items_center()
@@ -2296,7 +2229,10 @@ impl Waku {
                     div()
                         .px(px(20.0))
                         .py(px(15.0))
-                        .rounded(px(13.0))
+                        .rounded(px(14.0))
+                        .border_1()
+                        .border_color(theme.border)
+                        .shadow(elevation(&theme, Elevation::Rest))
                         .bg(theme.raised)
                         .child(
                             div()
@@ -2398,7 +2334,10 @@ impl Waku {
                     div()
                         .px(px(20.0))
                         .py(px(15.0))
-                        .rounded(px(13.0))
+                        .rounded(px(14.0))
+                        .border_1()
+                        .border_color(theme.border)
+                        .shadow(elevation(&theme, Elevation::Rest))
                         .bg(theme.raised)
                         .child(
                             div()
@@ -2775,7 +2714,10 @@ impl Waku {
             .w_full()
             .flex()
             .flex_col()
-            .rounded(px(13.0))
+            .rounded(px(14.0))
+            .border_1()
+            .border_color(theme.border)
+            .shadow(elevation(&theme, Elevation::Rest))
             .overflow_hidden()
             .bg(theme.raised)
             .child(
@@ -3173,7 +3115,10 @@ impl Waku {
             .w_full()
             .px(px(20.0))
             .py(px(14.0))
-            .rounded(px(13.0))
+            .rounded(px(14.0))
+            .border_1()
+            .border_color(theme.border)
+            .shadow(elevation(&theme, Elevation::Rest))
             .bg(theme.raised)
             .child(
                 div()
@@ -3521,7 +3466,10 @@ impl Waku {
                 div()
                     .px(px(20.0))
                     .py(px(14.0))
-                    .rounded(px(13.0))
+                    .rounded(px(14.0))
+                    .border_1()
+                    .border_color(theme.border)
+                    .shadow(elevation(&theme, Elevation::Rest))
                     .bg(theme.raised)
                     .flex()
                     .items_center()
@@ -3560,7 +3508,10 @@ impl Waku {
                     div()
                         .px(px(20.0))
                         .py(px(14.0))
-                        .rounded(px(13.0))
+                        .rounded(px(14.0))
+                        .border_1()
+                        .border_color(theme.border)
+                        .shadow(elevation(&theme, Elevation::Rest))
                         .bg(theme.raised)
                         .child(
                             div()
@@ -3627,7 +3578,10 @@ impl Waku {
                     div()
                         .px(px(20.0))
                         .py(px(14.0))
-                        .rounded(px(13.0))
+                        .rounded(px(14.0))
+                        .border_1()
+                        .border_color(theme.border)
+                        .shadow(elevation(&theme, Elevation::Rest))
                         .bg(theme.raised)
                         .child(
                             div()
@@ -3654,7 +3608,10 @@ impl Waku {
                 div()
                     .px(px(20.0))
                     .py(px(14.0))
-                    .rounded(px(13.0))
+                    .rounded(px(14.0))
+                    .border_1()
+                    .border_color(theme.border)
+                    .shadow(elevation(&theme, Elevation::Rest))
                     .bg(theme.raised)
                     .child(
                         div()
@@ -3886,6 +3843,61 @@ impl Waku {
 /// hold values outside this list; they render as-is and simply select
 /// nothing here.
 const FONT_SIZES: [f32; 8] = [11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 18.0, 20.0];
+
+/// One settings group: related rows share a single raised card and are split
+/// by hairlines, so a page reads as a few calm blocks rather than a stack of
+/// separate floating panels.
+pub(super) fn settings_group(theme: &Theme) -> Div {
+    div()
+        .mt(px(16.0))
+        .w_full()
+        .rounded(px(14.0))
+        .border_1()
+        .border_color(theme.border)
+        .bg(theme.raised)
+        .shadow(elevation(theme, Elevation::Rest))
+        .flex()
+        .flex_col()
+}
+
+/// A settings row: title and description on the left; the caller appends the
+/// control on the right.
+pub(super) fn settings_row(
+    theme: &Theme,
+    first: bool,
+    title: impl Into<SharedString>,
+    description: impl Into<SharedString>,
+) -> Div {
+    div()
+        .w_full()
+        .min_h(px(64.0))
+        .px(px(20.0))
+        .py(px(14.0))
+        .flex()
+        .items_center()
+        .gap(px(24.0))
+        .when(!first, |row| row.border_t_1().border_color(theme.border))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .child(
+                    div()
+                        .text_size(sp(13.5))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(theme.text)
+                        .child(title.into()),
+                )
+                .child(
+                    div()
+                        .mt(px(4.0))
+                        .text_size(sp(12.5))
+                        .line_height(sp(18.0))
+                        .text_color(theme.text_secondary)
+                        .child(description.into()),
+                ),
+        )
+}
 
 fn font_size_label(size: f32) -> String {
     if size.fract() == 0.0 {

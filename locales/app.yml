@@ -363,6 +363,12 @@ common.retry:
 common.creating:
   en: Creating…
 
+settings.connection_setup:
+  en: Connection setup
+settings.connection_setup_description:
+  en: Coding agents, Nebius Token Factory and connected apps in one guided checklist
+settings.on_this_computer:
+  en: This computer
 settings.local_by_default:
   en: Local by default
 settings.local_by_default_description:

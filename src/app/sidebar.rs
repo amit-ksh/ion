@@ -217,6 +217,7 @@ const SIDEBAR_GROUP_SPACER_HEIGHT: f32 = 10.0;
 const SIDEBAR_GROUP_CHILD_PADDING: f32 = 28.0;
 const SIDEBAR_PROJECT_RECENT_WINDOW_SECONDS: u64 = 3 * 24 * 60 * 60;
 const SIDEBAR_PROJECT_REVEAL_BATCH: usize = 30;
+const SIDEBAR_PROJECT_MIN_VISIBLE: usize = 3;
 
 /// The session row's trailing time: how long the live turn has been working,
 /// or how long ago the agent last replied. A session that has never replied
@@ -290,12 +291,20 @@ fn visible_project_sessions(
     recent_cutoff: u64,
     revealed_older_sessions: usize,
 ) -> (Vec<Uuid>, bool) {
+    let is_recent = |session_id: &Uuid| {
+        session_timestamps
+            .get(session_id)
+            .is_some_and(|timestamp| *timestamp >= recent_cutoff)
+    };
+    // A quiet project still shows its latest few tasks, so its header never
+    // sits alone above a bare "Show more".
+    let recent = sessions.iter().filter(|id| is_recent(id)).count();
+    let revealed_older_sessions =
+        revealed_older_sessions.max(SIDEBAR_PROJECT_MIN_VISIBLE.saturating_sub(recent));
     let mut visible = Vec::with_capacity(sessions.len());
     let mut older_seen = 0usize;
     for session_id in sessions {
-        let recent = session_timestamps
-            .get(session_id)
-            .is_some_and(|timestamp| *timestamp >= recent_cutoff);
+        let recent = is_recent(session_id);
         if recent || older_seen < revealed_older_sessions {
             visible.push(*session_id);
         }
@@ -308,15 +317,6 @@ fn visible_project_sessions(
 
 fn sidebar_project_is_projectless(project: &Project, projectless_root: Option<&Path>) -> bool {
     projectless_root.is_some_and(|root| project.path.starts_with(root))
-}
-
-fn persisted_sidebar_branch_label(workspace: &SessionWorkspace) -> Option<&str> {
-    match workspace {
-        SessionWorkspace::Local => None,
-        SessionWorkspace::NewWorktree { base_branch } => base_branch.as_deref(),
-        SessionWorkspace::Worktree { branch, .. } => Some(branch.as_str()),
-    }
-    .filter(|branch| !branch.is_empty())
 }
 
 /// Compact "how long ago" for the sidebar: "just now", then one coarse unit —
@@ -934,10 +934,15 @@ impl Waku {
 
     fn render_sidebar_footer(&self, cx: &mut Context<Self>) -> Div {
         let theme = Theme::current(cx);
+        // A hairline separates the pinned footer from the scrolling project
+        // list so the last task never appears to collide with Settings.
         div()
             .flex_none()
-            .h(px(40.0))
-            .px(px(10.0))
+            .h(px(50.0))
+            .mx(px(10.0))
+            .pt(px(4.0))
+            .border_t_1()
+            .border_color(theme.sidebar_border)
             .flex()
             .items_center()
             .child(
@@ -962,99 +967,6 @@ impl Waku {
             .when_some(self.render_updater_button(cx), |footer, button| {
                 footer.child(button)
             })
-    }
-
-    /// Resolve every ordinary local project's branch in one background pass.
-    /// The render path only computes an allocation-free source fingerprint;
-    /// collection building and daemon requests happen once when that moves.
-    fn ensure_sidebar_branch_labels(&self, cx: &mut Context<Self>) {
-        if self.state.sidebar_grouping != SidebarGrouping::Project {
-            return;
-        }
-
-        let mut fingerprint = 0xb4a7_c4e5_51de_ba11;
-        for session in &self.state.sessions {
-            if session.has_started() && matches!(&session.workspace, SessionWorkspace::Local) {
-                fingerprint = mix_uuid(fingerprint, session.id);
-                fingerprint = mix_uuid(fingerprint, session.project_id);
-            }
-        }
-        for project in &self.state.projects {
-            fingerprint = mix_uuid(fingerprint, project.id);
-        }
-        if self.sidebar_branch_scan_fingerprint.get() == Some(fingerprint) {
-            return;
-        }
-        self.sidebar_branch_scan_fingerprint.set(Some(fingerprint));
-        let generation = self.sidebar_branch_scan_generation.get().wrapping_add(1);
-        self.sidebar_branch_scan_generation.set(generation);
-
-        let local_project_ids = self
-            .state
-            .sessions
-            .iter()
-            .filter(|session| {
-                session.has_started() && matches!(&session.workspace, SessionWorkspace::Local)
-            })
-            .map(|session| session.project_id)
-            .collect::<HashSet<_>>();
-        let projectless_root = crate::projectless::workspace_root();
-        let paths = self
-            .state
-            .projects
-            .iter()
-            .filter(|project| local_project_ids.contains(&project.id))
-            .filter(|project| !sidebar_project_is_projectless(project, projectless_root.as_deref()))
-            .map(|project| project.path.clone())
-            .collect::<HashSet<_>>();
-        if paths.is_empty() {
-            self.sidebar_branch_labels.borrow_mut().clear();
-            return;
-        }
-
-        let workspace = waku_client::WorkspaceClient::new(self.daemon.client());
-        cx.spawn(async move |waku, cx| {
-            let labels = cx
-                .background_executor()
-                .spawn(async move {
-                    let mut labels = HashMap::new();
-                    for path in paths {
-                        let branch = match workspace.request(
-                            waku_client::WorkspaceOperation::InspectBranches { cwd: path.clone() },
-                        ) {
-                            Ok(waku_client::WorkspaceResult::Branches {
-                                snapshot: Some(snapshot),
-                            }) => snapshot.display_branch().map(str::to_owned),
-                            _ => None,
-                        };
-                        if let Some(branch) = branch {
-                            labels.insert(path, branch);
-                        }
-                    }
-                    labels
-                })
-                .await;
-            let _ = waku.update(cx, |waku, cx| {
-                if waku.sidebar_branch_scan_generation.get() != generation {
-                    return;
-                }
-                *waku.sidebar_branch_labels.borrow_mut() = labels
-                    .into_iter()
-                    .map(|(path, branch)| (path, SharedString::from(branch)))
-                    .collect();
-                cx.notify();
-            });
-        })
-        .detach();
-    }
-
-    pub(super) fn cache_sidebar_branch_label(&self, path: &Path, branch: Option<&str>) {
-        let mut labels = self.sidebar_branch_labels.borrow_mut();
-        if let Some(branch) = branch.filter(|branch| !branch.is_empty()) {
-            labels.insert(path.to_path_buf(), SharedString::from(branch.to_owned()));
-        } else {
-            labels.remove(path);
-        }
     }
 
     pub(super) fn render_sidebar(
@@ -1779,9 +1691,6 @@ impl Waku {
         }
         self.state.sidebar_grouping = grouping;
         self.sidebar_rows_fingerprint.set(None);
-        self.sidebar_branch_scan_fingerprint.set(None);
-        self.sidebar_branch_scan_generation
-            .set(self.sidebar_branch_scan_generation.get().wrapping_add(1));
         self.sidebar_list_state.scroll_to(ListOffset {
             item_ix: 0,
             offset_in_item: Pixels::ZERO,
@@ -2761,7 +2670,7 @@ mod tests {
 
         let (initial, show_more) =
             visible_project_sessions(&sessions, &timestamps, recent_cutoff, 0);
-        assert_eq!(initial, vec![sessions[0]]);
+        assert_eq!(initial, sessions[..SIDEBAR_PROJECT_MIN_VISIBLE]);
         assert!(show_more);
 
         let (first_batch, show_more) = visible_project_sessions(
@@ -2874,25 +2783,6 @@ mod tests {
         assert!(sidebar_project_is_projectless(&projectless, Some(root)));
         assert!(!sidebar_project_is_projectless(&ordinary, Some(root)));
         assert!(!sidebar_project_is_projectless(&projectless, None));
-    }
-
-    #[test]
-    fn persisted_worktree_branches_supply_sidebar_labels() {
-        let local = SessionWorkspace::Local;
-        let planned = SessionWorkspace::NewWorktree {
-            base_branch: Some("develop".to_owned()),
-        };
-        let worktree = SessionWorkspace::Worktree {
-            path: PathBuf::from("/tmp/worktree"),
-            branch: "feature/sidebar".to_owned(),
-        };
-
-        assert_eq!(persisted_sidebar_branch_label(&local), None);
-        assert_eq!(persisted_sidebar_branch_label(&planned), Some("develop"));
-        assert_eq!(
-            persisted_sidebar_branch_label(&worktree),
-            Some("feature/sidebar")
-        );
     }
 
     #[test]

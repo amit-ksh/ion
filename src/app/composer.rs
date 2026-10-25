@@ -139,7 +139,7 @@ impl Waku {
                     .border_1()
                     .border_color(theme.border_strong)
                     .bg(theme.raised)
-                    .shadow_md()
+                    .shadow(elevation(&theme, Elevation::Lifted))
                     .child(
                         div()
                             .flex()
@@ -547,7 +547,7 @@ impl Waku {
                 .border_1()
                 .border_color(theme.warning.opacity(0.5))
                 .bg(theme.raised)
-                .shadow_md()
+                .shadow(elevation(&theme, Elevation::Lifted))
                 .child(
                     div()
                         .flex()
@@ -1440,7 +1440,7 @@ impl Waku {
                     .border_1()
                     .border_color(theme.border_strong)
                     .bg(theme.raised)
-                    .shadow_lg()
+                    .shadow(elevation(&theme, Elevation::Float))
                     .flex()
                     // The filter field keeps focus and the selected row is only
                     // drawn, never focused — the same split Zed's picker uses.
@@ -3630,7 +3630,7 @@ impl Waku {
                     .border_1()
                     .border_color(theme.border_strong)
                     .bg(theme.raised)
-                    .shadow_lg()
+                    .shadow(elevation(&theme, Elevation::Float))
                     .flex()
                     .flex_col()
                     .on_action(move |_: &SelectNextEntry, _, cx| {
@@ -4130,7 +4130,7 @@ fn model_picker_empty_state(
         .border_1()
         .border_color(theme.border_strong)
         .bg(theme.raised)
-        .shadow_lg()
+        .shadow(elevation(&theme, Elevation::Float))
         .flex()
         .flex_col()
         .items_center()

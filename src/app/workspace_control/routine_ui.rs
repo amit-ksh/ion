@@ -220,31 +220,38 @@ impl Waku {
         r.missed = routine.missed_run_policy;
         r.overlap = routine.overlap_policy;
         if let Some(rule) = &routine.calendar {
-            r.zone
-                .update(cx, |i, cx| i.set_content(rule.time_zone.clone(), cx));
-            r.time.update(cx, |i, cx| {
-                i.set_content(format!("{:02}:{:02}", rule.hour, rule.minute), cx)
-            });
-            r.frequency = match &rule.recurrence {
-                CalendarRecurrence::Daily => Frequency::Daily,
-                CalendarRecurrence::Weekly { days } => {
-                    r.weekdays = days.clone();
-                    Frequency::Weekly
-                }
-                CalendarRecurrence::Monthly { days } => {
-                    r.month_days.update(cx, |i, cx| {
-                        i.set_content(
-                            days.iter()
-                                .map(u8::to_string)
-                                .collect::<Vec<_>>()
-                                .join(", "),
-                            cx,
-                        )
-                    });
-                    Frequency::Monthly
-                }
-            };
+            self.load_routine_calendar(rule, cx);
         }
+    }
+    /// Put a calendar rule into the open editor; starters use this too, so a
+    /// template schedule is exactly what editing a saved routine would show.
+    pub(super) fn load_routine_calendar(&mut self, rule: &CalendarSchedule, cx: &mut Context<Self>) {
+        let r = &mut self.control_ui.routine;
+        r.invalidate();
+        r.zone
+            .update(cx, |i, cx| i.set_content(rule.time_zone.clone(), cx));
+        r.time.update(cx, |i, cx| {
+            i.set_content(format!("{:02}:{:02}", rule.hour, rule.minute), cx)
+        });
+        r.frequency = match &rule.recurrence {
+            CalendarRecurrence::Daily => Frequency::Daily,
+            CalendarRecurrence::Weekly { days } => {
+                r.weekdays = days.clone();
+                Frequency::Weekly
+            }
+            CalendarRecurrence::Monthly { days } => {
+                r.month_days.update(cx, |i, cx| {
+                    i.set_content(
+                        days.iter()
+                            .map(u8::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        cx,
+                    )
+                });
+                Frequency::Monthly
+            }
+        };
     }
     pub(super) fn routine_schedule_draft(
         &self,

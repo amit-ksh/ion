@@ -611,7 +611,7 @@ impl Render for ConversationNavigationRail {
                 .border_1()
                 .border_color(theme.border_strong)
                 .bg(theme.raised)
-                .shadow_lg()
+                .shadow(elevation(&theme, Elevation::Float))
                 .px(px(15.0))
                 .py(px(12.0))
                 .flex()
@@ -1328,10 +1328,24 @@ impl Waku {
                             view.set_text(message.visible_content(), message.streaming);
                             &*view
                         });
+                    // The last assistant word of a failed turn is the failure
+                    // itself; it renders as an error callout, not as prose.
+                    let failed = message.role == MessageRole::Assistant
+                        && message.turn_id.is_some_and(|turn_id| {
+                            self.selected_session().is_some_and(|session| {
+                                session.turns.iter().any(|turn| {
+                                    turn.id == turn_id && turn.status == TurnStatus::Failed
+                                }) && !session.messages[message_index + 1..].iter().any(|later| {
+                                    later.turn_id == Some(turn_id)
+                                        && later.role == MessageRole::Assistant
+                                })
+                            })
+                        });
                     let rendered = render_message(
                         MessageRender {
                             theme: &theme,
                             message: &message,
+                            failed,
                             assistant_footer_copy_content,
                             assistant_footer_time,
                             copied,

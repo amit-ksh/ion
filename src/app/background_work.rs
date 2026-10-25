@@ -1512,7 +1512,7 @@ fn render_background_summary_card(
         .border_color(theme.border_strong)
         .overflow_hidden()
         .bg(theme.raised)
-        .shadow_lg()
+        .shadow(elevation(&theme, Elevation::Float))
         .child(content)
         .into_any_element()
 }

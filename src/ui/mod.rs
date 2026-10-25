@@ -175,38 +175,142 @@ pub fn toggle_switch<E>(
 where
     E: 'static,
 {
+    // Lime is the selection color, so an enabled switch fills with it; the
+    // knob position carries the state for anyone who cannot see the hue.
+    let knob_color = if on {
+        theme.on_primary
+    } else if theme.is_dark {
+        theme.text_tertiary
+    } else {
+        rgb(0xFFFFFF).into()
+    };
     let base = div()
         .id(id)
         .tab_index(0)
         .focus_visible(|style| style.border_color(theme.accent))
-        .w(px(36.0))
-        .h(px(20.0))
+        .w(px(38.0))
+        .h(px(22.0))
         .p(px(2.0))
         .flex_none()
         .rounded_full()
         .cursor_default()
         .when(disabled, |element| element.opacity(0.55))
-        .bg(if on { theme.inverse } else { theme.inset })
+        .bg(if on { theme.primary } else { theme.inset })
         .border_1()
         .border_color(if on {
-            theme.inverse
+            theme.primary
         } else {
             theme.border_strong
         })
         .flex()
         .items_center()
         .when(on, |element| element.justify_end())
-        .child(div().w(px(14.0)).h(px(14.0)).rounded_full().bg(if on {
-            theme.on_inverse
-        } else {
-            theme.text_tertiary
-        }));
+        .child(
+            div()
+                .size(px(16.0))
+                .rounded_full()
+                .bg(knob_color)
+                .shadow(elevation(&theme, Elevation::Rest)),
+        );
 
     if disabled {
         base
     } else {
         base.on_activation(cx, activate)
     }
+}
+
+/// A pill track holding mutually exclusive views. The active segment rises
+/// out of the track as a small raised card; the rest stay quiet text.
+pub fn segmented_track(theme: &Theme) -> Div {
+    div()
+        .flex()
+        .flex_none()
+        .items_center()
+        .gap(px(2.0))
+        .p(px(3.0))
+        .rounded_full()
+        .bg(theme.inset)
+        .border_1()
+        .border_color(theme.border)
+}
+
+/// One segment for `segmented_track`. Callers attach activation.
+pub fn segment(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    active: bool,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let theme = *theme;
+    let label: SharedString = label.into();
+    div()
+        .id(id)
+        .tab_index(0)
+        .h(px(26.0))
+        .px(px(12.0))
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .rounded_full()
+        .cursor_default()
+        .text_size(sp(12.5))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .border_1()
+        .border_color(gpui::transparent_black())
+        .focus_visible(|style| style.border_color(theme.accent))
+        .map(|segment| {
+            if active {
+                segment
+                    .bg(theme.raised)
+                    .border_color(theme.border)
+                    .text_color(theme.text)
+                    .shadow(elevation(&theme, Elevation::Rest))
+            } else {
+                segment
+                    .text_color(theme.text_secondary)
+                    .hover(|style| style.text_color(theme.text).bg(theme.overlay))
+            }
+        })
+        .when(!label.is_empty(), |segment| segment.child(label))
+}
+
+/// A small status pill: icon plus label, tinted by meaning. The label always
+/// carries the meaning so the hue is never the only signal.
+pub fn status_pill(
+    icon_path: &'static str,
+    label: impl Into<SharedString>,
+    fg: Hsla,
+    bg: Hsla,
+) -> Div {
+    div()
+        .flex_none()
+        .h(px(22.0))
+        .px(px(8.0))
+        .rounded_full()
+        .bg(bg)
+        .flex()
+        .items_center()
+        .gap(px(5.0))
+        .text_size(sp(11.5))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(fg)
+        .child(icon(icon_path, 11.0, fg))
+        .child(label.into())
+}
+
+/// A square avatar tile that frames a mark or icon on list cards.
+pub fn avatar_tile(size: f32, bg: Hsla, border: Hsla) -> Div {
+    div()
+        .size(px(size))
+        .flex_none()
+        .rounded(px((size * 0.3).round()))
+        .bg(bg)
+        .border_1()
+        .border_color(border)
+        .flex()
+        .items_center()
+        .justify_center()
 }
 
 /// Brand hue for each provider's official mark.

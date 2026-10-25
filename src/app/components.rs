@@ -352,6 +352,8 @@ pub(super) fn render_message_footer(
 pub(super) struct MessageRender<'a> {
     pub(super) theme: &'a Theme,
     pub(super) message: &'a Message,
+    /// The closing assistant message of a failed turn.
+    pub(super) failed: bool,
     pub(super) assistant_footer_copy_content: Option<SharedString>,
     pub(super) assistant_footer_time: Option<u64>,
     pub(super) copied: bool,
@@ -548,6 +550,7 @@ pub(super) fn render_message(params: MessageRender, cx: &mut App) -> AnyElement 
     let MessageRender {
         theme,
         message,
+        failed,
         assistant_footer_copy_content,
         assistant_footer_time,
         copied,
@@ -692,11 +695,11 @@ pub(super) fn render_message(params: MessageRender, cx: &mut App) -> AnyElement 
                             .min_w_0()
                             .relative()
                             .overflow_hidden()
-                            .rounded(px(12.0))
+                            .rounded(px(14.0))
                             .border_1()
-                            .border_color(theme.raised)
-                            .bg(theme.raised)
-                            .px(px(11.0))
+                            .border_color(theme.ticket_border)
+                            .bg(theme.ticket).shadow(crate::ui::elevation(theme, crate::ui::Elevation::Rest))
+                            .px(px(14.0))
                             .py(px(7.0))
                             .text_size(sp(14.0))
                             .line_height(sp(20.0))
@@ -729,13 +732,13 @@ pub(super) fn render_message(params: MessageRender, cx: &mut App) -> AnyElement 
                                         body.child(scrollbar::edge_fade(
                                             viewport.scroll_handle.clone(),
                                             scrollbar::FadeEdge::Top,
-                                            theme.raised,
+                                            theme.ticket,
                                         ))
                                         .child(
                                             scrollbar::edge_fade(
                                                 viewport.scroll_handle.clone(),
                                                 scrollbar::FadeEdge::Bottom,
-                                                theme.raised,
+                                                theme.ticket,
                                             ),
                                         )
                                     }),
@@ -819,6 +822,29 @@ pub(super) fn render_message(params: MessageRender, cx: &mut App) -> AnyElement 
         MessageRole::Assistant => {
             let group_name = SharedString::from(format!("assistant-message-{message_id}"));
             let body = render_markdown_message_body(&content, markdown, theme, ctx);
+            let body = if failed {
+                div()
+                    .w_full()
+                    .min_w_0()
+                    .px(px(14.0))
+                    .py(px(10.0))
+                    .rounded(px(12.0))
+                    .border_1()
+                    .border_color(theme.danger.opacity(0.35))
+                    .bg(theme.danger_soft)
+                    .flex()
+                    .items_start()
+                    .gap(px(10.0))
+                    .child(
+                        div()
+                            .mt(px(3.0))
+                            .child(icon("icons/alert.svg", 14.0, theme.danger)),
+                    )
+                    .child(div().flex_1().min_w_0().child(body))
+                    .into_any_element()
+            } else {
+                body.into_any_element()
+            };
             let mut column = div()
                 .w_full()
                 .min_w_0()

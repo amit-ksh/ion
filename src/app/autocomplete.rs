@@ -607,7 +607,7 @@ impl Waku {
                             .border_1()
                             .border_color(theme.border_strong)
                             .bg(theme.raised)
-                            .shadow_lg()
+                            .shadow(elevation(&theme, Elevation::Float))
                             .flex()
                             .flex_col()
                             .overflow_hidden()
