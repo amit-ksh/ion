@@ -195,7 +195,7 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="usage"
-          options={{ ...drawerHeader, title: "Usage" }}
+          options={{ ...surfaceHeader, title: "Usage" }}
         />
         <Stack.Screen
           name="inbox-source"
@@ -215,7 +215,7 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="automations"
-          options={{ ...drawerHeader, title: "Workflows & routines" }}
+          options={{ ...surfaceHeader, title: "Workflows & routines" }}
         />
         <Stack.Screen
           name="automation-editor"

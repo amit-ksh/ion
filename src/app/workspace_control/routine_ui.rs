@@ -225,7 +225,11 @@ impl Waku {
     }
     /// Put a calendar rule into the open editor; starters use this too, so a
     /// template schedule is exactly what editing a saved routine would show.
-    pub(super) fn load_routine_calendar(&mut self, rule: &CalendarSchedule, cx: &mut Context<Self>) {
+    pub(super) fn load_routine_calendar(
+        &mut self,
+        rule: &CalendarSchedule,
+        cx: &mut Context<Self>,
+    ) {
         let r = &mut self.control_ui.routine;
         r.invalidate();
         r.zone

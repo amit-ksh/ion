@@ -71,6 +71,8 @@ interface RuntimeEntry extends MobileRuntime {
    * query is evicted. Never fall back to the snapshot captured on attach. */
   session: AgentSession;
   lastDriverError: string | null;
+  /** This client asked the runtime to stop the current turn. */
+  stopRequested: boolean;
   unsubscribe: () => void;
   /** Buffered runtime events awaiting the next commit. */
   pending: SequencedEvent[];
@@ -333,6 +335,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       starting,
       running: sessionIsRunning(session),
       lastDriverError: null,
+      stopRequested: false,
       unsubscribe: () => {},
       pending: [],
       flushTimer: null,
@@ -351,6 +354,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       removeRuntime: boolean;
     }
     const reduceOne = (state: FlushState, event: SequencedEvent) => {
+      if (event.event.kind === 'turnStarted') entry.stopRequested = false;
       if (event.event.kind === 'connected' || event.event.kind === 'turnStarted' || event.event.kind === 'turnFinished') {
         entry.lastDriverError = null;
       } else if (event.event.kind === 'error' && typeof event.event.payload === 'string') {
@@ -400,7 +404,8 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
           }));
         }
       }
-      const result = reduceRuntimeEvent(state.current, event, clock, entry.lastDriverError);
+      const result = reduceRuntimeEvent(state.current, event, clock, entry.lastDriverError, entry.stopRequested);
+      if (result.settled) entry.stopRequested = false;
       state.current = result.session;
       state.mutated = true;
       if (result.permission !== undefined) {
@@ -818,7 +823,14 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     }
     const runtime = entries.current.get(sessionId);
     if (!runtime) throw new Error('This task has no live agent runtime');
-    await client.request({ type: 'cancel' }, sessionId, runtime.runtimeId);
+    // Set before the request: the provider's stop report can beat the ack.
+    runtime.stopRequested = true;
+    try {
+      await client.request({ type: 'cancel' }, sessionId, runtime.runtimeId);
+    } catch (cause) {
+      runtime.stopRequested = false;
+      throw cause;
+    }
   }, [daemon.client, loadFullSession]);
 
   const markWorking = useCallback((sessionId: string) => {

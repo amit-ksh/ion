@@ -16,6 +16,7 @@ mod gateway_sync;
 pub use gateway_sync::{Cadence as GatewaySyncCadence, PublisherLease as GatewayPublisherLease};
 pub mod inference;
 pub mod nebius_project;
+pub mod sandbox_image;
 pub mod speech;
 pub use composio::ComposioAuthConfig;
 #[cfg_attr(target_os = "windows", path = "credentials/windows.rs")]
@@ -86,6 +87,30 @@ pub struct GatewayPairing {
     pub device_id: String,
     token: String,
     pub expires_at: u64,
+}
+
+/// Token Factory's catalog also lists embedding and image models, which cannot
+/// run a task; every caller wants the chat models only.
+fn is_chat_model(id: &str) -> bool {
+    let id = id.to_ascii_lowercase();
+    !["embed", "/bge-", "/e5-", "flux"]
+        .iter()
+        .any(|marker| id.contains(marker))
+}
+
+#[cfg(test)]
+mod chat_model_tests {
+    use super::is_chat_model;
+
+    #[test]
+    fn nebius_catalog_keeps_only_chat_models() {
+        assert!(is_chat_model("moonshotai/Kimi-K3"));
+        assert!(is_chat_model("nvidia/nemotron-3-super-120b-a12b"));
+        assert!(!is_chat_model("Qwen/Qwen3-Embedding-8B"));
+        assert!(!is_chat_model("BAAI/bge-en-icl"));
+        assert!(!is_chat_model("intfloat/e5-mistral-7b-instruct"));
+        assert!(!is_chat_model("black-forest-labs/flux-schnell"));
+    }
 }
 
 #[cfg(test)]
@@ -907,7 +932,12 @@ impl CredentialService {
         let catalog: Catalog = response
             .json()
             .context("Nebius returned an invalid model catalog")?;
-        Ok(catalog.data.into_iter().map(|model| model.id).collect())
+        Ok(catalog
+            .data
+            .into_iter()
+            .map(|model| model.id)
+            .filter(|id| is_chat_model(id))
+            .collect())
     }
 
     /// Only catalog IDs leave this boundary; the key remains private.

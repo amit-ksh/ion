@@ -40,9 +40,10 @@ export function ArtifactPdfPreview({
 }
 export async function pdfDigest(bytes: Uint8Array): Promise<string> {
   const hash = new Uint8Array(
+    // Android's native digest takes a typed array, not a raw ArrayBuffer.
     await Crypto.digest(
       Crypto.CryptoDigestAlgorithm.SHA256,
-      bytes.buffer as ArrayBuffer,
+      bytes as Uint8Array<ArrayBuffer>,
     ),
   );
   return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");

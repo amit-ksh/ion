@@ -2,8 +2,8 @@
 use super::*;
 use std::io::Read;
 
-pub mod local;
 pub mod download;
+pub mod local;
 mod realtime;
 pub use realtime::RealtimeSpeech;
 pub const MODEL: &str = "nvidia/nemotron-3.5-asr-streaming-0.6b";

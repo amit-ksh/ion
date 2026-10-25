@@ -549,16 +549,20 @@ impl Waku {
                 div()
                     .text_size(sp(12.5))
                     .text_color(theme.text_secondary)
-                    .child(if costs.is_empty() {
-                        "Cost unavailable".into()
-                    } else {
-                        costs.join(" · ")
-                    })
-                    .when(s.unknown_cost_records > 0, |e| {
-                        e.child(format!(
-                            " · {} records without cost",
-                            s.unknown_cost_records
-                        ))
+                    .child({
+                        // One run of text: a second child would start its own line.
+                        let mut line = if costs.is_empty() {
+                            "Cost unavailable".to_owned()
+                        } else {
+                            costs.join(" · ")
+                        };
+                        if s.unknown_cost_records > 0 {
+                            line.push_str(&format!(
+                                " · {} records without cost",
+                                s.unknown_cost_records
+                            ));
+                        }
+                        line
                     }),
             );
         }

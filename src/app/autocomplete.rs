@@ -475,7 +475,9 @@ impl Waku {
             }
             AutocompleteRow::File(scored) => {
                 let path = &scored.item.path;
-                if path.starts_with('@') || self.control_ui.team_names.contains(&path.to_lowercase()) {
+                if path.starts_with('@')
+                    || self.control_ui.team_names.contains(&path.to_lowercase())
+                {
                     format!("@./{path} ")
                 } else {
                     format!("@{path} ")
@@ -766,21 +768,22 @@ impl Waku {
                     div()
                         .text_size(sp(12.5))
                         .text_color(theme.text_secondary)
-                        .child(
+                        .child({
+                            let count = scored.item.members.len();
+                            let size = format!(
+                                "Team · {count} {}",
+                                if count == 1 { "agent" } else { "agents" }
+                            );
                             if self
                                 .control_ui
                                 .duplicate_team_names
                                 .contains(&scored.item.name.trim().to_lowercase())
                             {
-                                format!(
-                                    "Team · {} agents · {}",
-                                    scored.item.members.len(),
-                                    &scored.item.id.to_string()[..8]
-                                )
+                                format!("{size} · {}", &scored.item.id.to_string()[..8])
                             } else {
-                                format!("Team · {} agents", scored.item.members.len())
-                            },
-                        ),
+                                size
+                            }
+                        }),
                 )
                 .into_any_element(),
             AutocompleteRow::File(scored) => {
@@ -950,13 +953,21 @@ fn mention_legend(active: TriggerKind, theme: &Theme) -> Div {
                     .items_center()
                     .font_family(crate::md::render::MONO_FAMILY)
                     .text_size(sp(11.0))
-                    .text_color(if lit { theme.accent } else { theme.text_tertiary })
+                    .text_color(if lit {
+                        theme.accent
+                    } else {
+                        theme.text_tertiary
+                    })
                     .child(sigil),
             )
             .child(
                 div()
                     .text_size(sp(11.5))
-                    .text_color(if lit { theme.text_secondary } else { theme.text_tertiary })
+                    .text_color(if lit {
+                        theme.text_secondary
+                    } else {
+                        theme.text_tertiary
+                    })
                     .child(label),
             )
     };

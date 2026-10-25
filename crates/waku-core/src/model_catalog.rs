@@ -1693,6 +1693,11 @@ pub(crate) fn display_name_from_slug(slug: &str) -> String {
             "gpt" => "GPT".to_owned(),
             "ai" => "AI".to_owned(),
             "xai" => "xAI".to_owned(),
+            "openai" => "OpenAI".to_owned(),
+            "nvidia" => "NVIDIA".to_owned(),
+            "deepseek" => "DeepSeek".to_owned(),
+            "moonshotai" => "Moonshot AI".to_owned(),
+            "nousresearch" => "Nous Research".to_owned(),
             _ if part
                 .chars()
                 .all(|char| char.is_ascii_digit() || char == '.') =>

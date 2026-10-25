@@ -27,7 +27,7 @@ import { displaySessionTitle, providerLabel, relativeSessionTime, sessionTimesta
 import { useRuntime } from '@/lib/runtime-context';
 import { teamIsFull, teamWithReport, type OrgNode } from '@/lib/org-chart';
 import { removeTeamMember } from '@/lib/team-graph';
-import { ticketNumber, ticketState } from '@/lib/ticket';
+import { sessionTicketState, ticketNumber } from '@/lib/ticket';
 import { relativeTimeLabel } from '@/lib/time-labels';
 
 const sections = ['Tasks', 'Projects', 'Teams', 'Decisions'] as const;
@@ -194,7 +194,7 @@ export default function WorkScreen() {
     const projects = new Map(tasks.data?.projects.map(project => [project.id, project.name]));
     const pending = (id: string) => Boolean(runtime.permissions[id] || runtime.userInputs[id]);
     if (section === 'Tasks') return (tasks.data?.sessions ?? []).map<Ticket>(session => {
-      const state = pending(session.id) ? 'needsYou' : ticketState(session.status);
+      const state = pending(session.id) ? 'needsYou' : sessionTicketState(session);
       return {
         kind: 'ticket', id: session.id, title: displaySessionTitle(session),
         station: projects.get(session.project_id) ?? 'Project',

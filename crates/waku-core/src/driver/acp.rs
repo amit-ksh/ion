@@ -120,6 +120,7 @@ fn launch_for(provider: ProviderKind, reasoning_effort: Option<&str>) -> anyhow:
 }
 
 impl AcpDriver {
+    #[cfg(test)]
     pub fn start(
         provider: ProviderKind,
         options: DriverStartOptions,

@@ -363,6 +363,7 @@ impl Drop for ProjectPlugin {
                     return;
                 }
                 let folder = lease.folder;
+                #[cfg(windows)]
                 let root = &lease.root;
                 let name = lease.name.clone();
                 let expected = &lease.bytes;
@@ -467,6 +468,24 @@ mod tests {
         let old = ProjectPlugin::install_at(&temp.0, ".opencode", "ion-teams-test.ts", "existing")
             .unwrap();
         drop(old);
+        // Release runs on a cleanup thread; until it does, the old lease still
+        // answers for this path and a reinstall would be a changed handoff.
+        let key = fs::canonicalize(&temp.0)
+            .unwrap()
+            .join(".opencode/plugins/ion-teams-test.ts");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while plugin_registry()
+            .lock()
+            .get(&key)
+            .and_then(Weak::upgrade)
+            .is_some()
+        {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "old lease was never released"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
         assert_eq!(fs::read_to_string(&path).unwrap(), "existing");
         assert!(
             ProjectPlugin::install_at(&temp.0, ".opencode", "ion-teams-test.ts", "changed")

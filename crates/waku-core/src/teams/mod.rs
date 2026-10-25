@@ -405,6 +405,7 @@ impl TeamCoordinator {
         )
     }
     /// Authorization is supplied by the trusted source session, never model arguments.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn queue_from_agent_with_access(
         &self,

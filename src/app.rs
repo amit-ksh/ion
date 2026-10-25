@@ -62,8 +62,9 @@ use crate::terminal::TerminalView;
 use crate::theme::{Theme, ThemePreference, sp};
 use crate::ui::text_field::TextField;
 use crate::ui::{
-    ActivationExt, Elevation, MenuChip, ProjectNameSelector, activity_icon, activity_noun, contain_scroll, file_icon, icon,
-    icon_button, motion, provider_color, provider_mark, status_color, toggle_switch, avatar_tile, elevation, segment, segmented_track, status_pill,
+    ActivationExt, Elevation, MenuChip, ProjectNameSelector, activity_icon, activity_noun,
+    avatar_tile, contain_scroll, elevation, file_icon, icon, icon_button, motion, provider_color,
+    provider_mark, segment, segmented_track, status_color, status_pill, toggle_switch,
 };
 use crate::{
     CancelTaskSwitch, CancelTurn, CloseFind, CloseWindow, ConfirmTaskSwitch, CopySelection,
@@ -1858,7 +1859,8 @@ impl Waku {
         self.toast_selection.registry.borrow_mut().clear();
         self.toast_generation = self.toast_generation.wrapping_add(1);
         self.toast = Some(ToastState {
-            message: message.into(),
+            // A toast is a glance, not a log: provider errors can carry whole HTML pages.
+            message: streaming::compact_lines(&message.into(), 3, 320),
             tone,
             id: self.toast_generation,
             timer_generation: self.toast_generation,

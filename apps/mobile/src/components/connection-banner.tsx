@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { AppSymbol } from '@/components/app-symbol';
@@ -125,13 +127,27 @@ function useWakeups(intervalMs: number | null, moments: Array<number | null>): v
  * the link is back. Inline it sits in a list; floating it hovers over
  * content on an opaque surface.
  */
-export function ConnectionBanner({ floating = false }: { floating?: boolean }) {
+export function ConnectionBanner({
+  floating = false,
+  style,
+}: {
+  floating?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
   const notice = useConnectionNotice();
   if (!notice) return null;
-  return <NoticeCard floating={floating} notice={notice} />;
+  return <NoticeCard floating={floating} notice={notice} style={style} />;
 }
 
-function NoticeCard({ floating, notice }: { floating: boolean; notice: ConnectionNotice }) {
+function NoticeCard({
+  floating,
+  notice,
+  style,
+}: {
+  floating: boolean;
+  notice: ConnectionNotice;
+  style?: StyleProp<ViewStyle>;
+}) {
   const theme = useTheme();
   const daemon = useDaemon();
   const reducedMotion = useReducedMotion();
@@ -162,6 +178,7 @@ function NoticeCard({ floating, notice }: { floating: boolean; notice: Connectio
           ? [styles.floating, { backgroundColor: theme.surface, borderColor: theme.borderStrong }]
           : [styles.inline, { backgroundColor: soft }],
         { opacity },
+        style,
       ]}>
       <View style={styles.icon}>
         {notice.kind === 'reconnecting' && notice.attempting ? (
@@ -176,21 +193,22 @@ function NoticeCard({ floating, notice }: { floating: boolean; notice: Connectio
           <Text style={[styles.body, { color: theme.textSecondary }]}>{detail}</Text>
         ) : null}
       </View>
-      {notice.kind === 'reconnecting' && (
-        <BannerAction
-          disabled={notice.attempting}
-          label="Retry now"
-          accessibilityLabel="Retry daemon connection now"
-          onPress={() => void daemon.reconnect()}
-        />
-      )}
-      {notice.kind === 'error' && (
+      {notice.kind !== 'restored' && (
         <View style={styles.actions}>
-          <BannerAction
-            label="Retry"
-            accessibilityLabel="Retry daemon connection"
-            onPress={() => void daemon.reconnect()}
-          />
+          {notice.kind === 'reconnecting' ? (
+            <BannerAction
+              disabled={notice.attempting}
+              label="Retry now"
+              accessibilityLabel="Retry daemon connection now"
+              onPress={() => void daemon.reconnect()}
+            />
+          ) : (
+            <BannerAction
+              label="Retry"
+              accessibilityLabel="Retry daemon connection"
+              onPress={() => void daemon.reconnect()}
+            />
+          )}
           {daemon.activeProfile && (
             <BannerAction
               label="Edit"

@@ -264,12 +264,9 @@ impl Waku {
         )
     }
     pub(super) fn render_setup_launcher(&self, cx: &mut Context<Self>) -> AnyElement {
-        self.control_button(
-            "open-ion-setup",
-            "Open setup",
-            cx,
-            |this, window, cx| this.open_onboarding(window, cx),
-        )
+        self.control_button("open-ion-setup", "Open setup", cx, |this, window, cx| {
+            this.open_onboarding(window, cx)
+        })
         .into_any_element()
     }
     pub(super) fn clear_onboarding_account_state(&mut self, cx: &mut Context<Self>) {
@@ -481,8 +478,11 @@ impl Waku {
         .shadow(elevation(&theme, Elevation::Rest))
         .hover(move |style| style.bg(theme.ticket).border_color(theme.border_strong))
         .child(
-            avatar_tile(40.0, theme.accent_soft, gpui::transparent_black())
-                .child(icon(step_icon(step), 18.0, theme.accent)),
+            avatar_tile(40.0, theme.accent_soft, gpui::transparent_black()).child(icon(
+                step_icon(step),
+                18.0,
+                theme.accent,
+            )),
         )
         .child(
             div()

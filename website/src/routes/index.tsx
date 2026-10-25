@@ -546,7 +546,7 @@ function SpeechAndPhone() {
               The pass in your <B>pocket</B>
             </h2>
             <p className="mt-6 max-w-[44ch] text-[17px] leading-[1.6] text-ink-2">
-              The Android companion pairs with your desktop daemon or personal gateway. Read tasks and artifacts, answer decisions, and start, pause, stop or decline local work from the phone.
+              The Android companion pairs with your desktop daemon or personal gateway. Read tasks and artifacts, answer decisions, and start, steer, stop or decline work on any desktop harness, Nebius included, from the phone.
             </p>
             <p className="mt-4 max-w-[44ch] text-[15px] leading-[1.6] text-quiet">Workflow stage approvals and Nebius stage generation stay on the desktop.</p>
           </div>

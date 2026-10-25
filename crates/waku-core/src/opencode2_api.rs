@@ -84,6 +84,7 @@ impl ApiError {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn tag(&self) -> Option<&str> {
         match self {
             Self::Tagged { tag, .. } => Some(tag),
@@ -93,13 +94,6 @@ impl ApiError {
 
     pub(crate) fn is_not_found(&self) -> bool {
         self.status() == Some(404)
-    }
-
-    /// A location-scoped route handed a directory the service cannot resolve
-    /// answers HTTP 500 with an EMPTY body. That is a bad workspace, not a
-    /// server fault, and treating it as the latter would retry forever.
-    pub(crate) fn is_unresolvable_location(&self) -> bool {
-        matches!(self, Self::Http { status: 500, body } if body.trim().is_empty())
     }
 }
 
@@ -658,7 +652,6 @@ pub(crate) struct PermissionRequest {
 #[serde(rename_all = "lowercase")]
 pub(crate) enum PermissionReply {
     Once,
-    Always,
     Reject,
 }
 
@@ -1038,13 +1031,6 @@ pub(crate) fn remove_instruction_entry(
     Ok(())
 }
 
-pub(crate) fn rename_session(endpoint: &Endpoint, session: &str, title: &str) -> Result<()> {
-    let path = format!("/api/session/{}/rename", encode_path_segment(session));
-    let body = json!({ "title": title });
-    request(endpoint, "POST", &path, Some(&body), REQUEST_TIMEOUT)?;
-    Ok(())
-}
-
 /// Lists sessions newest-first by default, returning the cursor for the next
 /// page or `None` once the listing is exhausted.
 pub(crate) fn list_sessions(
@@ -1153,27 +1139,6 @@ pub(crate) fn steer_inbox(endpoint: &Endpoint, session: &str, inbox_id: &str) ->
     Ok(())
 }
 
-/// Demotes an entry so it waits for the running turn to finish.
-pub(crate) fn queue_inbox(endpoint: &Endpoint, session: &str, inbox_id: &str) -> Result<()> {
-    let path = format!(
-        "/api/session/{}/inbox/{}/queue",
-        encode_path_segment(session),
-        encode_path_segment(inbox_id)
-    );
-    request(endpoint, "POST", &path, None, REQUEST_TIMEOUT)?;
-    Ok(())
-}
-
-pub(crate) fn cancel_inbox(endpoint: &Endpoint, session: &str, inbox_id: &str) -> Result<()> {
-    let path = format!(
-        "/api/session/{}/inbox/{}",
-        encode_path_segment(session),
-        encode_path_segment(inbox_id)
-    );
-    request(endpoint, "DELETE", &path, None, REQUEST_TIMEOUT)?;
-    Ok(())
-}
-
 /// Interrupts the running turn, answering whether there was one to interrupt.
 ///
 /// The route takes no body and answers a BARE `{ interrupted }` — it is inside
@@ -1225,20 +1190,15 @@ pub(crate) fn list_permissions(
 
 /// Answers one permission request.
 ///
-/// `always` is rejected here, not upstream: it writes a persistent allow rule
-/// into the user's own OpenCode permission config, which is a decision Waku
-/// has no mandate to make on the user's behalf from a transcript button.
+/// There is no `always` reply: it writes a persistent allow rule into the
+/// user's own OpenCode permission config, which is a decision Waku has no
+/// mandate to make on the user's behalf from a transcript button.
 pub(crate) fn reply_permission(
     endpoint: &Endpoint,
     session: &str,
     request_id: &str,
     reply: PermissionReply,
 ) -> Result<()> {
-    if matches!(reply, PermissionReply::Always) {
-        return Err(ApiError::Transport(anyhow!(
-            "OpenCode 2 permission replies must not save a persistent rule"
-        )));
-    }
     let path = format!(
         "/api/session/{}/permission/{}/reply",
         encode_path_segment(session),
@@ -1268,16 +1228,6 @@ pub(crate) fn reply_form(
     );
     let body = json!({ "answer": answer });
     request(endpoint, "POST", &path, Some(&body), REQUEST_TIMEOUT)?;
-    Ok(())
-}
-
-pub(crate) fn cancel_form(endpoint: &Endpoint, session: &str, form_id: &str) -> Result<()> {
-    let path = format!(
-        "/api/session/{}/form/{}/cancel",
-        encode_path_segment(session),
-        encode_path_segment(form_id)
-    );
-    request(endpoint, "POST", &path, None, REQUEST_TIMEOUT)?;
     Ok(())
 }
 
@@ -2007,21 +1957,15 @@ mod tests {
         );
     }
 
-    /// `always` writes a rule into the user's own permission config, so it is
-    /// refused before any request goes out.
     #[test]
-    fn saving_a_permission_rule_is_refused_without_a_request() {
-        let error = reply_permission(
-            &Endpoint::local(1),
-            "ses_1",
-            "per_1",
-            PermissionReply::Always,
-        )
-        .unwrap_err();
-        assert!(matches!(error, ApiError::Transport(_)));
+    fn permission_replies_are_one_shot() {
         assert_eq!(
             serde_json::to_value(PermissionReply::Once).unwrap(),
             json!("once")
+        );
+        assert_eq!(
+            serde_json::to_value(PermissionReply::Reject).unwrap(),
+            json!("reject")
         );
     }
 
@@ -2039,18 +1983,17 @@ mod tests {
         assert_eq!(error.tag(), Some("SessionNotFoundError"));
         assert_eq!(error.status(), Some(404));
         assert!(error.is_not_found());
-        assert!(!error.is_unresolvable_location());
     }
 
     /// A location-scoped route handed an unresolvable directory answers a
-    /// bodyless 500, which is a bad workspace rather than a server fault.
+    /// bodyless 500; it surfaces as that status, not a transport failure.
     #[test]
-    fn a_bodyless_500_reads_as_an_unresolvable_workspace() {
+    fn a_bodyless_500_keeps_its_status() {
         let endpoint =
             serve_once("HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
         let error = list_models(&endpoint, Some("/nope/nope")).unwrap_err();
-        assert!(error.is_unresolvable_location(), "{error:?}");
-        assert_eq!(error.status(), Some(500));
+        assert_eq!(error.status(), Some(500), "{error:?}");
+        assert!(!error.is_not_found());
     }
 
     #[test]

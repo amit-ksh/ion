@@ -160,6 +160,7 @@ export default function UsageScreen() {
         data={values}
         keyExtractor={([v]) => v ?? "all"}
         showsHorizontalScrollIndicator={false}
+        style={styles.filterList}
         contentContainerStyle={styles.filters}
         renderItem={({ item: [v, name] }) => (
           <Pressable
@@ -177,7 +178,7 @@ export default function UsageScreen() {
               },
             ]}
           >
-            <Text style={[styles.body, { color: theme.text }]}>{name}</Text>
+            <Text numberOfLines={1} style={[styles.body, styles.filterLabel, { color: theme.text }]}>{name}</Text>
           </Pressable>
         )}
       />
@@ -322,13 +323,15 @@ export default function UsageScreen() {
             {page && (
               <>
                 <Text style={[styles.body, { color: theme.text }]}>
-                  {page.summary.records} records · {page.summary.modelCalls}{" "}
-                  model requests
+                  {page.summary.records.toLocaleString()} records ·{" "}
+                  {page.summary.modelCalls.toLocaleString()} model requests
                 </Text>
                 <Text style={[styles.body, { color: theme.textSecondary }]}>
-                  {page.summary.inputTokens} input / {page.summary.outputTokens}{" "}
-                  output tokens · {page.summary.reservedTokens} reserved ·{" "}
-                  {page.summary.unknownCalls} requests awaiting usage
+                  {page.summary.inputTokens.toLocaleString()} input /{" "}
+                  {page.summary.outputTokens.toLocaleString()} output tokens ·{" "}
+                  {page.summary.reservedTokens.toLocaleString()} reserved ·{" "}
+                  {page.summary.unknownCalls.toLocaleString()} requests awaiting
+                  usage
                 </Text>
                 {page.summary.costs.map((c) => (
                   <Text
@@ -406,9 +409,9 @@ export default function UsageScreen() {
             </Text>
             <Text style={[styles.body, { color: theme.text }]}>
               {e.inputTokens != null && e.outputTokens != null
-                ? `${e.inputTokens} input · ${e.outputTokens} output tokens`
+                ? `${e.inputTokens.toLocaleString()} input · ${e.outputTokens.toLocaleString()} output tokens`
                 : e.kind === "modelCall" || e.kind === "soloModelCall"
-                  ? `Token usage unavailable · ${e.reservedTokens} tokens reserved`
+                  ? `Token usage unavailable · ${e.reservedTokens.toLocaleString()} tokens reserved`
                   : "Resource usage"}
               {e.elapsedMilliseconds != null
                 ? ` · ${(e.elapsedMilliseconds / 1000).toFixed(3)}s elapsed`
@@ -459,7 +462,10 @@ export default function UsageScreen() {
 }
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, gap: 12, paddingBottom: 20 },
-  filters: { gap: 6 },
+  // Chip rows bleed to the screen edges so a clipped chip reads as scrollable.
+  filterList: { marginHorizontal: -20 },
+  filters: { alignItems: "center", gap: 6, paddingHorizontal: 20 },
+  filterLabel: { maxWidth: 240 },
   filter: {
     minHeight: 44,
     justifyContent: "center",

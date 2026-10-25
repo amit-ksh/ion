@@ -27,7 +27,12 @@ pub(super) fn task_session(task: &TaskMaterialization) -> AgentSession {
             )
         }),
     ));
-    session.messages.last_mut().unwrap().attachments = task.source_attachments.clone();
+    let message = session.messages.last_mut().unwrap();
+    message.attachments = task.source_attachments.clone();
+    message.display_content = task
+        .source_prompt
+        .as_deref()
+        .and_then(|prompt| mentions::readable(prompt, &task.binding.team_name));
     session
 }
 impl TeamCoordinator {

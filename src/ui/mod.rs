@@ -578,11 +578,19 @@ impl RenderOnce for MenuChip {
             })
             .when(self.selected, |element| {
                 element
-                    .bg(if self.filled { theme.overlay_strong } else { theme.overlay })
+                    .bg(if self.filled {
+                        theme.overlay_strong
+                    } else {
+                        theme.overlay
+                    })
                     .border_color(theme.border_strong)
             })
             .when(!self.disabled, |element| {
-                let hover = if self.filled { theme.overlay_strong } else { theme.overlay };
+                let hover = if self.filled {
+                    theme.overlay_strong
+                } else {
+                    theme.overlay
+                };
                 element.hover(move |element| element.bg(hover))
             })
             .when(self.disabled, |element| element.opacity(0.6))

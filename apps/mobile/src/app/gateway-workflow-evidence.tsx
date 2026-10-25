@@ -221,7 +221,7 @@ export default function GatewayWorkflowEvidenceScreen() {
           const digest = new Uint8Array(
             await Crypto.digest(
               Crypto.CryptoDigestAlgorithm.SHA256,
-              bytes.slice().buffer,
+              bytes as Uint8Array<ArrayBuffer>,
             ),
           );
           return [...digest]

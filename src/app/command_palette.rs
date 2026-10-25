@@ -1445,10 +1445,6 @@ impl Waku {
             project_id
         };
         let provider = summary.provider();
-        let runtime_mode = self
-            .selected_session()
-            .map(|session| session.runtime_mode)
-            .unwrap_or(self.state.last_runtime_mode);
         let now = unix_time();
         let created_at = if summary.created_at == 0 {
             now
@@ -1458,7 +1454,7 @@ impl Waku {
         let updated_at = summary.updated_at.max(created_at);
         let has_history = !history.messages.is_empty() || !history.turns.is_empty();
         let mut session = AgentSession::new(project_id, provider);
-        session.runtime_mode = runtime_mode;
+        session.runtime_mode = self.state.last_runtime_mode;
         session.auto_title = Some(summary.title);
         session.provider_cursor = Some(summary.cursor);
         session.created_at = created_at;

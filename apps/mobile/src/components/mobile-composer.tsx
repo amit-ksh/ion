@@ -73,6 +73,14 @@ export function ComposerCard({
   right?: ReactNode;
 }) {
   const theme = useTheme();
+  // Fade only while chips actually run past the edge; a constant fade hid the
+  // last chip's chevron even when nothing was left to scroll to.
+  const chipsMetrics = useRef({ view: 0, content: 0, offset: 0 });
+  const [chipsOverflow, setChipsOverflow] = useState(false);
+  const measureChips = (next: Partial<typeof chipsMetrics.current>) => {
+    const metrics = Object.assign(chipsMetrics.current, next);
+    setChipsOverflow(metrics.content - styles.chipsContent.paddingRight - metrics.offset - metrics.view > 1);
+  };
   return (
     <GlassSurface
       fallbackColor={theme.composer}
@@ -100,11 +108,15 @@ export function ComposerCard({
             horizontal
             keyboardShouldPersistTaps="handled"
             showsHorizontalScrollIndicator={false}
+            onContentSizeChange={(content) => measureChips({ content })}
+            onLayout={(event) => measureChips({ view: event.nativeEvent.layout.width })}
+            onScroll={(event) => measureChips({ offset: event.nativeEvent.contentOffset.x })}
+            scrollEventThrottle={32}
             contentContainerStyle={[styles.cluster, styles.chipsContent]}>
             {left}
           </ScrollView>
           {/* Chips that run past the edge fade out rather than being cut. */}
-          {!liquidGlass && (
+          {!liquidGlass && chipsOverflow && (
             <View
               pointerEvents="none"
               style={[styles.chipsFade, {

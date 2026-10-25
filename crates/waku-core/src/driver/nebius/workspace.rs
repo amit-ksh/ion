@@ -1,16 +1,14 @@
 use super::super::source_teams::tools as team_tools;
 use super::*;
 use waku_protocol::control::*;
-#[cfg(test)]
-use waku_protocol::model::RuntimeMode;
 
 impl WorkspaceContext {
     fn settings(&self) -> Result<crate::DaemonSettings> {
         Ok(serde_json::from_slice(&fs::read(&self.settings_path)?)?)
     }
-    fn sandbox_session(&self) -> Result<String> {
-        let settings = self.settings()?;
-        if settings
+    fn sandbox_enabled(&self) -> Result<()> {
+        if self
+            .settings()?
             .extra
             .get("nebius_sandbox_enabled")
             .and_then(Value::as_bool)
@@ -18,20 +16,7 @@ impl WorkspaceContext {
         {
             bail!("Token Factory sandbox is off in Settings");
         }
-        let name = settings
-            .extra
-            .get("nebius_sandbox_session")
-            .and_then(Value::as_str)
-            .unwrap_or("ion");
-        if name.is_empty()
-            || name.len() > 64
-            || !name
-                .bytes()
-                .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
-        {
-            bail!("Invalid sandbox session name");
-        }
-        Ok(name.into())
+        Ok(())
     }
 }
 pub(super) fn tools(mut tools: Value, context: Option<&WorkspaceContext>) -> Value {
@@ -50,8 +35,8 @@ pub(super) fn tools(mut tools: Value, context: Option<&WorkspaceContext>) -> Val
     list.push(json!({"type":"function","function":{"name":"request_decision","description":"Ask the user to approve or decline a decision before further task or workflow progress. Blocks until the user answers.","parameters":{"type":"object","properties":{"title":{"type":"string"},"detail":{"type":"string"}},"required":["title","detail"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"propose_task","description":"Extract a follow-up task for the user to accept or decline in Inbox. Does not execute the task.","parameters":{"type":"object","properties":{"title":{"type":"string"},"instructions":{"type":"string"}},"required":["title","instructions"],"additionalProperties":false}}}));
     list.push(json!({"type":"function","function":{"name":"save_document","description":"Publish a generated HTML, Markdown, text, CSV, JSON, SVG, XML or YAML document to the project's Artifacts collection.","parameters":{"type":"object","properties":{"name":{"type":"string"},"format":{"type":"string","enum":["html","md","txt","csv","json","svg","xml","yaml","yml"]},"content":{"type":"string"}},"required":["name","format","content"],"additionalProperties":false}}}));
-    if context.sandbox_session().is_ok() {
-        list.push(json!({"type":"function","function":{"name":"tokenfactory_exec","description":"Run exact arguments in the user's configured Token Factory ConTree session after explicit approval. Local project files are not synced. Never include secrets in arguments.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}}},"required":["argv"],"additionalProperties":false}}}));
+    if context.sandbox_enabled().is_ok() {
+        list.push(json!({"type":"function","function":{"name":"tokenfactory_exec","description":"Run one command in a fresh, offline Linux sandbox (Debian, Python 3.12) in the user's Token Factory project, after the user approves the exact arguments. argv[0] is an executable such as python3, sh or bash; use [\"sh\",\"-c\",\"...\"] for pipelines. Returns the exit code and output. Local project files are not uploaded. Never include secrets in arguments.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}}},"required":["argv"],"additionalProperties":false}}}));
     }
     tools
 }
@@ -202,82 +187,62 @@ pub(super) fn execute(
             "Generated document saved in Artifacts.".into()
         }
         "tokenfactory_exec" => {
-            let session = context.sandbox_session()?;
+            context.sandbox_enabled()?;
             let argv = NemoClawAdapter::validate_args(args)?;
-            let prepared = if std::env::var_os("ION_NEBIUS_SANDBOX_IAM_TOKEN").is_none() {
+            let id = {
                 use sha2::{Digest, Sha256};
                 let digest =
                     Sha256::digest(format!("{}:{}", journal_path.display(), call.id).as_bytes());
                 let mut bytes = [0u8; 16];
                 bytes.copy_from_slice(&digest[..16]);
-                Some(super::super::team_jobs::prepare_solo_command(
-                    argv.clone(),
-                    Uuid::from_bytes(bytes),
-                )?)
-            } else {
-                None
+                Uuid::from_bytes(bytes)
             };
-            let detail = match &prepared {
-                Some(command) => command.description()?,
-                None => format!(
-                    "Personal session: {session}\nExact arguments: {}\nThe local project is not automatically uploaded.",
-                    serde_json::to_string(&argv)?
-                ),
-            };
-            let _ = events.send(DriverEvent::Permission {
-                request_id: call.id.clone(),
-                title: "Run in Token Factory sandbox?".into(),
-                detail,
-                options: vec![
-                    PermissionOption {
-                        id: "allow".into(),
-                        label: "Run in sandbox".into(),
-                        allow: true,
-                    },
-                    PermissionOption {
-                        id: "reject".into(),
-                        label: "Decline".into(),
-                        allow: false,
-                    },
-                ],
-            });
-            loop {
-                if cancelled.load(Ordering::Relaxed) {
-                    bail!("Task stopped");
-                }
-                match receiver.recv_timeout(Duration::from_millis(200)) {
-                    Ok(Command::Respond(id, decision)) if id == call.id => {
-                        if decision != "allow" {
-                            bail!("User declined sandbox execution");
+            let command = super::super::team_jobs::prepare_solo_command(argv, id)?;
+            let detail = command.description()?;
+            if !auto_approves(context.mode, &call.name) {
+                let _ = events.send(DriverEvent::Permission {
+                    request_id: call.id.clone(),
+                    title: "Run in Token Factory sandbox?".into(),
+                    detail,
+                    options: vec![
+                        PermissionOption {
+                            id: "allow".into(),
+                            label: "Run in sandbox".into(),
+                            allow: true,
+                        },
+                        PermissionOption {
+                            id: "reject".into(),
+                            label: "Decline".into(),
+                            allow: false,
+                        },
+                    ],
+                });
+                loop {
+                    if cancelled.load(Ordering::Relaxed) {
+                        bail!("Task stopped");
+                    }
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(Command::Respond(id, decision)) if id == call.id => {
+                            if decision != "allow" {
+                                bail!("User declined sandbox execution");
+                            }
+                            break;
                         }
-                        break;
+                        Ok(Command::Stop) => bail!("Task stopped"),
+                        Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                            bail!("Task disconnected")
+                        }
+                        _ => {}
                     }
-                    Ok(Command::Stop) => bail!("Task stopped"),
-                    Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
-                        bail!("Task disconnected")
-                    }
-                    _ => {}
                 }
             }
             // Recheck the live switch after approval, before any external effect.
-            anyhow::ensure!(
-                context.sandbox_session()? == session,
-                "Sandbox configuration changed. Request approval again."
-            );
+            context
+                .sandbox_enabled()
+                .context("Sandbox was turned off. Request approval again.")?;
             journal.pending_effect = Some(call.id.clone());
             persist(journal_path, journal)?;
-            let outcome = match prepared {
-                Some(command) => command.execute(cancelled),
-                None => run_contree(&session, &argv, cancelled),
-            };
-            if outcome.as_ref().err().is_some_and(|e| {
-                e.downcast_ref::<std::io::Error>()
-                    .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
-            }) {
-                journal.pending_effect = None;
-                persist(journal_path, journal)?;
-            }
-            outcome?
+            command.execute(cancelled)?
         }
         _ => bail!("Unknown workspace tool"),
     };
@@ -302,87 +267,6 @@ fn invoke_team(context: &WorkspaceContext, request_id: &str, args: &Value) -> Re
     )
 }
 
-struct ChildGuard(std::process::Child);
-impl std::ops::Deref for ChildGuard {
-    type Target = std::process::Child;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl std::ops::DerefMut for ChildGuard {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-impl Drop for ChildGuard {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
-}
-fn run_contree(session: &str, argv: &[String], cancelled: &AtomicBool) -> Result<String> {
-    use std::io::Read;
-    use std::process::{Command as Process, Stdio};
-    let mut command = Process::new("contree");
-    command
-        .args(["-S", session, "run", "--"])
-        .args(argv)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
-    let mut child=ChildGuard(command.spawn().context("ConTree is unavailable. Install contree-cli, run contree auth, and initialize the ion session.")?);
-    let mut stdout = child.stdout.take().context("Missing stdout")?;
-    let mut stderr = child.stderr.take().context("Missing stderr")?;
-    // Drain both streams, retaining only bounded output. Avoid pipe deadlocks.
-    let read_out = thread::spawn(move || {
-        let mut saved = Vec::new();
-        let mut buffer = [0; 4096];
-        while let Ok(n) = stdout.read(&mut buffer) {
-            if n == 0 {
-                break;
-            }
-            let keep = n.min(16384usize.saturating_sub(saved.len()));
-            saved.extend_from_slice(&buffer[..keep]);
-        }
-        saved
-    });
-    let read_err = thread::spawn(move || {
-        let mut buffer = [0; 4096];
-        while let Ok(n) = stderr.read(&mut buffer) {
-            if n == 0 {
-                break;
-            }
-        }
-    });
-    let start = std::time::Instant::now();
-    let status = loop {
-        if cancelled.load(Ordering::Relaxed) || start.elapsed() > Duration::from_secs(120) {
-            let _ = child.kill();
-            let _ = child.wait();
-            bail!(
-                "Sandbox result is uncertain after interruption. Inspect ConTree; this command will not be repeated automatically."
-            );
-        }
-        if let Some(status) = child.try_wait()? {
-            break status;
-        }
-        thread::sleep(Duration::from_millis(100));
-    };
-    let output = read_out
-        .join()
-        .map_err(|_| anyhow!("Could not read sandbox output"))?;
-    let _ = read_err.join();
-    Ok(format!(
-        "Sandbox command exit code: {:?}\n{}",
-        status.code(),
-        String::from_utf8_lossy(&output)
-    ))
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,11 +317,11 @@ mod tests {
             mode: RuntimeMode::Ask,
         };
         fs::write(&path, b"{}").unwrap();
-        assert!(context.sandbox_session().is_err());
+        assert!(context.sandbox_enabled().is_err());
         fs::write(&path, b"{\"nebius_sandbox_enabled\":true}").unwrap();
-        assert_eq!(context.sandbox_session().unwrap(), "ion");
+        assert!(context.sandbox_enabled().is_ok());
         fs::write(&path, b"{\"nebius_sandbox_enabled\":false}").unwrap();
-        assert!(context.sandbox_session().is_err());
+        assert!(context.sandbox_enabled().is_err());
         fs::remove_file(path).unwrap();
     }
     #[test]

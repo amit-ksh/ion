@@ -259,6 +259,7 @@ impl Waku {
             div().min_w(px(200.0)).max_w(px(340.0)).flex_1().child(
                 TextField::new("artifact-search", ui.search.clone())
                     .icon("icons/search.svg", 14.0)
+                    .toolbar()
                     .w_full(),
             ),
         );
@@ -529,7 +530,11 @@ impl Waku {
                                 .px_0()
                                 .justify_center()
                                 .tooltip(Tooltip::text("Save copy"))
-                                .child(icon("icons/download.svg", 14.0, theme.text_secondary)),
+                                .child(icon(
+                                    "icons/download.svg",
+                                    14.0,
+                                    theme.text_secondary,
+                                )),
                             )
                             .child(self.control_button(
                                 format!("artifact-open-{id}"),

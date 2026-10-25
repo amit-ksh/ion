@@ -19,7 +19,7 @@ use super::{
     read_tool_definitions, required_str,
 };
 use crate::driver::DriverEventSender;
-use crate::model::{ActivityKind, DriverEvent, PermissionOption};
+use crate::model::{ActivityKind, DriverEvent, PermissionOption, RuntimeMode};
 
 const MAX_SPECIALIST_STEPS: usize = 4;
 const MAX_CHILD_CALLS_PER_STEP: usize = 4;
@@ -433,6 +433,8 @@ fn run_specialist(
                 &call,
                 None,
                 None,
+                // Specialists hold a read-only grant; never auto-approve on their behalf.
+                RuntimeMode::Ask,
             );
             if let Err(error) = &outcome {
                 let _ = events.send(DriverEvent::Activity {

@@ -23,6 +23,7 @@ bun scripts/cua-driver.ts bundle "$package_dir/bin" "$package_dir/share/waku" re
 install -Dm755 "$target_dir/release/waku" "$package_dir/bin/waku"
 install -Dm755 "$target_dir/release/waku-updater" "$package_dir/bin/waku-updater"
 install -Dm755 "$target_dir/release/waku-daemon" "$package_dir/bin/waku-daemon"
+bun scripts/sandbox-worker.ts "$package_dir/bin" >/dev/null
 install -Dm644 resources/linux/sh.waku.desktop \
   "$package_dir/share/applications/sh.waku.desktop"
 install -Dm644 resources/linux/self-update-v1 \

@@ -11,6 +11,11 @@ pub(super) struct CloudUiState {
     pub(super) managed_apps: bool,
     pub(super) sandbox_targets: Vec<(String, String, Vec<ProviderKind>)>,
     pub(super) sandbox_reason: Option<String>,
+    /// The image Ion built in the user's own Token Factory project.
+    pub(super) personal_sandbox: Option<String>,
+    /// Progress while that image is being prepared.
+    pub(super) personal_sandbox_progress: Option<String>,
+    pub(super) personal_sandbox_error: Option<String>,
     shared_usage: Option<serde_json::Value>,
     status_error: bool,
     checked: bool,
@@ -32,6 +37,9 @@ impl CloudUiState {
             managed_apps: false,
             sandbox_targets: Vec::new(),
             sandbox_reason: None,
+            personal_sandbox: None,
+            personal_sandbox_progress: None,
+            personal_sandbox_error: None,
             shared_usage: None,
             status_error: false,
             checked: false,
@@ -140,6 +148,11 @@ impl Waku {
                             }
                         }
                     }
+                    let personal = crate::credentials::CredentialService::global()
+                        .personal_sandbox_target().ok().flatten();
+                    if let Some(target) = &personal {
+                        sandbox_targets.insert(0, (target.clone(), "Your Ion sandbox".into(), vec![ProviderKind::Nebius]));
+                    }
                     let scope = crate::credentials::CredentialService::global()
                         .gateway_api().map(|api| api.interaction_scope_key());
                     anyhow::ensure!(!status.connected || scope.is_ok(),
@@ -148,7 +161,7 @@ impl Waku {
                     anyhow::ensure!(latest.workspace_id == status.workspace_id
                         && latest.signed_in == status.signed_in && latest.connected == status.connected,
                         "The Ion account changed while refreshing Settings. Retry.");
-                    anyhow::Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason, scope.ok()))
+                    anyhow::Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason, scope.ok(), personal))
                 })
                 .await;
             let _ = view.update(cx, |this, cx| {
@@ -158,7 +171,8 @@ impl Waku {
                 this.cloud_ui.checking = false;
                 this.cloud_ui.checked = true;
                 match status {
-                    Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason, scope)) => {
+                    Ok((status, services, usage, managed_apps, sandbox_targets, sandbox_reason, scope, personal)) => {
+                        this.cloud_ui.personal_sandbox = personal;
                         if this.credential_generation.get(&pairing_kind).copied() == pairing_generation {
                             if let (Some(bridge), Some(scope)) = (&mut this._gateway_bridge, scope) {
                                 if bridge.set_scope(Some(scope)) {
@@ -251,6 +265,58 @@ impl Waku {
         self.refresh_cloud_account(cx);
         cx.notify();
     }
+    /// Build (or reuse) the sandbox image in the saved Token Factory project,
+    /// then turn the sandbox on and offer the image to sandbox agents.
+    pub(super) fn prepare_personal_sandbox(&mut self, cx: &mut Context<Self>) {
+        if self.cloud_ui.personal_sandbox_progress.is_some() {
+            return;
+        }
+        self.cloud_ui.personal_sandbox_progress = Some("Starting".into());
+        self.cloud_ui.personal_sandbox_error = None;
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let (sender, receiver) = smol::channel::unbounded::<String>();
+            let work = cx.background_executor().spawn(async move {
+                crate::credentials::CredentialService::global().prepare_personal_sandbox(
+                    &|step| {
+                        let _ = sender.try_send(step.to_owned());
+                    },
+                )
+            });
+            while let Ok(step) = receiver.recv().await {
+                let _ = this.update(cx, |this, cx| {
+                    this.cloud_ui.personal_sandbox_progress = Some(step);
+                    cx.notify();
+                });
+            }
+            let result = work.await;
+            let _ = this.update(cx, |this, cx| {
+                this.cloud_ui.personal_sandbox_progress = None;
+                match result {
+                    Ok(target) => {
+                        this.cloud_ui
+                            .sandbox_targets
+                            .retain(|(id, _, _)| Some(id) != this.cloud_ui.personal_sandbox.as_ref());
+                        this.cloud_ui.sandbox_targets.insert(
+                            0,
+                            (target.clone(), "Your Ion sandbox".into(), vec![ProviderKind::Nebius]),
+                        );
+                        this.cloud_ui.personal_sandbox = Some(target);
+                        if !this.state.nebius_sandbox_enabled() {
+                            this.state.set_nebius_sandbox_enabled(true);
+                            this.save();
+                        }
+                    }
+                    Err(error) => {
+                        this.cloud_ui.personal_sandbox_error = Some(format!("{error:#}"));
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     pub(super) fn run_cloud_action(&mut self, action: CloudAction, cx: &mut Context<Self>) {
         if matches!(
             action,
@@ -605,14 +671,24 @@ impl Waku {
                     ))
                 },
             );
-            let vm = usage["compute"]["state"].as_str().unwrap_or("UNKNOWN");
+            // An unknown compute state says nothing to a person; leave it out.
+            let vm = usage["compute"]["state"]
+                .as_str()
+                .filter(|state| !state.eq_ignore_ascii_case("unknown"))
+                .map(|state| format!(" · Cloud VM {}", state.to_lowercase().replace('_', " ")))
+                .unwrap_or_default();
+            let dollars = |micros: u64| match micros {
+                0 => "$0".to_owned(),
+                1..10_000 => "under $0.01".to_owned(),
+                _ => format!("${:.2}", micros as f64 / 1_000_000.0),
+            };
             let label = match totals {
                 Some((spent, held)) => format!(
-                    "Managed calls: ${:.6} reported · ${:.6} reserved · Cloud: {vm}",
-                    spent as f64 / 1_000_000.0,
-                    held as f64 / 1_000_000.0
+                    "Managed calls: {} reported · {} reserved{vm}",
+                    dollars(spent),
+                    dollars(held)
                 ),
-                None => format!("Managed call costs unavailable · Cloud: {vm}"),
+                None => format!("Managed call costs unavailable{vm}"),
             };
             content = content.child(
                 div()

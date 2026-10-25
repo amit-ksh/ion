@@ -7,6 +7,6 @@ target
 /dist
 node_modules
 temp/
-.impeccable/config.local.json
+.impeccable/
 
 .DS_Store

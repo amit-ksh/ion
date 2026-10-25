@@ -136,7 +136,9 @@ fn restored_window_placement(cx: &App) -> (WindowBounds, Option<gpui::DisplayId>
         // A 1080p laptop at 125% scaling has about 816 logical pixels of
         // usable height, less than the default. Fit the first window inside
         // the visible area so its bottom edge and composer are on screen.
-        let visible = cx.primary_display().map(|display| display.visible_bounds().size);
+        let visible = cx
+            .primary_display()
+            .map(|display| display.visible_bounds().size);
         let width = visible.map_or(DEFAULT_WINDOW_WIDTH, |visible| {
             DEFAULT_WINDOW_WIDTH.min(f32::from(visible.width) * 0.94)
         });

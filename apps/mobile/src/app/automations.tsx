@@ -134,9 +134,10 @@ export default function AutomationsScreen() {
           </>} />;
         const routine = item.kind === 'routine' ? item : null;
         const last = lastRuns.get(item.id);
+        const stageCount = item.kind === 'workflow' ? item.stages.length : 0;
         const schedule = routine
           ? `${scheduleLabel(routine.intervalMinutes, routine.calendar)} · ${routine.paused ? 'Paused' : `Next ${localTimeLabel(routine.nextRun)}`}`
-          : `${item.kind === 'workflow' ? item.stages.length : 0} stages`;
+          : `${stageCount} ${stageCount === 1 ? 'stage' : 'stages'}`;
         const lastRun = last ? `Last run ${automationStatus(last.status).toLowerCase()} ${relativeTimeLabel(last.createdAt)}` : 'No runs yet';
         const open = expanded === item.id;
         return <EntityRow position={position}

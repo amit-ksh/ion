@@ -58,7 +58,12 @@ export function describeConnectionFailure(cause: unknown, fallback: string): Con
       case 'closed':
         return { message: 'The daemon connection closed.', retryable: true };
       case 'unreachable':
-        return { message: cleanNativeReason(cause.message) ?? fallback, retryable: true };
+        // Native socket reasons ("Failed to connect to /127.0.0.1:34123") name
+        // no fix; the likely ones are the desktop app being closed or a stale address.
+        return {
+          message: 'Check that ion is open on your desktop and the address is right.',
+          retryable: true,
+        };
       case 'aborted':
         return { message: cause.message, retryable: false };
     }

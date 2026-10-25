@@ -143,63 +143,66 @@ export function OrgCanvas({ teams, agents, presence, onOpenAgent, onAgentMenu, o
   }));
 
   return (
-    <View
-      onLayout={event => {
-        viewport.current.width = event.nativeEvent.layout.width;
-        viewport.current.height = event.nativeEvent.layout.height;
-        if (!viewport.current.placed && layout.clusters.length) { viewport.current.placed = true; home(); }
-      }}
-      style={[styles.viewport, { backgroundColor: theme.inset, borderColor: theme.border }]}>
-      <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <Pattern id="org-dots" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
-            <Circle cx={GRID / 2} cy={GRID / 2} r={1.1} fill={theme.borderStrong} />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#org-dots)" />
-      </Svg>
-      <GestureDetector gesture={gesture}>
-        <View style={StyleSheet.absoluteFill} collapsable={false}>
-          <Animated.View style={[styles.content, { width: layout.width, height: layout.height }, contentStyle]}>
-            {layout.edges.flatMap(edge => edge.segments.map((segment, index) => (
-              <View key={`${edge.key}:${index}`} pointerEvents="none" style={[styles.segment, segment, { backgroundColor: theme.borderStrong }]} />
-            )))}
-            {layout.clusters.map(cluster => (
-              <ClusterChip key={cluster.key} cluster={cluster} onTeamAction={onTeamAction} onNewTeam={onNewTeam} />
-            ))}
-            {layout.clusters.filter(cluster => cluster.problem).map(cluster => (
-              <Text key={`${cluster.key}:problem`} style={[styles.problem, { color: theme.warning, left: cluster.chip.left, top: cluster.chip.top + cluster.chip.height + 12, width: cluster.chip.width }]}>
-                {cluster.problem}
-              </Text>
-            ))}
-            {layout.nodes.map(item => (
-              <AgentCard key={item.key} node={item} agent={profiles.get(item.agentId)} width={node.width} height={node.height}
-                presence={profiles.has(item.agentId) ? presence(item.agentId) : 'missing'}
-                onOpen={() => onOpenAgent(item.agentId)} onMenu={() => onAgentMenu(item)} />
-            ))}
-          </Animated.View>
+    <View style={styles.frame}>
+      <View
+        onLayout={event => {
+          viewport.current.width = event.nativeEvent.layout.width;
+          viewport.current.height = event.nativeEvent.layout.height;
+          if (!viewport.current.placed && layout.clusters.length) { viewport.current.placed = true; home(); }
+        }}
+        style={[styles.viewport, { backgroundColor: theme.inset, borderColor: theme.border }]}>
+        <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
+          <Defs>
+            <Pattern id="org-dots" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
+              <Circle cx={GRID / 2} cy={GRID / 2} r={1.1} fill={theme.borderStrong} />
+            </Pattern>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#org-dots)" />
+        </Svg>
+        <GestureDetector gesture={gesture}>
+          <View style={StyleSheet.absoluteFill} collapsable={false}>
+            <Animated.View style={[styles.content, { width: layout.width, height: layout.height }, contentStyle]}>
+              {layout.edges.flatMap(edge => edge.segments.map((segment, index) => (
+                <View key={`${edge.key}:${index}`} pointerEvents="none" style={[styles.segment, segment, { backgroundColor: theme.borderStrong }]} />
+              )))}
+              {layout.clusters.map(cluster => (
+                <ClusterChip key={cluster.key} cluster={cluster} onTeamAction={onTeamAction} onNewTeam={onNewTeam} />
+              ))}
+              {layout.clusters.filter(cluster => cluster.problem).map(cluster => (
+                <Text key={`${cluster.key}:problem`} style={[styles.problem, { color: theme.warning, left: cluster.chip.left, top: cluster.chip.top + cluster.chip.height + 12, width: cluster.chip.width }]}>
+                  {cluster.problem}
+                </Text>
+              ))}
+              {layout.nodes.map(item => (
+                <AgentCard key={item.key} node={item} agent={profiles.get(item.agentId)} width={node.width} height={node.height}
+                  presence={profiles.has(item.agentId) ? presence(item.agentId) : 'missing'}
+                  onOpen={() => onOpenAgent(item.agentId)} onMenu={() => onAgentMenu(item)} />
+              ))}
+            </Animated.View>
+          </View>
+        </GestureDetector>
+      </View>
+      {/* A footer, not an overlay: floating controls covered cards' buttons and badges. */}
+      <View style={[styles.footer, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+        <View style={styles.legend}>
+          <Text style={[styles.legendText, { color: theme.textSecondary }]}>Drag to move</Text>
+          {/* Each dot stays with its label when the legend wraps. */}
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: theme.success }]} />
+            <Text style={[styles.legendText, { color: theme.textSecondary }]}>Ready</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: theme.warning }]} />
+            <Text style={[styles.legendText, { color: theme.textSecondary }]}>Harness missing</Text>
+          </View>
         </View>
-      </GestureDetector>
-      <View style={styles.controls}>
-        <View style={[styles.zoomLabel, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder }]}>
-          <Text accessibilityLabel={`Zoom ${percent} percent`} style={[styles.mono, { color: theme.textSecondary }]}>{percent}%</Text>
-        </View>
-        <View style={[styles.controlColumn, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder, boxShadow: theme.elevationRest }]}>
-          <ControlButton icon={{ ios: 'plus', android: 'add', web: 'add' }} label="Zoom in" onPress={() => step(1.25)} />
-          <View style={[styles.controlDivider, { backgroundColor: theme.border }]} />
+        <View style={[styles.controlRow, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder }]}>
           <ControlButton icon={{ ios: 'minus', android: 'remove', web: 'remove' }} label="Zoom out" onPress={() => step(0.8)} />
+          <Text accessibilityLabel={`Zoom ${percent} percent`} style={[styles.mono, styles.zoomLabel, { color: theme.textSecondary }]}>{percent}%</Text>
+          <ControlButton icon={{ ios: 'plus', android: 'add', web: 'add' }} label="Zoom in" onPress={() => step(1.25)} />
           <View style={[styles.controlDivider, { backgroundColor: theme.border }]} />
           <ControlButton icon={{ ios: 'arrow.up.left.and.arrow.down.right', android: 'fit_screen', web: 'fit_screen' }} label="Fit chart to screen" onPress={fit} />
         </View>
-      </View>
-      <View pointerEvents="none" style={styles.legendDock}>
-      <View style={[styles.legend, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder }]}>
-        <Text style={[styles.legendText, { color: theme.textSecondary }]}>Drag to move</Text>
-        <View style={[styles.legendDot, { backgroundColor: theme.success }]} />
-        <Text style={[styles.legendText, { color: theme.textSecondary }]}>Ready</Text>
-        <View style={[styles.legendDot, { backgroundColor: theme.warning }]} />
-        <Text style={[styles.legendText, { color: theme.textSecondary }]}>Harness missing</Text>
-      </View>
       </View>
     </View>
   );
@@ -319,19 +322,20 @@ const styles = StyleSheet.create({
   content: { left: 0, position: 'absolute', top: 0, transformOrigin: 'left top' },
   segment: { position: 'absolute' },
   problem: { fontSize: 13, lineHeight: 18, position: 'absolute', textAlign: 'center' },
-  controls: { alignItems: 'flex-end', bottom: 12, gap: 8, position: 'absolute', right: 12 },
-  controlColumn: { borderRadius: Radius.medium, borderWidth: 1, overflow: 'hidden' },
-  control: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  controlDivider: { height: StyleSheet.hairlineWidth },
-  zoomLabel: { alignItems: 'center', borderRadius: Radius.pill, borderWidth: 1, minWidth: 48, paddingHorizontal: 8, paddingVertical: 3 },
-  mono: { fontFamily: MonoFont, fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16 },
-  legendDock: { alignItems: 'flex-start', bottom: 12, left: 12, position: 'absolute', right: 72 },
-  legend: {
-    alignItems: 'center', borderRadius: 14, borderWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 6,
+  frame: { flex: 1 },
+  footer: {
+    alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12,
+    paddingHorizontal: 12, paddingVertical: 8,
   },
+  controlRow: { alignItems: 'center', borderRadius: Radius.pill, borderWidth: 1, flexDirection: 'row', overflow: 'hidden' },
+  control: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
+  controlDivider: { height: 24, width: StyleSheet.hairlineWidth },
+  zoomLabel: { minWidth: 40, textAlign: 'center' },
+  mono: { fontFamily: MonoFont, fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 16 },
+  legend: { alignItems: 'center', columnGap: 12, flex: 1, flexDirection: 'row', flexWrap: 'wrap', rowGap: 2 },
+  legendItem: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   legendText: { fontSize: 12, lineHeight: 16 },
-  legendDot: { borderRadius: 4, height: 8, marginLeft: 4, width: 8 },
+  legendDot: { borderRadius: 4, height: 8, width: 8 },
   chip: { borderRadius: 14, borderWidth: 1, gap: 2, paddingBottom: 8, paddingHorizontal: 12, paddingTop: 10, position: 'absolute' },
   chipHead: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   chipTile: { alignItems: 'center', borderRadius: 10, height: 36, justifyContent: 'center', width: 36 },

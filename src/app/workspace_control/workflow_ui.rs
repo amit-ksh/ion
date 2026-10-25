@@ -142,6 +142,28 @@ pub(super) fn retry_label(policy: Option<WorkflowRetryPolicy>) -> String {
         ),
     }
 }
+/// Generated stages carry no team. Default to the team the description
+/// addresses, else the one team the current stages share, else the only team.
+pub(super) fn default_stage_team(
+    prompt: &str,
+    teams: &[Team],
+    current: impl IntoIterator<Item = Option<Uuid>>,
+) -> Option<Uuid> {
+    if let Ok(Some(invocation)) = waku_client::teams::mentions::resolve(prompt, teams) {
+        return Some(invocation.team_id);
+    }
+    let mut current = current.into_iter().flatten();
+    if let Some(team) = current.next()
+        && current.all(|id| id == team)
+        && teams.iter().any(|t| t.id == team)
+    {
+        return Some(team);
+    }
+    match teams {
+        [team] => Some(team.id),
+        _ => None,
+    }
+}
 impl Waku {
     pub(super) fn workflow_stage_drafts(&self, cx: &App) -> Result<Vec<WorkflowStage>, String> {
         self.control_ui
@@ -270,7 +292,7 @@ impl Waku {
             target_label(selected)
         };
         dropdown_menu(
-            self.control_button(id.clone(), label, cx, |_, _, _| {}),
+            form_select(id.clone(), label, &Theme::workspace(cx)),
             id,
             &menu,
             MenuAlign::BelowLeft,
@@ -308,13 +330,11 @@ impl Waku {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let selected = self.control_ui.stages[index].7;
-        self.control_button(
-            format!("workflow-code-{index}"),
-            if selected {
-                "Inherit code: on"
-            } else {
-                "Inherit code: off"
-            },
+        toggle_row(
+            SharedString::from(format!("workflow-code-{index}")),
+            "Start from the previous stage's code",
+            selected,
+            Theme::workspace(cx),
             cx,
             move |this, _, cx| {
                 if index == 0 && !this.control_ui.stages.get(index).is_some_and(|s| s.7) {
@@ -334,7 +354,7 @@ impl Waku {
         let id = SharedString::from(format!("workflow-retry-{index}"));
         let menu = self.menu_handle(id.clone(), cx);
         dropdown_menu(
-            self.control_button(id.clone(), retry_label(selected), cx, |_, _, _| {}),
+            form_select(id.clone(), retry_label(selected), &Theme::workspace(cx)),
             id,
             &menu,
             MenuAlign::BelowLeft,
@@ -377,15 +397,14 @@ impl Waku {
         let menu_id = SharedString::from(format!("workflow-route-{index}"));
         let menu = self.menu_handle(menu_id.clone(), cx);
         let mut row = div().flex().flex_col().gap(px(8.0)).child(dropdown_menu(
-            self.control_button(
+            form_select(
                 menu_id.clone(),
                 match mode {
                     RouteMode::Next => "After completion: next stage",
                     RouteMode::GoTo => "After completion: go to",
                     RouteMode::Condition => "After completion: JSON condition",
                 },
-                cx,
-                |_, _, _| {},
+                &theme,
             ),
             menu_id,
             &menu,
@@ -435,5 +454,34 @@ impl Waku {
             row = row.child(self.render_workflow_target(index, true, cx));
         }
         row
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn team(name: &str) -> Team {
+        Team {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            objective: String::new(),
+            limits: None,
+            members: vec![],
+        }
+    }
+    #[test]
+    fn generated_stages_default_only_to_an_unambiguous_team() {
+        let teams = [team("Research"), team("Design")];
+        let (a, b) = (teams[0].id, teams[1].id);
+        assert_eq!(
+            default_stage_team("@Design Plan a launch", &teams, []),
+            Some(b)
+        );
+        assert_eq!(
+            default_stage_team("Plan", &teams, [Some(a), None, Some(a)]),
+            Some(a)
+        );
+        assert_eq!(default_stage_team("Plan", &teams, [Some(a), Some(b)]), None);
+        assert_eq!(default_stage_team("Plan", &teams[..1], []), Some(a));
     }
 }

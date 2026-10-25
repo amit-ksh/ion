@@ -121,6 +121,12 @@ impl CredentialService {
         }))
     }
 
+    /// The saved key and AI project the personal sandbox transport authenticates
+    /// with. Only valid while the same Ion account and key that saved it remain.
+    pub fn personal_sandbox(&self) -> Result<Option<(String, String)>> {
+        Ok(current(self)?.map(|(binding, key)| (key, binding.project_id)))
+    }
+
     pub fn test_nebius_project(&self) -> Result<ProjectAccess> {
         self.test_nebius_project_for(&signed_in_workspace()?)
     }

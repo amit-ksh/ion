@@ -22,7 +22,6 @@ use std::time::Duration;
 
 use anyhow::{Context as _, anyhow, bail};
 use base64::Engine as _;
-use crossbeam_channel::Sender;
 use parking_lot::Mutex;
 use serde_json::Value;
 
@@ -254,7 +253,7 @@ fn decode_chunked(mut input: &[u8]) -> anyhow::Result<Vec<u8>> {
     Ok(output)
 }
 
-/// Shuts an open event stream and wakes whoever is reading it.
+/// Shuts an open event stream.
 ///
 /// The socket handle lives here rather than with the reader so a drop during
 /// response setup still cancels: see [`open_event_stream`].
@@ -262,9 +261,6 @@ fn decode_chunked(mut input: &[u8]) -> anyhow::Result<Vec<u8>> {
 pub(crate) struct StreamControl {
     cancelled: AtomicBool,
     socket: Mutex<Option<TcpStream>>,
-    /// Woken alongside the socket shutdown, so one cancel can release a
-    /// channel-based consumer that is not itself blocked on the socket.
-    waker: Mutex<Option<Sender<()>>>,
 }
 
 impl StreamControl {
@@ -284,9 +280,6 @@ impl StreamControl {
         if let Some(socket) = self.socket.lock().take() {
             let _ = socket.shutdown(Shutdown::Both);
         }
-        if let Some(waker) = self.waker.lock().as_ref() {
-            let _ = waker.try_send(());
-        }
     }
 
     pub(crate) fn clear(&self) {
@@ -301,10 +294,6 @@ impl StreamControl {
     pub(crate) fn reset(&self) {
         self.cancelled.store(false, Ordering::Release);
         self.socket.lock().take();
-    }
-
-    pub(crate) fn set_waker(&self, waker: Option<Sender<()>>) {
-        *self.waker.lock() = waker;
     }
 }
 

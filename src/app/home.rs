@@ -1,5 +1,5 @@
+use super::sidebar::{format_time_ago, session_time_label};
 use super::*;
-use super::sidebar::session_time_label;
 use crate::ui::{ActivationExt, Elevation, elevation};
 use gpui::{PathBuilder, relative};
 
@@ -153,7 +153,11 @@ pub(super) fn glow_field(theme: &Theme) -> [Div; 2] {
 impl Waku {
     /// Home: the question, the composer under it, and the live rail of
     /// tickets, over one mint-to-lime glow field rising from the bottom edge.
-    pub(super) fn render_home(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_home(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::current(cx);
         let headline = self.render_home_headline(cx);
         let queued = self.render_queued_messages(cx);
@@ -336,7 +340,16 @@ impl Waku {
         let needs_you = state == TicketState::NeedsYou;
         let session_id = session.id;
         let state_color = state.color(&theme);
-        let time = session_time_label(session, now).unwrap_or_default();
+        // A ticket waiting on you is not working, so it shows an age, not a running clock.
+        let time = if needs_you {
+            session
+                .turns
+                .last()
+                .map(|turn| format_time_ago(now.saturating_sub(turn.started_at)))
+        } else {
+            session_time_label(session, now)
+        }
+        .unwrap_or_default();
         let station = self
             .state
             .projects
@@ -372,9 +385,7 @@ impl Waku {
             .flex_col()
             .hover(move |style| style.shadow(lifted.clone()))
             .focus_visible(|style| style.border_color(theme.accent))
-            .tooltip(Tooltip::text(SharedString::from(
-                localized_title(session),
-            )))
+            .tooltip(Tooltip::text(SharedString::from(localized_title(session))))
             .on_activation(cx, move |this, _, cx| this.select_session(session_id, cx))
             .child(
                 div()
@@ -476,7 +487,11 @@ impl Waku {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> Option<Div> {
-        let permission = self.runtimes.get(&session_id)?.pending_permission.as_ref()?;
+        let permission = self
+            .runtimes
+            .get(&session_id)?
+            .pending_permission
+            .as_ref()?;
         let allow = permission.options.iter().find(|option| option.allow)?;
         let deny = permission.options.iter().find(|option| !option.allow);
         let button = |id: String, label: String, primary: bool, option_id: String| {
@@ -506,7 +521,7 @@ impl Waku {
                         .border_color(theme.border_strong)
                         .text_color(theme.text_secondary)
                         .hover(|button| button.bg(theme.overlay))
-                        .child(icon("icons/rotate-cw.svg", 12.0, theme.text_secondary))
+                        .child(icon("icons/x.svg", 12.0, theme.text_secondary))
                 })
                 .child(SharedString::from(label))
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -563,11 +578,15 @@ mod tests {
         let mut waiting = AgentSession::new(project, ProviderKind::Codex);
         waiting.status = SessionStatus::Waiting;
         waiting.last_reply_at = Some(100);
-        waiting.messages.push(Message::new(MessageRole::User, "approve?"));
+        waiting
+            .messages
+            .push(Message::new(MessageRole::User, "approve?"));
         let mut working = AgentSession::new(project, ProviderKind::Codex);
         working.status = SessionStatus::Working;
         working.last_reply_at = Some(200);
-        working.messages.push(Message::new(MessageRole::User, "build"));
+        working
+            .messages
+            .push(Message::new(MessageRole::User, "build"));
 
         let sessions = vec![ready.clone(), working.clone(), waiting.clone()];
         let order = rail_sessions(&sessions)
@@ -583,10 +602,14 @@ mod tests {
         let mut old_failure = AgentSession::new(project, ProviderKind::Codex);
         old_failure.status = SessionStatus::Failed;
         old_failure.last_reply_at = Some(100);
-        old_failure.messages.push(Message::new(MessageRole::User, "broke"));
+        old_failure
+            .messages
+            .push(Message::new(MessageRole::User, "broke"));
         let mut fresh_result = AgentSession::new(project, ProviderKind::Codex);
         fresh_result.last_reply_at = Some(900);
-        fresh_result.messages.push(Message::new(MessageRole::User, "done"));
+        fresh_result
+            .messages
+            .push(Message::new(MessageRole::User, "done"));
 
         let sessions = vec![old_failure.clone(), fresh_result.clone()];
         let order = rail_sessions(&sessions)

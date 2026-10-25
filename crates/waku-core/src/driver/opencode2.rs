@@ -385,6 +385,7 @@ impl OpenCode2Driver {
     /// Runs on the daemon request thread. Blocking is allowed here, but every
     /// wait is bounded: discovery and the health probe live in
     /// `opencode2_service`, and everything below is one local HTTP call.
+    #[cfg(test)]
     pub(super) fn start(
         options: DriverStartOptions,
         events: DriverEventSender,

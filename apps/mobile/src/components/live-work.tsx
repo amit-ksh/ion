@@ -8,9 +8,10 @@ import { StatusPill, TicketCard, ticketStatus } from './ticket-card';
 import { Radius } from '@/constants/theme';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
+import { useDaemon } from '@/lib/daemon-context';
 import { useRuntime } from '@/lib/runtime-context';
 import { displaySessionTitle, relativeSessionTime, sessionTimestamp } from '@/lib/session-presentation';
-import { railSessions, ticketNumber, ticketState } from '@/lib/ticket';
+import { railSessions, sessionTicketState, ticketNumber } from '@/lib/ticket';
 
 /** Most tickets the home rail shows; the task drawer and Work keep the full history. */
 const RAIL_LIMIT = 8;
@@ -39,6 +40,7 @@ export function LiveWork() {
   const theme = useTheme();
   const taskState = useTaskState();
   const runtime = useRuntime();
+  const { phase } = useDaemon();
   const now = useMinuteClock();
   const { width } = useWindowDimensions();
   const columns = width >= 600 ? 2 : 1;
@@ -67,14 +69,16 @@ export function LiveWork() {
         <View style={[styles.empty, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder }]}>
           <AppSymbol name={{ ios: 'list.bullet', android: 'receipt_long', web: 'receipt_long' }} size={20} tintColor={theme.textTertiary} />
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-            {taskState.isPending ? 'Loading tasks…' : 'Every task you start lands here as a ticket, showing who is on it and what needs you.'}
+            {!taskState.isPending
+              ? 'Every task you start lands here as a ticket, showing who is on it and what needs you.'
+              : phase === 'connected' ? 'Loading tasks…' : 'Your tasks show here once your desktop is connected.'}
           </Text>
         </View>
       ) : (
         <View style={styles.grid}>
           {sessions.map(session => {
             const needsYou = pending(session.id);
-            const state = needsYou ? 'needsYou' : ticketState(session.status);
+            const state = needsYou ? 'needsYou' : sessionTicketState(session);
             return (
               <View key={session.id} style={{ width: columns === 1 ? '100%' : '48.9%' }}>
                 <TicketCard

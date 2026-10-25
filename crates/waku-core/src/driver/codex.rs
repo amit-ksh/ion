@@ -922,7 +922,10 @@ impl CodexDriver {
 
 fn codex_permissions(mode: RuntimeMode) -> (&'static str, &'static str, &'static str) {
     match mode {
-        RuntimeMode::Ask => ("untrusted", "read-only", "user"),
+        // `untrusted` still asks before every command and patch, but Codex runs
+        // an approved command inside the turn's sandbox. Read-only made every
+        // approved write fail and return as a second, escalated request.
+        RuntimeMode::Ask => ("untrusted", "workspace-write", "user"),
         RuntimeMode::AutoAcceptEdits => ("on-request", "workspace-write", "user"),
         RuntimeMode::Auto => ("on-request", "workspace-write", "auto_review"),
         RuntimeMode::FullAccess => ("never", "danger-full-access", "user"),
@@ -2998,7 +3001,7 @@ mod tests {
     fn access_modes_match_codex_permission_profiles() {
         assert_eq!(
             codex_permissions(RuntimeMode::Ask),
-            ("untrusted", "read-only", "user")
+            ("untrusted", "workspace-write", "user")
         );
         assert_eq!(
             codex_permissions(RuntimeMode::AutoAcceptEdits),

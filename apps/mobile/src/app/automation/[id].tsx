@@ -72,7 +72,7 @@ export default function AutomationScreen() {
             <StatusPill {...runStatus(run.status)} />
           </View>
           <StageProgress run={run} />
-          <Text style={[styles.body, { color: theme.textSecondary }]}>{done} of {run.stages.length} stages · Deadline {localTimeLabel(run.deadline)}</Text>
+          <Text style={[styles.body, { color: theme.textSecondary }]}>{done} of {run.stages.length} {run.stages.length === 1 ? 'stage' : 'stages'} · Deadline {localTimeLabel(run.deadline)}</Text>
           {run.trigger && <Text style={[styles.body, { color: theme.textSecondary }]}>{triggerLabel(run.trigger)}</Text>}
           {run.reason && <Text style={[styles.body, { color: theme.text }]}>{run.reason}</Text>}
           <View style={styles.actions}>

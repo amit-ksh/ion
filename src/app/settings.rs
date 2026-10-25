@@ -892,7 +892,7 @@ impl Waku {
                                 )),
                                 CredentialTest::NebiusProject(access) => Ok((
                                     if access.can_execute && access.can_list && access.can_cancel {
-                                        format!("{}: beta permissions verified. Worker and budget setup are still required.", access.project_id)
+                                        format!("{}: sandbox permissions verified.", access.project_id)
                                     } else { format!("{}: execution, list or cancellation permission is missing.", access.project_id) }, None)),
                                 CredentialTest::ComposioVerified => Ok((
                                     "Composio key verified with Tools read access.".into(),
@@ -950,6 +950,19 @@ impl Waku {
                         if matches!(kind, Kind::NebiusTokenFactoryApiKey | Kind::NebiusSandboxProject)
                             && matches!(action, CredentialAction::Set | CredentialAction::Delete) {
                             waku.refresh_credential_statuses(cx);
+                        }
+                        // Entering the project is the whole setup: Ion builds
+                        // its sandbox image there without another step.
+                        if kind == Kind::NebiusSandboxProject {
+                            match action {
+                                CredentialAction::Set => waku.prepare_personal_sandbox(cx),
+                                CredentialAction::Delete => {
+                                    waku.cloud_ui.personal_sandbox = None;
+                                    waku.cloud_ui.personal_sandbox_error = None;
+                                    waku.refresh_cloud_account(cx);
+                                }
+                                CredentialAction::Test => {}
+                            }
                         }
                         if kind == Kind::GatewayPairingToken
                             && matches!(action, CredentialAction::Delete)
@@ -1417,14 +1430,43 @@ impl Waku {
                 .child(self.gateway_button(GatewayAction::Inspect, "Check proposal status", cx));
         }
         let sandbox_enabled = self.state.nebius_sandbox_enabled();
+        let preparing = self.cloud_ui.personal_sandbox_progress.clone();
+        let sandbox_status: (SharedString, Hsla) = if let Some(step) = &preparing {
+            (format!("{step}…").into(), theme.text_secondary)
+        } else if let Some(error) = &self.cloud_ui.personal_sandbox_error {
+            (error.clone().into(), theme.danger)
+        } else if let Some(target) = &self.cloud_ui.personal_sandbox {
+            (
+                format!("Ready · {}", target.split('@').next().unwrap_or(target)).into(),
+                theme.success,
+            )
+        } else if self.onboarding_ui.saved_nebius_project.is_some() {
+            ("Not prepared in your project yet.".into(), theme.text_secondary)
+        } else {
+            ("Save your Token Factory key and AI project above to prepare it.".into(), theme.text_secondary)
+        };
+        let can_prepare = preparing.is_none() && self.onboarding_ui.saved_nebius_project.is_some();
+        let prepare_label = if self.cloud_ui.personal_sandbox.is_some() { "Rebuild" } else { "Prepare sandbox" };
         content = content.child(div().p(px(18.0)).rounded(px(12.0)).bg(theme.raised)
-            .flex().items_center().gap(px(16.0))
-            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(6.0))
-                .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Token Factory sandbox"))
-                .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child("Allow cloud sandbox commands with your approval. Requires ConTree installed and signed in. The sandbox does not include your local project automatically.")))
-            .child(div().text_size(sp(12.0)).text_color(theme.text_secondary).child(if sandbox_enabled { "On" } else { "Off" }))
-            .child(toggle_switch("tokenfactory-sandbox-toggle", sandbox_enabled, false, theme, cx,
-                move |this, _, cx| { this.state.set_nebius_sandbox_enabled(!sandbox_enabled); this.save(); cx.notify(); })));
+            .flex().flex_col().gap(px(14.0))
+            .child(div().flex().items_center().gap(px(16.0))
+                .child(div().flex_1().min_w_0().flex().flex_col().gap(px(6.0))
+                    .child(div().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).text_color(theme.text).child("Token Factory sandbox"))
+                    .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child("Run sandbox agents and approved commands in your own Token Factory project. Ion builds a private sandbox image there when you save your AI project. Your local project is not uploaded automatically.")))
+                .child(div().text_size(sp(12.0)).text_color(theme.text_secondary).child(if sandbox_enabled { "On" } else { "Off" }))
+                .child(toggle_switch("tokenfactory-sandbox-toggle", sandbox_enabled, false, theme, cx,
+                    move |this, _, cx| { this.state.set_nebius_sandbox_enabled(!sandbox_enabled); this.save(); cx.notify(); })))
+            .child(div().flex().items_center().gap(px(12.0))
+                .child(div().flex_1().min_w_0().text_size(sp(12.5)).text_color(sandbox_status.1).child(sandbox_status.0))
+                .child(div().id("tokenfactory-sandbox-prepare")
+                    .h(px(34.0)).px(px(12.0)).rounded(px(7.0)).border_1().border_color(theme.border_strong)
+                    .flex().flex_none().items_center().gap(px(7.0))
+                    .text_size(sp(12.5)).text_color(theme.text)
+                    .opacity(if can_prepare { 1.0 } else { 0.5 })
+                    .when(can_prepare, |b| b.cursor_pointer().hover(|b| b.bg(theme.overlay))
+                        .on_click(cx.listener(|this, _, _, cx| this.prepare_personal_sandbox(cx))))
+                    .child(icon("icons/rotate-cw.svg", 14.0, theme.text_secondary))
+                    .child(prepare_label))));
         content = content.child(gateway);
         content.into_any_element()
     }
@@ -2365,8 +2407,9 @@ impl Waku {
                                 .gap(px(10.0))
                                 .child(
                                     div()
-                                        .w(px(80.0))
+                                        .w(px(108.0))
                                         .flex_none()
+                                        .whitespace_nowrap()
                                         .text_size(sp(12.5))
                                         .text_color(theme.text_tertiary)
                                         .child(tr!("daemon.websocket_url")),
@@ -2396,8 +2439,9 @@ impl Waku {
                                 .gap(px(10.0))
                                 .child(
                                     div()
-                                        .w(px(80.0))
+                                        .w(px(108.0))
                                         .flex_none()
+                                        .whitespace_nowrap()
                                         .text_size(sp(12.5))
                                         .text_color(theme.text_tertiary)
                                         .child(tr!("daemon.token")),

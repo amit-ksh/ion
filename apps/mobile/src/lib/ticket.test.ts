@@ -1,7 +1,7 @@
 import type { AgentSession } from '@waku/client';
 import { expect, test } from 'bun:test';
 
-import { railSessions, ticketNumber, ticketState } from './ticket';
+import { railSessions, sessionTicketState, ticketNumber, ticketState } from './ticket';
 
 function session(id: string, status: AgentSession['status'], at: number, started = true) {
   return { id, status, created_at: at, last_reply_at: at, turns: [], messages: started ? [{}] : [], provider_cursor: null } as unknown as AgentSession;
@@ -25,4 +25,13 @@ test('ticket numbers are stable short ids and states carry desktop meaning', () 
   expect(ticketState('waiting')).toBe('needsYou');
   expect(ticketState('connecting')).toBe('working');
   expect(ticketState('idle')).toBe('ready');
+});
+
+test('a turn the user stopped reads as Stopped, not Failed or Ready', () => {
+  const stopped = (status: AgentSession['status']) =>
+    ({ ...session('s', status, 1), turns: [{ status: 'interrupted' }] }) as unknown as AgentSession;
+  expect(sessionTicketState(stopped('idle'))).toBe('stopped');
+  expect(sessionTicketState(stopped('failed'))).toBe('stopped');
+  expect(sessionTicketState(stopped('working'))).toBe('working');
+  expect(sessionTicketState(session('f', 'failed', 1))).toBe('failed');
 });

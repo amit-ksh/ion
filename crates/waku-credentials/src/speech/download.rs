@@ -24,18 +24,41 @@ pub enum Progress {
     Ready,
 }
 fn download_host(url: &reqwest::Url) -> bool {
-    url.scheme() == "https" && url.username().is_empty() && url.password().is_none()
-        && url.port().is_none() && url.fragment().is_none()
-        && matches!(url.host_str(), Some("huggingface.co" | "cdn-lfs.huggingface.co" |
-            "cdn-lfs-us-1.hf.co" | "cdn-lfs-eu-1.hf.co" | "cas-bridge.xethub.hf.co" | "us.aws.cdn.hf.co" | "api.build-with-ion.tech"))
+    url.scheme() == "https"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.port().is_none()
+        && url.fragment().is_none()
+        && matches!(
+            url.host_str(),
+            Some(
+                "huggingface.co"
+                    | "cdn-lfs.huggingface.co"
+                    | "cdn-lfs-us-1.hf.co"
+                    | "cdn-lfs-eu-1.hf.co"
+                    | "cas-bridge.xethub.hf.co"
+                    | "us.aws.cdn.hf.co"
+                    | "api.build-with-ion.tech"
+            )
+        )
 }
 fn pinned_source(url: &reqwest::Url, filename: &str) -> bool {
-    if !download_host(url) || url.query().is_some() { return false; }
-    if url.host_str() == Some("api.build-with-ion.tech") { return url.path() == format!("/models/{filename}"); }
-    if url.host_str() != Some("huggingface.co") { return false; }
+    if !download_host(url) || url.query().is_some() {
+        return false;
+    }
+    if url.host_str() == Some("api.build-with-ion.tech") {
+        return url.path() == format!("/models/{filename}");
+    }
+    if url.host_str() != Some("huggingface.co") {
+        return false;
+    }
     let parts: Vec<_> = url.path().split('/').collect();
-    parts.len() == 6 && parts[1] == "amit-ksh" && parts[2] == "ion-stt" && parts[3] == "resolve"
-        && parts[4].len() == 40 && parts[4].bytes().all(|b| b.is_ascii_hexdigit())
+    parts.len() == 6
+        && parts[1] == "amit-ksh"
+        && parts[2] == "ion-stt"
+        && parts[3] == "resolve"
+        && parts[4].len() == 40
+        && parts[4].bytes().all(|b| b.is_ascii_hexdigit())
         && parts[5] == filename
 }
 pub fn manifest() -> Result<Manifest> {
@@ -244,7 +267,9 @@ async fn fetch_model(
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 || !download_host(attempt.url()) {
                 attempt.error("Untrusted model download redirect")
-            } else { attempt.follow() }
+            } else {
+                attempt.follow()
+            }
         }))
         .build()?;
     let mut response = cancellable(client.get(&expected.url).send(), canceled)
@@ -363,19 +388,46 @@ mod tests {
         let m = manifest().unwrap();
         assert_eq!(m.model, "nvidia/parakeet-tdt_ctc-110m");
         assert_eq!(m.bytes, 146_029_600);
-        assert_eq!(m.url, format!("https://api.build-with-ion.tech/models/{}", m.filename));
+        assert_eq!(
+            m.url,
+            format!("https://api.build-with-ion.tech/models/{}", m.filename)
+        );
     }
     #[test]
     fn model_sources_require_an_immutable_hub_revision_and_trusted_https_redirects() {
         let file = "ion-parakeet-110m-tdt-q8-v1.gguf";
-        let source = format!("https://huggingface.co/amit-ksh/ion-stt/resolve/{}/{file}", "a".repeat(40));
+        let source = format!(
+            "https://huggingface.co/amit-ksh/ion-stt/resolve/{}/{file}",
+            "a".repeat(40)
+        );
         assert!(pinned_source(&reqwest::Url::parse(&source).unwrap(), file));
-        for url in [source.replace(&"a".repeat(40), "main"), source.replace("amit-ksh", "other"), source.clone()+"?token=private", source.replace("https:", "http:")] {
+        for url in [
+            source.replace(&"a".repeat(40), "main"),
+            source.replace("amit-ksh", "other"),
+            source.clone() + "?token=private",
+            source.replace("https:", "http:"),
+        ] {
             assert!(!pinned_source(&reqwest::Url::parse(&url).unwrap(), file));
         }
-        assert!(download_host(&reqwest::Url::parse("https://cas-bridge.xethub.hf.co/opaque?X-Amz-Signature=public-download").unwrap()));
-        assert!(download_host(&reqwest::Url::parse("https://us.aws.cdn.hf.co/xet-bridge-us/model?public-download=signature").unwrap()));
-        for url in ["https://huggingface.co.attacker.example/model", "http://huggingface.co/model", "https://user:password@huggingface.co/model", "https://127.0.0.1/model", "https://cdn-lfs-us-1.hf.co:444/model"] {
+        assert!(download_host(
+            &reqwest::Url::parse(
+                "https://cas-bridge.xethub.hf.co/opaque?X-Amz-Signature=public-download"
+            )
+            .unwrap()
+        ));
+        assert!(download_host(
+            &reqwest::Url::parse(
+                "https://us.aws.cdn.hf.co/xet-bridge-us/model?public-download=signature"
+            )
+            .unwrap()
+        ));
+        for url in [
+            "https://huggingface.co.attacker.example/model",
+            "http://huggingface.co/model",
+            "https://user:password@huggingface.co/model",
+            "https://127.0.0.1/model",
+            "https://cdn-lfs-us-1.hf.co:444/model",
+        ] {
             assert!(!download_host(&reqwest::Url::parse(url).unwrap()));
         }
     }
@@ -383,21 +435,36 @@ mod tests {
     #[ignore = "Downloads the public pinned model; run with an isolated ION_SPEECH_MODEL_DIR"]
     fn live_public_model_download_and_cache_reuse() {
         let root = directory().unwrap();
-        assert!(std::env::var_os("ION_SPEECH_MODEL_DIR").is_some(), "Use an isolated acceptance cache");
+        assert!(
+            std::env::var_os("ION_SPEECH_MODEL_DIR").is_some(),
+            "Use an isolated acceptance cache"
+        );
         let expected = manifest().unwrap();
-        assert!(!root.join(&expected.filename).exists(), "First-use acceptance requires an empty model cache");
+        assert!(
+            !root.join(&expected.filename).exists(),
+            "First-use acceptance requires an empty model cache"
+        );
         let mut downloaded = false;
         let model = prepare(&|| false, &mut |state| {
-            if let Progress::Downloading { bytes, .. } = state { downloaded |= bytes > 0; }
-        }).unwrap();
+            if let Progress::Downloading { bytes, .. } = state {
+                downloaded |= bytes > 0;
+            }
+        })
+        .unwrap();
         assert!(downloaded);
         assert_eq!(fs::metadata(&model).unwrap().len(), expected.bytes);
         let mut redownloaded = false;
         let reused = prepare(&|| false, &mut |state| {
-            if let Progress::Downloading { .. } = state { redownloaded = true; }
-        }).unwrap();
+            if let Progress::Downloading { .. } = state {
+                redownloaded = true;
+            }
+        })
+        .unwrap();
         assert_eq!(model, reused);
-        assert!(!redownloaded, "A verified cache entry must avoid the network");
+        assert!(
+            !redownloaded,
+            "A verified cache entry must avoid the network"
+        );
         assert!(!model.with_extension("partial").exists());
     }
     #[test]

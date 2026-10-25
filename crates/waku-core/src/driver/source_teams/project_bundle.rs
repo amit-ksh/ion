@@ -39,6 +39,7 @@ impl ProjectBundle {
             let child = create_child(pin, &path, name, exclusive)?;
             files.pins.push((path, child));
         }
+        #[cfg(not(unix))]
         let leaf = files.pins.last().unwrap().0.clone();
         // Publish the marker last; an incomplete MCP file is not a plugin.
         let publication = (|| -> Result<()> {
@@ -207,6 +208,7 @@ fn mark_deleted(file: &fs::File) {
 }
 impl Files {
     fn cleanup(&mut self) {
+        #[cfg(windows)]
         let leaf = self.root.join(".agents/plugins").join(&self.name);
         // On Unix an open directory can be renamed. Preserve adopted/moved trees.
         #[cfg(unix)]
@@ -372,10 +374,19 @@ mod tests {
         fs::write(path.join("plugin.json"), "{\"name\":\"owner\"}").unwrap();
         drop(bundle);
         std::thread::sleep(Duration::from_millis(150));
-        assert_eq!(
-            fs::read_to_string(path.join("plugin.json")).unwrap(),
-            "{\"name\":\"owner\"}"
-        );
+        // Cleanup checks each file through an exclusive handle; a read that
+        // lands during that check is refused, so retry until it is through.
+        let until = Instant::now() + Duration::from_secs(30);
+        let owner = loop {
+            match fs::read_to_string(path.join("plugin.json")) {
+                Ok(bytes) => break bytes,
+                Err(error) => {
+                    assert!(Instant::now() < until, "{error}");
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
+        };
+        assert_eq!(owner, "{\"name\":\"owner\"}");
         assert!(path.join("mcp_config.json").is_file());
     }
     #[test]

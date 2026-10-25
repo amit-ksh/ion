@@ -75,6 +75,7 @@ fn attach_driver(
         runtime_id,
         supports_steer,
         session.runtime_event_cursor,
+        session.status == SessionStatus::Waiting,
         event_tx,
     )?;
     Ok(DriverAttachment::Live(

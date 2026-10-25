@@ -23,6 +23,7 @@ pub struct TextField {
     input: gpui::Entity<TextInput>,
     icon: Option<(&'static str, f32)>,
     comfortable: bool,
+    toolbar: bool,
 }
 
 impl TextField {
@@ -32,6 +33,7 @@ impl TextField {
             input,
             icon: None,
             comfortable: false,
+            toolbar: false,
         }
     }
 
@@ -45,6 +47,12 @@ impl TextField {
     /// existing dimensions.
     pub fn comfortable(mut self) -> Self {
         self.comfortable = true;
+        self
+    }
+
+    /// A pill sized to sit in a row of 32px chips and buttons.
+    pub fn toolbar(mut self) -> Self {
+        self.toolbar = true;
         self
     }
 }
@@ -72,10 +80,26 @@ impl RenderOnce for TextField {
         let theme = Theme::current(cx);
         let focused = self.input.read(cx).is_visually_focused(window);
         self.base
-            .h(px(if self.comfortable { 42.0 } else { 28.0 }))
+            .h(px(if self.comfortable {
+                42.0
+            } else if self.toolbar {
+                32.0
+            } else {
+                28.0
+            }))
             .when(self.comfortable, |field| field.flex_none())
-            .px(px(if self.comfortable { 12.0 } else { 8.0 }))
-            .rounded(px(if self.comfortable { 8.0 } else { 6.0 }))
+            .px(px(if self.comfortable || self.toolbar {
+                12.0
+            } else {
+                8.0
+            }))
+            .rounded(px(if self.toolbar {
+                16.0
+            } else if self.comfortable {
+                8.0
+            } else {
+                6.0
+            }))
             .border_1()
             .border_color(if focused {
                 theme.accent

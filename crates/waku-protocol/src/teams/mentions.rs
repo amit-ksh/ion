@@ -64,6 +64,9 @@ pub fn resolve(prompt: &str, teams: &[Team]) -> Result<Option<TeamInvocation>, S
         })
         .collect();
     match found.as_slice() {
+        [] if qualified && id.is_none() && !address.starts_with('{') => Err(format!(
+            "No team is named “{name}”. Pick it from @@ suggestions, or write @@{{Team name}}."
+        )),
         [] if qualified => {
             Err("This team no longer exists. Choose a team from @@ suggestions.".into())
         }
@@ -102,6 +105,31 @@ pub fn mention(team: &Team, teams: &[Team]) -> String {
 pub fn tag(team: &Team, teams: &[Team]) -> String {
     let legacy = mention(team, teams);
     format!("@@{}", legacy.trim_start_matches("@team:"))
+}
+
+/// How a team-addressed prompt reads to people. Whatever address selected the
+/// team (`@@{Name}`, `@@<id>`, `@team:…`, `#team:…`, `@{Name}`) becomes
+/// `@Name`; the runtime keeps the original prompt. Bare `@name` already reads
+/// well and is left alone.
+pub fn readable(prompt: &str, team_name: &str) -> Option<String> {
+    let text = prompt.trim_start();
+    if text.starts_with("@@@") {
+        return None;
+    }
+    let address = text
+        .strip_prefix("@@")
+        .or_else(|| text.strip_prefix("@team:"))
+        .or_else(|| text.strip_prefix("#team:"))
+        .or_else(|| text.strip_prefix('@').filter(|a| a.starts_with('{')))?;
+    let rest = match address.strip_prefix('{') {
+        Some(braced) => &braced[braced.find('}')? + 1..],
+        None => &address[address.find(char::is_whitespace).unwrap_or(address.len())..],
+    };
+    let name = team_name.trim();
+    Some(match rest.trim_start() {
+        "" => format!("@{name}"),
+        rest => format!("@{name} {rest}"),
+    })
 }
 
 #[cfg(test)]
@@ -170,6 +198,36 @@ mod tests {
                 .team_id,
             teams[0].id
         );
+    }
+    #[test]
+    fn every_team_address_reads_as_the_team_name() {
+        let id = Uuid::new_v4();
+        for prompt in [
+            "@@{QA Team}  Draft notes".to_owned(),
+            format!("@@{id} Draft notes"),
+            format!("@team:{id} Draft notes"),
+            "@team:{QA Team} Draft notes".to_owned(),
+            "#team:{QA Team} Draft notes".to_owned(),
+            "@{QA Team} Draft notes".to_owned(),
+        ] {
+            assert_eq!(
+                readable(&prompt, "QA Team").as_deref(),
+                Some("@QA Team Draft notes"),
+                "{prompt}"
+            );
+        }
+        assert_eq!(
+            readable("@@{QA Team}", "QA Team").as_deref(),
+            Some("@QA Team")
+        );
+        for prompt in [
+            "@engineering fix",
+            "@@@slack post",
+            "Draft notes",
+            "@@{open",
+        ] {
+            assert_eq!(readable(prompt, "QA Team"), None, "{prompt}");
+        }
     }
     #[test]
     fn suggestions_round_trip_spaced_unicode_and_unusual_names() {

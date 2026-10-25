@@ -2,7 +2,11 @@
 use super::*;
 
 /// A group heading with its count, as Paperclip heads its agent and routine groups.
-pub(super) fn render_section_heading(label: &'static str, count: usize, theme: &Theme) -> AnyElement {
+pub(super) fn render_section_heading(
+    label: &'static str,
+    count: usize,
+    theme: &Theme,
+) -> AnyElement {
     div()
         .px(px(4.0))
         .pt(px(6.0))
@@ -36,7 +40,11 @@ pub(super) fn render_section_heading(label: &'static str, count: usize, theme: &
 impl Waku {
     /// One agent in a single bordered roster: identity, model and adapter,
     /// where it runs, which teams it serves, then its quiet actions.
-    pub(super) fn render_roster_row(&self, row: Rc<RosterRow>, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_roster_row(
+        &self,
+        row: Rc<RosterRow>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::workspace(cx);
         let agent = &row.agent;
         let id = agent.id;
@@ -123,7 +131,9 @@ impl Waku {
             .flex()
             .items_center()
             .gap(px(14.0))
-            .when(!row.first, |line| line.border_t_1().border_color(theme.border))
+            .when(!row.first, |line| {
+                line.border_t_1().border_color(theme.border)
+            })
             .when(row.first, |line| line.rounded_t(px(13.0)))
             .when(row.last, |line| line.rounded_b(px(13.0)))
             .hover(move |style| style.bg(theme.overlay))
@@ -151,7 +161,11 @@ impl Waku {
                             .child(agent.expertise.clone()),
                     ),
             )
-            .child(column(model, agent.provider.display_name().to_owned(), 180.0))
+            .child(column(
+                model,
+                agent.provider.display_name().to_owned(),
+                180.0,
+            ))
             .child(column(
                 agent.execution.environment.label().to_owned(),
                 concurrency,

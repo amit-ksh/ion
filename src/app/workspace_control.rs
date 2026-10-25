@@ -133,6 +133,30 @@ pub(super) enum ControlTone {
     Ghost,
 }
 
+/// An on/off setting in a form: the switch, then what it controls.
+fn toggle_row(
+    id: impl Into<gpui::ElementId>,
+    label: impl Into<SharedString>,
+    on: bool,
+    theme: Theme,
+    cx: &mut Context<Waku>,
+    action: impl Fn(&mut Waku, &mut Window, &mut Context<Waku>) + 'static,
+) -> Div {
+    div()
+        .min_h(px(32.0))
+        .flex()
+        .items_center()
+        .gap(px(10.0))
+        .child(crate::ui::toggle_switch(id, on, false, theme, cx, action))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .text_size(sp(12.5))
+                .child(label.into()),
+        )
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum FormKind {
     Agent,
@@ -155,6 +179,8 @@ pub(super) struct ControlUi {
     pub(super) team_names: HashSet<String>,
     pub(super) duplicate_team_names: HashSet<String>,
     pub busy: bool,
+    /// The in-flight request is a workflow draft, not a save.
+    generating: bool,
     inbox: inbox::InboxUi,
     usage: usage_ui::UsageUi,
     budgets: budget_ui::BudgetUi,
@@ -382,6 +408,7 @@ impl ControlUi {
             team_names: HashSet::new(),
             duplicate_team_names: HashSet::new(),
             busy: false,
+            generating: false,
             inbox: inbox::InboxUi::default(),
             usage: usage_ui::UsageUi::new(window, cx),
             budgets: budget_ui::BudgetUi::new(window, cx),
@@ -397,7 +424,8 @@ impl ControlUi {
                     .auto_height_up_to(px(100.0))
                     .placeholder("What it should do, and what done looks like")
             }),
-            expertise: cx.new(|cx| TextInput::new(window, cx).placeholder("e.g. API design, test coverage")),
+            expertise: cx
+                .new(|cx| TextInput::new(window, cx).placeholder("e.g. API design, test coverage")),
             model: cx.new(|cx| TextInput::new(window, cx).placeholder("Use harness default")),
             interval: cx.new(|cx| TextInput::new(window, cx).placeholder("Interval in minutes")),
             routine: routine_ui::RoutineUi::new(window, cx),
@@ -1121,6 +1149,7 @@ impl Waku {
             ControlTone::Secondary => theme.text,
             ControlTone::Ghost => theme.text_secondary,
         };
+        let label: SharedString = label.into();
         div()
             .id(id.into())
             .tab_index(0)
@@ -1161,7 +1190,9 @@ impl Waku {
             .when_some(leading, |button, path| {
                 button.child(icon(path, 14.0, leading_color))
             })
-            .child(label.into())
+            // An icon-only button has no label; an empty child would add the gap
+            // and push the icon off-centre.
+            .when(!label.is_empty(), |button| button.child(label))
             .on_click(cx.listener(move |this, _, window, cx| click(this, window, cx)))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 if !event.keystroke.modifiers.modified()
@@ -1271,6 +1302,7 @@ impl Waku {
             None
         };
         self.control_ui.busy = true;
+        self.control_ui.generating = requested_prompt.is_some();
         self.control_ui.error = None;
         let client = self.daemon.client();
         cx.spawn(async move |this, cx| {
@@ -1327,6 +1359,10 @@ impl Waku {
                         if this.control_ui.editor_generation==editor_generation && this.control_ui.page==Some(Page::Workflows) && requested_prompt.as_deref().is_none_or(|prompt|this.control_ui.instructions.read(cx).content()==prompt) {
                             if let Some(id)=requested_edit {workflow.id=id;}
                             if !requested_name.trim().is_empty(){workflow.name=requested_name;}
+                            // The model never sees team ids; edit_control_record clears the
+                            // current stages, so pick the default from them first.
+                            let team=workflow_ui::default_stage_team(&workflow.prompt,&this.control_ui.team_index,this.control_ui.stages.iter().map(|s|s.3));
+                            for stage in &mut workflow.stages {stage.team_id=team;}
                             this.edit_control_record(ControlRecord::Workflow(workflow), cx);
                         }else {this.control_ui.error=Some("Workflow editor changed. Generate again from the current instructions.".into());}
                     }
@@ -1430,15 +1466,13 @@ impl Waku {
                 self.control_ui.concurrency.update(cx, |input, cx| {
                     input.set_content(v.max_parallel_tasks.to_string(), cx)
                 });
+                let target = self.control_ui.execution.sandbox_target.clone().or_else(|| {
+                    (self.control_ui.execution.environment == ExecutionEnvironment::NebiusSandbox)
+                        .then(|| self.cloud_ui.personal_sandbox.clone())
+                        .flatten()
+                });
                 self.control_ui.sandbox_target.update(cx, |input, cx| {
-                    input.set_content(
-                        self.control_ui
-                            .execution
-                            .sandbox_target
-                            .clone()
-                            .unwrap_or_default(),
-                        cx,
-                    )
+                    input.set_content(target.unwrap_or_default(), cx)
                 });
                 self.control_ui
                     .expertise
@@ -1882,10 +1916,7 @@ impl Waku {
             Page::Workflows => Some((FormKind::Workflow, "New workflow")),
             _ => None,
         };
-        let has_records = !matches!(
-            self.control_ui.rows.first(),
-            None | Some(Row::Empty(_))
-        );
+        let has_records = !matches!(self.control_ui.rows.first(), None | Some(Row::Empty(_)));
         let templates_page = match page {
             Page::Teams => !self.control_ui.runs_tab,
             Page::Workflows | Page::Routines => !self.control_ui.automation_history,
@@ -1936,16 +1967,14 @@ impl Waku {
             ));
         }
         if page == Page::Projects {
-            actions = actions.child(
-                self.control_button_icon(
-                    "workspace-open-project",
-                    "icons/folder.svg",
-                    "Open folder",
-                    ControlTone::Primary,
-                    cx,
-                    |this, _, cx| this.add_project(cx),
-                ),
-            );
+            actions = actions.child(self.control_button_icon(
+                "workspace-open-project",
+                "icons/folder.svg",
+                "Open folder",
+                ControlTone::Primary,
+                cx,
+                |this, _, cx| this.add_project(cx),
+            ));
         }
         div()
             .w_full()
@@ -2503,9 +2532,14 @@ impl Waku {
                     .flex()
                     .items_center()
                     .gap(px(12.0))
-                    .child(div().flex_1().min_w_0().child(
-                        TextField::new("apps-search", self.control_ui.app_search.clone()).w_full(),
-                    ))
+                    .child(
+                        div().flex_1().min_w_0().child(
+                            TextField::new("apps-search", self.control_ui.app_search.clone())
+                                .icon("icons/search.svg", 14.0)
+                                .toolbar()
+                                .w_full(),
+                        ),
+                    )
                     .child(self.control_button(
                         "apps-search-submit",
                         "Search",
@@ -2572,27 +2606,27 @@ impl Waku {
             content = content.child(
                 div().flex().child(
                     segmented_track(&theme)
-                        .child(segment("apps-all", "All apps", !connected, &theme).on_activation(
-                            cx,
-                            |this, _, cx| {
-                                this.control_ui.apps_connected_only = false;
-                                this.control_ui.apps_after = None;
-                                this.control_ui.apps_previous.clear();
-                                this.refresh_composio_apps(cx);
-                                cx.notify();
-                            },
-                        ))
                         .child(
-                            segment("apps-connected", "Connected", connected, &theme).on_activation(
+                            segment("apps-all", "All apps", !connected, &theme).on_activation(
                                 cx,
                                 |this, _, cx| {
-                                    this.control_ui.apps_connected_only = true;
+                                    this.control_ui.apps_connected_only = false;
                                     this.control_ui.apps_after = None;
                                     this.control_ui.apps_previous.clear();
                                     this.refresh_composio_apps(cx);
                                     cx.notify();
                                 },
                             ),
+                        )
+                        .child(
+                            segment("apps-connected", "Connected", connected, &theme)
+                                .on_activation(cx, |this, _, cx| {
+                                    this.control_ui.apps_connected_only = true;
+                                    this.control_ui.apps_after = None;
+                                    this.control_ui.apps_previous.clear();
+                                    this.refresh_composio_apps(cx);
+                                    cx.notify();
+                                }),
                         ),
                 ),
             );
@@ -2754,7 +2788,8 @@ impl Waku {
         };
         let mut body = div()
             .min_h(px(72.0))
-            .px(px(16.0)).py(px(14.0))
+            .px(px(16.0))
+            .py(px(14.0))
             .mx(px(2.0))
             .mb(px(10.0))
             .rounded(px(14.0))
@@ -2796,7 +2831,9 @@ impl Waku {
                     .into_any_element();
             }
             Row::TeamGraph(graph) => return self.render_team_graph(graph, cx),
-            Row::Section(label, count) => return roster_ui::render_section_heading(label, count, &theme),
+            Row::Section(label, count) => {
+                return roster_ui::render_section_heading(label, count, &theme);
+            }
             Row::Roster(row) => return self.render_roster_row(row, cx),
             Row::AppPair(configs, columns) => {
                 let mut pair = div()
@@ -3093,18 +3130,12 @@ impl Waku {
                 };
                 mark = Some(session.provider);
                 pill = Some(match session.status {
-                    SessionStatus::Waiting => status_pill(
-                        "icons/alert.svg",
-                        status,
-                        theme.accent,
-                        theme.accent_soft,
-                    ),
-                    SessionStatus::Failed => status_pill(
-                        "icons/x.svg",
-                        status,
-                        theme.danger,
-                        theme.danger_soft,
-                    ),
+                    SessionStatus::Waiting => {
+                        status_pill("icons/alert.svg", status, theme.accent, theme.accent_soft)
+                    }
+                    SessionStatus::Failed => {
+                        status_pill("icons/x.svg", status, theme.danger, theme.danger_soft)
+                    }
                     SessionStatus::Working | SessionStatus::Connecting => status_pill(
                         "icons/loader-circle.svg",
                         status,
@@ -3354,7 +3385,8 @@ impl Waku {
             }
         };
         let avatar = if let Some(toolkit) = &app_toolkit {
-            avatar_tile(36.0, theme.raised, theme.border).child(self.app_mark(toolkit, 26.0, &theme, cx))
+            avatar_tile(36.0, theme.raised, theme.border)
+                .child(self.app_mark(toolkit, 26.0, &theme, cx))
         } else if let Some(provider) = mark {
             avatar_tile(36.0, theme.raised, theme.border).child(provider_mark(
                 &theme,
@@ -3363,8 +3395,11 @@ impl Waku {
                 provider_color(&theme, provider),
             ))
         } else {
-            avatar_tile(36.0, theme.accent_soft, gpui::transparent_black())
-                .child(icon(icon_path, 16.0, theme.accent))
+            avatar_tile(36.0, theme.accent_soft, gpui::transparent_black()).child(icon(
+                icon_path,
+                16.0,
+                theme.accent,
+            ))
         };
         body = body
             .child(avatar)
@@ -3425,11 +3460,15 @@ impl Waku {
             .filter(|_| kind == FormKind::Agent)
             .map(|pending| {
                 let name_of = |id: Uuid| {
-                    self.control_ui.snapshot.records.iter().find_map(|r| match r {
-                        ControlRecord::Agent(a) if a.id == id => Some(a.name.clone()),
-                        ControlRecord::Team(t) if t.id == id => Some(t.name.clone()),
-                        _ => None,
-                    })
+                    self.control_ui
+                        .snapshot
+                        .records
+                        .iter()
+                        .find_map(|r| match r {
+                            ControlRecord::Agent(a) if a.id == id => Some(a.name.clone()),
+                            ControlRecord::Team(t) if t.id == id => Some(t.name.clone()),
+                            _ => None,
+                        })
                 };
                 let parent = name_of(pending.parent).unwrap_or_default();
                 match pending.team.and_then(name_of) {
@@ -3479,11 +3518,15 @@ impl Waku {
             ));
         }
         form = form
-            .child(div().text_size(sp(12.5)).child(if kind == FormKind::Workflow {
-                "Describe the workflow"
-            } else {
-                "Instructions"
-            }))
+            .child(
+                div()
+                    .text_size(sp(12.5))
+                    .child(if kind == FormKind::Workflow {
+                        "Describe the workflow"
+                    } else {
+                        "Instructions"
+                    }),
+            )
             .child(
                 // The whole box is the field: a click below the last line
                 // still puts the caret in the instructions.
@@ -3497,7 +3540,11 @@ impl Waku {
                     .overflow_hidden()
                     .cursor_text()
                     .on_click(cx.listener(|this, _, window, cx| {
-                        this.control_ui.instructions.read(cx).focus().focus(window, cx);
+                        this.control_ui
+                            .instructions
+                            .read(cx)
+                            .focus()
+                            .focus(window, cx);
                     }))
                     .child(self.control_ui.instructions.clone()),
             );
@@ -3611,6 +3658,16 @@ impl Waku {
                             MenuItem::new(value.label(), move |_, cx| {
                                 let _ = weak.update(cx, |this, cx| {
                                     this.control_ui.execution.environment = value;
+                                    // Default to the image Ion built in the user's project.
+                                    if value == ExecutionEnvironment::NebiusSandbox
+                                        && this.control_ui.sandbox_target.read(cx).content().trim().is_empty()
+                                    {
+                                        if let Some(target) = this.cloud_ui.personal_sandbox.clone() {
+                                            this.control_ui
+                                                .sandbox_target
+                                                .update(cx, |input, cx| input.set_content(target, cx));
+                                        }
+                                    }
                                     cx.notify();
                                 });
                             })
@@ -3762,28 +3819,30 @@ impl Waku {
                 .map(|p| p.name.clone())
                 .unwrap_or_else(|| "Choose project".into());
             let menu = self.menu_handle("control-project-menu", cx);
-            form = form.child(dropdown_menu(
-                self.control_button("control-project", label, cx, |_, _, _| {}),
-                "control-project-menu",
-                &menu,
-                MenuAlign::BelowLeft,
-                move |_| {
-                    projects
-                        .iter()
-                        .map(|p| {
-                            let weak = weak.clone();
-                            let id = p.id;
-                            MenuItem::new(p.name.clone(), move |_, cx| {
-                                let _ = weak.update(cx, |this, cx| {
-                                    this.control_ui.project = Some(id);
-                                    cx.notify();
-                                });
+            form = form
+                .child(div().text_size(sp(12.5)).child("Project"))
+                .child(dropdown_menu(
+                    form_select("control-project", label, &theme),
+                    "control-project-menu",
+                    &menu,
+                    MenuAlign::BelowLeft,
+                    move |_| {
+                        projects
+                            .iter()
+                            .map(|p| {
+                                let weak = weak.clone();
+                                let id = p.id;
+                                MenuItem::new(p.name.clone(), move |_, cx| {
+                                    let _ = weak.update(cx, |this, cx| {
+                                        this.control_ui.project = Some(id);
+                                        cx.notify();
+                                    });
+                                })
+                                .selected(Some(id) == selected)
                             })
-                            .selected(Some(id) == selected)
-                        })
-                        .collect()
-                },
-            ));
+                            .collect()
+                    },
+                ));
         }
         if kind == FormKind::Routine {
             form = form
@@ -3921,13 +3980,15 @@ impl Waku {
             }
         }
         if kind == FormKind::Workflow {
-            form = form.child(self.control_button(
+            form = form.child(self.control_button_icon(
                 "generate-workflow",
-                if self.control_ui.busy {
-                    "Generating…"
+                "icons/sparkle.svg",
+                if self.control_ui.busy && self.control_ui.generating {
+                    "Generating with Nemotron…"
                 } else {
-                    "Generate stages"
+                    "Generate stages with Nemotron"
                 },
+                ControlTone::Secondary,
                 cx,
                 |this, _, cx| {
                     if let Some(project_id) = this.control_ui.project {
@@ -3965,46 +4026,56 @@ impl Waku {
                             SharedString::from(format!("stage-instructions-{i}")),
                         ))
                         .child(
-                            div()
-                                .flex()
-                                .gap(px(8.0))
-                                .child(self.control_button(
-                                    format!("stage-gate-{i}"),
-                                    if gate {
-                                        "User decision required"
-                                    } else {
-                                        "No decision gate"
-                                    },
-                                    cx,
-                                    move |this, _, cx| {
-                                        this.control_ui.stages[i].2 = !gate;
-                                        cx.notify();
-                                    },
-                                ))
-                                .child(self.control_button(
-                                    format!("stage-up-{i}"),
-                                    "Move up",
-                                    cx,
-                                    move |this, _, cx| {
+                            toggle_row(
+                                SharedString::from(format!("stage-gate-{i}")),
+                                "Your approval before this stage starts",
+                                gate,
+                                theme,
+                                cx,
+                                move |this, _, cx| {
+                                    this.control_ui.stages[i].2 = !gate;
+                                    cx.notify();
+                                },
+                            )
+                            .child(
+                                crate::ui::icon_button(
+                                    SharedString::from(format!("stage-up-{i}")),
+                                    "icons/arrow-up.svg",
+                                    theme,
+                                )
+                                .tooltip(Tooltip::text("Move up"))
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| {
                                         if i > 0 {
                                             this.move_workflow_stage(i, i - 1, cx);
                                         }
                                     },
-                                ))
-                                .child(self.control_button(
-                                    format!("stage-down-{i}"),
-                                    "Move down",
-                                    cx,
-                                    move |this, _, cx| this.move_workflow_stage(i, i + 1, cx),
-                                ))
-                                .child(self.control_button(
-                                    format!("stage-remove-{i}"),
-                                    "Remove",
-                                    cx,
-                                    move |this, _, cx| {
+                                )),
+                            )
+                            .child(
+                                crate::ui::icon_button(
+                                    SharedString::from(format!("stage-down-{i}")),
+                                    "icons/arrow-down.svg",
+                                    theme,
+                                )
+                                .tooltip(Tooltip::text("Move down"))
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| this.move_workflow_stage(i, i + 1, cx),
+                                )),
+                            )
+                            .child(
+                                crate::ui::icon_button(
+                                    SharedString::from(format!("stage-remove-{i}")),
+                                    "icons/trash.svg",
+                                    theme,
+                                )
+                                .tooltip(Tooltip::text("Remove stage"))
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| {
                                         this.remove_workflow_stage(i, cx);
                                     },
                                 )),
+                            ),
                         ),
                 );
             }
@@ -4032,7 +4103,7 @@ impl Waku {
                 .text_size(sp(12.5))
                 .text_color(theme.danger)
                 .child(icon("icons/alert.svg", 13.0, theme.danger))
-                .child(error)
+                .child(div().flex_1().min_w_0().whitespace_normal().child(error))
         });
         let footer = div()
             .flex()
@@ -4045,7 +4116,7 @@ impl Waku {
                 div().flex_1().min_w_0().child(
                     self.control_button(
                         "save-control-definition",
-                        if self.control_ui.busy {
+                        if self.control_ui.busy && !self.control_ui.generating {
                             "Saving…"
                         } else {
                             "Save"

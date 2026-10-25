@@ -27,7 +27,7 @@ export const Colors = {
     border: 'hsla(150, 8%, 12%, 0.08)',
     borderStrong: 'hsla(150, 8%, 12%, 0.14)',
     accent: '#3d5a12',
-    accentSoft: 'rgba(150, 205, 60, 0.18)',
+    accentSoft: 'rgba(168, 223, 58, 0.18)',
     primary: '#c2ef68',
     onPrimary: '#1b2510',
     codeText: '#9a5528',
@@ -41,9 +41,9 @@ export const Colors = {
     danger: '#ac3933',
     dangerSoft: 'hsla(4, 55%, 52%, 0.10)',
     shadow: 'rgba(18, 32, 22, 0.10)',
-    /** Home glow field and live-work tickets, mirrored from desktop. */
-    glowMint: 'rgba(181, 236, 214, 0.85)',
-    glowLime: 'rgba(214, 245, 160, 0.55)',
+    /** Home glow field and live-work tickets: desktop colours; the light lime alpha is tuned for the phone screen. */
+    glowMint: 'rgba(172, 236, 215, 0.85)',
+    glowLime: 'rgba(214, 244, 154, 0.55)',
     ticket: '#ffffff',
     ticketBorder: 'hsla(150, 8%, 12%, 0.09)',
     /** Layered soft shadows mirroring desktop `elevation()` (contact + ambient). */
@@ -83,8 +83,8 @@ export const Colors = {
     danger: '#e2726a',
     dangerSoft: 'hsla(4, 55%, 63%, 0.10)',
     shadow: 'rgba(0, 0, 0, 0.45)',
-    glowMint: 'rgba(48, 166, 128, 0.20)',
-    glowLime: 'rgba(160, 222, 70, 0.12)',
+    glowMint: 'rgba(48, 166, 131, 0.20)',
+    glowLime: 'rgba(176, 231, 64, 0.12)',
     ticket: '#181d1b',
     ticketBorder: 'hsla(150, 10%, 90%, 0.09)',
     elevationRest: '0px 1px 2px rgba(0, 0, 0, 0.40), 0px 6px 18px -4px rgba(0, 0, 0, 0.32)',

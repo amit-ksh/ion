@@ -2168,9 +2168,8 @@ impl Waku {
                             ))
                         })
                         .when(activity.failed && reasoning.is_none(), |element| {
-                            element.child(
-                                icon("icons/x.svg", 10.0, theme.danger).into_any_element(),
-                            )
+                            element
+                                .child(icon("icons/x.svg", 10.0, theme.danger).into_any_element())
                         })
                         .when(
                             !has_detail

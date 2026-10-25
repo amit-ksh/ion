@@ -461,8 +461,9 @@ impl TeamCoordinator {
                 )? == path,
                 "File path changed"
             );
+            let create = old.is_none() || (old == Some("") && !path.exists());
             compare_file(&path, old)?;
-            if old.is_none() {
+            if create {
                 // hard_link fails if another writer creates the destination.
                 fs::hard_link(&stage, &path).context("New file appeared during creation")?;
                 fs::remove_file(&stage)?;
@@ -618,6 +619,8 @@ impl TeamCoordinator {
 fn compare_file(path: &Path, expected: Option<&str>) -> Result<()> {
     match expected {
         None => ensure!(!path.exists(), "New file already exists"),
+        // Models often create with "" (the solo write_file contract); a missing file is empty.
+        Some("") if !path.exists() => {}
         Some(old) => {
             let file = fs::File::open(path)?;
             ensure!(

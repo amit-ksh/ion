@@ -148,4 +148,43 @@ impl TeamCoordinator {
         tx.commit()?;
         Ok(())
     }
+    /// A defect in the pinned profile cannot clear while the run lives, so
+    /// unlike a setup blocker it ends the queued assignment as Blocked.
+    pub fn block_dispatch(
+        &self,
+        run_id: Uuid,
+        work_id: Uuid,
+        reason: String,
+        now: u64,
+    ) -> Result<()> {
+        text(&reason, 4096, "Blocker")?;
+        let mut db = self.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let run = load(&tx, run_id)?;
+        active(&run, now)?;
+        let mut work = run
+            .work
+            .iter()
+            .find(|w| w.id == work_id)
+            .context("Assignment missing")?
+            .clone();
+        ensure!(
+            work.status == AssignmentStatus::Queued,
+            "Only queued assignments may be blocked before dispatch"
+        );
+        work.status = AssignmentStatus::Blocked;
+        work.reason = Some(reason);
+        save_work(&tx, &work, false)?;
+        bump(&tx, run_id)?;
+        audit(
+            &tx,
+            run_id,
+            Some(work_id),
+            "readiness",
+            "Pinned profile cannot run",
+            now,
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
 }

@@ -64,10 +64,10 @@ impl Waku {
                     .await
             };
             let _ = this.update(cx, |this, cx| {
-                this.control_ui.app_logos.borrow_mut().insert(
-                    toolkit,
-                    fetched.map_or(AppLogo::Missing, AppLogo::Ready),
-                );
+                this.control_ui
+                    .app_logos
+                    .borrow_mut()
+                    .insert(toolkit, fetched.map_or(AppLogo::Missing, AppLogo::Ready));
                 cx.notify();
             });
         })
@@ -84,6 +84,8 @@ fn bundled_mark(toolkit: &str, size: f32, theme: &Theme) -> Option<AnyElement> {
         "gmail" => "app-icons/gmail.png",
         "googledrive" => "app-icons/googledrive.png",
         "googlecalendar" => "app-icons/googlecalendar.png",
+        "googlesheets" => "app-icons/googlesheets.png",
+        "googledocs" => "app-icons/googledocs.png",
         "outlook" => "app-icons/outlook.svg",
         "supabase" => "app-icons/supabase.svg",
         "gitlab" => "icons/file-types/gitlab.svg",
@@ -100,7 +102,7 @@ fn bundled_mark(toolkit: &str, size: f32, theme: &Theme) -> Option<AnyElement> {
 fn generic_mark(toolkit: &str, size: f32, theme: &Theme) -> AnyElement {
     icon(
         match toolkit {
-            "googledocs" | "googlesheets" | "notion" => "icons/file.svg",
+            "notion" => "icons/file.svg",
             _ => "icons/package.svg",
         },
         size * 0.85,
@@ -269,7 +271,10 @@ mod tests {
 
     #[test]
     fn display_names_prefer_catalog_names() {
-        assert_eq!(display_name("googlecalendar", "googlecalendar"), "Google Calendar");
+        assert_eq!(
+            display_name("googlecalendar", "googlecalendar"),
+            "Google Calendar"
+        );
         assert_eq!(display_name("slack", "Slack Workspace"), "Slack Workspace");
         assert_eq!(display_name("loom", "loom"), "Loom");
     }

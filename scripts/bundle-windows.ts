@@ -14,6 +14,7 @@
 //   NEMO_SPEECH_PREFIX          verified NeMo-Speech.cpp CPU install prefix
 import { $ } from "bun";
 import { bundleComputerUse } from "./cua-driver";
+import { bundleSandboxWorker } from "./sandbox-worker";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -175,6 +176,9 @@ try {
     await copyFile(join(releaseDirectory, source), join(packageDirectory, destination));
   }
   await bundleSpeech(packageDirectory, architecture);
+  // Uploaded into the user's own Token Factory project to build its sandbox
+  // image. A Linux executable, so it is not Authenticode-signed.
+  await bundleSandboxWorker(packageDirectory);
   await copyFile(
     join(projectRoot, "LICENSE"),
     join(packageDirectory, "LICENSE"),

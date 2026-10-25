@@ -273,6 +273,7 @@ impl Palette {
             TokenClass::Meta => self.tertiary,
             TokenClass::Added => self.added,
             TokenClass::Removed => self.removed,
+            TokenClass::Mention => self.accent,
         }
     }
 }

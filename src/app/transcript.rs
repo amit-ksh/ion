@@ -842,6 +842,7 @@ pub(super) fn transcript_rows_fingerprint(
         // line moves rows. `trim` stops at the first non-space character, so
         // this stays a per-message constant on the frame path.
         hash = mix(hash, message.content.trim().is_empty() as u64);
+        hash = mix(hash, message.attachments.is_empty() as u64);
     }
 
     hash = mix(hash, session.transcript_blocks.len() as u64);
@@ -906,6 +907,19 @@ fn mix_turn_id(hash: u64, turn_id: Option<Uuid>) -> u64 {
 ///
 /// Every field this reads is fingerprinted by [`transcript_rows_fingerprint`]
 /// so frames can skip the fold; consult a new one and that must learn it too.
+/// A blank assistant part has nothing to show. It still counts as work for
+/// the fold, but rendering it leaves an empty gap between tool groups.
+fn is_blank_assistant(session: &AgentSession, row: TranscriptRowKind) -> bool {
+    let TranscriptRowKind::Message(index) = row else {
+        return false;
+    };
+    session.messages.get(index).is_some_and(|message| {
+        message.role == MessageRole::Assistant
+            && message.content.trim().is_empty()
+            && message.attachments.is_empty()
+    })
+}
+
 pub(super) fn folded_transcript_row_kinds(
     session: &AgentSession,
     expanded_turns: &HashSet<Uuid>,
@@ -943,7 +957,7 @@ pub(super) fn folded_transcript_row_kinds(
         }
         let expanded =
             row_turn_id(session, row).is_some_and(|turn_id| expanded_turns.contains(&turn_id));
-        if expanded || !hidden_rows.contains(&row) {
+        if (expanded || !hidden_rows.contains(&row)) && !is_blank_assistant(session, row) {
             rows.push(row);
         }
     }

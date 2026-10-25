@@ -86,6 +86,7 @@ pub(super) fn amp_args(
 }
 
 impl AmpDriver {
+    #[cfg(test)]
     pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
         Self::start_with_workspace(options, events, None)
     }

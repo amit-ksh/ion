@@ -657,7 +657,7 @@ impl Waku {
                         .map(|a| {
                             format!(
                                 "{}{}",
-                                a.host,
+                                host_label(&a.host),
                                 a.fallback_reason
                                     .as_ref()
                                     .map(|r| format!(" · Local fallback: {r}"))
@@ -1001,26 +1001,26 @@ impl Waku {
             ("teams-definitions", "List", false, true),
             ("teams-runs", "Runs", true, false),
         ] {
-            let active = self.control_ui.runs_tab == runs
-                && (runs || self.control_ui.team_list == list);
-            tabs = tabs.child(
-                crate::ui::segment(id, label, active, &theme)
-                    .on_activation(cx, move |this, _, cx| {
-                        this.control_ui.runs_tab = runs;
-                        if !runs {
-                            this.control_ui.team_list = list;
-                        }
-                        this.control_ui.selected_run = None;
-                        this.clear_team_integration();
-                        this.clear_team_recovery();
-                        this.control_ui.team_run = None;
-                        this.control_ui.runs_team = None;
-                        this.control_ui.runs_after = None;
-                        this.control_ui.runs_previous.clear();
-                        this.refresh_team_activity(true, cx);
-                        cx.notify();
-                    }),
-            );
+            let active =
+                self.control_ui.runs_tab == runs && (runs || self.control_ui.team_list == list);
+            tabs = tabs.child(crate::ui::segment(id, label, active, &theme).on_activation(
+                cx,
+                move |this, _, cx| {
+                    this.control_ui.runs_tab = runs;
+                    if !runs {
+                        this.control_ui.team_list = list;
+                    }
+                    this.control_ui.selected_run = None;
+                    this.clear_team_integration();
+                    this.clear_team_recovery();
+                    this.control_ui.team_run = None;
+                    this.control_ui.runs_team = None;
+                    this.control_ui.runs_after = None;
+                    this.control_ui.runs_previous.clear();
+                    this.refresh_team_activity(true, cx);
+                    cx.notify();
+                },
+            ));
         }
         tabs
     }
@@ -1123,16 +1123,13 @@ impl Waku {
                     }),
                 );
             if run.status == TeamRunStatus::Active {
-                actions = actions.child(
-                    self.control_button("team-stop", "Stop team", cx, move |this, _, cx| {
-                        this.stop_workspace_run(id, revision, cx)
-                    })
-                    .opacity(if self.control_ui.activity_busy {
-                        0.45
-                    } else {
-                        1.0
-                    }),
-                );
+                // Background polls set activity_busy; Stop works regardless.
+                actions = actions.child(self.control_button(
+                    "team-stop",
+                    "Stop team",
+                    cx,
+                    move |this, _, cx| this.stop_workspace_run(id, revision, cx),
+                ));
             }
             if let Some(workspace) = &run.workspace {
                 let path = workspace.path.clone();
@@ -1193,7 +1190,7 @@ impl Waku {
             let cap = run
                 .limits
                 .max_tokens
-                .map(|n| n.to_string())
+                .map(|n| super::super::usage_page::format_tokens_compact(n as f64))
                 .unwrap_or_else(|| "No cap configured".into());
             header=header.child(div().flex().items_center().gap(px(12.0))
                 .child(div().flex_1().min_w_0().text_size(sp(14.0)).font_weight(FontWeight::MEDIUM).child(format!("{} · {}",run.team.name,run_status(run.status))))
@@ -1365,5 +1362,16 @@ mod tests {
             vec![(lead, 0), (a, 1), (x, 2), (b, 1), (y, 2)]
         );
         assert_eq!(hierarchy(&[(a, Some(b)), (b, Some(a))]).len(), 2);
+    }
+}
+
+/// Attempt hosts are wire ids; people read the environment's name.
+fn host_label(host: &str) -> String {
+    match host {
+        "local" => ExecutionEnvironment::Local.label().into(),
+        "nebiusSandbox" | "nebius-sandbox" | "nebius_sandbox" => {
+            ExecutionEnvironment::NebiusSandbox.label().into()
+        }
+        other => other.into(),
     }
 }

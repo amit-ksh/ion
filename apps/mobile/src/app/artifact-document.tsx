@@ -175,9 +175,10 @@ export default function ArtifactDocumentScreen() {
       current,
       async (bytes) => {
         const digest = new Uint8Array(
+          // Android's native digest takes a typed array, not a raw ArrayBuffer.
           await Crypto.digest(
             Crypto.CryptoDigestAlgorithm.SHA256,
-            bytes.buffer as ArrayBuffer,
+            bytes as Uint8Array<ArrayBuffer>,
           ),
         );
         return [...digest]

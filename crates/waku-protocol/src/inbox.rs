@@ -130,7 +130,7 @@ pub struct InboxQuery {
     pub after: Option<u64>,
     pub limit: u16,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct InboxEntry {
     pub sequence: u64,
@@ -147,7 +147,7 @@ pub struct InboxEntry {
     pub needs_action: bool,
     pub state: InboxItemState,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct InboxPage {
     pub revision: u64,

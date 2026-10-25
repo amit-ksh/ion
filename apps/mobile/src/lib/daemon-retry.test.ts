@@ -43,7 +43,10 @@ describe("describeConnectionFailure", () => {
       ),
       "fallback",
     );
-    expect(refused).toEqual({ message: "Connection refused", retryable: true });
+    expect(refused).toEqual({
+      message: "Check that ion is open on your desktop and the address is right.",
+      retryable: true,
+    });
     expect(describeConnectionFailure(new WakuConnectionError("timeout", "x"), "f").retryable).toBe(true);
     expect(describeConnectionFailure(new WakuConnectionError("closed", "x"), "f").retryable).toBe(true);
   });

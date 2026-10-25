@@ -209,7 +209,7 @@ daemon.restarting:
 daemon.credentials_title:
   en: Connection details
 daemon.credentials_description:
-  en: Enter these in ion Web. The URL uses this machine’s local network hostname.
+  en: Enter these in ion Web, or under Pair desktop in the ion phone app. The URL uses this machine’s local network hostname.
 daemon.websocket_url:
   en: WebSocket URL
 daemon.token:

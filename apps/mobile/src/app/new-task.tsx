@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppSymbol } from '@/components/app-symbol';
 import { Chip } from '@/components/chip';
+import { ConnectionBanner } from '@/components/connection-banner';
 import { ConnectionStatus } from '@/components/connection-status';
 import { GlowField } from '@/components/glow-field';
 import { LiveWork } from '@/components/live-work';
@@ -437,6 +438,7 @@ export default function NewTaskScreen() {
         <Text accessibilityRole="header" style={[styles.headline, { color: theme.text }]}>
           What should we build?
         </Text>
+        <ConnectionBanner style={styles.banner} />
         <View style={styles.composer}>
           {error && (
             <View
@@ -461,7 +463,7 @@ export default function NewTaskScreen() {
                   icon={provider ? undefined : { ios: 'sparkle', android: 'auto_awesome', web: 'auto_awesome' }}
                   label={modelLabel}
                   mark={provider ? <ProviderIcon provider={provider} size={16} /> : undefined}
-                  maxLabelWidth={150}
+                  maxLabelWidth={120}
                   onPress={() => setOpenSheet('model')}
                 />
                 {activeModel && modelHasConfigurableTraits(activeModel) && (
@@ -498,13 +500,21 @@ export default function NewTaskScreen() {
             )}
             value={prompt}
           />
-          <View style={styles.context}>
+          {/* One scrolling line: wrapping stranded the last chip on a row of its own. */}
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            style={styles.contextScroller}
+            contentContainerStyle={styles.context}>
             <Chip
               quiet
               accessibilityLabel={`Project: ${selectedProject?.name ?? 'Choose a project'}`}
               disabled={taskState.isPending}
               icon={{ ios: 'folder', android: 'folder_open', web: 'folder_open' }}
-              label={taskState.isPending ? 'Loading projects…' : selectedProject?.name ?? 'Choose project'}
+              label={taskState.isPending
+                ? daemon.phase === 'connected' ? 'Loading projects…' : 'Project'
+                : selectedProject?.name ?? 'Choose project'}
               maxLabelWidth={160}
               onPress={() => setOpenSheet('project')}
             />
@@ -536,7 +546,7 @@ export default function NewTaskScreen() {
               />
             )}
             <ComposerAccessMenu quiet mode={runtimeMode} onApply={setRuntimeMode} />
-          </View>
+          </ScrollView>
         </View>
         <LiveWork />
       </ScrollView>
@@ -657,7 +667,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   composer: { gap: 2 },
-  context: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6 },
+  banner: { marginBottom: 0, marginHorizontal: 0 },
+  // Bleeds to the screen edges so a chip scrolled past the edge reads as more.
+  contextScroller: { marginHorizontal: -16 },
+  context: { paddingHorizontal: 22 },
   error: { borderRadius: Radius.medium, marginBottom: 8, padding: 11 },
   errorText: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   sheetLoading: { alignItems: 'center', paddingVertical: 14 },

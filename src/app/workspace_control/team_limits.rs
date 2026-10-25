@@ -160,7 +160,10 @@ impl Waku {
             ));
         }
         let enabled = self.control_ui.child_review;
-        form.child(self.control_button("team-limit-review",if enabled{"Parent review required"}else{"Parent review optional"},cx,|this,_,cx| {this.control_ui.child_review=!this.control_ui.child_review;cx.notify();}))
+        form.child(toggle_row("team-limit-review", "Parent reviews delegated work", enabled, theme, cx, |this, _, cx| {
+            this.control_ui.child_review = !this.control_ui.child_review;
+            cx.notify();
+        }))
             .child(div().text_size(sp(12.5)).text_color(theme.text_secondary).child("Changes apply to new runs. Token limits cover model usage; cloud costs are separate."))
     }
 }

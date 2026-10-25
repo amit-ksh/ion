@@ -160,7 +160,7 @@ describe("DaemonLink", () => {
     expect(link.state.outage).toMatchObject({
       attempts: 1,
       nextRetryAt: clock.now + 750,
-      reason: "Connection refused",
+      reason: "Check that ion is open on your desktop and the address is right.",
     });
     await clock.advance(749);
     expect(sockets).toHaveLength(2);
@@ -186,7 +186,7 @@ describe("DaemonLink", () => {
     expect(link.state).toMatchObject({
       phase: "reconnecting",
       error: null,
-      outage: { attempts: 1, interrupted: false, reason: "Connection refused" },
+      outage: { attempts: 1, interrupted: false, reason: "Check that ion is open on your desktop and the address is right." },
     });
     expect(link.state.outage?.nextRetryAt).toBe(clock.now + 750);
     await clock.advance(750);

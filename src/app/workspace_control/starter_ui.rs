@@ -371,7 +371,12 @@ fn choices(page: Page) -> &'static [Starter] {
 }
 
 impl Waku {
-    fn apply_starter(&mut self, starter: &'static Starter, window: &mut Window, cx: &mut Context<Self>) {
+    fn apply_starter(
+        &mut self,
+        starter: &'static Starter,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.control_ui.show_templates = false;
         let project = self
             .control_ui
@@ -417,9 +422,13 @@ impl Waku {
                         self.load_routine_calendar(&calendar(*h, *m, CalendarRecurrence::Daily), cx)
                     }
                     Schedule::Weekdays(h, m) => self.load_routine_calendar(
-                        &calendar(*h, *m, CalendarRecurrence::Weekly {
-                            days: vec![0, 1, 2, 3, 4],
-                        }),
+                        &calendar(
+                            *h,
+                            *m,
+                            CalendarRecurrence::Weekly {
+                                days: vec![0, 1, 2, 3, 4],
+                            },
+                        ),
                         cx,
                     ),
                     Schedule::Weekly(day, h, m) => self.load_routine_calendar(
@@ -812,6 +821,9 @@ mod tests {
         assert_eq!(ROUTINES[0].summary(), "Daily · 09:00");
         assert_eq!(ROUTINES[2].summary(), "Fri · 17:00");
         assert_eq!(ROUTINES[3].summary(), "Every 6 hours");
-        assert_eq!(TEAMS[0].parts(), ["Tech lead", "Implementer", "Test engineer", "Reviewer"]);
+        assert_eq!(
+            TEAMS[0].parts(),
+            ["Tech lead", "Implementer", "Test engineer", "Reviewer"]
+        );
     }
 }

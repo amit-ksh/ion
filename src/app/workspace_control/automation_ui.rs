@@ -91,7 +91,7 @@ impl Waku {
         let menu_id = SharedString::from(format!("stage-team-menu-{index}"));
         let menu = self.menu_handle(menu_id.clone(), cx);
         dropdown_menu(
-            self.control_button(format!("stage-team-{index}"), label, cx, |_, _, _| {}),
+            form_select(format!("stage-team-{index}"), label, &Theme::workspace(cx)),
             menu_id,
             &menu,
             MenuAlign::BelowLeft,
@@ -138,7 +138,11 @@ impl Waku {
         let menu_id = SharedString::from(format!("stage-documents-menu-{index}"));
         let menu = self.menu_handle(menu_id.clone(), cx);
         dropdown_menu(
-            self.control_button(format!("stage-documents-{index}"), label, cx, |_, _, _| {}),
+            form_select(
+                format!("stage-documents-{index}"),
+                label,
+                &Theme::workspace(cx),
+            ),
             menu_id,
             &menu,
             MenuAlign::BelowLeft,
@@ -148,22 +152,19 @@ impl Waku {
                     .map(|format| {
                         let weak = weak.clone();
                         let format = *format;
-                        MenuItem::new(
-                            document_format_label(format),
-                            move |_, cx| {
-                                let _ = weak.update(cx, |this, cx| {
-                                    if let Some(stage) = this.control_ui.stages.get_mut(index) {
-                                        if stage.4.iter().any(|f| f == format) {
-                                            stage.4.retain(|f| f != format);
-                                        } else {
-                                            stage.4.push(format.to_owned());
-                                        }
-                                        stage.4.sort();
+                        MenuItem::new(document_format_label(format), move |_, cx| {
+                            let _ = weak.update(cx, |this, cx| {
+                                if let Some(stage) = this.control_ui.stages.get_mut(index) {
+                                    if stage.4.iter().any(|f| f == format) {
+                                        stage.4.retain(|f| f != format);
+                                    } else {
+                                        stage.4.push(format.to_owned());
                                     }
-                                    cx.notify();
-                                });
-                            },
-                        )
+                                    stage.4.sort();
+                                }
+                                cx.notify();
+                            });
+                        })
                         .selected(selected.iter().any(|f| f == format))
                     })
                     .collect()
@@ -197,7 +198,7 @@ impl Waku {
         let weak = cx.entity().downgrade();
         let menu = self.menu_handle("routine-target-menu", cx);
         dropdown_menu(
-            self.control_button("routine-target", label, cx, |_, _, _| {}),
+            form_select("routine-target", label, &Theme::workspace(cx)),
             "routine-target-menu",
             &menu,
             MenuAlign::BelowLeft,
@@ -500,8 +501,11 @@ impl Waku {
             .items_center()
             .gap(px(14.0))
             .child(
-                avatar_tile(32.0, theme.accent_soft, gpui::transparent_black())
-                    .child(icon(icon_path, 15.0, theme.accent)),
+                avatar_tile(32.0, theme.accent_soft, gpui::transparent_black()).child(icon(
+                    icon_path,
+                    15.0,
+                    theme.accent,
+                )),
             )
             .child(
                 div()
@@ -543,7 +547,10 @@ impl Waku {
         let (glyph, tone) = status_glyph(run.status, &theme);
         let total = run.stages.len().max(1);
         let selected = self.control_ui.automation_selected == Some(id);
-        let mut facts = vec![format!("{done} of {} stages", run.stages.len()), format!("started {}", ago(run.created_at))];
+        let mut facts = vec![
+            format!("{done} of {} stages", run.stages.len()),
+            format!("started {}", ago(run.created_at)),
+        ];
         if selected {
             if let Some(trigger) = run.trigger.as_ref() {
                 facts.push(routine_ui::trigger_label(trigger));
@@ -670,7 +677,13 @@ mod tests {
             .iter()
             .map(|format| document_format_label(format))
             .collect();
-        assert_eq!(labels.iter().collect::<std::collections::HashSet<_>>().len(), labels.len());
+        assert_eq!(
+            labels
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            labels.len()
+        );
         for format in ["pdf", "svg", "xml", "yaml", "docx", "xlsx", "pptx", "png"] {
             assert_eq!(document_format_label(format), format.to_uppercase());
         }

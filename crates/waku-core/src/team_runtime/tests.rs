@@ -457,7 +457,9 @@ fn team_cancel_holds_capacity_until_actual_worker_join() {
     *runtime.publisher.lock() = Some(RuntimePublisher::for_test());
     let mut after = None;
     runtime.tick(&mut after).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(3);
+    // Generous: the waits end as soon as the worker moves, and a loaded test
+    // host can take seconds to schedule it.
+    let deadline = Instant::now() + Duration::from_secs(30);
     while held.entered.load(Ordering::Acquire) == 0 {
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(2));
@@ -1493,4 +1495,29 @@ fn team_gpu_maintenance_owner_tick_polls_canceled_runs_off_dispatcher_with_four_
     runtime.shutdown();
     drop(runtime);
     drop(gpu);
+}
+#[test]
+fn pinned_profile_defects_block_instead_of_deferring() {
+    let mut profile = AgentProfile {
+        id: Uuid::new_v4(),
+        name: "Agent".into(),
+        expertise: String::new(),
+        instructions: "Work".into(),
+        provider: ProviderKind::Nebius,
+        model: None,
+        expected_output: String::new(),
+        execution: Default::default(),
+        access: Default::default(),
+        max_parallel_tasks: 1,
+    };
+    assert!(pinned_profile_defect(&profile).is_some());
+    profile.model = Some("model".into());
+    assert!(pinned_profile_defect(&profile).is_none());
+    // With fallback a missing target still runs locally.
+    profile.execution.environment = ExecutionEnvironment::NebiusSandbox;
+    assert!(pinned_profile_defect(&profile).is_none());
+    profile.execution.local_fallback = false;
+    assert!(pinned_profile_defect(&profile).is_some());
+    profile.execution.sandbox_target = Some(format!("worker@{}", Uuid::new_v4()));
+    assert!(pinned_profile_defect(&profile).is_none());
 }

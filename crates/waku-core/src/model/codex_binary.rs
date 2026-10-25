@@ -28,6 +28,7 @@ pub(super) fn resolve(override_value: Option<&str>) -> Option<PathBuf> {
             .into_iter()
             .collect()
     } else {
+        #[cfg_attr(not(windows), allow(unused_mut))]
         let mut candidates = crate::command_env::find_executables("codex");
         // Codex's Windows desktop installation also ships its official CLI.
         // Bound the search to immediate version directories; never walk a disk.

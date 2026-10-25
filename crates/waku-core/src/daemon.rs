@@ -2719,7 +2719,9 @@ fn handle_driver_command(
     command: Command,
 ) -> anyhow::Result<ResponsePayload> {
     match command {
-        Command::ListConnectedMobileDevices => anyhow::bail!("connection presence is not a driver command"),
+        Command::ListConnectedMobileDevices => {
+            anyhow::bail!("connection presence is not a driver command")
+        }
         Command::Prompt { prompt, .. } => driver.prompt(prompt),
         Command::Steer { prompt } => driver.steer(prompt),
         Command::Cancel => driver.cancel(),

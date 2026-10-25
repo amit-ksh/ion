@@ -74,15 +74,29 @@ pub(super) struct Client {
     http: reqwest::blocking::Client,
     token: String,
     managed_workspace: Option<String>,
+    /// Authenticated with the key and AI project saved in Settings, so Ion's
+    /// own sandbox image and the mounted worker key apply.
+    saved: bool,
     pub(super) project: String,
     #[cfg(test)]
     base: String,
 }
 impl Client {
     pub(super) fn configured() -> Result<Self> {
-        let token = match std::env::var("ION_NEBIUS_SANDBOX_IAM_TOKEN") {
-            Ok(token) => token,
-            Err(_) => {
+        let personal = match std::env::var("ION_NEBIUS_SANDBOX_IAM_TOKEN") {
+            Ok(token) => Some((
+                token,
+                std::env::var("ION_NEBIUS_SANDBOX_PROJECT")
+                    .context("Configure the sandbox's Nebius project on this owner")?,
+                false,
+            )),
+            Err(_) => waku_credentials::CredentialService::global()
+                .personal_sandbox()?
+                .map(|(key, project)| (key, project, true)),
+        };
+        let (token, project, saved) = match personal {
+            Some(personal) => personal,
+            None => {
                 let status = waku_credentials::cloud::status()?;
                 let workspace = status
                     .workspace_id
@@ -118,14 +132,13 @@ impl Client {
                     http,
                     token: String::new(),
                     managed_workspace: Some(workspace),
+                    saved: false,
                     project,
                     #[cfg(test)]
                     base: BASE.into(),
                 });
             }
         };
-        let project = std::env::var("ION_NEBIUS_SANDBOX_PROJECT")
-            .context("Configure the sandbox's Nebius project on this owner")?;
         ensure!(
             !token.is_empty() && !project.is_empty() && project.len() <= 160,
             "Sandbox authentication/project is missing"
@@ -138,6 +151,7 @@ impl Client {
                 .build()?,
             token,
             managed_workspace: None,
+            saved,
             project,
             #[cfg(test)]
             base: BASE.into(),
@@ -153,6 +167,7 @@ impl Client {
                 .unwrap(),
             token: "fixture-not-real".into(),
             managed_workspace: None,
+            saved: false,
             project: project.into(),
             base: base.into(),
         }
@@ -210,6 +225,9 @@ impl Client {
         Ok(())
     }
     pub(super) fn command_policy(&self, target: Uuid) -> Result<Option<Value>> {
+        if self.saved {
+            return Ok((personal_image()? == Some(target)).then(|| personal_policy(target)));
+        }
         if self.managed_workspace.is_none() {
             return Ok(None);
         }
@@ -223,6 +241,10 @@ impl Client {
         Ok(Some(read_json(response, 64 * 1024)?))
     }
     pub(super) fn default_command_target(&self) -> Result<Uuid> {
+        if self.saved {
+            return personal_image()?
+                .context("Prepare your Token Factory sandbox in Settings first");
+        }
         ensure!(
             self.managed_workspace.is_some(),
             "Use your explicitly configured personal sandbox transport"
@@ -283,6 +305,71 @@ impl Client {
         );
         Ok(())
     }
+}
+/// The image Ion built in the saved project for this app version, if any.
+fn personal_image() -> Result<Option<Uuid>> {
+    waku_credentials::CredentialService::global()
+        .personal_sandbox_target()?
+        .map(|target| Ok(Uuid::parse_str(target.rsplit('@').next().unwrap_or_default())?))
+        .transpose()
+}
+/// Ion's own image carries the command worker beside the model worker, so it
+/// is both the agent's target and its command image. Commands run offline in
+/// a disposable VM as UID 1000 under the worker's seccomp and rlimit guard.
+pub(super) fn personal_policy(image: Uuid) -> Value {
+    json!({
+        "version": 1,
+        "target": image,
+        "image": image,
+        "credential_free": true,
+        "max_commands": 16,
+        "max_seconds": 120,
+        "max_layer_bytes": 256 * 1024 * 1024,
+        "uid": 1000,
+        "gid": 1000,
+        "executables": PERSONAL_EXECUTABLES,
+        "resources": {
+            "version": 1,
+            "cpu_seconds": 120,
+            "address_space_bytes": 2u64 * 1024 * 1024 * 1024,
+            "max_file_bytes": 64 * 1024 * 1024,
+            "processes": 128,
+            "open_files": 256,
+        },
+        "project_snapshot": {
+            "version": 1,
+            "max_bytes": 8 * 1024 * 1024,
+            "max_file_bytes": 1024 * 1024,
+            "max_files": 2000,
+            "max_run_bytes": 32 * 1024 * 1024,
+        },
+    })
+}
+pub(super) const PERSONAL_EXECUTABLES: [&str; 11] = [
+    "/bin/sh",
+    "/bin/bash",
+    "/usr/local/bin/python3",
+    "/usr/local/bin/python",
+    "/usr/bin/env",
+    "/bin/ls",
+    "/bin/cat",
+    "/bin/echo",
+    "/usr/bin/uname",
+    "/bin/grep",
+    "/usr/bin/find",
+];
+/// The saved key reaches a disposable model run only as this mounted file.
+fn key_mount(file: &str) -> Value {
+    json!({ waku_credentials::sandbox_image::WORKER_KEY_PATH: {"uuid":file,"uid":1000,"gid":1000,"mode":"0400"} })
+}
+fn is_key_mount(files: &Value) -> bool {
+    files.as_object().is_some_and(|files| {
+        files.len() == 1
+            && files
+                .get(waku_credentials::sandbox_image::WORKER_KEY_PATH)
+                .and_then(|mount| mount["uuid"].as_str())
+                .is_some_and(|file| *files == key_mount(file).as_object().unwrap().clone())
+    })
 }
 pub(super) fn read_json(response: reqwest::blocking::Response, limit: usize) -> Result<Value> {
     let mut bytes = Vec::new();
@@ -483,12 +570,28 @@ fn execute(
             return Err(error);
         }
     }
+    // Upload before pinning: a failure here leaves nothing to reconcile.
+    let key_file = match (client.saved, &request.execution) {
+        (true, Some(_)) => match waku_credentials::CredentialService::global()
+            .personal_worker_key_file()
+        {
+            Ok(file) => Some(file),
+            Err(error) => {
+                coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
+                return Err(error.context("Could not provide the worker key to the sandbox"));
+            }
+        },
+        _ => None,
+    };
     coordinator.pin_remote_input(request.request_id, std::str::from_utf8(&input)?)?;
     let mut body = json!({"command":"/usr/local/bin/ion-harness-worker","args":[],"image":image,"shell":false,"hostname":format!("ion-{}",request.request_id),"env":{"PATH":"/usr/local/bin:/usr/bin:/bin"},"cwd":"/ion/work","stdin":{"value":STANDARD.encode(input),"encoding":"base64","close":true},"timeout":150,"truncate_output_at":64*1024,"disposable":true,"preserve_env":false,"resources_limits":{"max_layer_bytes":256*1024*1024},"networking":{"enabled":true}});
     if let Some(identity) = &request.execution {
         body["uid"] = json!(identity.uid);
         body["gid"] = json!(identity.gid);
         body["env"]["HOME"] = json!(identity.home);
+        if let Some(file) = &key_file {
+            body["files"] = key_mount(file);
+        }
     }
     // The image supplies a credential bootstrap outside the prompt. No owner
     // credentials, repository walk, env dump, app tokens or vault files are sent.
@@ -755,7 +858,7 @@ fn verify_original_request(
                     m.get("uid").is_none_or(|v| *v == 0) && m.get("gid").is_none_or(|v| *v == 0),
             }
             && m.get("files")
-                .is_none_or(|v| v.is_null() || *v == json!({})),
+                .is_none_or(|v| v.is_null() || *v == json!({}) || (identity.is_some() && is_key_mount(v))),
         "Sandbox metadata differs from the original bounded execution host"
     );
     let stdin = &m["stdin"];
@@ -832,6 +935,22 @@ fn terminal_state(state: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn team_remote_key_mount_is_the_only_file_a_recovered_request_may_carry() {
+        let path = waku_credentials::sandbox_image::WORKER_KEY_PATH;
+        let mount = key_mount(&Uuid::new_v4().to_string());
+        assert!(is_key_mount(&mount));
+        let mut readable = mount.clone();
+        readable[path]["mode"] = json!("0444");
+        assert!(!is_key_mount(&readable));
+        let mut root = mount.clone();
+        root[path]["uid"] = json!(0);
+        assert!(!is_key_mount(&root));
+        let mut extra = mount.clone();
+        extra["/usr/local/bin/ion-harness-worker"] = mount[path].clone();
+        assert!(!is_key_mount(&extra));
+        assert!(!is_key_mount(&json!({"/tmp/key": mount[path].clone()})));
+    }
     #[test]
     fn team_remote_terminal_receipt_requires_process_and_untruncated_output() {
         let id = Uuid::new_v4();
@@ -1023,6 +1142,7 @@ mod lifecycle_tests {
                 .unwrap(),
             token: "fixture-IAM-not-real".into(),
             managed_workspace: None,
+            saved: false,
             project: "fixture-project".into(),
             base: server.url.clone(),
         }

@@ -283,6 +283,7 @@ fn configure_pi_computer_use_command(
 }
 
 impl PiDriver {
+    #[cfg(test)]
     pub fn start(
         flavor: PiFlavor,
         options: DriverStartOptions,

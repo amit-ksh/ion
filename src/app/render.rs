@@ -286,8 +286,7 @@ impl Render for Waku {
         let empty = should_render_empty_state(self.selected_session());
         // Home hosts the composer under its question instead of docking it
         // at the window's bottom edge.
-        let home =
-            self.control_ui.page.is_none() && empty && self.selected_project().is_some();
+        let home = self.control_ui.page.is_none() && empty && self.selected_project().is_some();
         let permission = self.render_permission(cx);
         let computer_use = self.render_computer_use_overlay(window, cx);
         let command_palette = self.render_command_palette(window, cx);

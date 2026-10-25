@@ -71,11 +71,11 @@ impl Waku {
     }
     pub(super) fn render_agent_app_grants(&self, cx: &mut Context<Self>) -> Div {
         let theme = Theme::workspace(cx);
-        let mut panel = div().flex().flex_col().gap(px(10.0)).child(
-            div()
-                .text_size(sp(12.5))
-                .child("Connected app actions"),
-        );
+        let mut panel = div()
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .child(div().text_size(sp(12.5)).child("Connected app actions"));
         for (index, grant) in self.control_ui.access.app_actions.iter().enumerate() {
             let remove = grant.clone();
             panel = panel.child(

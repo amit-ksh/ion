@@ -190,6 +190,8 @@ chmod 755 "$repl_executable"
 if [ "$profile" = "release" ]; then
   cp "$cargo_target_dir/$profile/waku-daemon" "$daemon_executable"
   chmod 755 "$daemon_executable"
+  # The Linux sandbox worker is not Mach-O, so it lives in Resources.
+  bun scripts/sandbox-worker.ts "$contents/Resources" >/dev/null
 fi
 cp resources/Info.plist "$contents/Info.plist"
 cp "resources/$icon_file" "$contents/Resources/AppIcon.icns"

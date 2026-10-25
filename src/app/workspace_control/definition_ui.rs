@@ -5,10 +5,14 @@ use super::*;
 impl Waku {
     fn definition_team_name(&self, id: Option<Uuid>) -> Option<String> {
         let id = id?;
-        self.control_ui.snapshot.records.iter().find_map(|r| match r {
-            ControlRecord::Team(team) if team.id == id => Some(team.name.clone()),
-            _ => None,
-        })
+        self.control_ui
+            .snapshot
+            .records
+            .iter()
+            .find_map(|r| match r {
+                ControlRecord::Team(team) if team.id == id => Some(team.name.clone()),
+                _ => None,
+            })
     }
 
     fn run_definition_button(&self, id: Uuid, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -41,7 +45,11 @@ impl Waku {
         )
     }
 
-    fn definition_edit_button(&self, record: ControlRecord, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn definition_edit_button(
+        &self,
+        record: ControlRecord,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         self.control_button_tone(
             format!("record-edit-{}", record.id()),
             "Edit",
@@ -55,8 +63,12 @@ impl Waku {
     }
 
     /// A workflow as a board: identity and actions over its stages, drawn
-    /// left to right as a pipeline so the order and review gates read at a glance.
-    pub(super) fn render_workflow_board(&self, workflow: &Workflow, cx: &mut Context<Self>) -> AnyElement {
+    /// left to right as a pipeline so the order and approval gates read at a glance.
+    pub(super) fn render_workflow_board(
+        &self,
+        workflow: &Workflow,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::workspace(cx);
         let id = workflow.id;
         let gates = workflow
@@ -70,8 +82,8 @@ impl Waku {
             if workflow.stages.len() == 1 { "" } else { "s" },
             match gates {
                 0 => String::new(),
-                1 => " · 1 review gate".to_owned(),
-                n => format!(" · {n} review gates"),
+                1 => " · 1 approval gate".to_owned(),
+                n => format!(" · {n} approval gates"),
             }
         );
         let header = div()
@@ -81,8 +93,11 @@ impl Waku {
             .items_center()
             .gap(px(14.0))
             .child(
-                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black())
-                    .child(icon("icons/git-branch.svg", 17.0, theme.accent)),
+                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black()).child(icon(
+                    "icons/git-branch.svg",
+                    17.0,
+                    theme.accent,
+                )),
             )
             .child(
                 div()
@@ -133,7 +148,9 @@ impl Waku {
                     .gap(px(6.0))
                     .child(self.run_definition_button(id, cx))
                     .child(self.definition_history_button(id, cx))
-                    .child(self.definition_edit_button(ControlRecord::Workflow(workflow.clone()), cx)),
+                    .child(
+                        self.definition_edit_button(ControlRecord::Workflow(workflow.clone()), cx),
+                    ),
             );
         let mut pipeline = div().flex().items_center().flex_none();
         for (index, stage) in workflow.stages.iter().enumerate() {
@@ -219,7 +236,7 @@ impl Waku {
                                                     11.0,
                                                     theme.accent,
                                                 ))
-                                                .child("Review"),
+                                                .child("Approval"),
                                         )
                                     })
                                     .child(
@@ -263,7 +280,11 @@ impl Waku {
 
     /// A routine row after Paperclip's: what it is and when it fires, then
     /// run it now, switch its schedule on or off, see its runs, or edit it.
-    pub(super) fn render_routine_row(&self, routine: &Routine, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_routine_row(
+        &self,
+        routine: &Routine,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::workspace(cx);
         let id = routine.id;
         let paused = routine.paused;
@@ -272,21 +293,40 @@ impl Waku {
             .map(|name| ("icons/fork.svg", name))
             .or_else(|| {
                 routine.workflow_id.and_then(|workflow| {
-                    self.control_ui.snapshot.records.iter().find_map(|r| match r {
-                        ControlRecord::Workflow(w) if w.id == workflow => {
-                            Some(("icons/git-branch.svg", w.name.clone()))
-                        }
-                        _ => None,
-                    })
+                    self.control_ui
+                        .snapshot
+                        .records
+                        .iter()
+                        .find_map(|r| match r {
+                            ControlRecord::Workflow(w) if w.id == workflow => {
+                                Some(("icons/git-branch.svg", w.name.clone()))
+                            }
+                            _ => None,
+                        })
                 })
             })
             .unwrap_or(("icons/bot.svg", routine.provider.display_name().to_owned()));
         let pill = if routine.last_error.is_some() {
-            status_pill("icons/alert.svg", "Needs attention", theme.danger, theme.danger_soft)
+            status_pill(
+                "icons/alert.svg",
+                "Needs attention",
+                theme.danger,
+                theme.danger_soft,
+            )
         } else if paused {
-            status_pill("icons/stop.svg", "Paused", theme.text_secondary, theme.overlay)
+            status_pill(
+                "icons/stop.svg",
+                "Paused",
+                theme.text_secondary,
+                theme.overlay,
+            )
         } else {
-            status_pill("icons/rotate-cw.svg", "Scheduled", theme.accent, theme.accent_soft)
+            status_pill(
+                "icons/rotate-cw.svg",
+                "Scheduled",
+                theme.accent,
+                theme.accent_soft,
+            )
         };
         let next = match &routine.last_error {
             Some(error) => error.clone(),
@@ -351,8 +391,11 @@ impl Waku {
             .items_center()
             .gap(px(14.0))
             .child(
-                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black())
-                    .child(icon("icons/calendar-clock.svg", 17.0, theme.accent)),
+                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black()).child(icon(
+                    "icons/calendar-clock.svg",
+                    17.0,
+                    theme.accent,
+                )),
             )
             .child(
                 div()

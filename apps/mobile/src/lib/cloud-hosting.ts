@@ -50,7 +50,7 @@ const digest = async (bytes: Uint8Array) =>
     new Uint8Array(
       await Crypto.digest(
         Crypto.CryptoDigestAlgorithm.SHA256,
-        Uint8Array.from(bytes).buffer,
+        bytes as Uint8Array<ArrayBuffer>,
       ),
     ),
     (b) => b.toString(16).padStart(2, "0"),

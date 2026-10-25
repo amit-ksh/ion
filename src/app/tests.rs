@@ -1002,6 +1002,34 @@ fn splicing_one_row_in_place_preserves_the_list() {
 }
 
 #[test]
+fn blank_assistant_parts_leave_no_gap_between_tool_groups() {
+    let mut session = AgentSession::new(Uuid::new_v4(), ProviderKind::Nebius);
+    let turn_id = session.begin_turn("Save a note");
+    for (anchor, tool) in [(2, "save document"), (3, "report result")] {
+        session.push_message(MessageRole::Assistant, " ");
+        session.transcript_blocks.push(TranscriptBlock {
+            after_message: anchor,
+            turn_id: Some(turn_id),
+            activities: vec![ActivityItem::new(None, ActivityKind::Tool, tool, None, true)],
+        });
+    }
+    session.finish_active_turn(TurnStatus::Completed);
+
+    let expanded = folded_transcript_row_kinds(&session, &HashSet::from([turn_id]));
+    assert!(
+        !expanded.contains(&Message(1)) && !expanded.contains(&Message(2)),
+        "blank parts must not render as empty rows: {expanded:?}"
+    );
+    assert_eq!(
+        expanded
+            .iter()
+            .filter(|kind| matches!(kind, TurnBlock(_)))
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn row_kinds_and_row_count_describe_the_same_rows() {
     let project_id = Uuid::new_v4();
     let mut session = AgentSession::new(project_id, ProviderKind::Codex);

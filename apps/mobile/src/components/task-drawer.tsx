@@ -7,15 +7,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   AppState,
+  BackHandler,
+  Easing,
+  Keyboard,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -25,7 +29,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Drawer } from 'react-native-drawer-layout';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { WorkbenchRow } from '@/components/workbench';
@@ -55,6 +59,10 @@ import {
 
 const DaemonPickerHeight = 38;
 const SearchDockGap = 14;
+/** Swipe thresholds, as react-native-drawer-layout had them. */
+const SWIPE_MIN_OFFSET = 5;
+const SWIPE_MIN_DISTANCE = 60;
+const SWIPE_MIN_VELOCITY = 500;
 interface TaskDrawerContextValue {
   openTaskDrawer: () => void;
   closeTaskDrawer: () => void;
@@ -88,29 +96,92 @@ export function TaskDrawerHost({ children }: { children: ReactNode }) {
 
   useEffect(() => setOpen(false), [drawerEnabled, pathname]);
 
+  // React state owns where the drawer rests. The previous Reanimated drawer
+  // could lose its settled position when the JS thread was busy as it closed
+  // (a route change, a slow device), and the next render redrew it open while
+  // `open` was false, so the scrim, Back and swipes all did nothing.
+  // Native-driven Animated syncs the final value back on completion instead.
+  const progress = useRef(new Animated.Value(0)).current;
+  const animateTo = useCallback((value: number) => {
+    Animated.timing(progress, {
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      toValue: value,
+      useNativeDriver: true,
+    }).start();
+  }, [progress]);
+  useEffect(() => animateTo(open ? 1 : 0), [animateTo, open]);
+  const pan = useMemo(() => Gesture.Pan()
+    .runOnJS(true)
+    .enabled(drawerEnabled && (swipeEnabled || open) && drawerWidth > 0)
+    .activeOffsetX([-SWIPE_MIN_OFFSET, SWIPE_MIN_OFFSET])
+    .failOffsetY([-SWIPE_MIN_OFFSET, SWIPE_MIN_OFFSET])
+    .onStart(() => Keyboard.dismiss())
+    .onUpdate((event) => {
+      progress.setValue(Math.min(1, Math.max(0, (open ? 1 : 0) + event.translationX / drawerWidth)));
+    })
+    .onEnd((event) => {
+      const swiped = Math.abs(event.translationX) > SWIPE_MIN_DISTANCE
+        || (Math.abs(event.translationX) > SWIPE_MIN_OFFSET && Math.abs(event.velocityX) > SWIPE_MIN_VELOCITY);
+      const next = swiped ? (event.velocityX === 0 ? event.translationX : event.velocityX) > 0 : open;
+      if (next === open) animateTo(open ? 1 : 0);
+      else setOpen(next);
+    }), [animateTo, drawerEnabled, drawerWidth, open, progress, swipeEnabled]);
+
+  // Back closes an open drawer before it can pop a screen or leave the app.
+  useEffect(() => {
+    if (!open) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setOpen(false);
+      return true;
+    });
+    return () => {
+      subscription.remove();
+      // A focused search field must not keep its keyboard over the screen.
+      Keyboard.dismiss();
+    };
+  }, [open]);
+
   return (
     <TaskDrawerContext.Provider value={controls}>
       {drawerEnabled ? (
-        <Drawer
-          drawerStyle={{ backgroundColor: theme.background, width: drawerWidth }}
-          drawerType="back"
-          open={open}
-          overlayAccessibilityLabel="Close task history"
-          overlayStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.18)' }}
-          renderDrawerContent={() => (
-            <TaskDrawerContent
-              drawerWidth={drawerWidth}
-              open={open}
-              selectedSessionId={selectedSessionId}
-              onClose={closeTaskDrawer}
-            />
-          )}
-          swipeEdgeWidth={width}
-          swipeEnabled={swipeEnabled}
-          onClose={closeTaskDrawer}
-          onOpen={openTaskDrawer}>
-          {children}
-        </Drawer>
+        <GestureDetector gesture={pan}>
+          <View collapsable={false} style={[styles.host, { backgroundColor: theme.background }]}>
+            {/* Behind the screen, which slides aside to reveal it. */}
+            <View style={[styles.drawer, { backgroundColor: theme.background, width: drawerWidth }]}>
+              <TaskDrawerContent
+                drawerWidth={drawerWidth}
+                open={open}
+                selectedSessionId={selectedSessionId}
+                onClose={closeTaskDrawer}
+              />
+            </View>
+            <Animated.View
+              style={[styles.host, {
+                backgroundColor: theme.background,
+                transform: [{
+                  translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, drawerWidth] }),
+                }],
+              }]}>
+              <View
+                accessibilityElementsHidden={open}
+                importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}
+                style={styles.host}>
+                {children}
+              </View>
+              <Animated.View
+                pointerEvents={open ? 'auto' : 'none'}
+                style={[StyleSheet.absoluteFill, styles.scrim, { opacity: progress }]}>
+                <Pressable
+                  accessibilityLabel="Close task history"
+                  accessibilityRole="button"
+                  onPress={closeTaskDrawer}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            </Animated.View>
+          </View>
+        </GestureDetector>
       ) : (
         <>{children}</>
       )}
@@ -307,7 +378,8 @@ function TaskDrawerContent({
 
       {(daemon.profiles.length > 0 || daemon.phase === 'booting') && (
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'position' : undefined}
+          // Edge-to-edge Android no longer resizes the window for the keyboard.
+          behavior="position"
           keyboardVerticalOffset={SearchDockGap}
           pointerEvents="box-none"
           style={[styles.searchDockAvoider, { bottom: insets.bottom + SearchDockGap }]}>
@@ -577,6 +649,9 @@ function SessionRow({
 }
 
 const styles = StyleSheet.create({
+  host: { flex: 1 },
+  drawer: { bottom: 0, left: 0, position: 'absolute', top: 0 },
+  scrim: { backgroundColor: 'rgba(0, 0, 0, 0.18)' },
   screen: { flex: 1 },
   daemonFloat: {
     left: 12,

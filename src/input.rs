@@ -655,6 +655,8 @@ pub struct TextInput {
     focus_click_select_all: bool,
     /// Language for paint-only syntax colouring, in code mode.
     language: Option<Lang>,
+    /// Paint `@` mentions in the accent colour, in the composer.
+    mentions: bool,
     /// Cached token spans over `content`, as absolute byte ranges. Recomputed
     /// only when the content changes, so painting a large file is free.
     highlight: Vec<(Range<usize>, TokenClass)>,
@@ -749,6 +751,7 @@ impl TextInput {
             select_all_on_focus_click: false,
             focus_click_select_all: false,
             language: None,
+            mentions: false,
             highlight: Vec::new(),
             search_matches: Vec::new(),
             active_search_match: None,
@@ -868,6 +871,13 @@ impl TextInput {
         self
     }
 
+    /// Paint `@file`, `@@{Team}` and `@@@app` mentions so a picked recipient
+    /// reads as one token rather than markup.
+    pub fn mentions(mut self) -> Self {
+        self.mentions = true;
+        self
+    }
+
     /// Make Enter submit this multi-line field instead of inserting a
     /// newline; Shift+Enter still breaks the line.
     pub fn submit_on_enter(mut self) -> Self {
@@ -932,10 +942,16 @@ impl TextInput {
         self.read_only = read_only;
     }
 
-    /// Re-tokenize after a content change. Cheap for a composer (no language),
-    /// one linear pass for a code editor.
+    /// Re-tokenize after a content change. One linear pass for a composer's
+    /// mentions or a code editor's syntax.
     fn refresh_highlight(&mut self) {
         let Some(language) = self.language else {
+            if self.mentions {
+                self.highlight = mention_ranges(&self.content)
+                    .into_iter()
+                    .map(|range| (range, TokenClass::Mention))
+                    .collect();
+            }
             return;
         };
         self.highlight.clear();
@@ -2483,6 +2499,38 @@ impl SearchPaint<'static> {
     }
 }
 
+/// Byte ranges of mentions that start a word: `@path`, `@{name}`, `@@team`,
+/// `@@{Team name}` and `@@@app`. An `@` inside a word (an email) is not one.
+fn mention_ranges(text: &str) -> Vec<Range<usize>> {
+    let mut ranges = Vec::new();
+    let mut index = 0;
+    while let Some(offset) = text[index..].find('@') {
+        let start = index + offset;
+        let at_word_start = text[..start]
+            .chars()
+            .next_back()
+            .is_none_or(char::is_whitespace);
+        let sigils = text[start..]
+            .bytes()
+            .take(3)
+            .take_while(|b| *b == b'@')
+            .count();
+        let body = &text[start + sigils..];
+        let len = match body.strip_prefix('{') {
+            Some(braced) if sigils < 3 => braced.find('}').map(|end| end + 2),
+            _ => Some(body.find(char::is_whitespace).unwrap_or(body.len())),
+        };
+        match len {
+            Some(len) if at_word_start && len > 0 => {
+                ranges.push(start..start + sigils + len);
+                index = start + sigils + len;
+            }
+            _ => index = start + sigils,
+        }
+    }
+    ranges
+}
+
 #[allow(clippy::too_many_arguments)]
 fn input_text_runs(
     display_len: usize,
@@ -2995,6 +3043,7 @@ impl ComposerInput {
                 .submit_on_enter()
                 .auto_height()
                 .media_paste()
+                .mentions()
                 .placeholder(tr!("input.do_anything"))
         });
         let focus_handle = input.read(cx).focus();
@@ -3140,9 +3189,9 @@ mod tests {
     use super::{
         ComposerEvent, ComposerInput, DeleteToLineEnd, DeleteToLineStart, DeleteToParagraphEnd,
         EditHistory, FieldMode, SearchPaint, TextInput, UNDO_GROUP_INTERVAL, UNDO_HISTORY_CAP,
-        cursor_should_be_visible, input_text_runs, media_paste_entries, next_word_boundary,
-        pasted_text_for_mode, previous_word_boundary, single_line_scroll, trimmed_splice,
-        visual_row_count, word_range_at,
+        cursor_should_be_visible, input_text_runs, media_paste_entries, mention_ranges,
+        next_word_boundary, pasted_text_for_mode, previous_word_boundary, single_line_scroll,
+        trimmed_splice, visual_row_count, word_range_at,
     };
 
     struct InputHarness {
@@ -3585,6 +3634,17 @@ mod tests {
         cx.read_entity(&input, |input, _| {
             assert!(input.cursor() > 0 && input.cursor() < break_at);
         });
+    }
+
+    #[test]
+    fn mentions_are_whole_tokens_at_word_starts() {
+        let text = "@@{QA Team} read @src/app.rs, ping @@@slack and mail a@b.co @@{open";
+        let spans: Vec<&str> = mention_ranges(text)
+            .into_iter()
+            .map(|range| &text[range])
+            .collect();
+        assert_eq!(spans, ["@@{QA Team}", "@src/app.rs,", "@@@slack"]);
+        assert!(mention_ranges("@ alone and @@").is_empty());
     }
 
     #[test]

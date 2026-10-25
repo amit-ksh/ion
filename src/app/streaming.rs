@@ -1025,21 +1025,23 @@ pub(super) fn stream_delta_text(event: &DriverEvent, kind: StreamDeltaKind) -> O
 }
 
 pub(super) fn compact_driver_error(error: &str) -> String {
-    const MAX_LINES: usize = 6;
-    const MAX_CHARS: usize = 800;
+    compact_lines(error, 6, 800)
+}
 
-    let lines = error.lines().collect::<Vec<_>>();
+/// The first `max_lines` lines, cut to `max_chars`, with `…` marking any cut.
+pub(super) fn compact_lines(text: &str, max_lines: usize, max_chars: usize) -> String {
+    let lines = text.lines().collect::<Vec<_>>();
     let mut compact = lines
         .iter()
-        .take(MAX_LINES)
+        .take(max_lines)
         .copied()
         .collect::<Vec<_>>()
         .join("\n");
-    if lines.len() > MAX_LINES {
+    if lines.len() > max_lines {
         compact.push_str("\n…");
     }
-    if compact.chars().count() > MAX_CHARS {
-        compact = compact.chars().take(MAX_CHARS - 1).collect();
+    if compact.chars().count() > max_chars {
+        compact = compact.chars().take(max_chars - 1).collect();
         compact.push('…');
     }
     compact

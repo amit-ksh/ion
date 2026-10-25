@@ -860,8 +860,9 @@ fn team_workspace_native_adapter_creates_directory_deletes_file_and_submits_revi
         let (name,args)=match step {
             1=>("create_directory",json!({"path":"src"})),
             2=>("write_file",json!({"path":"src/lib.rs","old_content":null,"new_content":"pub fn value() -> i32 { 2 }\n"})),
-            3=>("delete_file",json!({"path":"main.rs","old_content":old})),
-            4=>("publish_change",json!({"path":"main.rs"})),
+            3=>("write_file",json!({"path":"src/marker.txt","old_content":"","new_content":"MARKER"})),
+            4=>("delete_file",json!({"path":"main.rs","old_content":old})),
+            5=>("publish_change",json!({"path":"main.rs"})),
             _=> {let reply:serde_json::Value=serde_json::from_str(messages.iter().rev().find(|m|m["role"]=="tool").unwrap()["content"].as_str().unwrap()).unwrap(); artifact=Some(reply["artifact_id"].clone()); ("report_result",json!({"summary":"Structural changes submitted; no executed tests claimed","artifact_ids":[reply["artifact_id"]]}))}
         };
         let chunk=json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":format!("structural-{step}"),"function":{"name":name,"arguments":args.to_string()}}]}}]});
@@ -875,6 +876,7 @@ fn team_workspace_native_adapter_creates_directory_deletes_file_and_submits_revi
         artifact.unwrap().as_str().unwrap()
     );
     assert!(workspace.join("src/lib.rs").exists());
+    assert_eq!(fs::read_to_string(workspace.join("src/marker.txt")).unwrap(), "MARKER");
     assert!(!workspace.join("main.rs").exists());
     assert_eq!(fs::read_to_string(f.source.join("main.rs")).unwrap(), old);
 }

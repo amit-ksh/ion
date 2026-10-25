@@ -56,6 +56,20 @@
       "sha256": "24e2fe318bc1ed54a29ceb867e4ecead952355cda4241b07402d1ff6510dc133",
       "source": "https://cdn.simpleicons.org/elevenlabs/000000",
       "monochrome": true
+    },
+    {
+      "toolkit": "googlesheets",
+      "asset": "app-icons/googlesheets.png",
+      "sha256": "7bef05dde4e1e8e9c5e7374cab674241f4d77b8574b19e829f2f414fe94191a6",
+      "source": "https://ssl.gstatic.com/images/branding/product/2x/sheets_2020q4_48dp.png",
+      "monochrome": false
+    },
+    {
+      "toolkit": "googledocs",
+      "asset": "app-icons/googledocs.png",
+      "sha256": "847dd64eee44da9ba829bd44a3dbe2bc11a5f8ce6547f88c62c98910f096a27e",
+      "source": "https://ssl.gstatic.com/images/branding/product/2x/docs_2020q4_48dp.png",
+      "monochrome": false
     }
   ]
 }

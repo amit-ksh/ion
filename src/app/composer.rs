@@ -68,7 +68,9 @@ impl Waku {
         let detail_key_focus = detail_focus.clone();
         let detail_scroll = self.permission_detail_scroll.clone();
         let mut buttons = div().flex().items_center().gap(px(8.0)).mt(px(10.0));
-        for option in &permission.options {
+        // One fire action, as on the home rail: the first allow option.
+        let primary_option = permission.options.iter().position(|option| option.allow);
+        for (index, option) in permission.options.iter().enumerate() {
             let request_id = request_id.clone();
             let option_id = option.id.clone();
             let key_request_id = request_id.clone();
@@ -77,7 +79,7 @@ impl Waku {
                 format!("permission-{}-{}", permission.request_id, option.id),
                 cx,
             );
-            let allow = option.allow;
+            let primary = primary_option == Some(index);
             buttons = buttons.child(
                 div()
                     .id(SharedString::from(format!(
@@ -95,17 +97,21 @@ impl Waku {
                     .cursor_default()
                     .text_size(sp(12.5))
                     .font_weight(FontWeight::SEMIBOLD)
-                    .when(allow, |element| {
+                    .when(primary, |element| {
                         element
-                            .bg(theme.inverse)
-                            .text_color(theme.on_inverse)
+                            .bg(theme.primary)
+                            .text_color(theme.on_primary)
                             .hover(|element| element.opacity(0.9))
                     })
-                    .when(!allow, |element| {
+                    .when(!primary, |element| {
                         element
                             .border_1()
                             .border_color(theme.border_strong)
-                            .text_color(theme.text_secondary)
+                            .text_color(if option.allow {
+                                theme.text
+                            } else {
+                                theme.text_secondary
+                            })
                             .hover(|element| element.bg(theme.overlay).text_color(theme.text))
                     })
                     .active(|element| element.opacity(0.8))
@@ -1930,11 +1936,7 @@ impl Waku {
                         let preset_id = preset.id.clone();
                         let selected = preset_id == selected_id;
                         let name = if preset.is_custom {
-                            format!(
-                                "{} · {}",
-                                preset.display_name(),
-                                tr!("agent_preset.custom")
-                            )
+                            format!("{} · {}", preset.display_name(), tr!("agent_preset.custom"))
                         } else {
                             preset.display_name()
                         };
@@ -3150,8 +3152,10 @@ impl Waku {
                                     div()
                                         .id("send-or-stop")
                                         .tab_index(0)
-                                .focus_visible(|style| style.border_1().border_color(theme.accent))
-                                .w(px(32.0))
+                                        .focus_visible(|style| {
+                                            style.border_1().border_color(theme.accent)
+                                        })
+                                        .w(px(32.0))
                                         .h(px(32.0))
                                         .rounded_full()
                                         .flex()
@@ -3182,7 +3186,9 @@ impl Waku {
                                         div()
                                             .id("queue-follow-up")
                                             .tab_index(0)
-                                            .focus_visible(|style| style.border_1().border_color(theme.accent))
+                                            .focus_visible(|style| {
+                                                style.border_1().border_color(theme.accent)
+                                            })
                                             .w(px(32.0))
                                             .h(px(32.0))
                                             .rounded_full()
@@ -3867,7 +3873,6 @@ impl Waku {
                     .child(div().flex_1())
                     .children(usage_meter),
             )
-
     }
 }
 

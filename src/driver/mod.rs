@@ -54,6 +54,7 @@ pub(crate) fn start_remote(
         runtime_id,
         supports_steer,
         None,
+        false,
         events,
     )
 }
@@ -65,6 +66,7 @@ pub(crate) fn attach_remote(
     runtime_id: uuid::Uuid,
     supports_steer: bool,
     replay_cursor: Option<RuntimeEventCursor>,
+    session_waiting: bool,
     events: DriverEventSender,
 ) -> anyhow::Result<DriverHandle> {
     connect_remote(
@@ -74,6 +76,7 @@ pub(crate) fn attach_remote(
         runtime_id,
         supports_steer,
         replay_cursor,
+        session_waiting,
         events,
     )
 }
@@ -85,6 +88,7 @@ fn connect_remote(
     runtime_id: uuid::Uuid,
     supports_steer: bool,
     replay_cursor: Option<RuntimeEventCursor>,
+    session_waiting: bool,
     events: DriverEventSender,
 ) -> anyhow::Result<DriverHandle> {
     let client_updates = daemon.subscribe_clients();
@@ -108,13 +112,11 @@ fn connect_remote(
                             let Ok(sequenced) = sequenced else {
                                 break true;
                             };
-                            if replay_cursor.is_some_and(|cursor| {
+                            let applied = replay_cursor.is_some_and(|cursor| {
                                 cursor.runtime_id == sequenced.runtime_id
                                     && cursor.epoch == sequenced.epoch
                                     && cursor.sequence >= sequenced.sequence
-                            }) {
-                                continue;
-                            }
+                            });
                             let cursor = RuntimeEventCursor {
                                 runtime_id: sequenced.runtime_id,
                                 epoch: sequenced.epoch,
@@ -126,6 +128,14 @@ fn connect_remote(
                                     "ion daemon sent an invalid event: {error}"
                                 )),
                             };
+                            if applied {
+                                if replays_applied_event(&event, session_waiting)
+                                    && forwarding_events.send(event).is_err()
+                                {
+                                    return;
+                                }
+                                continue;
+                            }
                             let process_exited = matches!(&event, DriverEvent::ProcessExited);
                             if forwarding_events.send(event).is_err()
                                 || forwarding_events
@@ -383,5 +393,41 @@ impl Drop for RemoteDriverControl {
         let _ = self.shutdown.try_send(());
         let client = self.client.lock().clone();
         client.unsubscribe(self.session_id, self.runtime_id);
+    }
+}
+
+/// Whether an event the hydrated session already applied must still reach the
+/// app. A pending request lives on the runtime, not in the stored session, so
+/// a task another client left waiting would otherwise show no card here. This
+/// mirrors the phone's `shouldApplyRuntimeEvent`.
+// shortcut: with no "request resolved" event, an earlier answered request from
+// the same runtime can resurface while the task waits on a different kind of
+// request; track pending requests in the daemon if that shows up.
+fn replays_applied_event(event: &DriverEvent, session_waiting: bool) -> bool {
+    session_waiting
+        && matches!(
+            event,
+            DriverEvent::Permission { .. } | DriverEvent::UserInputRequested { .. }
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_task_left_waiting_by_another_client_replays_only_its_pending_request() {
+        let permission = DriverEvent::Permission {
+            request_id: "edit-1".into(),
+            title: "Edit file".into(),
+            detail: String::new(),
+            options: Vec::new(),
+        };
+        assert!(replays_applied_event(&permission, true));
+        assert!(!replays_applied_event(&permission, false));
+        assert!(!replays_applied_event(
+            &DriverEvent::TextDelta("duplicate".into()),
+            true
+        ));
     }
 }

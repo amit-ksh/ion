@@ -35,6 +35,8 @@ pub enum TokenClass {
     /// Diff insertions and deletions.
     Added,
     Removed,
+    /// A composer mention: `@file`, `@@{Team}`, `@@@app`.
+    Mention,
 }
 
 /// One highlighted span, as byte offsets **within its line**.

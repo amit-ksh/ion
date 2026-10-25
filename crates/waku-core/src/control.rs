@@ -416,6 +416,15 @@ impl ControlStore {
         snapshot.records.retain(|entry| entry.id() != record.id());
         snapshot.records.push(record.clone());
         validate(&snapshot)?;
+        // Only the saved record: older sandbox drafts must not block other saves.
+        if let ControlRecord::Agent(agent) = &record {
+            ensure!(
+                agent.execution.environment
+                    != waku_protocol::teams::ExecutionEnvironment::NebiusSandbox
+                    || agent.model.as_deref().is_some_and(|m| !m.trim().is_empty()),
+                "Choose an explicit model. Sandbox agents can't use the harness default"
+            );
+        }
         crate::teams::validate_automation_definition(&record, &snapshot)?;
         crate::cloud_spending::validate_change(&tx, &record)?;
         tx.execute("INSERT INTO ion_control_records VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![record.id().to_string(),record.kind(),serde_json::to_string(&record)?])?;
@@ -698,6 +707,14 @@ fn workflow_model(ids: &[String]) -> Result<&str> {
         .context("No NVIDIA Nemotron model is available; refresh AI providers")
 }
 
+/// The outermost JSON object in a model reply, wherever fences or prose put it.
+fn workflow_json(content: &str) -> &str {
+    match (content.find('{'), content.rfind('}')) {
+        (Some(start), Some(end)) if start < end => &content[start..=end],
+        _ => content.trim(),
+    }
+}
+
 pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
     ensure!(
         !prompt.trim().is_empty() && prompt.len() <= 16000,
@@ -710,17 +727,14 @@ pub fn generate_workflow(project_id: Uuid, prompt: String) -> Result<Workflow> {
         .timeout(Duration::from_secs(90))
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
+    // Nemotron 3 reasons by default and spends the whole budget thinking, which
+    // truncates the JSON; this one-shot draft needs no visible reasoning.
     let response: serde_json::Value=transport.request(&client, "chat/completions")?
-        .json(&serde_json::json!({"model":model,"max_tokens":4096,"messages":[{"role":"system","content":"Design an editable forward-only workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv, json, pdf, svg, xml, yaml, yml, docx, xlsx, pptx and png, with no duplicates. Each stage may include transition: {type: next}, {type: goTo, target: {type: stage, index: zero-based-index} or {type: finish}}, or {type: documentCondition, document: exact-file.json, pointer: /ready, equals: JSON scalar, onMatch: target, onMismatch: target}. Links must target a later stage or finish. Every stage must be reachable from stage zero. Conditions require that stage to produce the exact named JSON document and the selected scalar pointer. Use next by default; no loops or parallel effects. Set inheritWorkspace: true on later stages only when they need the preceding completed stage's receipted code. Keep it false for the first stage and independent work. Code stays isolated until human source review. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
+        .json(&serde_json::json!({"model":model,"max_tokens":4096,"chat_template_kwargs":{"enable_thinking":false},"messages":[{"role":"system","content":"Design an editable forward-only workflow draft. Reply with only JSON: {\"name\":string,\"stages\":[{\"title\":string,\"instructions\":string,\"requiresDecision\":boolean,\"requiredFormats\":[]}]}. 1 to 24 stages. The requiredFormats array may contain html, md, txt, csv, json, pdf, svg, xml, yaml, yml, docx, xlsx, pptx and png, with no duplicates. Each stage may include transition: {type: next}, {type: goTo, target: {type: stage, index: zero-based-index} or {type: finish}}, or {type: documentCondition, document: exact-file.json, pointer: /ready, equals: JSON scalar, onMatch: target, onMismatch: target}. Links must target a later stage or finish. Every stage must be reachable from stage zero. Conditions require that stage to produce the exact named JSON document and the selected scalar pointer. Use next by default; no loops or parallel effects. Set inheritWorkspace: true on later stages only when they need the preceding completed stage's receipted code. Keep it false for the first stage and independent work. Code stays isolated until human source review. Require formats only when the requested output needs them; use an empty array otherwise. Use user review gates before publishing, deploying, merging, spending, destructive changes or external communication. Treat apps as requirements, never claim they are connected. Do not output executable code."},{"role":"user","content":prompt}]})).send()?.error_for_status()?.json()?;
     let content = response["choices"][0]["message"]["content"]
         .as_str()
         .context("Model returned no workflow")?;
-    let json = content
-        .trim()
-        .trim_start_matches("```json")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim();
+    let json = workflow_json(content);
     #[derive(serde::Deserialize)]
     struct Draft {
         name: String,
@@ -757,6 +771,28 @@ mod tests {
         assert_eq!(workflow_model(&ids).unwrap(), ids[1]);
         assert!(workflow_model(&[]).is_err());
         assert!(workflow_model(&["other/provider".into()]).is_err());
+    }
+    #[test]
+    fn workflow_json_survives_fences_and_prose() {
+        let draft = r#"{"name":"n","stages":[]}"#;
+        assert_eq!(workflow_json(draft), draft);
+        assert_eq!(
+            workflow_json(&format!(
+                "```json
+{draft}
+```"
+            )),
+            draft
+        );
+        assert_eq!(
+            workflow_json(&format!(
+                "Here it is:
+{draft}
+Done."
+            )),
+            draft
+        );
+        assert_eq!(workflow_json("no json"), "no json");
     }
     #[test]
     fn agent_proposals_survive_restart_and_stale_acceptance_is_rejected() {

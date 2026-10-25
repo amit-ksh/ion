@@ -698,7 +698,8 @@ pub(super) fn render_message(params: MessageRender, cx: &mut App) -> AnyElement 
                             .rounded(px(14.0))
                             .border_1()
                             .border_color(theme.ticket_border)
-                            .bg(theme.ticket).shadow(crate::ui::elevation(theme, crate::ui::Elevation::Rest))
+                            .bg(theme.ticket)
+                            .shadow(crate::ui::elevation(theme, crate::ui::Elevation::Rest))
                             .px(px(14.0))
                             .py(px(7.0))
                             .text_size(sp(14.0))
@@ -1316,8 +1317,17 @@ pub(super) fn activity_row_detail(activity: &ActivityItem, reasoning_live: bool)
     use crate::model::ActivityKind;
 
     let custom_title = || {
-        (!crate::model::is_generic_activity_title(activity.kind, &activity.title))
-            .then(|| activity.title.clone())
+        (!crate::model::is_generic_activity_title(activity.kind, &activity.title)).then(|| {
+            // The row already leads with the action, so "Edit a.txt" reads "a.txt".
+            let action = activity_action_label(activity);
+            activity
+                .title
+                .strip_prefix(action.as_str())
+                .and_then(|rest| rest.strip_prefix(' '))
+                .filter(|rest| !rest.trim().is_empty())
+                .unwrap_or(&activity.title)
+                .to_owned()
+        })
     };
     match activity.kind {
         ActivityKind::Reasoning => activity.reasoning.as_ref().map_or_else(
@@ -1848,6 +1858,28 @@ mod message_time_tests {
         assert_eq!(activity_display_title(&named), "Create thread");
         assert_eq!(activity_action_label(&unnamed), "Tool");
         assert_eq!(activity_row_detail(&unnamed, false), "");
+    }
+
+    #[test]
+    fn row_detail_does_not_repeat_the_action() {
+        let edit = ActivityItem::new(
+            Some("edit-1".into()),
+            crate::model::ActivityKind::FileChange,
+            "Edit e2e-nebius.txt",
+            None,
+            true,
+        );
+        let read = ActivityItem::new(
+            Some("read-1".into()),
+            crate::model::ActivityKind::FileRead,
+            "Read notes.md",
+            None,
+            true,
+        );
+
+        assert_eq!(activity_action_label(&edit), "Edit");
+        assert_eq!(activity_row_detail(&edit, false), "e2e-nebius.txt");
+        assert_eq!(activity_row_detail(&read, false), "notes.md");
     }
 
     #[test]

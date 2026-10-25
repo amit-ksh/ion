@@ -17,10 +17,11 @@ const STATE_ICONS: Record<TicketState, SymbolName> = {
   working: { android: 'progress_activity', web: 'progress_activity' },
   background: { android: 'hourglass_empty', web: 'hourglass_empty' },
   failed: { android: 'close', web: 'close' },
+  stopped: { android: 'stop_circle', web: 'stop_circle' },
   ready: { android: 'check', web: 'check' },
 };
 const STATE_TONES: Record<TicketState, PillTone> = {
-  needsYou: 'accent', working: 'accent', background: 'neutral', failed: 'danger', ready: 'success',
+  needsYou: 'accent', working: 'accent', background: 'neutral', failed: 'danger', stopped: 'neutral', ready: 'success',
 };
 
 export function ticketStatus(state: TicketState): TicketStatus {

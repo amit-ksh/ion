@@ -174,7 +174,12 @@ impl Waku {
         }
     }
 
-    fn render_team_board(&self, team: Team, chart: AnyElement, cx: &mut Context<Self>) -> AnyElement {
+    fn render_team_board(
+        &self,
+        team: Team,
+        chart: AnyElement,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::workspace(cx);
         let id = team.id;
         let reports = team.members.len().saturating_sub(1);
@@ -247,8 +252,11 @@ impl Waku {
             .items_center()
             .gap(px(14.0))
             .child(
-                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black())
-                    .child(icon("icons/fork.svg", 17.0, theme.accent)),
+                avatar_tile(38.0, theme.accent_soft, gpui::transparent_black()).child(icon(
+                    "icons/fork.svg",
+                    17.0,
+                    theme.accent,
+                )),
             )
             .child(
                 div()
@@ -383,6 +391,8 @@ impl Waku {
             .w_full()
             .min_w_0()
             .overflow_x_scroll()
+            // A vertical wheel belongs to the page list, not this sideways chart.
+            .restrict_scroll_to_axis()
             .child(
                 div()
                     .min_w(gpui::relative(1.0))
@@ -423,7 +433,10 @@ impl Waku {
             ),
         };
         div()
-            .id(SharedString::from(format!("team-graph-{scope}-{}", member.agent_id)))
+            .id(SharedString::from(format!(
+                "team-graph-{scope}-{}",
+                member.agent_id
+            )))
             .tab_index(0)
             .w(px(geometry::NODE_WIDTH * z))
             .h(px(geometry::NODE_HEIGHT * z))
@@ -535,7 +548,9 @@ impl Waku {
                 },
             )
             .into_any_element(),
-            None => icon("icons/alert.svg", (size * 0.42).round(), theme.warning).into_any_element(),
+            None => {
+                icon("icons/alert.svg", (size * 0.42).round(), theme.warning).into_any_element()
+            }
         };
         let dot_size = (size * 0.3).round().max(9.0);
         div()

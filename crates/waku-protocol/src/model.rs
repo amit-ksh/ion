@@ -1188,14 +1188,20 @@ impl AgentSession {
     }
 
     pub fn display_title(&self) -> &str {
-        if self.title != Self::DEFAULT_TITLE && !self.title.trim().is_empty() {
+        let title = if self.title != Self::DEFAULT_TITLE && !self.title.trim().is_empty() {
             &self.title
         } else {
             self.auto_title
                 .as_deref()
                 .filter(|title| !title.trim().is_empty())
                 .unwrap_or(Self::DEFAULT_TITLE)
-        }
+        };
+        // Generated titles can carry a whole multi-line prompt; a title is one line.
+        title
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .unwrap_or(title)
     }
 
     /// Sets the user-owned title shown ahead of any provider fallback.
@@ -4182,6 +4188,9 @@ mod tests {
         assert_eq!(session.display_title(), "My title");
         assert!(!session.set_title("   "));
         assert_eq!(session.display_title(), "My title");
+
+        assert!(session.set_title("Workflow: QA Gated Workflow\nPublish a QA evidence report."));
+        assert_eq!(session.display_title(), "Workflow: QA Gated Workflow");
     }
 
     #[test]

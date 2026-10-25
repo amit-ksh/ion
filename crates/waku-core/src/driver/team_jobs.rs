@@ -82,15 +82,14 @@ pub(super) fn prepare_solo_command(argv: Vec<String>, id: Uuid) -> Result<Prepar
         "Command resource policy is unavailable"
     );
     let timeout = policy.max_seconds.min(120);
-    validate_args(
-        &policy,
-        &CommandArgs {
-            argv: argv.clone(),
-            input_paths: vec![],
-            output_paths: vec![],
-            timeout_seconds: timeout,
-        },
-    )?;
+    let mut args = CommandArgs {
+        argv,
+        input_paths: vec![],
+        output_paths: vec![],
+        timeout_seconds: timeout,
+    };
+    admit_args(&policy, &mut args)?;
+    let argv = args.argv;
     manifest(&client, &policy)?;
     Ok(PreparedSoloCommand {
         client,
@@ -266,6 +265,20 @@ fn validate_policy(p: &Policy) -> Result<()> {
     }
     Ok(())
 }
+// Models usually name a program, not its path; resolve only to an executable
+// the policy already allows, and name the allowed set when admission fails.
+fn admit_args(p: &Policy, a: &mut CommandArgs) -> Result<()> {
+    if let Some(path) = a.argv.first().filter(|name| !name.contains('/')).and_then(|name| {
+        p.executables
+            .iter()
+            .find(|path| path.rsplit('/').next() == Some(name.as_str()))
+    }) {
+        a.argv[0] = path.clone();
+    }
+    validate_args(p, a).map_err(|error| {
+        anyhow::anyhow!("{error}. Allowed executables: {}", p.executables.join(", "))
+    })
+}
 fn validate_args(p: &Policy, a: &CommandArgs) -> Result<()> {
     ensure!(
         (1..=64).contains(&a.argv.len())
@@ -383,12 +396,17 @@ fn receipt(value: &Value, request: &JobRequest) -> Result<JobResponse> {
     );
     let stdout = &result["stdout"];
     ensure!(
-        stdout["truncated"] == false && stdout["encoding"] == "base64",
-        "Remote job receipt was truncated or uses an unsupported encoding"
+        stdout["truncated"] == false,
+        "Remote job receipt was truncated"
     );
     let encoded = stdout["value"].as_str().context("Job receipt is missing")?;
     ensure!(encoded.len() <= 700 * 1024, "Job receipt exceeds its bound");
-    let bytes = STANDARD.decode(encoded)?;
+    // ConTree reports printable output as ascii and anything else as base64.
+    let bytes = match stdout["encoding"].as_str() {
+        Some("base64") => STANDARD.decode(encoded)?,
+        Some("ascii") => encoded.as_bytes().to_vec(),
+        _ => anyhow::bail!("Remote job receipt uses an unsupported encoding"),
+    };
     ensure!(bytes.len() <= 512 * 1024, "Job receipt exceeds its bound");
     let response: JobResponse = serde_json::from_slice(&bytes)?;
     validate_receipt(&response, request)?;
@@ -504,7 +522,7 @@ fn run_with_host(
     claimed: &ClaimedAssignment,
     workspace: &Path,
     request_id: Uuid,
-    args: CommandArgs,
+    mut args: CommandArgs,
     cancelled: &AtomicBool,
     configure: impl FnOnce(Uuid) -> Result<(Policy, Client)>,
 ) -> Result<String> {
@@ -525,7 +543,7 @@ fn run_with_host(
         policy.target == target,
         "Command host differs from the pinned sandbox target"
     );
-    validate_args(&policy, &args)?;
+    admit_args(&policy, &mut args)?;
     let check_context =
         coordinator.command_check_context(&claimed.lease, workspace, crate::model::unix_time())?;
     let request = bundle(request_id, &args, workspace)?;
@@ -2092,6 +2110,28 @@ mod tests {
         changed = observed;
         changed["metadata"]["files"] = json!({"/ion/private":"extra"});
         assert!(verify_original_command(&changed, &expected).is_err());
+    }
+    #[test]
+    fn personal_sandbox_policy_meets_the_command_contract() {
+        let image = Uuid::new_v4();
+        let policy: Policy =
+            serde_json::from_value(super::super::team_remote::personal_policy(image)).unwrap();
+        validate_policy(&policy).unwrap();
+        assert!(policy.target == image && policy.image == image);
+        assert!(policy.resources.is_some() && policy.project_snapshot.is_some());
+        let args = |argv: &[&str]| CommandArgs {
+            argv: argv.iter().map(|a| a.to_string()).collect(),
+            input_paths: vec![],
+            output_paths: vec![],
+            timeout_seconds: 60,
+        };
+        validate_args(&policy, &args(&["/usr/local/bin/python3", "-c", "print(1)"])).unwrap();
+        assert!(validate_args(&policy, &args(&["/usr/bin/curl", "https://example.com"])).is_err());
+        let mut bare = args(&["python3", "-c", "print(1)"]);
+        admit_args(&policy, &mut bare).unwrap();
+        assert_eq!(bare.argv[0], "/usr/local/bin/python3");
+        let error = admit_args(&policy, &mut args(&["curl", "https://example.com"])).unwrap_err();
+        assert!(error.to_string().contains("Allowed executables: /bin/sh"));
     }
     #[test]
     fn team_job_rejects_paths_unregistered_commands_and_invented_output_receipts() {

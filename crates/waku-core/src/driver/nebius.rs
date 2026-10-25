@@ -17,7 +17,9 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{DriverControl, DriverEventSender, DriverStartOptions, SessionOptions};
-use crate::model::{ActivityKind, DriverEvent, PermissionOption, ProviderResumeCursor};
+use crate::model::{
+    ActivityKind, DriverEvent, PermissionOption, ProviderResumeCursor, RuntimeMode,
+};
 use waku_credentials::inference::Inference;
 
 mod app_actions;
@@ -75,6 +77,7 @@ impl NebiusDriver {
         workspace: Option<WorkspaceContext>,
     ) -> Result<Self> {
         let nemoclaw = NemoClawAdapter::from_env()?;
+        let mode = options.mode;
         let cwd = fs::canonicalize(&options.cwd).context("Nebius workspace is unavailable")?;
         if !cwd.is_dir() {
             bail!("Nebius workspace is not a directory");
@@ -172,6 +175,7 @@ impl NebiusDriver {
                     journal,
                     nemoclaw,
                     workspace,
+                    mode,
                 );
             })
             .context("could not start the Nebius worker")?;
@@ -217,6 +221,7 @@ fn run_worker(
     mut journal: Journal,
     nemoclaw: Option<NemoClawAdapter>,
     workspace: Option<WorkspaceContext>,
+    mode: RuntimeMode,
 ) {
     while let Ok(command) = receiver.recv() {
         let prompt = match command {
@@ -248,6 +253,7 @@ fn run_worker(
             prompt,
             nemoclaw.as_ref(),
             workspace.as_ref(),
+            mode,
         );
         match outcome {
             Ok(()) => {
@@ -283,6 +289,7 @@ fn run_turn(
     prompt: String,
     nemoclaw: Option<&NemoClawAdapter>,
     workspace: Option<&WorkspaceContext>,
+    mode: RuntimeMode,
 ) -> Result<()> {
     if journal.pending_effect.is_some() {
         bail!("Review the uncertain Nebius tool action before continuing");
@@ -352,6 +359,7 @@ fn run_turn(
                 &call,
                 nemoclaw,
                 workspace,
+                mode,
             );
             if let Err(error) = &result {
                 let _ = events.send(DriverEvent::Activity {
@@ -648,6 +656,18 @@ fn read_tool_definitions() -> Value {
     Value::Array(tools.as_array().unwrap()[..2].to_vec())
 }
 
+/// Whether the task's access mode answers a tool's approval itself. Nebius has
+/// no AI reviewer, so Auto still asks before starting paid Token Factory
+/// sandbox compute; only Full access runs it unasked.
+fn auto_approves(mode: RuntimeMode, tool: &str) -> bool {
+    match mode {
+        RuntimeMode::Ask => false,
+        RuntimeMode::AutoAcceptEdits => tool == "write_file",
+        RuntimeMode::Auto => tool != "tokenfactory_exec",
+        RuntimeMode::FullAccess => true,
+    }
+}
+
 fn execute_tool(
     receiver: &Receiver<Command>,
     cancelled: &AtomicBool,
@@ -661,6 +681,7 @@ fn execute_tool(
     call: &ToolCall,
     nemoclaw: Option<&NemoClawAdapter>,
     workspace: Option<&WorkspaceContext>,
+    mode: RuntimeMode,
 ) -> Result<String> {
     let args: Value = serde_json::from_str(&call.arguments).context("invalid tool arguments")?;
     if app_actions::accepts(&call.name) {
@@ -772,39 +793,41 @@ fn execute_tool(
             if current != old {
                 bail!("file changed since it was read; read it again")
             }
-            let request_id = call.id.clone();
-            let _ = events.send(DriverEvent::Permission {
-                request_id: request_id.clone(),
-                title: format!("Allow Nebius to edit {relative}?"),
-                detail: format!("Proposed complete content for {relative}:\n\n{new}"),
-                options: vec![
-                    PermissionOption {
-                        id: "allow".into(),
-                        label: "Allow once".into(),
-                        allow: true,
-                    },
-                    PermissionOption {
-                        id: "reject".into(),
-                        label: "Deny".into(),
-                        allow: false,
-                    },
-                ],
-            });
-            loop {
-                if cancelled.load(Ordering::Relaxed) {
-                    bail!("Nebius task stopped")
-                }
-                match receiver.recv_timeout(Duration::from_millis(200)) {
-                    Ok(Command::Respond(id, decision)) if id == request_id => {
-                        if decision != "allow" {
-                            bail!("user denied file edit")
-                        }
-                        break;
+            if !auto_approves(mode, &call.name) {
+                let request_id = call.id.clone();
+                let _ = events.send(DriverEvent::Permission {
+                    request_id: request_id.clone(),
+                    title: format!("Allow Nebius to edit {relative}?"),
+                    detail: format!("Proposed complete content for {relative}:\n\n{new}"),
+                    options: vec![
+                        PermissionOption {
+                            id: "allow".into(),
+                            label: "Allow once".into(),
+                            allow: true,
+                        },
+                        PermissionOption {
+                            id: "reject".into(),
+                            label: "Deny".into(),
+                            allow: false,
+                        },
+                    ],
+                });
+                loop {
+                    if cancelled.load(Ordering::Relaxed) {
+                        bail!("Nebius task stopped")
                     }
-                    Ok(Command::Stop) => bail!("Nebius task stopped"),
-                    Ok(_) => {}
-                    Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
-                    Err(_) => bail!("Nebius task disconnected while waiting for approval"),
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(Command::Respond(id, decision)) if id == request_id => {
+                            if decision != "allow" {
+                                bail!("user denied file edit")
+                            }
+                            break;
+                        }
+                        Ok(Command::Stop) => bail!("Nebius task stopped"),
+                        Ok(_) => {}
+                        Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+                        Err(_) => bail!("Nebius task disconnected while waiting for approval"),
+                    }
                 }
             }
             // Mark the effect before touching the filesystem. An interrupted
@@ -829,31 +852,33 @@ fn execute_tool(
             let adapter = nemoclaw.context("NemoClaw adapter is disabled")?;
             let argv = NemoClawAdapter::validate_args(&args)?;
             adapter.check_ready(cancelled)?;
-            let command = serde_json::to_string(&argv)?;
-            let _ = events.send(DriverEvent::Permission {
-                request_id: call.id.clone(),
-                title: format!("Run command in NemoClaw sandbox {}?", adapter.sandbox()),
-                detail: format!("Sandbox: {}\nExact arguments: {command}\n\nThis command can change sandbox state. Its stdout returns to the Nebius model. The local project is not mounted automatically.", adapter.sandbox()),
-                options: vec![
-                    PermissionOption { id: "allow".into(), label: "Allow once".into(), allow: true },
-                    PermissionOption { id: "reject".into(), label: "Deny".into(), allow: false },
-                ],
-            });
-            loop {
-                if cancelled.load(Ordering::Relaxed) {
-                    bail!("Nebius task stopped")
-                }
-                match receiver.recv_timeout(Duration::from_millis(200)) {
-                    Ok(Command::Respond(id, decision)) if id == call.id => {
-                        if decision != "allow" {
-                            bail!("user denied NemoClaw command")
-                        }
-                        break;
+            if !auto_approves(mode, &call.name) {
+                let command = serde_json::to_string(&argv)?;
+                let _ = events.send(DriverEvent::Permission {
+                    request_id: call.id.clone(),
+                    title: format!("Run command in NemoClaw sandbox {}?", adapter.sandbox()),
+                    detail: format!("Sandbox: {}\nExact arguments: {command}\n\nThis command can change sandbox state. Its stdout returns to the Nebius model. The local project is not mounted automatically.", adapter.sandbox()),
+                    options: vec![
+                        PermissionOption { id: "allow".into(), label: "Allow once".into(), allow: true },
+                        PermissionOption { id: "reject".into(), label: "Deny".into(), allow: false },
+                    ],
+                });
+                loop {
+                    if cancelled.load(Ordering::Relaxed) {
+                        bail!("Nebius task stopped")
                     }
-                    Ok(Command::Stop) => bail!("Nebius task stopped"),
-                    Ok(_) => {}
-                    Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
-                    Err(_) => bail!("Nebius task disconnected while awaiting approval"),
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(Command::Respond(id, decision)) if id == call.id => {
+                            if decision != "allow" {
+                                bail!("user denied NemoClaw command")
+                            }
+                            break;
+                        }
+                        Ok(Command::Stop) => bail!("Nebius task stopped"),
+                        Ok(_) => {}
+                        Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+                        Err(_) => bail!("Nebius task disconnected while awaiting approval"),
+                    }
                 }
             }
             journal.pending_effect = Some(call.id.clone());
@@ -1276,6 +1301,72 @@ mod tests {
         assert!(!names(false).contains(&"nemoclaw_exec".to_owned()));
         assert!(names(true).contains(&"nemoclaw_exec".to_owned()));
         assert_eq!(read_tool_definitions().as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn access_modes_decide_who_answers_a_tool_approval() {
+        for (mode, tool, asks) in [
+            (RuntimeMode::Ask, "write_file", true),
+            (RuntimeMode::AutoAcceptEdits, "write_file", false),
+            (RuntimeMode::AutoAcceptEdits, "nemoclaw_exec", true),
+            (RuntimeMode::AutoAcceptEdits, "tokenfactory_exec", true),
+            (RuntimeMode::Auto, "nemoclaw_exec", false),
+            (RuntimeMode::Auto, "tokenfactory_exec", true),
+            (RuntimeMode::FullAccess, "tokenfactory_exec", false),
+        ] {
+            assert_eq!(!auto_approves(mode, tool), asks, "{mode:?} {tool}");
+        }
+    }
+
+    #[test]
+    fn file_edit_prompts_only_in_supervised_mode() {
+        for (mode, asks) in [
+            (RuntimeMode::Ask, true),
+            (RuntimeMode::AutoAcceptEdits, false),
+            (RuntimeMode::FullAccess, false),
+        ] {
+            let root = std::env::temp_dir().join(format!("waku-nebius-test-{}", Uuid::new_v4()));
+            fs::create_dir(&root).unwrap();
+            let (commands, receiver) = unbounded();
+            // Supervised mode reads this answer; the other modes must not wait for one.
+            commands
+                .send(Command::Respond("call-write".into(), "allow".into()))
+                .unwrap();
+            let (events, event_receiver) = crate::driver::test_event_channel();
+            let call = ToolCall {
+                id: "call-write".into(),
+                name: "write_file".into(),
+                arguments: json!({"path": "e2e-x.txt", "old_content": "", "new_content": "X"})
+                    .to_string(),
+                activity_id: "activity-write".into(),
+                ..Default::default()
+            };
+            execute_tool(
+                &receiver,
+                &AtomicBool::new(false),
+                &events,
+                &reqwest::blocking::Client::new(),
+                &Inference::personal("test-key".into()).unwrap(),
+                "model",
+                &root,
+                &root.join("journal.json"),
+                &mut Journal::default(),
+                &call,
+                None,
+                None,
+                mode,
+            )
+            .unwrap();
+            assert_eq!(fs::read_to_string(root.join("e2e-x.txt")).unwrap(), "X");
+            assert_eq!(
+                event_receiver
+                    .try_iter()
+                    .any(|event| matches!(event, DriverEvent::Permission { .. })),
+                asks,
+                "{mode:?}"
+            );
+            fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[test]

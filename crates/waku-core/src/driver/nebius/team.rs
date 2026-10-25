@@ -27,7 +27,7 @@ fn caller_scope(coordinator: &TeamCoordinator, start: &NativeTeamStart) -> Resul
 const MAX_TEAM_STEPS: u16 = 16;
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 const MAX_REPLY_BYTES: usize = 12 * 1024;
-const MAX_OUTPUT_TOKENS: u64 = 4096;
+const MAX_OUTPUT_TOKENS: u64 = waku_credentials::sandbox_image::NEBIUS_OUTPUT_TOKENS;
 
 pub enum NativeTeamStart {
     Fresh(ClaimedAssignment),
@@ -318,10 +318,15 @@ pub(in crate::driver) fn worker_completion(
     input_cap: u64,
     output_cap: u64,
 ) -> Result<StreamCompletion> {
-    let key = Inference::personal(
-        std::env::var("ION_TEAM_NEBIUS_KEY")
+    // A personal sandbox mounts the key into this disposable run only; it is
+    // never part of the image, the request, or the operation's environment.
+    let key = match std::env::var("ION_TEAM_NEBIUS_KEY") {
+        Ok(key) => key,
+        Err(_) => std::fs::read_to_string(waku_credentials::sandbox_image::WORKER_KEY_PATH)
+            .map(|key| key.trim().to_owned())
             .context("Configure the worker's Nebius account credential on the execution host")?,
-    )?;
+    };
+    let key = Inference::personal(key)?;
     let client = reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(120))
@@ -482,6 +487,7 @@ pub(in crate::driver) fn run_with_harness(
         scope.as_deref(),
     )
 }
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(in crate::driver) fn run_with_harness_and_apps(
     coordinator: &TeamCoordinator,
@@ -508,6 +514,7 @@ pub(in crate::driver) fn run_with_harness_and_apps(
         None,
     )
 }
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(in crate::driver) fn run_with_remote_harness(
     coordinator: &TeamCoordinator,
@@ -991,7 +998,7 @@ fn tools(access: &AgentAccess) -> Value {
     if access.shell && access.workspace_read {
         let list = tools.as_array_mut().unwrap();
         list.push(json!({"type":"function","function":{"name":"run_remote_project_command","description":"Execute a literal command against a snapshot of this team's isolated project in its approved Nebius command image. Requires explicit host project transfer approval. Includes tracked and unignored new regular files; excludes private paths and ignored dependencies. Hashes and transfer/run limits are enforced, network remains disabled, and the exact snapshot is recorded in the command receipt. Outputs are bounded and never overwrite local source. No automatic local retry.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":64},"output_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120}},"required":["argv","output_paths","timeout_seconds"],"additionalProperties":false}}}));
-        list.push(json!({"type":"function","function":{"name":"run_remote_command","description":"Execute literal argv in a registered credential-free remote job image for this actual Nebius attempt. Command/read grants, registered executable/time/count limits are enforced. Upload only selected files (32 files, 64 KiB each, 256 KiB total); no implicit repository or secret upload. Network is disabled. Returns an actual command receipt and generated artifact. No automatic local retry after submission. Nonzero exit is a failed check, not a completed validation.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":64},"input_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"output_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120}},"required":["argv","input_paths","output_paths","timeout_seconds"],"additionalProperties":false}}}));
+        list.push(json!({"type":"function","function":{"name":"run_remote_command","description":"Execute literal argv in a registered credential-free remote job image for this actual Nebius attempt. argv runs without a shell; use /bin/sh -c for pipes or redirects. output_paths stay remote (read them with read_remote_output); save results to the workspace with write_file. Command/read grants, registered executable/time/count limits are enforced. Upload only selected files (32 files, 64 KiB each, 256 KiB total); no implicit repository or secret upload. Network is disabled. Returns an actual command receipt and generated artifact. No automatic local retry after submission. Nonzero exit is a failed check, not a completed validation.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":64},"input_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"output_paths":{"type":"array","items":{"type":"string"},"maxItems":32},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120}},"required":["argv","input_paths","output_paths","timeout_seconds"],"additionalProperties":false}}}));
         list.push(json!({"type":"function","function":{"name":"read_remote_output","description":"Read up to 4096 bytes in base64 from one output file returned by this assignment's completed remote command. Uses the exact request ID; never reads another assignment or live host path.","parameters":{"type":"object","properties":{"request_id":{"type":"string"},"path":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["request_id","path"],"additionalProperties":false}}}));
     }
     if access.shell && access.workspace_read && access.network {
@@ -1002,7 +1009,7 @@ fn tools(access: &AgentAccess) -> Value {
     if access.workspace_write {
         tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"create_directory","description":"Create one missing directory in the isolated team workspace. Its parent must exist. No recursive creation; each directory has a durable receipt.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}}));
         tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"delete_file","description":"Remove one UTF-8 file up to 16 KiB from the isolated team workspace, requiring its exact old_content. The exact removed bytes remain in the durable edit receipt; unexpected content is preserved for reconciliation. No directory or recursive deletion, and no source checkout change. Use publish_change for review evidence.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":"string"}},"required":["path","old_content"],"additionalProperties":false}}}));
-        tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"write_file","description":"Compare and replace one UTF-8 file in the isolated shared team workspace. Requires exact old_content; null creates a missing file. Parent directory must exist. At most 16 KiB per content. Source checkout remains unchanged. Receipt is durable; interrupted edits are not repeated.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":["string","null"]},"new_content":{"type":"string"}},"required":["path","old_content","new_content"],"additionalProperties":false}}}));
+        tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"write_file","description":"Compare and replace one UTF-8 file in the isolated shared team workspace. Requires exact old_content; null or an empty string creates a missing file. Parent directory must exist. At most 16 KiB per content. Source checkout remains unchanged. Receipt is durable; interrupted edits are not repeated.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":["string","null"]},"new_content":{"type":"string"}},"required":["path","old_content","new_content"],"additionalProperties":false}}}));
     }
     if access.workspace_read {
         tools.as_array_mut().unwrap().push(json!({"type":"function","function":{"name":"publish_change","description":"Publish a generated JSON change document for one edited run workspace path, with actual base commit, exact initial/final content and durable edit receipts. Requires the current file to match the final receipt. Return artifact ID for result/review; it does not merge into the source checkout.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}}));
@@ -1381,7 +1388,20 @@ fn execute_with_cancel(
                 &a.sha256,
                 &a.summary,
                 now,
-            )?;
+            )
+            .map_err(|error| {
+                if error
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
+                {
+                    anyhow::anyhow!(
+                        "{} is not in the team workspace; create it with write_file first",
+                        a.path
+                    )
+                } else {
+                    error
+                }
+            })?;
             Ok(ToolOutcome::Reply(json!({"artifact_id":artifact.id,"name":artifact.name,"format":artifact.format,"evidence":artifact.evidence}).to_string()))
         }
         "save_pdf" => {
@@ -1471,7 +1491,11 @@ fn execute_with_cancel(
                 executed_checks: Vec<waku_protocol::teams::ExecutedCommandCheck>,
             }
             anyhow::ensure!(last, "report_result must be the last tool in this response");
-            let a: Args = serde_json::from_value(args)?;
+            let a: Args = serde_json::from_value(args).map_err(|error| {
+                anyhow::anyhow!(
+                    "{error}. artifact_ids takes the artifact_id values returned by save_document, save_file_document or publish_change, not file paths"
+                )
+            })?;
             anyhow::ensure!(
                 !a.artifact_ids.is_empty(),
                 "Native assignment completion requires a document"

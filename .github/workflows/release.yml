@@ -84,6 +84,17 @@ jobs:
           rustup toolchain install 1.96.0 --profile minimal
           rustup default 1.96.0
 
+      # Every desktop install ships the static Linux sandbox worker
+      # (scripts/sandbox-worker.ts), cross-built with zig on every host.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install sandbox worker toolchain
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo install cargo-zigbuild --version 0.24.0 --locked
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -153,6 +164,17 @@ jobs:
           rustup toolchain install 1.96.0 --profile minimal
           rustup default 1.96.0
 
+      # Every desktop install ships the static Linux sandbox worker
+      # (scripts/sandbox-worker.ts), cross-built with zig on every host.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install sandbox worker toolchain
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo install cargo-zigbuild --version 0.24.0 --locked
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -218,6 +240,17 @@ jobs:
           rustup default 1.96.0
           rustup target add x86_64-pc-windows-msvc
 
+      # Every desktop install ships the static Linux sandbox worker
+      # (scripts/sandbox-worker.ts), cross-built with zig on every host.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install sandbox worker toolchain
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo install cargo-zigbuild --version 0.24.0 --locked
+
       - uses: oven-sh/setup-bun@v2
 
       - name: Install Inno Setup
@@ -278,6 +311,17 @@ jobs:
           rustup default 1.96.0
           rustup target add aarch64-pc-windows-msvc
 
+      # Every desktop install ships the static Linux sandbox worker
+      # (scripts/sandbox-worker.ts), cross-built with zig on every host.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install sandbox worker toolchain
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo install cargo-zigbuild --version 0.24.0 --locked
+
       - uses: oven-sh/setup-bun@v2
 
       - name: Install Inno Setup
@@ -336,6 +380,17 @@ jobs:
         run: |
           rustup toolchain install 1.96.0 --profile minimal
           rustup default 1.96.0
+
+      # Every desktop install ships the static Linux sandbox worker
+      # (scripts/sandbox-worker.ts), cross-built with zig on every host.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install sandbox worker toolchain
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo install cargo-zigbuild --version 0.24.0 --locked
 
       - uses: oven-sh/setup-bun@v2
 

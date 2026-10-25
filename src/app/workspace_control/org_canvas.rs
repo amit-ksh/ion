@@ -172,7 +172,11 @@ impl Waku {
     /// The canvas's on-screen size, from the window minus the chrome around it.
     fn org_viewport(&self, window: &Window) -> Size<f32> {
         let size = window.viewport_size();
-        let form = if self.control_ui.form.is_some() { 444.0 } else { 0.0 };
+        let form = if self.control_ui.form.is_some() {
+            444.0
+        } else {
+            0.0
+        };
         Size {
             width: (f32::from(size.width)
                 - self.sidebar_rendered_width
@@ -226,11 +230,22 @@ impl Waku {
     }
 
     /// Opens the agent editor for a new agent that will report to `parent`.
-    fn begin_subagent(&mut self, team: Option<Uuid>, parent: Uuid, window: &mut Window, cx: &mut Context<Self>) {
-        let template = self.control_ui.snapshot.records.iter().find_map(|r| match r {
-            ControlRecord::Agent(agent) if agent.id == parent => Some(agent.clone()),
-            _ => None,
-        });
+    fn begin_subagent(
+        &mut self,
+        team: Option<Uuid>,
+        parent: Uuid,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let template = self
+            .control_ui
+            .snapshot
+            .records
+            .iter()
+            .find_map(|r| match r {
+                ControlRecord::Agent(agent) if agent.id == parent => Some(agent.clone()),
+                _ => None,
+            });
         self.begin_control_form(FormKind::Agent, cx);
         // A subagent starts on its manager's harness and environment.
         if let Some(manager) = template {
@@ -253,7 +268,13 @@ impl Waku {
 
     /// Saves `agent` into `team` under `parent`; without a team, `parent`
     /// becomes the lead of a new team with `agent` reporting to it.
-    pub(super) fn attach_report(&mut self, team: Option<Uuid>, parent: Uuid, agent: Uuid, cx: &mut Context<Self>) {
+    pub(super) fn attach_report(
+        &mut self,
+        team: Option<Uuid>,
+        parent: Uuid,
+        agent: Uuid,
+        cx: &mut Context<Self>,
+    ) {
         let records = &self.control_ui.snapshot.records;
         let name_of = |id: Uuid| {
             records.iter().find_map(|r| match r {
@@ -333,13 +354,23 @@ impl Waku {
     }
 
     fn detach_report(&mut self, team: Uuid, agent: Uuid, cx: &mut Context<Self>) {
-        let Some(mut team) = self.control_ui.snapshot.records.iter().find_map(|r| match r {
-            ControlRecord::Team(t) if t.id == team => Some(t.clone()),
-            _ => None,
-        }) else {
+        let Some(mut team) = self
+            .control_ui
+            .snapshot
+            .records
+            .iter()
+            .find_map(|r| match r {
+                ControlRecord::Team(t) if t.id == team => Some(t.clone()),
+                _ => None,
+            })
+        else {
             return;
         };
-        let mut members: Vec<_> = team.members.iter().map(|m| (m.agent_id, m.parent_id)).collect();
+        let mut members: Vec<_> = team
+            .members
+            .iter()
+            .map(|m| (m.agent_id, m.parent_id))
+            .collect();
         team_hierarchy::remove(&mut members, agent);
         team.members = members
             .into_iter()
@@ -357,20 +388,21 @@ impl Waku {
         );
     }
 
-    pub(super) fn render_org_canvas(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_org_canvas(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let theme = Theme::workspace(cx);
         let viewport = self.org_viewport(window);
         let view = &self.control_ui.org;
         let z = view.zoom;
         let wrap = view.wrap.unwrap_or(viewport.width - CONTROLS_W);
         let (clusters, width, height) = self.org_clusters(wrap);
-        let pan = view.pan.unwrap_or_else(|| {
-            point(((viewport.width - width * z) / 2.0).max(0.0), 0.0)
-        });
-        view.drawn.set(Drawn {
-            pan,
-            viewport,
-        });
+        let pan = view
+            .pan
+            .unwrap_or_else(|| point(((viewport.width - width * z) / 2.0).max(0.0), 0.0));
+        view.drawn.set(Drawn { pan, viewport });
         let mut layer = div()
             .absolute()
             .left(px(pan.x))
@@ -587,7 +619,11 @@ impl Waku {
         );
         if graph.team.is_some() && graph.error.is_none() {
             // The team chip hangs over its lead.
-            let lead = graph.layout.nodes.iter().find(|n| graph.members[n.index].parent_id.is_none());
+            let lead = graph
+                .layout
+                .nodes
+                .iter()
+                .find(|n| graph.members[n.index].parent_id.is_none());
             if let Some(lead) = lead {
                 let x = tree_left + lead.left + geometry::NODE_WIDTH / 2.0;
                 layer = layer.child(
@@ -669,7 +705,13 @@ impl Waku {
     }
 
     /// The team's header on the canvas: who it is and what it can do.
-    fn render_org_chip(&self, graph: &Graph, z: f32, theme: &Theme, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn render_org_chip(
+        &self,
+        graph: &Graph,
+        z: f32,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         let theme = *theme;
         let (id, title, summary, icon_path) = match &graph.team {
             Some(team) => (
@@ -727,10 +769,14 @@ impl Waku {
                 let edit = ControlRecord::Team(team);
                 actions = actions
                     .child(
-                        mini(format!("org-task-{team_id}"), "icons/compose.svg", "New task")
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.prepare_record_task(task.clone(), cx)
-                            })),
+                        mini(
+                            format!("org-task-{team_id}"),
+                            "icons/compose.svg",
+                            "New task",
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.prepare_record_task(task.clone(), cx)
+                        })),
                     )
                     .child(
                         mini(format!("org-runs-{team_id}"), "icons/list.svg", "Runs").on_click(
@@ -748,11 +794,12 @@ impl Waku {
                         ),
                     )
                     .child(
-                        mini(format!("org-edit-{team_id}"), "icons/pencil.svg", "Edit")
-                            .on_click(cx.listener(move |this, _, window, cx| {
+                        mini(format!("org-edit-{team_id}"), "icons/pencil.svg", "Edit").on_click(
+                            cx.listener(move |this, _, window, cx| {
                                 this.edit_control_record(edit.clone(), cx);
                                 this.control_ui.name.read(cx).focus().focus(window, cx);
-                            })),
+                            }),
+                        ),
                     );
             }
             None => {
@@ -874,11 +921,10 @@ impl Waku {
         dropdown_menu(trigger, menu_id, &menu, MenuAlign::BelowLeft, move |_| {
             let mut items = vec![MenuItem::Header(header.clone().into())];
             let subagent = weak.clone();
-            items.push(
-                MenuItem::new("New subagent", move |window, cx| {
-                    let _ = subagent.update(cx, |this, cx| this.begin_subagent(team, parent, window, cx));
-                }),
-            );
+            items.push(MenuItem::new("New subagent", move |window, cx| {
+                let _ =
+                    subagent.update(cx, |this, cx| this.begin_subagent(team, parent, window, cx));
+            }));
             if !candidates.is_empty() {
                 let attach = weak.clone();
                 let candidates = candidates.clone();
@@ -903,23 +949,19 @@ impl Waku {
             }
             if let Some(agent) = agent.clone() {
                 let edit = weak.clone();
-                items.push(
-                    MenuItem::new("Edit agent", move |window, cx| {
-                        let _ = edit.update(cx, |this, cx| {
-                            this.edit_control_record(ControlRecord::Agent(agent.clone()), cx);
-                            this.control_ui.name.read(cx).focus().focus(window, cx);
-                        });
-                    }),
-                );
+                items.push(MenuItem::new("Edit agent", move |window, cx| {
+                    let _ = edit.update(cx, |this, cx| {
+                        this.edit_control_record(ControlRecord::Agent(agent.clone()), cx);
+                        this.control_ui.name.read(cx).focus().focus(window, cx);
+                    });
+                }));
             }
             if let Some(team) = team.filter(|_| !lead) {
                 let detach = weak.clone();
                 items.push(MenuItem::Separator);
-                items.push(
-                    MenuItem::new("Remove from team", move |_, cx| {
-                        let _ = detach.update(cx, |this, cx| this.detach_report(team, parent, cx));
-                    }),
-                );
+                items.push(MenuItem::new("Remove from team", move |_, cx| {
+                    let _ = detach.update(cx, |this, cx| this.detach_report(team, parent, cx));
+                }));
             }
             items
         })

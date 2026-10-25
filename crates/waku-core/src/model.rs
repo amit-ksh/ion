@@ -59,21 +59,24 @@ fn apply_cached_models(
     probe
 }
 
+/// A Token Factory `org/model` id reads as the model, with the org as the picker subtitle.
+fn nebius_model(id: String) -> ProviderModel {
+    let model = match id.split_once('/') {
+        Some((org, name)) if !org.is_empty() && !name.is_empty() => ProviderModel::new(&id, name)
+            .sub_provider(crate::model_catalog::display_name_from_slug(org)),
+        _ => ProviderModel::new(&id, &id),
+    };
+    if id == "nvidia/nemotron-3-super-120b-a12b" {
+        model.default()
+    } else {
+        model
+    }
+}
+
 pub fn discover_provider_models(mut probe: ProviderProbe) -> ProviderProbe {
     if probe.provider == ProviderKind::Nebius {
         if let Ok(ids) = crate::credentials::CredentialService::global().nebius_model_ids() {
-            let preferred = "nvidia/nemotron-3-super-120b-a12b";
-            probe.models = ids
-                .into_iter()
-                .map(|id| {
-                    let model = ProviderModel::new(id.clone(), id.clone());
-                    if id == preferred {
-                        model.default()
-                    } else {
-                        model
-                    }
-                })
-                .collect();
+            probe.models = ids.into_iter().map(nebius_model).collect();
         }
         return probe;
     }
@@ -121,5 +124,17 @@ mod tests {
 
         assert_eq!(probe.models.len(), 1);
         assert_eq!(probe.models[0].id, "cached-model");
+    }
+
+    #[test]
+    fn nebius_models_show_the_name_with_the_org_as_subtitle() {
+        let model = nebius_model("moonshotai/Kimi-K3".into());
+        assert_eq!(model.id, "moonshotai/Kimi-K3");
+        assert_eq!(model.name, "Kimi-K3");
+        assert_eq!(model.sub_provider.as_deref(), Some("Moonshot AI"));
+        let nemotron = nebius_model("nvidia/nemotron-3-super-120b-a12b".into());
+        assert!(nemotron.is_default);
+        assert_eq!(nemotron.sub_provider.as_deref(), Some("NVIDIA"));
+        assert_eq!(nebius_model("plain".into()).name, "plain");
     }
 }

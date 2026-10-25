@@ -100,9 +100,6 @@ pub struct DeepSeekDriver {
 }
 
 impl DeepSeekDriver {
-    pub fn start(options: DriverStartOptions, events: DriverEventSender) -> anyhow::Result<Self> {
-        Self::start_with_workspace(options, events, None)
-    }
     pub(crate) fn start_with_workspace(
         options: DriverStartOptions,
         events: DriverEventSender,

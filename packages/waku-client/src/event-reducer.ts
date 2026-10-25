@@ -55,6 +55,10 @@ export function reduceRuntimeEvent(
   wire: SequencedEvent,
   clock: ReducerClock = defaultClock,
   processExitError: string | null = null,
+  /** The user asked this runtime to stop: the provider's failure report for
+   * the cut-short turn is the stop itself, settled as interrupted like the
+   * desktop's own Stop. */
+  stopRequested = false,
 ): RuntimeEventResult {
   const session = clone(current)
   const { kind, payload } = wire.event
@@ -251,7 +255,7 @@ export function reduceRuntimeEvent(
       const success = value?.success === true
       result.settled = settleTurn(
         session,
-        success ? 'completed' : 'failed',
+        success ? 'completed' : stopRequested ? 'interrupted' : 'failed',
         typeof value?.summary === 'string' ? value.summary : null,
         clock,
       )
@@ -260,7 +264,7 @@ export function reduceRuntimeEvent(
       break
     }
     case 'error': {
-      if (typeof payload !== 'string') break
+      if (typeof payload !== 'string' || stopRequested) break
       result.error = payload
       // An optimistic pursuit turn has no submission to fail with. Unwind it
       // so the error cannot strand a spinner; if the pursuit does start
@@ -298,7 +302,7 @@ export function reduceRuntimeEvent(
     case 'processExited':
       result.settled = settleTurn(
         session,
-        'failed',
+        stopRequested ? 'interrupted' : 'failed',
         processExitError ?? 'The agent exited before responding.',
         clock,
       )
@@ -544,7 +548,7 @@ function settleTurn(
   turn.status = status
   turn.completed_at = clock.nowSeconds()
   session.last_reply_at = turn.completed_at
-  session.status = status === 'completed' ? 'idle' : 'failed'
+  session.status = status === 'failed' ? 'failed' : 'idle'
   return true
 }
 

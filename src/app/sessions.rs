@@ -7,12 +7,6 @@ fn retain_runtime_after_cancel(provider: ProviderKind) -> bool {
     !matches!(provider, ProviderKind::Codex | ProviderKind::Amp)
 }
 
-fn new_task_runtime_mode(current: Option<&AgentSession>, remembered: RuntimeMode) -> RuntimeMode {
-    current
-        .map(|session| session.runtime_mode)
-        .unwrap_or(remembered)
-}
-
 impl Waku {
     pub(crate) fn open_task_from_notification(&mut self, session_id: Uuid, cx: &mut Context<Self>) {
         self.select_session(session_id, cx);
@@ -175,28 +169,22 @@ impl Waku {
         }
         self.state.selected_session = Some(session_id);
         self.task_switcher.record_access(session_id);
-        if let Some((
-            project_id,
-            provider,
-            runtime_mode,
-            model,
-            reasoning_effort,
-            service_tier,
-            context_window,
-        )) = self.selected_session().map(|session| {
-            (
-                session.project_id,
-                session.provider,
-                session.runtime_mode,
-                session.model.clone(),
-                session.reasoning_effort.clone(),
-                session.service_tier.clone(),
-                session.context_window.clone(),
-            )
-        }) {
+        // Access is not copied: viewing a task, possibly started on another
+        // device, must not change this client's default for new tasks.
+        if let Some((project_id, provider, model, reasoning_effort, service_tier, context_window)) =
+            self.selected_session().map(|session| {
+                (
+                    session.project_id,
+                    session.provider,
+                    session.model.clone(),
+                    session.reasoning_effort.clone(),
+                    session.service_tier.clone(),
+                    session.context_window.clone(),
+                )
+            })
+        {
             self.state.selected_project = Some(project_id);
             self.state.last_provider = provider;
-            self.state.last_runtime_mode = runtime_mode;
             self.state.last_model = model;
             self.state.last_reasoning_effort = reasoning_effort;
             self.state.last_service_tier = service_tier;
@@ -282,13 +270,9 @@ impl Waku {
             self.select_session(draft_id, cx);
             return;
         }
-        // A task opened from the current task carries its working access mode.
-        // `last_runtime_mode` covers launch and the few creation paths without
-        // a selected source task.
-        let runtime_mode =
-            new_task_runtime_mode(self.selected_session(), self.state.last_runtime_mode);
-        let mut session = self.state.new_session(project_id, provider);
-        session.runtime_mode = runtime_mode;
+        // `new_session` applies `last_runtime_mode`, which only this client's
+        // own access choice changes, never the selected task's mode.
+        let session = self.state.new_session(project_id, provider);
         let id = session.id;
         self.state.push_session(session);
         self.select_session(id, cx);
@@ -1877,21 +1861,6 @@ impl Waku {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn new_task_carries_the_current_tasks_access_mode() {
-        let mut current = AgentSession::new(Uuid::new_v4(), ProviderKind::OpenCode);
-        current.runtime_mode = RuntimeMode::Ask;
-
-        assert_eq!(
-            new_task_runtime_mode(Some(&current), RuntimeMode::FullAccess),
-            RuntimeMode::Ask
-        );
-        assert_eq!(
-            new_task_runtime_mode(None, RuntimeMode::AutoAcceptEdits),
-            RuntimeMode::AutoAcceptEdits
-        );
-    }
 
     #[test]
     fn new_task_navigation_reuses_a_draft_from_the_current_project() {

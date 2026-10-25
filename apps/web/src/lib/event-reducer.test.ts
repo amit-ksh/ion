@@ -52,6 +52,24 @@ describe('reduceRuntimeEvent', () => {
     expect(result.session.messages.at(-1)?.streaming).toBe(false)
   })
 
+  test('settles a turn the user stopped as interrupted, not failed', () => {
+    let session = runningSession()
+    const error = reduceRuntimeEvent(session, event('error', 'Nebius task stopped'), clock, null, true)
+    expect(error.error).toBeUndefined()
+    session = error.session
+    const result = reduceRuntimeEvent(
+      session,
+      event('turnFinished', { success: false, summary: 'Nebius task stopped' }),
+      clock,
+      null,
+      true,
+    )
+
+    expect(result.settled).toBe(true)
+    expect(result.session.status).toBe('idle')
+    expect(result.session.turns[0]?.status).toBe('interrupted')
+  })
+
   test('does not turn a completed session into a failure when its process exits', () => {
     let session = runningSession()
     session = reduceRuntimeEvent(

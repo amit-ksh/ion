@@ -85,9 +85,13 @@ impl Waku {
                 }
                 match result {
                     Ok(page) => {
-                        this.control_ui.inbox.history = Some(Rc::new(page));
                         this.control_ui.inbox.history_error = None;
-                        this.control_ui.activity_revision += 1;
+                        // Every 3 s poll lands here; an unchanged page must not
+                        // rebuild (and so rescroll to the top) every workspace list.
+                        if this.control_ui.inbox.history.as_deref() != Some(&page) {
+                            this.control_ui.inbox.history = Some(Rc::new(page));
+                            this.control_ui.activity_revision += 1;
+                        }
                     }
                     Err(error) => {
                         this.control_ui.inbox.history_error = Some(format!(

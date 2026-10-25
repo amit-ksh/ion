@@ -760,9 +760,7 @@ impl Waku {
                     .truncate()
                     .text_size(sp(13.0))
                     .when(primary, |label| {
-                        label
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.text)
+                        label.font_weight(FontWeight::MEDIUM).text_color(theme.text)
                     })
                     .when(!primary, |label| label.text_color(theme.text_secondary))
                     .child(label),
@@ -957,12 +955,14 @@ impl Waku {
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.open_settings_action(&OpenSettings, window, cx);
                 }))
-                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                    if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-                        this.open_settings_action(&OpenSettings, window, cx);
-                        cx.stop_propagation();
-                    }
-                })),
+                .on_key_down(cx.listener(
+                    |this, event: &KeyDownEvent, window, cx| {
+                        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                            this.open_settings_action(&OpenSettings, window, cx);
+                            cx.stop_propagation();
+                        }
+                    },
+                )),
             )
             .when_some(self.render_updater_button(cx), |footer, button| {
                 footer.child(button)
@@ -2153,7 +2153,10 @@ impl Waku {
                 let label = if self.connected_mobile_devices.len() == 1 {
                     format!("{} connected", self.connected_mobile_devices[0])
                 } else {
-                    format!("{} mobile devices connected", self.connected_mobile_devices.len())
+                    format!(
+                        "{} mobile devices connected",
+                        self.connected_mobile_devices.len()
+                    )
                 };
                 header.child(
                     div()
@@ -2348,11 +2351,13 @@ impl Waku {
                             window.on_next_frame(move |window, cx| window.focus(&focus, cx));
                             cx.notify();
                         });
-                    }).icon("icons/pencil.svg"),
+                    })
+                    .icon("icons/pencil.svg"),
                     MenuItem::new("Delete project…", move |window, cx| {
                         let _ = remove
                             .update(cx, |this, cx| this.request_remove_project(id, window, cx));
-                    }).icon("icons/trash.svg"),
+                    })
+                    .icon("icons/trash.svg"),
                 ]
             },
         )

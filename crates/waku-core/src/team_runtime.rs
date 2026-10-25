@@ -501,6 +501,28 @@ fn local_host(profile: &AgentProfile) -> Result<DispatchHost> {
         ),
     }
 }
+/// Readiness defects of the pinned profile itself. Runs pin profiles, so no
+/// later setup or agent edit can clear them; deferring would queue forever.
+fn pinned_profile_defect(profile: &AgentProfile) -> Option<&'static str> {
+    let execution = &profile.execution;
+    if profile.model.as_deref().is_none_or(|m| m.trim().is_empty()) {
+        Some(
+            "This agent has no explicit model, and every Teams harness needs one. Choose a model for the agent, then start a new task",
+        )
+    } else if execution.environment == ExecutionEnvironment::NebiusSandbox
+        && !execution.local_fallback
+        && execution
+            .sandbox_target
+            .as_deref()
+            .is_none_or(|t| Uuid::parse_str(t.rsplit('@').next().unwrap_or(t)).is_err())
+    {
+        Some(
+            "This sandbox agent has no valid sandbox target and local fallback is off. Set an image UUID for the agent, then start a new task",
+        )
+    } else {
+        None
+    }
+}
 struct Job {
     run: Uuid,
     cancelled: Arc<AtomicBool>,
@@ -1086,6 +1108,14 @@ impl TeamRuntime {
                 .iter()
                 .find(|p| p.id == work.agent_id)
                 .context("Pinned profile missing")?;
+            if work.status == AssignmentStatus::Queued
+                && let Some(reason) = pinned_profile_defect(profile)
+            {
+                self.coordinator
+                    .block_dispatch(run.id, work.id, reason.into(), unix_time())?;
+                self.setup_message(work.task_id, AssignmentStatus::Blocked, reason)?;
+                continue;
+            }
             let ready = (|| {
                 waku_protocol::distribution::ProviderPolicy::require_new_task(profile.provider)?;
                 ensure!(
