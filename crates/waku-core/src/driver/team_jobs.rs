@@ -268,11 +268,16 @@ fn validate_policy(p: &Policy) -> Result<()> {
 // Models usually name a program, not its path; resolve only to an executable
 // the policy already allows, and name the allowed set when admission fails.
 fn admit_args(p: &Policy, a: &mut CommandArgs) -> Result<()> {
-    if let Some(path) = a.argv.first().filter(|name| !name.contains('/')).and_then(|name| {
-        p.executables
-            .iter()
-            .find(|path| path.rsplit('/').next() == Some(name.as_str()))
-    }) {
+    if let Some(path) = a
+        .argv
+        .first()
+        .filter(|name| !name.contains('/'))
+        .and_then(|name| {
+            p.executables
+                .iter()
+                .find(|path| path.rsplit('/').next() == Some(name.as_str()))
+        })
+    {
         a.argv[0] = path.clone();
     }
     validate_args(p, a).map_err(|error| {
@@ -2125,7 +2130,11 @@ mod tests {
             output_paths: vec![],
             timeout_seconds: 60,
         };
-        validate_args(&policy, &args(&["/usr/local/bin/python3", "-c", "print(1)"])).unwrap();
+        validate_args(
+            &policy,
+            &args(&["/usr/local/bin/python3", "-c", "print(1)"]),
+        )
+        .unwrap();
         assert!(validate_args(&policy, &args(&["/usr/bin/curl", "https://example.com"])).is_err());
         let mut bare = args(&["python3", "-c", "print(1)"]);
         admit_args(&policy, &mut bare).unwrap();

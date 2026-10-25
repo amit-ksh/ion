@@ -1378,30 +1378,31 @@ fn execute_with_cancel(
                 summary: String,
             }
             let a: Args = serde_json::from_value(args)?;
-            let artifact = coordinator.publish_file_document(
-                &claimed.lease,
-                call.request_id,
-                workspace,
-                &a.path,
-                &a.name,
-                &a.format,
-                &a.sha256,
-                &a.summary,
-                now,
-            )
-            .map_err(|error| {
-                if error
-                    .downcast_ref::<std::io::Error>()
-                    .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
-                {
-                    anyhow::anyhow!(
-                        "{} is not in the team workspace; create it with write_file first",
-                        a.path
-                    )
-                } else {
-                    error
-                }
-            })?;
+            let artifact = coordinator
+                .publish_file_document(
+                    &claimed.lease,
+                    call.request_id,
+                    workspace,
+                    &a.path,
+                    &a.name,
+                    &a.format,
+                    &a.sha256,
+                    &a.summary,
+                    now,
+                )
+                .map_err(|error| {
+                    if error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
+                    {
+                        anyhow::anyhow!(
+                            "{} is not in the team workspace; create it with write_file first",
+                            a.path
+                        )
+                    } else {
+                        error
+                    }
+                })?;
             Ok(ToolOutcome::Reply(json!({"artifact_id":artifact.id,"name":artifact.name,"format":artifact.format,"evidence":artifact.evidence}).to_string()))
         }
         "save_pdf" => {

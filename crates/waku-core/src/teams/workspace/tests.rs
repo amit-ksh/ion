@@ -1616,8 +1616,7 @@ fn editing_a_missing_file_names_the_create_contract() {
         .to_string();
     assert!(error.contains("old_content null"), "{error}");
     let existing = dir.join("index.html");
-    fs::write(&existing, "<h1>Aurora</h1>
-").unwrap();
+    fs::write(&existing, "<h1>Aurora</h1>\n").unwrap();
     compare_file(&existing, Some("<h1>Aurora</h1>")).unwrap();
     let error = compare_file(&existing, Some("<h1>Other</h1>"))
         .unwrap_err()

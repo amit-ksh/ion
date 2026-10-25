@@ -310,7 +310,11 @@ impl Client {
 fn personal_image() -> Result<Option<Uuid>> {
     waku_credentials::CredentialService::global()
         .personal_sandbox_target()?
-        .map(|target| Ok(Uuid::parse_str(target.rsplit('@').next().unwrap_or_default())?))
+        .map(|target| {
+            Ok(Uuid::parse_str(
+                target.rsplit('@').next().unwrap_or_default(),
+            )?)
+        })
         .transpose()
 }
 /// Ion's own image carries the command worker beside the model worker, so it
@@ -572,15 +576,15 @@ fn execute(
     }
     // Upload before pinning: a failure here leaves nothing to reconcile.
     let key_file = match (client.saved, &request.execution) {
-        (true, Some(_)) => match waku_credentials::CredentialService::global()
-            .personal_worker_key_file()
-        {
-            Ok(file) => Some(file),
-            Err(error) => {
-                coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
-                return Err(error.context("Could not provide the worker key to the sandbox"));
+        (true, Some(_)) => {
+            match waku_credentials::CredentialService::global().personal_worker_key_file() {
+                Ok(file) => Some(file),
+                Err(error) => {
+                    coordinator.finish_remote_call(request.request_id, None, "rejected", None)?;
+                    return Err(error.context("Could not provide the worker key to the sandbox"));
+                }
             }
-        },
+        }
         _ => None,
     };
     coordinator.pin_remote_input(request.request_id, std::str::from_utf8(&input)?)?;
@@ -857,8 +861,9 @@ fn verify_original_request(
                 None =>
                     m.get("uid").is_none_or(|v| *v == 0) && m.get("gid").is_none_or(|v| *v == 0),
             }
-            && m.get("files")
-                .is_none_or(|v| v.is_null() || *v == json!({}) || (identity.is_some() && is_key_mount(v))),
+            && m.get("files").is_none_or(|v| v.is_null()
+                || *v == json!({})
+                || (identity.is_some() && is_key_mount(v))),
         "Sandbox metadata differs from the original bounded execution host"
     );
     let stdin = &m["stdin"];

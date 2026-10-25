@@ -1237,13 +1237,7 @@ mod tests {
     fn inline_reasoning_before_a_close_tag_is_not_shown_as_the_reply() {
         let packet = |content: &str| json!({"choices":[{"delta":{"content":content}}]});
         let stream = format!(
-            "data: {}
-
-data: {}
-
-data: [DONE]
-
-",
+            "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
             packet("I should edit index.html.</th"),
             packet("ink>Added the section.")
         );
@@ -1261,14 +1255,7 @@ data: [DONE]
                 .all(|e| !matches!(e, DriverEvent::TextDelta(t) if t.contains("think")))
         );
 
-        let plain = format!(
-            "data: {}
-
-data: [DONE]
-
-",
-            packet("Done.")
-        );
+        let plain = format!("data: {}\n\ndata: [DONE]\n\n", packet("Done."));
         let reply = parse_stream_metered(plain.as_bytes(), &events, &AtomicBool::new(false), false)
             .unwrap();
         assert_eq!(reply.text, "Done.");
