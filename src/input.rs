@@ -3218,7 +3218,7 @@ mod tests {
         let input = cx.read_entity(&harness, |harness, _| harness.input.clone());
         cx.update(|window, cx| {
             window.focus(&input.read(cx).focus(), cx);
-            window.draw(cx);
+            window.draw(cx).clear(cx);
         });
         cx.read_entity(&input, |input, _| {
             assert_eq!(input.scroll_handle.bounds().size.height, px(100.));
@@ -3226,14 +3226,14 @@ mod tests {
         });
         cx.simulate_keystrokes("ctrl-end");
         cx.update(|window, cx| {
-            window.draw(cx);
+            window.draw(cx).clear(cx);
         });
         cx.read_entity(&input, |input, _| {
             assert!(input.scroll_handle.offset().y < px(0.))
         });
         cx.simulate_keystrokes("ctrl-home");
         cx.update(|window, cx| {
-            window.draw(cx);
+            window.draw(cx).clear(cx);
         });
         cx.read_entity(&input, |input, _| {
             assert_eq!(input.scroll_handle.offset().y, px(0.))

@@ -2814,9 +2814,15 @@ mod tests {
         let index = sidebar_session_row_index(&rows, target).unwrap();
         let offset = sidebar_bottom_aligned_offset(&rows, index, px(400.0));
 
+        // Walk up whole session rows until they cover the viewport, then
+        // scroll the top row by whatever overflows.
+        let rows_needed = (400.0 / SIDEBAR_SESSION_ROW_HEIGHT).ceil() as usize;
         assert_eq!(index, 31);
-        assert_eq!(offset.item_ix, 24);
-        assert_eq!(offset.offset_in_item, px(16.0));
+        assert_eq!(offset.item_ix, index + 1 - rows_needed);
+        assert_eq!(
+            offset.offset_in_item,
+            px(rows_needed as f32 * SIDEBAR_SESSION_ROW_HEIGHT - 400.0)
+        );
         let visible_height = rows[offset.item_ix..=index]
             .iter()
             .copied()
