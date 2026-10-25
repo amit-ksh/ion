@@ -23,6 +23,7 @@ export function Chip({
   chevron = true,
   maxLabelWidth = 180,
   quiet = false,
+  iconOnly = false,
 }: {
   icon?: SymbolName;
   mark?: ReactNode;
@@ -35,6 +36,8 @@ export function Chip({
   maxLabelWidth?: number;
   /** Context chips under the composer: no fill or stroke until pressed. */
   quiet?: boolean;
+  /** Show only the icon and chevron; the label still names the chip for screen readers. */
+  iconOnly?: boolean;
 }) {
   const theme = useTheme();
   const color = active ? theme.accent : quiet ? theme.textSecondary : theme.text;
@@ -50,12 +53,15 @@ export function Chip({
         <View collapsable={false} style={[styles.pill, {
           backgroundColor: active ? theme.accentSoft : pressed ? theme.overlayStrong : quiet ? 'transparent' : theme.overlay,
           borderColor: active || quiet ? 'transparent' : theme.border,
-          paddingRight: chevron ? 8 : 12,
+          // Quiet chips have no fill, so they run tighter to share one row at 360dp.
+          gap: iconOnly ? 2 : quiet ? 4 : 6,
+          paddingLeft: quiet && !iconOnly ? 8 : 10,
+          paddingRight: chevron ? (quiet && !iconOnly ? 4 : 8) : 12,
         }]}>
           {mark ?? (icon && <AppSymbol name={icon} size={16} tintColor={active ? theme.accent : theme.textSecondary} />)}
-          <Text numberOfLines={1} style={[styles.label, { color, maxWidth: maxLabelWidth }]}>{label}</Text>
+          {!iconOnly && <Text numberOfLines={1} style={[styles.label, { color, maxWidth: maxLabelWidth }]}>{label}</Text>}
           {chevron && (
-            <AppSymbol name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={16} tintColor={theme.textTertiary} />
+            <AppSymbol name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={quiet ? 14 : 16} style={quiet ? styles.quietChevron : undefined} tintColor={theme.textTertiary} />
           )}
         </View>
       )}
@@ -64,7 +70,7 @@ export function Chip({
 }
 
 const styles = StyleSheet.create({
-  target: { justifyContent: 'center', minHeight: 48 },
+  target: { justifyContent: 'center', minHeight: 48, minWidth: 48 },
   pill: {
     alignItems: 'center',
     borderRadius: Radius.pill,
@@ -76,4 +82,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   label: { fontSize: 13.5, fontWeight: '500', lineHeight: 18 },
+  // The chevron glyph sits inside a wider box; trim it so quiet chips pack closer.
+  quietChevron: { marginHorizontal: -2 },
 });

@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   composer: { gap: 2 },
-  context: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 4 },
+  context: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6 },
   error: { borderRadius: Radius.medium, marginBottom: 8, padding: 11 },
   errorText: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   sheetLoading: { alignItems: 'center', paddingVertical: 14 },

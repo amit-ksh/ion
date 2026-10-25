@@ -269,7 +269,9 @@ test("full publication-sized HTML retains authored styling and complete source",
   expect(result.rendered?.html).toContain("<h2>Publication end</h2>");
   expect(result.rendered?.html).toContain("script-src 'none'");
   expect(result.sourceRows.map((row) => row.text).join("")).toBe(text);
-}, 60000);
+  // Preparation yields with setTimeout(0) every 4ms. Windows rounds each yield
+  // up to its ~15ms timer tick, so 16 MiB takes 40-60s there; the work is ~12s.
+}, 180000);
 
 test("entity expansion remains bounded while complete original source survives", async () => {
   const text = "<p>" + "&".repeat(7 * 1024 * 1024) + "</p>";

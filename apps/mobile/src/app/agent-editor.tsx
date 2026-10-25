@@ -55,7 +55,7 @@ export default function AgentEditor() {
   }, [state.fresh, state.scope, id, original]);
   const maxParallel = Number(parallel);
   const valid = name.trim() && instructions.trim() && mobileHarness(provider) && Number.isInteger(maxParallel) && maxParallel >= 1 && maxParallel <= 16
-    && (!access.workspaceWrite || access.workspaceRead) && environment === 'local';
+    && (!access.workspaceWrite || access.workspaceRead) && (environment === 'local' || environment === original?.execution.environment);
   async function save() {
     if (!valid || !provider) return;
     const saved = await state.save({ kind: 'agent', id: id ?? draftId, name: name.trim(), expertise: expertise.trim(),
@@ -107,8 +107,9 @@ export default function AgentEditor() {
         onChange={value => { setProvider(value as ProviderKind || null); setModel(null); }} />
       <WorkbenchButton label={`Model: ${model ?? 'Harness default'}`} onPress={() => setPicker(true)} disabled={!mobileHarness(provider) || !state.fresh || state.busy} />
       <AutomationChoice label="Environment" value={environment} onChange={value => setEnvironment(value as typeof environment)} disabled={state.busy}
-        options={[{ value: 'local', label: 'Paired desktop' }]} />
-      {(environment !== 'local' || provider === 'nebius') && <Text style={{ color: theme.warning }}>Cloud agents are managed on desktop. Choose a local harness and environment to save here.</Text>}
+        options={[{ value: 'local', label: 'Paired desktop' },
+          ...(original?.execution.environment === 'nebiusSandbox' ? [{ value: 'nebiusSandbox', label: 'Nebius sandbox' }] : [])]} />
+      {environment !== 'local' && <Text style={{ color: theme.textSecondary }}>Runs in a Nebius sandbox. Sandbox targets are chosen on desktop.</Text>}
       <AutomationField label="Parallel tasks (1–16)" value={parallel} onChangeText={setParallel} keyboardType="number-pad" editable={!state.busy} />
     </WorkbenchCard>
     <WorkbenchCard>

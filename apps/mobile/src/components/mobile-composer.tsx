@@ -92,7 +92,7 @@ export function ComposerCard({
         selectionColor={NativeTint}
         style={[styles.input, { color: theme.text }]}
         {...inputProps}
-        placeholder={`${inputProps.placeholder ?? "Do anything…"}\n@ files, teams & apps · @@ teams · @@@ apps`}
+        placeholder={inputProps.placeholder ?? "Do anything…"}
       />
       <View style={styles.toolbar}>
         <View style={styles.chips}>
@@ -370,7 +370,7 @@ export function MobileComposer({
   async function submit() {
     if (!providerAvailable) {
       setLocalError(
-        "Cloud inference is disabled here. Open this task on desktop.",
+        "This harness is not available in this app. Open this task on desktop.",
       );
       return;
     }
@@ -933,12 +933,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
   },
+  // Text starts on the same left edge as the + disc below it.
   input: {
     fontSize: 16,
     lineHeight: 22,
     maxHeight: 132,
-    minHeight: 52,
-    paddingHorizontal: 8,
+    minHeight: 50,
+    paddingHorizontal: 6,
     paddingVertical: 6,
   },
   attachmentStrip: { gap: 8, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 6,
@@ -953,7 +954,7 @@ const styles = StyleSheet.create({
     width: 80,
   },
   attachmentName: { fontSize: 11.5 },
-  toolbar: { alignItems: "center", flexDirection: "row", gap: 4, marginTop: 2 },
+  toolbar: { alignItems: "center", flexDirection: "row", gap: 4, marginTop: 4 },
   chips: { flex: 1, minWidth: 0 },
   chipsContent: { paddingRight: 20 },
   chipsFade: { bottom: 0, position: "absolute", right: 0, top: 0, width: 24 },
@@ -964,12 +965,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 48,
   },
+  // 36dp like the + disc and the chips, so the toolbar reads as one line.
   sendDisc: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 42,
+    height: 36,
     justifyContent: "center",
-    width: 42,
+    width: 36,
   },
   errorBanner: {
     alignItems: "center",

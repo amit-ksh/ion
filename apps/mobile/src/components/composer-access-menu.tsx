@@ -21,8 +21,12 @@ export function ComposerAccessMenu({ mode, onApply, quiet = false }: ComposerAcc
   return (
     <>
       {quiet ? (
+        // Icon only so the context row (project, desktop, workspace, access)
+        // fits one line at 360dp. Full access tints so it stays noticeable.
         <Chip
           quiet
+          iconOnly
+          active={mode === 'fullAccess'}
           accessibilityLabel={label}
           icon={MODE_ICONS[mode]}
           label={runtimeModeLabel(mode)}

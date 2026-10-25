@@ -548,7 +548,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     // still in flight; building the turn on that would persist a transcript
     // with only the new messages. Always start from the full session.
     let current = await loadFullSession(inputSession.id);
-    if (!mobileHarness(current.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
+    if (!mobileHarness(current.provider)) throw new Error('This harness is not available in this app. Open this task on desktop.');
     if (current.team_assignment) {
       if (!prompt || new TextEncoder().encode(prompt).length > 4096 || attachments.length > 0
         || providerPrompt !== prompt) {
@@ -706,7 +706,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       : providerPromptOverride.trim();
     if (!client || daemon.phase !== 'connected') throw new Error('ion daemon is disconnected');
     const runtime = entries.current.get(session.id);
-    if (!mobileHarness(runtime?.session.provider ?? session.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
+    if (!mobileHarness(runtime?.session.provider ?? session.provider)) throw new Error('This harness is not available in this app. Open this task on desktop.');
     if (session.team_assignment || runtime?.session.team_assignment) {
       await sendPrompt(session, prompt, attachments, providerPrompt);
       return;
@@ -732,7 +732,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
     options: NewSessionOptions = {},
     providerPromptOverride?: string,
   ): Promise<AgentSession> => {
-    if (!mobileHarness(provider)) throw new Error('Choose a local desktop harness. Cloud inference is disabled in this app.');
+    if (!mobileHarness(provider)) throw new Error('This harness is not available in this app. Choose another harness.');
     const profileId = daemon.activeProfile?.id;
     if (!profileId || !daemon.client || daemon.phase !== 'connected') {
       throw new Error('ion daemon is disconnected');
@@ -754,7 +754,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
    * a user prompt. A fresh task still needs a subscribed provider runtime;
    * its goalUpdated/turnStarted events supply the authoritative state. */
   const sendGoalOperation = useCallback(async (inputSession: AgentSession, operation: GoalOperation) => {
-    if (!mobileHarness(inputSession.provider)) throw new Error('Cloud inference is disabled in this app. Open this task on desktop.');
+    if (!mobileHarness(inputSession.provider)) throw new Error('This harness is not available in this app. Open this task on desktop.');
     const client = daemon.client;
     if (!client || daemon.phase !== 'connected') throw new Error('ion daemon is disconnected');
     let current = await loadFullSession(inputSession.id);

@@ -25,7 +25,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function fixture(options: { attached?: boolean; loseFollowupAck?: boolean; cloudTeam?: boolean } = {}) {
+function fixture(options: { attached?: boolean; loseFollowupAck?: boolean; cloudTeam?: boolean; provider?: 'codex' | 'nebius' } = {}) {
   let nextId = 0;
   const clock = {
     nowSeconds: () => 100,
@@ -33,7 +33,7 @@ function fixture(options: { attached?: boolean; loseFollowupAck?: boolean; cloud
     randomUUID: () => `id-${++nextId}`,
   };
   let sequence = 0;
-  let history = createSession('project', 'codex', false, clock);
+  let history = createSession('project', options.provider ?? 'codex', false, clock);
   function event(kind: string, payload: SequencedEvent['event']['payload']): SequencedEvent {
     return {
       sessionId: history.id,
@@ -95,7 +95,8 @@ function fixture(options: { attached?: boolean; loseFollowupAck?: boolean; cloud
         case 'probeProvider':
           return {
             type: 'providerProbe', version: null,
-            probe: { provider: 'codex', installed: true, path: '/bin/codex', models: [], agent_presets: [] },
+            // Nebius is a native driver: installed with no binary path.
+            probe: { provider: command.provider, installed: true, path: command.provider === 'nebius' ? null : '/bin/codex', models: [], agent_presets: [] },
           };
         case 'start':
           return { type: 'started', supportsSteer: true };
@@ -140,11 +141,23 @@ function fixture(options: { attached?: boolean; loseFollowupAck?: boolean; cloud
 }
 
 describe('mobile runtime history', () => {
-  test('blocks cloud inference task creation before sending any daemon command', async () => {
-    const f = fixture({ attached: false });
-    const before = f.commands.length;
-    await expect(f.runtime.createTask('project', 'nebius', false, 'Use cloud inference')).rejects.toThrow('Cloud inference is disabled');
-    expect(f.commands).toHaveLength(before);
+  test('starts, streams and steers a Nebius task without a harness binary', async () => {
+    const f = fixture({ attached: false, provider: 'nebius' });
+    const fresh = { ...f.history, messages: [], turns: [], transcript_blocks: [], status: 'idle' as const };
+    f.queryClient.setQueryData(f.key, fresh);
+    await f.runtime.sendPrompt(fresh, 'Summarize the release');
+    expect(f.commands.find((command) => command.type === 'start'))
+      .toMatchObject({ options: { provider: 'nebius', binary: '', cwd: '/repo' } });
+    expect(f.commands.find((command) => command.type === 'prompt')).toMatchObject({ prompt: 'Summarize the release' });
+    f.emit('turnStarted', null);
+    f.emit('textDelta', 'Nemotron answer');
+    f.emit('availableCommands', []);
+    expect(f.current().messages.map((message) => message.content)).toEqual(['Summarize the release', 'Nemotron answer']);
+    await f.runtime.steerPrompt(f.current(), 'Also list the risks');
+    expect(f.commands.at(-1)).toEqual({ type: 'steer', prompt: 'Also list the risks' });
+    f.emit('steerAccepted', { message: 'Also list the risks' });
+    f.emit('availableCommands', []);
+    expect(f.current().messages.at(-1)).toMatchObject({ role: 'user', content: 'Also list the risks' });
   });
   test('creates a task with expanded provider text while retaining its slash command for display', async () => {
     const f = fixture({ attached: false });
@@ -155,13 +168,12 @@ describe('mobile runtime history', () => {
     expect(session.messages[0]).toMatchObject({ content: '$deploy production', display_content: '/deploy production' });
   });
 
-  test('blocks live cloud steering before dispatch', async () => {
-    const f = fixture();
-    f.history.provider = 'nebius';
+  test('steers a live Nebius task', async () => {
+    const f = fixture({ provider: 'nebius' });
     f.queryClient.setQueryData(f.key, f.history);
     await f.runtime.attachSession(f.history);
-    await expect(f.runtime.steerPrompt(f.history, 'Continue')).rejects.toThrow('Cloud inference is disabled');
-    expect(f.commands.some(command => command.type === 'steer')).toBe(false);
+    await f.runtime.steerPrompt(f.history, 'Continue');
+    expect(f.commands.at(-1)).toEqual({ type: 'steer', prompt: 'Continue' });
   });
 
   test('keeps expanded command content separate from display text when steering', async () => {
@@ -293,12 +305,12 @@ describe('mobile Teams follow-ups', () => {
 })
 
 
-test('mobile refuses a cloud team follow-up before durable queueing while retaining stop controls', async () => {
+test('mobile queues a follow-up for a team with Nebius agents and can still stop it', async () => {
   const f = fixture({ attached: false, cloudTeam: true });
   f.history.team_assignment = { runId: 'run', assignmentId: 'work', teamName: 'Engineering' };
   f.queryClient.setQueryData(f.key, f.history);
-  await expect(f.runtime.sendPrompt(f.history, 'Continue')).rejects.toThrow('cloud inference');
-  expect(f.commands.some(command => command.type === 'queueTeamFollowUp')).toBe(false);
+  await f.runtime.sendPrompt(f.history, 'Continue');
+  expect(f.commands.some(command => command.type === 'queueTeamFollowUp')).toBe(true);
   await f.runtime.cancel(f.history.id);
   expect(f.commands.some(command => command.type === 'stopTeamRun')).toBe(true);
 });

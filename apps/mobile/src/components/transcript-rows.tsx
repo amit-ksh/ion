@@ -14,6 +14,7 @@ import {
   MdRevealOnMount,
   type VeilRegistry,
 } from '@/components/md-block-row';
+import { StatusPill, ticketStatus } from '@/components/ticket-card';
 import { useRowAnchor } from '@/components/transcript-anchor';
 import { MonoFont, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -252,24 +253,32 @@ function formatElapsed(seconds: number): string {
   return `${Math.floor(clamped / 60)}m ${clamped % 60}s`;
 }
 
-/** The live footer under the streaming tail: spinner, flavour word, elapsed. */
+/** The live footer under the streaming tail: spinner, flavour word, elapsed.
+ * A task waiting on the user is not working, so it shows a static Needs you pill. */
 export function WorkingStrip({ session }: { session: AgentSession }) {
   const theme = useTheme();
+  const waiting = session.status === 'waiting';
   const startedAt = session.turns.at(-1)?.started_at ?? null;
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1_000));
   useEffect(() => {
+    if (waiting) return;
     const timer = setInterval(() => setNow(Math.floor(Date.now() / 1_000)), 1_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [waiting]);
+  if (waiting) {
+    return (
+      <View accessibilityLiveRegion="polite" style={styles.workingStrip}>
+        <StatusPill {...ticketStatus('needsYou')} />
+      </View>
+    );
+  }
   const elapsed = startedAt ? Math.max(0, now - startedAt) : 0;
-  const word = session.status === 'waiting'
-    ? 'Waiting for you'
-    : `${FLAVOUR_WORDS[(flavourSeed(session.id) + Math.floor(elapsed / 7)) % FLAVOUR_WORDS.length]}…`;
+  const word = `${FLAVOUR_WORDS[(flavourSeed(session.id) + Math.floor(elapsed / 7)) % FLAVOUR_WORDS.length]}…`;
   return (
     <View accessibilityLiveRegion="polite" style={styles.workingStrip}>
       <ActivityIndicator color={theme.textTertiary} size="small" />
       <Text style={[styles.workingText, { color: theme.textTertiary }]}>{word}</Text>
-      {startedAt != null && session.status !== 'waiting' && (
+      {startedAt != null && (
         <Text style={[styles.workingElapsed, { color: theme.textGhost }]}>
           {formatElapsed(elapsed)}
         </Text>

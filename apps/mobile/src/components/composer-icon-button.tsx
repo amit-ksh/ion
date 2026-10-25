@@ -44,11 +44,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 48,
   },
+  // 36dp like the + disc, the chips and the send disc.
   iconDisc: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 40,
+    height: 36,
     justifyContent: "center",
-    width: 40,
+    width: 36,
   },
 });

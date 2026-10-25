@@ -8,9 +8,10 @@ import { useTheme } from "@/hooks/use-theme";
 export type ComposerAttachmentSource = "files" | "camera" | "photo";
 
 const AttachmentActions: MenuAction[] = [
-  { id: "files", title: "Files", image: "folder" },
-  { id: "camera", title: "Camera", image: "camera" },
-  { id: "photo", title: "Photo", image: "photo" },
+  // Phone attachments, named apart from the desktop files mentioned above.
+  { id: "files", title: "Upload from phone", image: "folder" },
+  { id: "camera", title: "Take photo", image: "camera" },
+  { id: "photo", title: "Choose photo", image: "photo" },
 ];
 
 export function ComposerAddMenu({
@@ -46,9 +47,9 @@ export function ComposerAddMenu({
     <MenuView
       actions={[
         { id: "command", title: "Commands", image: "command" },
-        { id: "file", title: "Files, teams & apps @", image: "at" },
-        { id: "team", title: "AI teams @@", image: "person.3" },
-        { id: "app", title: "Apps @@@", image: "square.grid.2x2" },
+        { id: "file", title: "Add files, teams or apps", image: "at" },
+        { id: "team", title: "Add an AI team", image: "person.3" },
+        { id: "app", title: "Add an app", image: "square.grid.2x2" },
         ...(onChoose ? AttachmentActions : []),
       ]}
       onPressAction={({ nativeEvent }) => {

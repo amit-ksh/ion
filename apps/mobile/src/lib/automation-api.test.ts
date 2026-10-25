@@ -135,24 +135,25 @@ describe('phone automation identity and reconciliation', () => {
   });
 });
 
-function localSnapshot(cloud = false): import('@waku/client').ControlSnapshot {
+function localSnapshot(agent: 'local' | 'nebius' | 'missing' = 'local'): import('@waku/client').ControlSnapshot {
   return { revision: 7, records: [
     { kind: 'workflow', id: DEFINITION, stages: [{ teamId: OTHER }] },
     { kind: 'routine', id: 'routine', teamId: OTHER, workflowId: null },
     { kind: 'team', id: OTHER, members: [{ agentId: ID }] },
-    { kind: 'agent', id: ID, provider: cloud ? 'nebius' : 'codex', execution: { environment: 'local' } },
+    ...(agent === 'missing' ? [] : [{ kind: 'agent', id: ID, provider: agent === 'nebius' ? 'nebius' : 'codex',
+      execution: { environment: agent === 'nebius' ? 'nebiusSandbox' : 'local' } }]),
   ] } as import('@waku/client').ControlSnapshot;
 }
 test('mobile automation checks target profiles before starting or enabling, while stop and decline remain available', async () => {
   const calls: Command[] = [];
   const transport = { request: async (command: Command): Promise<ResponsePayload> => {
     calls.push(command);
-    if (command.type === 'loadWorkspaceControl') return { type: 'workspaceControl', snapshot: localSnapshot(true) };
+    if (command.type === 'loadWorkspaceControl') return { type: 'workspaceControl', snapshot: localSnapshot('missing') };
     return { type: 'automationRun', run: run() };
   } };
-  await expect(requestMobileAutomation(transport, { type: 'startAutomation', id: ID, definitionId: DEFINITION, expectedDefinitionRevision: 7 })).rejects.toThrow('cloud inference');
+  await expect(requestMobileAutomation(transport, { type: 'startAutomation', id: ID, definitionId: DEFINITION, expectedDefinitionRevision: 7 })).rejects.toThrow('Team agent unavailable');
   expect(calls.map(command => command.type)).toEqual(['loadWorkspaceControl']);
-  await expect(requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: false })).rejects.toThrow('cloud inference');
+  await expect(requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: false })).rejects.toThrow('Team agent unavailable');
   expect(calls.map(command => command.type)).toEqual(['loadWorkspaceControl', 'loadWorkspaceControl']);
   await expect(requestMobileAutomation(transport, { type: 'generateWorkflow', projectId: ID, prompt: 'Build' })).rejects.toThrow('desktop');
   await expect(requestMobileAutomation(transport, { type: 'resolveAutomationGate', id: ID, stage: 0, expectedRevision: 1, approved: true })).rejects.toThrow('pinned execution');
@@ -162,12 +163,12 @@ test('mobile automation checks target profiles before starting or enabling, whil
   expect(calls.slice(2).map(command => command.type)).toEqual(['stopAutomation', 'resolveAutomationGate', 'setRoutinePaused']);
 });
 
-test('mobile can start and enable verified local automation teams', async () => {
+for (const agent of ['local', 'nebius'] as const) test(`mobile can start and enable verified ${agent} automation teams`, async () => {
   const calls: Command[] = [];
   const transport = { request: async (command: Command): Promise<ResponsePayload> => {
     calls.push(command);
     return command.type === 'loadWorkspaceControl'
-      ? { type: 'workspaceControl', snapshot: localSnapshot() } : { type: 'automationRun', run: run() };
+      ? { type: 'workspaceControl', snapshot: localSnapshot(agent) } : { type: 'automationRun', run: run() };
   } };
   await requestMobileAutomation(transport, { type: 'startAutomation', id: ID, definitionId: DEFINITION, expectedDefinitionRevision: 7 });
   await requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: false });
