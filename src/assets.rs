@@ -241,6 +241,14 @@ const APP_ICONS: &[(&str, &[u8])] = &[
         "app-icons/supabase.svg",
         include_bytes!("../assets/app-icons/supabase.svg"),
     ),
+    (
+        "app-icons/googlecalendar.png",
+        include_bytes!("../assets/app-icons/googlecalendar.png"),
+    ),
+    (
+        "app-icons/elevenlabs.svg",
+        include_bytes!("../assets/app-icons/elevenlabs.svg"),
+    ),
 ];
 
 const TEXT_FONTS: &[&[u8]] = &[

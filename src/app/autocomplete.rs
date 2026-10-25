@@ -614,7 +614,10 @@ impl Waku {
                             .on_mouse_down_out(cx.listener(|this, _, _, cx| {
                                 this.dismiss_autocomplete(cx);
                             }))
-                            .child(list),
+                            .child(list)
+                            .when(trigger.kind != TriggerKind::Command, |popup| {
+                                popup.child(mention_legend(trigger.kind, &theme))
+                            }),
                     ),
             )
             .with_priority(1)
@@ -668,7 +671,7 @@ impl Waku {
                     .collect();
                 let mut name_font = font.clone();
                 name_font.weight = FontWeight::MEDIUM;
-                base.child(icon(icon_path, 12.0, theme.text_tertiary))
+                base.child(row_icon(icon(icon_path, 13.0, theme.text_tertiary)))
                     .child(
                         div()
                             .flex_none()
@@ -719,7 +722,7 @@ impl Waku {
                     .into_any_element()
             }
             AutocompleteRow::App(scored) => base
-                .child(icon("icons/package.svg", 13.0, theme.text_secondary))
+                .child(row_icon(self.app_mark(&scored.item.slug, 16.0, theme, cx)))
                 .child(
                     div()
                         .flex_1()
@@ -727,7 +730,10 @@ impl Waku {
                         .truncate()
                         .text_size(sp(12.5))
                         .text_color(theme.text)
-                        .child(scored.item.name.clone()),
+                        .child(super::workspace_control::app_icons::display_name(
+                            &scored.item.slug,
+                            &scored.item.name,
+                        )),
                 )
                 .child(
                     div()
@@ -737,7 +743,16 @@ impl Waku {
                 )
                 .into_any_element(),
             AutocompleteRow::Team(scored) => base
-                .child(icon("icons/fork.svg", 13.0, theme.text_secondary))
+                .child(row_icon(
+                    div()
+                        .size(px(18.0))
+                        .rounded(px(5.0))
+                        .bg(theme.accent_soft)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(icon("icons/fork.svg", 11.0, theme.accent)),
+                ))
                 .child(
                     div()
                         .flex_1()
@@ -786,7 +801,7 @@ impl Waku {
                 } else {
                     super::right_panel::file_icon_for_path(&file.path)
                 };
-                base.child(icon(icon_path, 13.0, theme.text_tertiary))
+                base.child(row_icon(icon(icon_path, 14.0, theme.text_secondary)))
                     .child(
                         div()
                             .flex_none()
@@ -902,4 +917,59 @@ mod tests {
             );
         }
     }
+}
+
+/// A fixed-width icon column, so names line up across files, teams and apps.
+fn row_icon(child: impl IntoElement) -> Div {
+    div()
+        .size(px(18.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(child)
+}
+
+/// Footer naming the three mention sigils, with the one in use lit.
+fn mention_legend(active: TriggerKind, theme: &Theme) -> Div {
+    let entry = |sigil: &'static str, label: &'static str, kind: TriggerKind| {
+        let lit = kind == active;
+        div()
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .child(
+                div()
+                    .h(px(18.0))
+                    .px(px(5.0))
+                    .rounded(px(4.0))
+                    .border_1()
+                    .border_color(if lit { theme.accent } else { theme.border })
+                    .when(lit, |key| key.bg(theme.accent_soft))
+                    .flex()
+                    .items_center()
+                    .font_family(crate::md::render::MONO_FAMILY)
+                    .text_size(sp(11.0))
+                    .text_color(if lit { theme.accent } else { theme.text_tertiary })
+                    .child(sigil),
+            )
+            .child(
+                div()
+                    .text_size(sp(11.5))
+                    .text_color(if lit { theme.text_secondary } else { theme.text_tertiary })
+                    .child(label),
+            )
+    };
+    div()
+        .flex_none()
+        .h(px(32.0))
+        .px(px(12.0))
+        .border_t_1()
+        .border_color(theme.border)
+        .flex()
+        .items_center()
+        .gap(px(16.0))
+        .child(entry("@", "Files, teams & apps", TriggerKind::File))
+        .child(entry("@@", "Teams", TriggerKind::Team))
+        .child(entry("@@@", "Apps", TriggerKind::App))
 }

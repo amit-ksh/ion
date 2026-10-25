@@ -3790,7 +3790,7 @@ impl Waku {
         crate::i18n::set_language(language);
 
         self.composer.update(cx, |input, cx| {
-            input.set_placeholder(tr!("input.do_anything"), cx)
+            input.set_placeholder(tr!("input.composer_placeholder"), cx)
         });
         self.model_search.update(cx, |input, cx| {
             input.set_placeholder(tr!("input.search_models"), cx)

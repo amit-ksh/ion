@@ -442,6 +442,7 @@ pub struct MenuChip {
     label: SharedString,
     caret: bool,
     outlined: bool,
+    filled: bool,
     selected: bool,
     disabled: bool,
     height: Option<Pixels>,
@@ -457,6 +458,7 @@ impl MenuChip {
             label: SharedString::default(),
             caret: true,
             outlined: false,
+            filled: false,
             selected: false,
             disabled: false,
             height: None,
@@ -499,6 +501,12 @@ impl MenuChip {
 
     pub fn outlined(mut self) -> Self {
         self.outlined = true;
+        self
+    }
+
+    /// Soft fill with a hairline at rest: the composer toolbar's pill chips.
+    pub fn filled(mut self) -> Self {
+        self.filled = true;
         self
     }
 
@@ -565,11 +573,17 @@ impl RenderOnce for MenuChip {
                     .border_color(theme.border_strong)
                     .bg(self.background.unwrap_or(theme.raised))
             })
+            .when(self.filled, |element| {
+                element.bg(theme.overlay).border_color(theme.border)
+            })
             .when(self.selected, |element| {
-                element.bg(theme.overlay).border_color(theme.border_strong)
+                element
+                    .bg(if self.filled { theme.overlay_strong } else { theme.overlay })
+                    .border_color(theme.border_strong)
             })
             .when(!self.disabled, |element| {
-                element.hover(|element| element.bg(theme.overlay))
+                let hover = if self.filled { theme.overlay_strong } else { theme.overlay };
+                element.hover(move |element| element.bg(hover))
             })
             .when(self.disabled, |element| element.opacity(0.6))
             .when_some(self.icon, |element, (path, color)| {

@@ -1444,6 +1444,18 @@ impl Waku {
         let Some(session_id) = self.state.selected_session else {
             return;
         };
+        self.respond_permission_for(session_id, request_id, option_id, cx);
+    }
+
+    /// Answer a task's pending permission without selecting it, as the home
+    /// rail's ticket actions do.
+    pub(super) fn respond_permission_for(
+        &mut self,
+        session_id: Uuid,
+        request_id: String,
+        option_id: String,
+        cx: &mut Context<Self>,
+    ) {
         let provider = self
             .state
             .sessions
@@ -1487,7 +1499,7 @@ impl Waku {
                     decision,
                 });
         }
-        if let Some(session) = self.selected_session_mut() {
+        if let Some(session) = self.state.session_mut(session_id) {
             session.status = SessionStatus::Working;
         }
         cx.notify();

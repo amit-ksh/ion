@@ -11,7 +11,7 @@ const PAD: f32 = 40.0;
 const CLUSTER_GAP: f32 = 88.0;
 const ROW_GAP: f32 = 96.0;
 const CHIP_W: f32 = 320.0;
-const CHIP_H: f32 = 56.0;
+const CHIP_H: f32 = 92.0;
 const CHIP_GAP: f32 = 44.0;
 const LOOSE_COLUMNS: usize = 4;
 const LOOSE_GAP_X: f32 = 32.0;
@@ -692,21 +692,34 @@ impl Waku {
                 "icons/bot.svg",
             ),
         };
-        let mini = |key: String, path: &'static str, tip: &'static str| {
+        // Labelled pills, as on Android: icon-only buttons here read as two
+        // near-identical pencils.
+        let mini = |key: String, path: &'static str, label: &'static str| {
             div()
                 .id(SharedString::from(key))
                 .flex_none()
-                .size(px(28.0 * z))
-                .rounded(px(8.0 * z))
+                .h(px(26.0 * z))
+                .pl(px(8.0 * z))
+                .pr(px(10.0 * z))
+                .rounded_full()
+                .border_1()
+                .border_color(theme.border)
+                .bg(theme.overlay)
                 .flex()
                 .items_center()
-                .justify_center()
+                .gap(px(5.0 * z))
                 .cursor_default()
                 .hover(move |style| style.bg(theme.overlay_strong))
-                .tooltip(Tooltip::text(tip))
-                .child(icon(path, 14.0 * z, theme.text_secondary))
+                .child(icon(path, 12.0 * z, theme.text_secondary))
+                .child(
+                    div()
+                        .text_size(sp(11.5 * z))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(theme.text_secondary)
+                        .child(label),
+                )
         };
-        let mut actions = div().flex_none().flex().items_center().gap(px(2.0 * z));
+        let mut actions = div().flex().items_center().gap(px(6.0 * z));
         match graph.team.clone() {
             Some(team) => {
                 let team_id = team.id;
@@ -735,7 +748,7 @@ impl Waku {
                         ),
                     )
                     .child(
-                        mini(format!("org-edit-{team_id}"), "icons/pencil.svg", "Edit team")
+                        mini(format!("org-edit-{team_id}"), "icons/pencil.svg", "Edit")
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.edit_control_record(edit.clone(), cx);
                                 this.control_ui.name.read(cx).focus().focus(window, cx);
@@ -757,41 +770,47 @@ impl Waku {
             .id(SharedString::from(format!("org-chip-{id}")))
             .w(px(CHIP_W * z))
             .h(px(CHIP_H * z))
-            .pl(px(10.0 * z))
-            .pr(px(8.0 * z))
+            .px(px(12.0 * z))
+            .py(px(10.0 * z))
             .rounded(px(14.0 * z))
             .border_1()
             .border_color(theme.ticket_border)
             .bg(theme.raised)
             .shadow(crate::ui::elevation(&theme, crate::ui::Elevation::Lifted))
             .flex()
-            .items_center()
-            .gap(px(10.0 * z))
-            .child(
-                avatar_tile(34.0 * z, theme.accent_soft, gpui::transparent_black())
-                    .child(icon(icon_path, 15.0 * z, theme.accent)),
-            )
+            .flex_col()
+            .justify_between()
             .child(
                 div()
-                    .flex_1()
-                    .min_w_0()
                     .flex()
-                    .flex_col()
-                    .gap(px(2.0 * z))
+                    .items_center()
+                    .gap(px(10.0 * z))
                     .child(
-                        div()
-                            .truncate()
-                            .text_size(sp(13.5 * z))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(theme.text)
-                            .child(title),
+                        avatar_tile(34.0 * z, theme.accent_soft, gpui::transparent_black())
+                            .child(icon(icon_path, 15.0 * z, theme.accent)),
                     )
                     .child(
                         div()
-                            .font_family(crate::md::render::MONO_FAMILY)
-                            .text_size(sp(10.5 * z))
-                            .text_color(theme.text_tertiary)
-                            .child(summary),
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap(px(2.0 * z))
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(sp(13.5 * z))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(theme.text)
+                                    .child(title),
+                            )
+                            .child(
+                                div()
+                                    .font_family(crate::md::render::MONO_FAMILY)
+                                    .text_size(sp(10.5 * z))
+                                    .text_color(theme.text_tertiary)
+                                    .child(summary),
+                            ),
                     ),
             )
             .child(actions)

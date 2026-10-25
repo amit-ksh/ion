@@ -176,6 +176,7 @@ settings.theme_light: ライト
 settings.theme_dark: ダーク
 
 input.do_anything: 何でも依頼できます…
+input.composer_placeholder: 何でも依頼できます… @ でファイル、チーム、アプリを追加
 input.search_models: モデルを検索…
 input.search_branches: ブランチを検索
 input.new_branch_name: 新しいブランチ名

@@ -63,7 +63,9 @@ impl TicketState {
     }
 }
 
-/// The rail's order: state first, then most recent activity.
+/// The rail's order: tickets waiting on you, then working ones, then settled
+/// tickets by most recent activity, so a fresh result is not buried under
+/// week-old failures.
 fn rail_sessions(sessions: &[AgentSession]) -> Vec<&AgentSession> {
     let mut started = sessions
         .iter()
@@ -71,7 +73,11 @@ fn rail_sessions(sessions: &[AgentSession]) -> Vec<&AgentSession> {
         .collect::<Vec<_>>();
     started.sort_by_key(|session| {
         (
-            TicketState::of(session.status),
+            match TicketState::of(session.status) {
+                TicketState::NeedsYou => 0,
+                TicketState::Working => 1,
+                _ => 2,
+            },
             std::cmp::Reverse(session.last_reply_at.unwrap_or(session.created_at)),
         )
     });
@@ -201,6 +207,14 @@ impl Waku {
             .iter()
             .filter(|session| TicketState::of(session.status) == TicketState::NeedsYou)
             .count();
+        // "Live" only while something is in flight or waiting on you; a rail
+        // of settled tickets is recent history.
+        let live = sessions.iter().any(|session| {
+            matches!(
+                TicketState::of(session.status),
+                TicketState::NeedsYou | TicketState::Working
+            )
+        });
 
         let heading = div()
             .w_full()
@@ -212,7 +226,11 @@ impl Waku {
                     .text_size(sp(13.0))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(theme.text)
-                    .child(tr!("home.rail_title")),
+                    .child(if live {
+                        tr!("home.rail_title")
+                    } else {
+                        tr!("home.rail_title_recent")
+                    }),
             )
             .when(needs_you > 0, |row| {
                 row.child(
@@ -438,9 +456,88 @@ impl Waku {
                                     })
                                     .child(state.label()),
                             ),
+                    )
+                    .when_some(
+                        needs_you
+                            .then(|| self.render_ticket_pass(session_id, &theme, cx))
+                            .flatten(),
+                        |body, actions| body.child(actions),
                     ),
             )
             .into_any_element()
+    }
+
+    /// The pass on a ticket: answer its pending permission from the rail.
+    /// The provider's first allow option leads; its first deny option sends
+    /// the work back.
+    fn render_ticket_pass(
+        &self,
+        session_id: Uuid,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> Option<Div> {
+        let permission = self.runtimes.get(&session_id)?.pending_permission.as_ref()?;
+        let allow = permission.options.iter().find(|option| option.allow)?;
+        let deny = permission.options.iter().find(|option| !option.allow);
+        let button = |id: String, label: String, primary: bool, option_id: String| {
+            let request_id = permission.request_id.clone();
+            div()
+                .id(SharedString::from(id))
+                .flex_1()
+                .h(px(30.0))
+                .rounded(px(8.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .gap(px(6.0))
+                .cursor_default()
+                .text_size(sp(12.5))
+                .font_weight(FontWeight::SEMIBOLD)
+                .when(primary, |button| {
+                    button
+                        .bg(theme.primary)
+                        .text_color(theme.on_primary)
+                        .hover(|button| button.opacity(0.9))
+                        .child(icon("icons/check.svg", 12.0, theme.on_primary))
+                })
+                .when(!primary, |button| {
+                    button
+                        .border_1()
+                        .border_color(theme.border_strong)
+                        .text_color(theme.text_secondary)
+                        .hover(|button| button.bg(theme.overlay))
+                        .child(icon("icons/rotate-cw.svg", 12.0, theme.text_secondary))
+                })
+                .child(SharedString::from(label))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.respond_permission_for(
+                        session_id,
+                        request_id.clone(),
+                        option_id.clone(),
+                        cx,
+                    );
+                }))
+        };
+        Some(
+            div()
+                .flex()
+                .gap(px(8.0))
+                .child(button(
+                    format!("ticket-allow-{session_id}"),
+                    allow.label.clone(),
+                    true,
+                    allow.id.clone(),
+                ))
+                .when_some(deny, |row, deny| {
+                    row.child(button(
+                        format!("ticket-deny-{session_id}"),
+                        deny.label.clone(),
+                        false,
+                        deny.id.clone(),
+                    ))
+                }),
+        )
     }
 }
 
@@ -478,6 +575,25 @@ mod tests {
             .map(|session| session.id)
             .collect::<Vec<_>>();
         assert_eq!(order, vec![waiting.id, working.id, ready.id]);
+    }
+
+    #[test]
+    fn settled_tickets_follow_recency_not_state() {
+        let project = Uuid::new_v4();
+        let mut old_failure = AgentSession::new(project, ProviderKind::Codex);
+        old_failure.status = SessionStatus::Failed;
+        old_failure.last_reply_at = Some(100);
+        old_failure.messages.push(Message::new(MessageRole::User, "broke"));
+        let mut fresh_result = AgentSession::new(project, ProviderKind::Codex);
+        fresh_result.last_reply_at = Some(900);
+        fresh_result.messages.push(Message::new(MessageRole::User, "done"));
+
+        let sessions = vec![old_failure.clone(), fresh_result.clone()];
+        let order = rail_sessions(&sessions)
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>();
+        assert_eq!(order, vec![fresh_result.id, old_failure.id]);
     }
 
     #[test]

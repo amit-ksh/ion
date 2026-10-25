@@ -4,12 +4,15 @@ These bundled marks identify existing integrations. They do not add integrations
 imply endorsement or change app permissions. Brand names and marks belong to
 their respective owners. The JSON manifest records source URLs and byte hashes.
 
-- Gmail and Google Drive: unmodified classic product PNGs from Google's static
-  asset hosts, matching the style in the supplied reference.
+- Gmail, Google Drive and Google Calendar: unmodified classic product PNGs from
+  Google's static asset hosts, matching the style in the supplied reference.
 - Outlook: unmodified product SVG from Microsoft's Office CDN.
-- GitHub and Supabase: Simple Icons artwork from its public CDN, distributed
-  under [CC0-1.0](https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md).
-  The GitHub mark uses theme ink for contrast; Supabase retains its supplied color.
+- GitHub, Supabase and ElevenLabs: Simple Icons artwork from its public CDN,
+  distributed under [CC0-1.0](https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md).
+  The GitHub and ElevenLabs marks use theme ink for contrast; Supabase retains
+  its supplied color.
+- Slack has no mark here: Simple Icons no longer publishes it, so Slack keeps
+  the generic app glyph.
 - GitLab: the existing repository file-type asset is reused without changing it.
 
 Desktop embeds all asset bytes. Mobile bundles the two PNGs and embeds SVG XML;

@@ -331,6 +331,8 @@ settings.theme_dark:
 
 input.do_anything:
   en: Do anything…
+input.composer_placeholder:
+  en: Do anything… type @ to add files, teams or apps
 input.search_models:
   en: Search models…
 input.search_branches:
@@ -573,6 +575,8 @@ onboarding.question_mark:
 
 home.rail_title:
   en: Live work
+home.rail_title_recent:
+  en: Recent work
 home.rail_empty:
   en: Every task you start lands here as a ticket, showing who is on it and what needs you.
 home.all_tasks:

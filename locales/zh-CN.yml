@@ -171,6 +171,7 @@ settings.theme_system: 跟随系统
 settings.theme_light: 浅色
 settings.theme_dark: 深色
 input.do_anything: 做什么都可以…
+input.composer_placeholder: 做什么都可以… 输入 @ 添加文件、团队或应用
 input.search_models: 搜索模型…
 input.search_branches: 搜索分支
 input.new_branch_name: 新分支名称

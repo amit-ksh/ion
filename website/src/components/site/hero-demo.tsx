@@ -194,11 +194,10 @@ export function HeroDemo() {
                 setDraft(event.target.value)
               }}
               onFocus={takeOver}
-              placeholder="Do anything..."
+              placeholder="Do anything… type @ to add files, teams or apps"
               autoComplete="off"
               className="w-full bg-transparent text-[16px] text-ink outline-none placeholder:text-[#8b9188] focus-visible:outline-none"
             />
-            <p className="mt-1.5 text-[13px] text-quiet">@ files, teams &amp; apps · @@ teams · @@@ apps</p>
           </div>
           <div className="mt-3 flex items-center gap-2 px-1 pb-1">
             <label className="chip relative cursor-pointer">

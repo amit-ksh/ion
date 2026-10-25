@@ -74,7 +74,6 @@ impl Waku {
         let mut panel = div().flex().flex_col().gap(px(10.0)).child(
             div()
                 .text_size(sp(12.5))
-                .text_color(theme.text_secondary)
                 .child("Connected app actions"),
         );
         for (index, grant) in self.control_ui.access.app_actions.iter().enumerate() {

@@ -1007,6 +1007,10 @@ impl Waku {
         }
         let history_scrolled =
             self.sidebar_list_state.scroll_px_offset_for_scrollbar().y < px(-0.5);
+        // More rows below: fade the last visible one into the footer rather
+        // than slicing it at the edge.
+        let history_more = self.sidebar_list_state.scroll_px_offset_for_scrollbar().y
+            > -self.sidebar_list_state.max_offset_for_scrollbar().y + px(0.5);
         let entity = cx.entity().downgrade();
 
         div()
@@ -1112,6 +1116,21 @@ impl Waku {
                                 .w_full()
                                 .h(px(1.0))
                                 .bg(theme.border),
+                        )
+                    })
+                    .when(history_more, |scroll| {
+                        scroll.child(
+                            div()
+                                .absolute()
+                                .bottom_0()
+                                .left_0()
+                                .w_full()
+                                .h(px(32.0))
+                                .bg(linear_gradient(
+                                    180.0,
+                                    linear_color_stop(theme.sidebar.opacity(0.0), 0.0),
+                                    linear_color_stop(theme.sidebar, 1.0),
+                                )),
                         )
                     }),
             )

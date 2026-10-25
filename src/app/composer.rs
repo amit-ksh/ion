@@ -1062,7 +1062,7 @@ impl Waku {
         };
 
         popover(
-            trigger.caret(false).selected(handle.is_open()),
+            trigger.filled().selected(handle.is_open()),
             &handle,
             MenuAlign::AboveLeft,
             move |popover, _window, _cx| {
@@ -1721,7 +1721,7 @@ impl Waku {
                     trigger.icon("icons/zap.svg", theme.text_secondary)
                 })
                 .label(trigger_label)
-                .caret(false)
+                .filled()
                 .selected(handle.is_open()),
             "model-traits-menu",
             &handle,
@@ -1819,7 +1819,7 @@ impl Waku {
             MenuChip::new("runtime-mode")
                 .icon(selected_mode.icon(), theme.text_tertiary)
                 .label(selected_mode.label())
-                .caret(false)
+                .filled()
                 .selected(handle.is_open()),
             "runtime-mode-menu",
             &handle,
@@ -1913,7 +1913,7 @@ impl Waku {
         let trigger = MenuChip::new("agent-preset")
             .icon("icons/bot.svg", theme.text_tertiary)
             .label(selected_label)
-            .caret(false)
+            .filled()
             .selected(handle.is_open());
 
         Some(dropdown_menu(

@@ -2041,13 +2041,7 @@ impl Waku {
 
         let composer = cx.new(|cx| {
             let mut input = ComposerInput::new(window, cx).padding_x(px(14.0), cx);
-            input.set_placeholder(
-                format!(
-                    "{}\n@ files, teams & apps · @@ teams · @@@ apps",
-                    tr!("input.do_anything")
-                ),
-                cx,
-            );
+            input.set_placeholder(tr!("input.composer_placeholder"), cx);
             input
         });
         let user_input_answer = cx

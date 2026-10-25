@@ -24,7 +24,7 @@ use waku_client::teams::{
     AgentAccess, AgentExecution, AssignmentStatus, ExecutionEnvironment, TeamRunSnapshot,
     TeamRunStatus, TeamRunSummary,
 };
-mod app_icons;
+pub(super) mod app_icons;
 mod artifacts_ui;
 mod automation_ui;
 mod billing_ui;
@@ -184,6 +184,8 @@ pub(super) struct ControlUi {
     org: org_canvas::View,
     /// A subagent being created from the org chart, attached once it saves.
     pending_report: Option<org_canvas::PendingReport>,
+    /// Company logos for apps without a bundled mark, keyed by toolkit.
+    app_logos: RefCell<HashMap<String, app_icons::AppLogo>>,
     limit_inputs: Vec<(team_limits::LimitField, Entity<TextInput>)>,
     child_review: bool,
     stages: Vec<(
@@ -388,14 +390,14 @@ impl ControlUi {
             error: None,
             form: None,
             edit_id: None,
-            name: cx.new(|cx| TextInput::new(window, cx).placeholder("Name")),
+            name: cx.new(|cx| TextInput::new(window, cx).placeholder("A short, recognisable name")),
             instructions: cx.new(|cx| {
                 TextInput::new(window, cx)
                     .multi_line()
                     .auto_height_up_to(px(100.0))
-                    .placeholder("Instructions")
+                    .placeholder("What it should do, and what done looks like")
             }),
-            expertise: cx.new(|cx| TextInput::new(window, cx).placeholder("Expertise")),
+            expertise: cx.new(|cx| TextInput::new(window, cx).placeholder("e.g. API design, test coverage")),
             model: cx.new(|cx| TextInput::new(window, cx).placeholder("Use harness default")),
             interval: cx.new(|cx| TextInput::new(window, cx).placeholder("Interval in minutes")),
             routine: routine_ui::RoutineUi::new(window, cx),
@@ -415,6 +417,7 @@ impl ControlUi {
             team_list: false,
             org: org_canvas::View::default(),
             pending_report: None,
+            app_logos: RefCell::default(),
             limit_inputs: team_limits::inputs(window, cx),
             child_review: true,
             stages: Vec::new(),
@@ -2881,7 +2884,7 @@ impl Waku {
                                 .gap(px(14.0))
                                 .child(
                                     avatar_tile(40.0, theme.raised, theme.border)
-                                        .child(app_icons::render(&config.toolkit, &theme)),
+                                        .child(self.app_mark(&config.toolkit, 26.0, &theme, cx)),
                                 )
                                 .child(
                                     div()
@@ -3351,7 +3354,7 @@ impl Waku {
             }
         };
         let avatar = if let Some(toolkit) = &app_toolkit {
-            avatar_tile(36.0, theme.raised, theme.border).child(app_icons::render(toolkit, &theme))
+            avatar_tile(36.0, theme.raised, theme.border).child(self.app_mark(toolkit, 26.0, &theme, cx))
         } else if let Some(provider) = mark {
             avatar_tile(36.0, theme.raised, theme.border).child(provider_mark(
                 &theme,
@@ -3476,16 +3479,11 @@ impl Waku {
             ));
         }
         form = form
-            .child(
-                div()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text_secondary)
-                    .child(if kind == FormKind::Workflow {
-                        "Describe the workflow"
-                    } else {
-                        "Instructions"
-                    }),
-            )
+            .child(div().text_size(sp(12.5)).child(if kind == FormKind::Workflow {
+                "Describe the workflow"
+            } else {
+                "Instructions"
+            }))
             .child(
                 // The whole box is the field: a click below the last line
                 // still puts the caret in the instructions.
@@ -3508,19 +3506,9 @@ impl Waku {
             let provider = self.control_ui.provider;
             let menu = self.menu_handle("control-provider-menu", cx);
             form = form
-                .child(
-                    div()
-                        .text_size(sp(12.5))
-                        .text_color(theme.text_secondary)
-                        .child("Harness"),
-                )
+                .child(div().text_size(sp(12.5)).child("Harness"))
                 .child(dropdown_menu(
-                    self.control_button(
-                        "control-provider",
-                        provider.display_name(),
-                        cx,
-                        |_, _, _| {},
-                    ),
+                    form_select("control-provider", provider.display_name(), &theme),
                     "control-provider-menu",
                     &menu,
                     MenuAlign::BelowLeft,
@@ -3569,9 +3557,7 @@ impl Waku {
             form = form
                 .child(div().text_size(sp(12.5)).child("Model"))
                 .child(dropdown_menu(
-                    self.control_button("control-model", model_label, cx, |_, _, _| {})
-                        .w_full()
-                        .rounded(px(8.0)),
+                    form_select("control-model", model_label, &theme),
                     "control-model-menu",
                     &model_menu,
                     MenuAlign::BelowLeft,
@@ -3608,19 +3594,9 @@ impl Waku {
                     self.control_ui.expected_output.clone(),
                     "control-output",
                 ))
-                .child(
-                    div()
-                        .text_size(sp(12.5))
-                        .text_color(theme.text_secondary)
-                        .child("Execution environment"),
-                )
+                .child(div().text_size(sp(12.5)).child("Execution environment"))
                 .child(dropdown_menu(
-                    self.control_button(
-                        "control-environment",
-                        environment.label(),
-                        cx,
-                        |_, _, _| {},
-                    ),
+                    form_select("control-environment", environment.label(), &theme),
                     "control-environment-menu",
                     &menu,
                     MenuAlign::BelowLeft,
@@ -3672,7 +3648,7 @@ impl Waku {
                     let menu = self.menu_handle("control-managed-sandbox-menu", cx);
                     let weak = cx.entity().downgrade();
                     form = form.child(dropdown_menu(
-                        self.control_button("control-managed-sandbox", label, cx, |_, _, _| {}),
+                        form_select("control-managed-sandbox", label, &theme),
                         "control-managed-sandbox-menu",
                         &menu,
                         MenuAlign::BelowLeft,
@@ -3712,21 +3688,26 @@ impl Waku {
                     } else {"Local fallback is disabled for this saved profile."}));
             }
             let access = self.control_ui.access.clone();
-            form = form.child(
-                div()
-                    .text_size(sp(12.5))
-                    .text_color(theme.text_secondary)
-                    .child("Team task access"),
-            );
+            form = form.child(div().text_size(sp(12.5)).child("Team task access"));
+            let mut grants = div()
+                .flex_shrink_0()
+                .rounded(px(8.0))
+                .border_1()
+                .border_color(theme.border_strong)
+                .bg(theme.inset)
+                .flex()
+                .flex_col();
             for (index, label, enabled) in [
                 (0, "Read workspace", access.workspace_read),
                 (1, "Edit workspace", access.workspace_write),
                 (2, "Run commands", access.shell),
                 (3, "Network", access.network),
             ] {
-                form = form.child(self.control_button(
+                let switch = crate::ui::toggle_switch(
                     format!("control-access-{index}"),
-                    format!("{}  {label}", if enabled { "✓" } else { "○" }),
+                    enabled,
+                    false,
+                    theme,
                     cx,
                     move |this, _, cx| {
                         let access = &mut this.control_ui.access;
@@ -3748,8 +3729,25 @@ impl Waku {
                         }
                         cx.notify();
                     },
-                ));
+                );
+                grants = grants.child(
+                    div()
+                        .h(px(40.0))
+                        .px(px(12.0))
+                        .flex()
+                        .items_center()
+                        .when(index > 0, |row| row.border_t_1().border_color(theme.border))
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_size(sp(13.0))
+                                .text_color(theme.text)
+                                .child(label),
+                        )
+                        .child(switch),
+                );
             }
+            form = form.child(grants);
         }
         if kind == FormKind::Agent {
             form = form.child(self.render_agent_app_grants(cx));
@@ -4116,6 +4114,35 @@ impl Waku {
             .into_any_element()
     }
 }
+/// A dropdown trigger shaped like a comfortable text field, so a form's
+/// selects and inputs read as one set.
+fn form_select(
+    id: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let theme = *theme;
+    div()
+        .id(id.into())
+        .w_full()
+        .h(px(42.0))
+        .flex_none()
+        .px(px(12.0))
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(theme.border_strong)
+        .bg(theme.inset)
+        .flex()
+        .items_center()
+        .gap(px(8.0))
+        .cursor_default()
+        .hover(move |style| style.border_color(theme.text_tertiary))
+        .text_size(sp(14.0))
+        .text_color(theme.text)
+        .child(div().flex_1().min_w_0().truncate().child(value.into()))
+        .child(icon("icons/chevron-down.svg", 12.0, theme.text_tertiary))
+}
+
 fn control_field(
     label: &'static str,
     input: Entity<TextInput>,

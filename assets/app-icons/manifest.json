@@ -42,6 +42,20 @@
       "sha256": "5a0f3b0ac1647805268331fdae9b0982d2c29b790058577d40a83de9a61a1649",
       "source": "existing repository asset",
       "monochrome": false
+    },
+    {
+      "toolkit": "googlecalendar",
+      "asset": "app-icons/googlecalendar.png",
+      "sha256": "c2a7600e39f41146589f8ff9111d6f756f94d0af6f83ec98ab6768c985bf7d3b",
+      "source": "https://ssl.gstatic.com/images/branding/product/2x/calendar_2020q4_48dp.png",
+      "monochrome": false
+    },
+    {
+      "toolkit": "elevenlabs",
+      "asset": "app-icons/elevenlabs.svg",
+      "sha256": "24e2fe318bc1ed54a29ceb867e4ecead952355cda4241b07402d1ff6510dc133",
+      "source": "https://cdn.simpleicons.org/elevenlabs/000000",
+      "monochrome": true
     }
   ]
 }
