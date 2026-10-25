@@ -636,8 +636,8 @@ fn compare_file(path: &Path, expected: Option<&str>) -> Result<()> {
             let mut content = String::new();
             file.take(16 * 1024 + 1).read_to_string(&mut content)?;
             ensure!(
-                content == old,
-                "File changed; read its current content before proposing an edit"
+                crate::edit_text::same_base(&content, old),
+                "old_content does not match the file; read it again and pass its full current text"
             );
         }
     }

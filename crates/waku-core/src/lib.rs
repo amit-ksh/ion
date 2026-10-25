@@ -71,6 +71,7 @@ pub(crate) mod usage_ledger;
 pub mod workspace;
 pub mod worktree;
 
+mod edit_text;
 mod fs_ext;
 mod protocol;
 mod server;

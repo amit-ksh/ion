@@ -500,6 +500,46 @@ pub(super) struct StreamCompletion {
     pub(super) usage: Option<crate::teams::ModelTokenUsage>,
     pub(super) cost: Option<waku_protocol::usage_ledger::UsageCost>,
 }
+/// Holds back the start of a reply that may be reasoning the model wrote
+/// inline up to `</think>` because the provider's reasoning parser missed it.
+/// Content is held only until a close tag, a parsed reasoning delta, a tool
+/// call or `INLINE_THINK_HOLD` bytes shows it is the answer, so ordinary
+/// replies keep streaming.
+#[derive(Default)]
+struct InlineThink {
+    held: String,
+    decided: bool,
+}
+
+const INLINE_THINK_HOLD: usize = 2048;
+
+impl InlineThink {
+    /// One content delta, split into (reasoning, visible text).
+    fn push(&mut self, content: &str) -> (String, String) {
+        if self.decided {
+            return (String::new(), content.to_owned());
+        }
+        self.held.push_str(content);
+        if let Some(end) = self.held.find("</think>") {
+            self.decided = true;
+            let held = std::mem::take(&mut self.held);
+            let reasoning = held[..end].trim_start().trim_start_matches("<think>");
+            let visible = held[end + "</think>".len()..].trim_start();
+            return (reasoning.to_owned(), visible.to_owned());
+        }
+        if self.held.len() > INLINE_THINK_HOLD {
+            return self.release();
+        }
+        (String::new(), String::new())
+    }
+
+    /// The reply is not inline reasoning: everything held is visible.
+    fn release(&mut self) -> (String, String) {
+        self.decided = true;
+        (String::new(), std::mem::take(&mut self.held))
+    }
+}
+
 fn parse_stream_metered(
     reader: impl BufRead,
     events: &DriverEventSender,
@@ -511,6 +551,18 @@ fn parse_stream_metered(
     let mut text = String::new();
     let mut calls: Vec<ToolCall> = Vec::new();
     let mut done = false;
+    let mut think = InlineThink::default();
+    let emit = |(reasoning, visible): (String, String), text: &mut String| {
+        if !reasoning.is_empty() && !specialist {
+            let _ = events.send(DriverEvent::ReasoningDelta(reasoning));
+        }
+        if !visible.is_empty() {
+            text.push_str(&visible);
+            if !specialist {
+                let _ = events.send(DriverEvent::TextDelta(visible));
+            }
+        }
+    };
     for line in reader.lines() {
         if cancelled.load(Ordering::Relaxed) {
             bail!("Nebius task stopped")
@@ -529,17 +581,16 @@ fn parse_stream_metered(
         }
         let delta = &packet["choices"][0]["delta"];
         if let Some(reasoning) = delta["reasoning_content"].as_str() {
+            emit(think.release(), &mut text);
             if !specialist {
                 let _ = events.send(DriverEvent::ReasoningDelta(reasoning.to_owned()));
             }
         }
         if let Some(content) = delta["content"].as_str() {
-            text.push_str(content);
-            if !specialist {
-                let _ = events.send(DriverEvent::TextDelta(content.to_owned()));
-            }
+            emit(think.push(content), &mut text);
         }
         if let Some(parts) = delta["tool_calls"].as_array() {
+            emit(think.release(), &mut text);
             for part in parts {
                 let index = part["index"]
                     .as_u64()
@@ -618,6 +669,7 @@ fn parse_stream_metered(
     if !done {
         bail!("Nebius stream ended without completion; retry the task")
     }
+    emit(think.release(), &mut text);
     for call in &calls {
         if call.id.is_empty() || call.name.is_empty() {
             bail!("Nebius returned an incomplete tool call")
@@ -635,7 +687,7 @@ fn tool_definitions(nemoclaw_enabled: bool) -> Value {
     let mut tools = json!([
         {"type":"function","function":{"name":"list_files","description":"List relative project files (at most 200). Optionally narrow to a directory.","parameters":{"type":"object","properties":{"directory":{"type":"string"}},"additionalProperties":false}}},
         {"type":"function","function":{"name":"read_file","description":"Read one UTF-8 project file, up to 256 KiB","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}},
-        {"type":"function","function":{"name":"write_file","description":"Replace one project file after user approval. Supply its exact old content, or an empty string to create a new file.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":"string"},"new_content":{"type":"string"}},"required":["path","old_content","new_content"],"additionalProperties":false}}},
+        {"type":"function","function":{"name":"write_file","description":"Replace one project file after user approval. Supply its full current content as read_file returned it, or an empty string to create a new file.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_content":{"type":"string"},"new_content":{"type":"string"}},"required":["path","old_content","new_content"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"delegate_specialist","description":"Run one sequential read-only researcher or reviewer task. The specialist receives only its objective, can list and read project files, and returns a durable text artifact.","parameters":{"type":"object","properties":{"role":{"type":"string","enum":["researcher","reviewer"]},"objective":{"type":"string"}},"required":["role","objective"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"repeat_specialist","description":"Manually repeat one completed specialist task with the same contract and read-only grant when the user asks.","parameters":{"type":"object","properties":{"task_id":{"type":"string"}},"required":["task_id"],"additionalProperties":false}}},
         {"type":"function","function":{"name":"github_issue_read","description":"Read a GitHub issue using the user's authenticated local GitHub CLI. Include the source URL in the task response.","parameters":{"type":"object","properties":{"repository":{"type":"string","description":"owner/repo"},"number":{"type":"integer","minimum":1}},"required":["repository","number"],"additionalProperties":false}}},
@@ -790,9 +842,12 @@ fn execute_tool(
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
                 Err(error) => return Err(error.into()),
             };
-            if current != old {
-                bail!("file changed since it was read; read it again")
+            if !crate::edit_text::same_base(&current, old) {
+                bail!(
+                    "old_content does not match {relative}; call read_file and pass its full current text"
+                )
             }
+            let new = &crate::edit_text::in_file_style(&current, new);
             if !auto_approves(mode, &call.name) {
                 let request_id = call.id.clone();
                 let _ = events.send(DriverEvent::Permission {
@@ -839,7 +894,7 @@ fn execute_tool(
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
                 Err(error) => return Err(error.into()),
             };
-            if latest != old {
+            if latest != current {
                 bail!("file changed while awaiting approval")
             }
             if !path.parent().is_some_and(Path::is_dir) {
@@ -1172,6 +1227,47 @@ mod tests {
                     .starts_with("ion-team-journal-")
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn inline_reasoning_before_a_close_tag_is_not_shown_as_the_reply() {
+        let packet = |content: &str| json!({"choices":[{"delta":{"content":content}}]});
+        let stream = format!(
+            "data: {}
+
+data: {}
+
+data: [DONE]
+
+",
+            packet("I should edit index.html.</th"),
+            packet("ink>Added the section.")
+        );
+        let (events, received) = super::super::test_event_channel();
+        let reply =
+            parse_stream_metered(stream.as_bytes(), &events, &AtomicBool::new(false), false)
+                .unwrap();
+        assert_eq!(reply.text, "Added the section.");
+        let seen: Vec<_> = received.try_iter().collect();
+        assert!(seen.iter().any(
+            |e| matches!(e, DriverEvent::ReasoningDelta(r) if r == "I should edit index.html.")
+        ));
+        assert!(
+            seen.iter()
+                .all(|e| !matches!(e, DriverEvent::TextDelta(t) if t.contains("think")))
+        );
+
+        let plain = format!(
+            "data: {}
+
+data: [DONE]
+
+",
+            packet("Done.")
+        );
+        let reply = parse_stream_metered(plain.as_bytes(), &events, &AtomicBool::new(false), false)
+            .unwrap();
+        assert_eq!(reply.text, "Done.");
     }
 
     #[test]

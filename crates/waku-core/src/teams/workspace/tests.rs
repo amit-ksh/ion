@@ -876,7 +876,10 @@ fn team_workspace_native_adapter_creates_directory_deletes_file_and_submits_revi
         artifact.unwrap().as_str().unwrap()
     );
     assert!(workspace.join("src/lib.rs").exists());
-    assert_eq!(fs::read_to_string(workspace.join("src/marker.txt")).unwrap(), "MARKER");
+    assert_eq!(
+        fs::read_to_string(workspace.join("src/marker.txt")).unwrap(),
+        "MARKER"
+    );
     assert!(!workspace.join("main.rs").exists());
     assert_eq!(fs::read_to_string(f.source.join("main.rs")).unwrap(), old);
 }
@@ -1608,7 +1611,17 @@ fn editing_a_missing_file_names_the_create_contract() {
     let missing = dir.join("answer.txt");
     compare_file(&missing, Some("")).unwrap();
     compare_file(&missing, None).unwrap();
-    let error = compare_file(&missing, Some("None")).unwrap_err().to_string();
+    let error = compare_file(&missing, Some("None"))
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("old_content null"), "{error}");
+    let existing = dir.join("index.html");
+    fs::write(&existing, "<h1>Aurora</h1>
+").unwrap();
+    compare_file(&existing, Some("<h1>Aurora</h1>")).unwrap();
+    let error = compare_file(&existing, Some("<h1>Other</h1>"))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("full current text"), "{error}");
     fs::remove_dir_all(dir).unwrap();
 }
