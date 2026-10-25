@@ -1601,3 +1601,14 @@ fn team_file_recovery_retains_private_backups_and_rejects_unauthorized_changed_b
 
 #[path = "inheritance_tests.rs"]
 mod inheritance_tests;
+#[test]
+fn editing_a_missing_file_names_the_create_contract() {
+    let dir = std::env::temp_dir().join(format!("ion-compare-file-{}", Uuid::new_v4()));
+    fs::create_dir_all(&dir).unwrap();
+    let missing = dir.join("answer.txt");
+    compare_file(&missing, Some("")).unwrap();
+    compare_file(&missing, None).unwrap();
+    let error = compare_file(&missing, Some("None")).unwrap_err().to_string();
+    assert!(error.contains("old_content null"), "{error}");
+    fs::remove_dir_all(dir).unwrap();
+}

@@ -622,7 +622,13 @@ fn compare_file(path: &Path, expected: Option<&str>) -> Result<()> {
         // Models often create with "" (the solo write_file contract); a missing file is empty.
         Some("") if !path.exists() => {}
         Some(old) => {
-            let file = fs::File::open(path)?;
+            let file = fs::File::open(path).map_err(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    anyhow::anyhow!("File does not exist yet; create it with old_content null")
+                } else {
+                    error.into()
+                }
+            })?;
             ensure!(
                 file.metadata()?.is_file() && file.metadata()?.len() <= 16 * 1024,
                 "Edit an existing UTF-8 file smaller than 16 KiB"
