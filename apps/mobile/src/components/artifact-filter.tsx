@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import { AutomationButton } from "./automation-controls";
+import { Chip } from "./chip";
+import { SelectedCheck } from "./sheet";
 export function ArtifactFilter({
   label,
   value,
@@ -54,7 +56,8 @@ export function ArtifactFilter({
   };
   return (
     <>
-      <AutomationButton
+      <Chip
+        active={Boolean(value)}
         label={
           value
             ? `${label}: ${selected ?? "Selected"}`
@@ -91,15 +94,16 @@ export function ArtifactFilter({
             maxLength={160}
             style={[
               styles.search,
-              { color: theme.text, borderColor: theme.border },
+              { color: theme.text, borderColor: theme.borderStrong, backgroundColor: theme.surfaceMuted },
             ]}
           />
           <FlatList
             data={filtered}
             keyExtractor={(item) => item.id}
             ListHeaderComponent={
-              <AutomationButton
+              <FilterRow
                 label={`All ${label.toLowerCase()}`}
+                selected={value === null}
                 onPress={() => choose(null)}
               />
             }
@@ -116,30 +120,32 @@ export function ArtifactFilter({
               ) : null
             }
             renderItem={({ item }) => (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={item.name}
-                accessibilityState={{ selected: value === item.id }}
+              <FilterRow
+                label={item.name}
+                selected={value === item.id}
                 onPress={() => choose(item.id)}
-                style={({ pressed }) => [
-                  styles.row,
-                  {
-                    backgroundColor:
-                      pressed || value === item.id
-                        ? theme.surfaceMuted
-                        : "transparent",
-                  },
-                ]}
-              >
-                <Text style={{ color: theme.text, fontSize: 16 }}>
-                  {item.name}
-                </Text>
-              </Pressable>
+              />
             )}
           />
         </SafeAreaView>
       </Modal>
     </>
+  );
+}
+
+function FilterRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? theme.overlayStrong : selected ? theme.overlay : "transparent" }]}
+    >
+      <Text numberOfLines={2} style={[styles.rowLabel, { color: theme.text, fontWeight: selected ? "600" : "400" }]}>{label}</Text>
+      {selected && <SelectedCheck />}
+    </Pressable>
   );
 }
 const styles = StyleSheet.create({
@@ -154,11 +160,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
-    minHeight: 44,
+    minHeight: 48,
     fontSize: 16,
   },
-  row: { paddingHorizontal: 20, paddingVertical: 16, minHeight: 48 },
+  row: { marginHorizontal: 8, paddingHorizontal: 12, paddingVertical: 12, minHeight: 56, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 12 },
+  rowLabel: { flex: 1, fontSize: 16, lineHeight: 22 },
   empty: { padding: 20, fontSize: 15 },
 });

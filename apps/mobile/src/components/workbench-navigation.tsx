@@ -37,19 +37,22 @@ export function WorkbenchNavigation({ rail = false }: { rail?: boolean }) {
     return <Pressable key={item.path} accessibilityRole="tab" accessibilityLabel={item.label}
       accessibilityState={{ selected }} focusable onFocus={() => setFocused(item.path)} onBlur={() => setFocused(null)}
       onPress={() => { if (!selected) router.replace(item.path); }}
-      style={({ pressed }) => [styles.item, rail && styles.railItem, { borderColor: focused === item.path ? theme.accent : 'transparent', opacity: pressed ? .65 : 1 }]}>
-      <View style={[styles.indicator, { backgroundColor: selected ? theme.accentSoft : 'transparent' }]}>
-        <AppSymbol name={{ android: item.symbol, web: item.symbol }} size={22} tintColor={selected ? theme.accent : theme.textSecondary} />
-      </View>
-      <Text style={[styles.label, { color: selected ? theme.text : theme.textSecondary, fontWeight: selected ? '700' : '500' }]}>{item.label}</Text>
+      style={[styles.item, rail && styles.railItem, { borderColor: focused === item.path ? theme.accent : 'transparent' }]}>
+      {({ pressed }) => <>
+        {/* Never flattened: Fabric drops the radius when a flattened view gains a fill. */}
+        <View collapsable={false} style={[styles.indicator, { backgroundColor: selected ? theme.accentSoft : pressed ? theme.overlayStrong : 'transparent' }]}>
+          <AppSymbol name={{ android: item.symbol, web: item.symbol }} size={22} tintColor={selected ? theme.accent : theme.textSecondary} />
+        </View>
+        <Text numberOfLines={1} style={[styles.label, { color: selected ? theme.text : theme.textSecondary, fontWeight: selected ? '700' : '500' }]}>{item.label}</Text>
+      </>}
     </Pressable>;
   })}</View>;
 }
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
+  bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
   rail: { width: 96, flexDirection: 'column', borderTopWidth: 0, borderRightWidth: StyleSheet.hairlineWidth, gap: 12 },
   railItem: { flex: 0, minHeight: 72 },
-  item: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 3, borderWidth: 2, borderRadius: 12 },
-  indicator: { minWidth: 58, minHeight: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 12, lineHeight: 18 },
+  item: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 2, borderRadius: 12 },
+  indicator: { minWidth: 64, minHeight: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 12.5, lineHeight: 18 },
 });

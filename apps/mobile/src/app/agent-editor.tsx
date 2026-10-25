@@ -1,8 +1,8 @@
-import type { AgentAccess, AgentProfile, ControlSnapshot, ProviderKind } from '@waku/client';
+import type { AgentAccess, AgentProfile, ControlSnapshot, ProviderKind, Team } from '@waku/client';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { AutomationChoice, AutomationField, AutomationToggle } from '@/components/automation-form-controls';
 import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
@@ -12,11 +12,13 @@ import { useWorkspaceDefinition } from '@/hooks/use-workspace-definition';
 import { useTheme } from '@/hooks/use-theme';
 import { providerLabel } from '@/lib/session-presentation';
 import { MOBILE_HARNESSES, mobileHarness } from '@/lib/mobile-capabilities';
+import { teamWithReport } from '@/lib/org-chart';
 
 const initialAccess: AgentAccess = { workspaceRead: true, workspaceWrite: false, shell: false, network: false, appActions: [] };
 const harnesses = MOBILE_HARNESSES;
 export default function AgentEditor() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // `parent` (and its `team`) arrive from the org chart's "New subagent".
+  const { id, parent, team } = useLocalSearchParams<{ id?: string; parent?: string; team?: string }>();
   const state = useWorkspaceDefinition(id);
   const theme = useTheme();
   const header = useScreenHeaderInset();
@@ -34,12 +36,16 @@ export default function AgentEditor() {
   const [access, setAccess] = useState(initialAccess);
   const [picker, setPicker] = useState(false);
   const original = state.data?.records.find((record): record is AgentProfile & { kind: 'agent' } => record.kind === 'agent' && record.id === id);
+  const manager = !id && parent ? state.data?.records.find((record): record is AgentProfile & { kind: 'agent' } => record.kind === 'agent' && record.id === parent) : undefined;
+  const managerTeam = manager && team ? state.data?.records.find((record): record is Team & { kind: 'team' } => record.kind === 'team' && record.id === team) : undefined;
   function hydrateDraft(snapshot: ControlSnapshot) {
     const saved = snapshot.records.find((record): record is AgentProfile & { kind: 'agent' } => record.kind === 'agent' && record.id === id);
     hydrated.current = `${state.scope}:${id ?? 'new'}`;
     state.bindDraftRevision(snapshot.revision);
     setName(saved?.name ?? ''); setExpertise(saved?.expertise ?? ''); setInstructions(saved?.instructions ?? '');
-    setOutput(saved?.expectedOutput ?? ''); setProvider(saved?.provider ?? null); setModel(saved?.model ?? null);
+    const lead = !id && parent ? snapshot.records.find((record): record is AgentProfile & { kind: 'agent' } => record.kind === 'agent' && record.id === parent) : undefined;
+    // A subagent starts on its manager's harness and model.
+    setOutput(saved?.expectedOutput ?? ''); setProvider(saved?.provider ?? (mobileHarness(lead?.provider ?? null) ? lead!.provider : null)); setModel(saved?.model ?? lead?.model ?? null);
     setEnvironment(saved?.execution.environment ?? 'local'); setTarget(saved?.execution.sandboxTarget ?? '');
     setAccess(saved?.access ?? initialAccess); setParallel(String(saved?.maxParallelTasks ?? 1));
   }
@@ -55,14 +61,39 @@ export default function AgentEditor() {
     const saved = await state.save({ kind: 'agent', id: id ?? draftId, name: name.trim(), expertise: expertise.trim(),
       instructions: instructions.trim(), expectedOutput: output.trim(), provider, model, maxParallelTasks: maxParallel,
       execution: { environment, sandboxTarget: environment === 'local' ? null : target.trim(), localFallback: original?.execution.localFallback ?? false }, access });
+    if (saved && manager) await joinManager(id ?? draftId, manager);
     if (saved) router.back();
+  }
+  /** Place the new agent under its manager: in the manager's team, or a new
+   * "<Manager>'s team" led by the manager when it is on no team. */
+  async function joinManager(childId: string, lead: AgentProfile) {
+    const client = state.daemon.client;
+    const where = team ? managerTeam?.name ?? 'its team' : `${lead.name}'s team`;
+    try {
+      if (!client) throw new Error('Reconnect to your desktop.');
+      const response = await client.request({ type: 'loadWorkspaceControl' });
+      if (response.type !== 'workspaceControl') throw new Error('Could not load the workspace.');
+      const current = team ? response.snapshot.records.find((record): record is Team & { kind: 'team' } => record.kind === 'team' && record.id === team) : null;
+      if (team && !current) throw new Error('The team is no longer available.');
+      const record = teamWithReport({ team: current ?? null, parent: lead, childId, newTeamId: Crypto.randomUUID() });
+      if (!record) throw new Error('The team is full (32 agents) or already includes this agent.');
+      const saved = await client.request({ type: 'saveWorkspaceRecord', expectedRevision: response.snapshot.revision, record });
+      if (saved.type !== 'workspaceControl') throw new Error('The team update was not confirmed.');
+    } catch (cause) {
+      Alert.alert('Agent saved', `It could not join ${where}: ${cause instanceof Error ? cause.message : String(cause)} Add it from the org chart.`);
+    }
   }
   if (!state.data) return <WorkbenchState title={state.query.isError ? 'Could not load agent' : 'Loading agent…'}
     detail={state.query.error?.message}><WorkbenchButton label="Retry" onPress={() => void state.query.refetch()} /></WorkbenchState>;
   if (id && !original) return <WorkbenchState title="Agent unavailable" detail="It may have been removed on another device." />;
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: theme.background }}><ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: header + 16 }]}>
     <ConnectionBanner />
-    <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{id ? 'Edit agent' : 'New agent'}</Text>
+    <View style={styles.heading}>
+      <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{id ? 'Edit agent' : manager ? 'New subagent' : 'New agent'}</Text>
+      {manager && <Text style={[styles.note, { color: theme.textSecondary }]}>
+        Reports to {manager.name} in {managerTeam ? managerTeam.name : team ? 'its team' : `a new team, ${manager.name}'s team`}
+      </Text>}
+    </View>
     <WorkbenchCard>
       <AutomationField label="Name" value={name} onChangeText={setName} maxLength={160} editable={!state.busy} />
       <AutomationField label="Expertise" value={expertise} onChangeText={setExpertise} editable={!state.busy} />
@@ -97,4 +128,4 @@ export default function AgentEditor() {
       onApply={selection => { setProvider(selection.provider); setModel(selection.model); setPicker(false); }} />
   </KeyboardAvoidingView>;
 }
-const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, gap: 20, paddingBottom: 32 }, title: { fontSize: 26, fontWeight: '600' }, section: { fontSize: 17, fontWeight: '600' }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });
+const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, gap: 20, paddingBottom: 32 }, heading: { gap: 6 }, title: { fontSize: 26, fontWeight: '600' }, note: { fontSize: 15, lineHeight: 22 }, section: { fontSize: 17, fontWeight: '600' }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });

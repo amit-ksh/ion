@@ -14,6 +14,7 @@ import type {
 import { queueComposerTeam } from '@waku/client/composer-autocomplete';
 import { adoptTeamFollowUp, reduceRuntimeEvent } from '@waku/client/event-reducer';
 import { writeProviderProbeCache } from '@waku/client/provider-probe-cache';
+import { providerStartBinary } from '@/lib/provider-binary';
 import * as Crypto from 'expo-crypto';
 import {
   createContext,
@@ -607,9 +608,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       }
       const settings = await loadDaemonSettings(client);
       const probe = await probeProvider(client, current.provider, settings);
-      if (!probe.installed || !probe.path) {
-        throw new Error(`${current.provider} is not installed on the daemon host`);
-      }
+      const binary = providerStartBinary(current.provider, probe);
       if (daemon.activeProfile) {
         writeProviderProbeCache(
           persistentStorageSync(),
@@ -619,7 +618,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
           probe,
         );
       }
-      startup = { binary: probe.path, cwd: sessionCwd(current, project) };
+      startup = { binary, cwd: sessionCwd(current, project) };
     }
 
     current = beginTurn(current, prompt, clock, attachments, providerPrompt);

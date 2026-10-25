@@ -4,12 +4,14 @@ import { ActivityIndicator, Alert, FlatList, Linking, StyleSheet, Text, View } f
 import { AutomationField } from '@/components/automation-form-controls';
 import { ConnectionBanner } from '@/components/connection-banner';
 import { useScreenHeaderInset } from '@/components/screen-header';
-import { WorkbenchButton, WorkbenchCard, WorkbenchState } from '@/components/workbench';
+import { WorkbenchButton, WorkbenchState } from '@/components/workbench';
 import { useAutomationQuery } from '@/hooks/use-automation-query';
 import { useTheme } from '@/hooks/use-theme';
 import { appConnectionPending, appConnectionUrl, parseAppsCatalog, type CatalogApp } from '@/lib/apps-catalog';
 import { cloudAccount } from '@/lib/cloud-account';
 import { AppIcon } from '@/components/app-icon';
+import { Chip } from '@/components/chip';
+import { TicketCard, type TicketStatus } from '@/components/ticket-card';
 
 export default function AppsScreen() {
   const theme = useTheme();
@@ -71,40 +73,39 @@ export default function AppsScreen() {
       <ConnectionBanner />
       <AutomationField label="Find an app" value={draft} onChangeText={setDraft} maxLength={256} autoCapitalize="none" returnKeyType="search"
         onSubmitEditing={() => { setSearch(draft.trim()); setAfter(null); setPrevious([]); }} />
-      <View style={styles.actions}><WorkbenchButton label="Search" onPress={() => { setSearch(draft.trim()); setAfter(null); setPrevious([]); }} />
-        <WorkbenchButton label={connected ? 'Show all apps' : 'Connected apps'} onPress={() => { setConnected(!connected); setAfter(null); setPrevious([]); }} />
+      <View style={styles.toolbar}><WorkbenchButton label="Search" icon={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} onPress={() => { setSearch(draft.trim()); setAfter(null); setPrevious([]); }} />
+        <Chip label="Connected only" icon={{ ios: 'link', android: 'link', web: 'link' }} chevron={false} active={connected}
+          accessibilityLabel={connected ? 'Show all apps' : 'Show connected apps only'} onPress={() => { setConnected(!connected); setAfter(null); setPrevious([]); }} />
         </View>
       {feedback && <Text accessibilityLiveRegion="polite" style={[styles.detail, { color: theme.textSecondary }]}>{feedback}</Text>}
-      {state.query.isError && <WorkbenchState title="Apps unavailable" detail={state.query.error.message} />}
+      {state.query.isError && <WorkbenchState icon={{ ios: 'exclamationmark.triangle', android: 'cloud_off', web: 'cloud_off' }} title="Apps unavailable" detail={state.query.error.message} />}
     </View>}
-    ListEmptyComponent={state.daemon.phase !== 'connected' ? <WorkbenchState title="Connect to your desktop" detail="Reconnect from Settings, then refresh app connections." /> : state.query.isFetching ? <ActivityIndicator accessibilityLabel="Loading apps" color={theme.accent} />
-      : !state.query.isError ? <WorkbenchState title={connected ? 'No connected apps' : 'No matching apps'} detail="Choose an app to connect your account." /> : null}
+    ListEmptyComponent={state.daemon.phase !== 'connected' ? <WorkbenchState icon={{ ios: 'link', android: 'link_off', web: 'link_off' }} title="Connect to your desktop" detail="Reconnect from Settings, then refresh app connections." /> : state.query.isFetching ? <ActivityIndicator accessibilityLabel="Loading apps" color={theme.accent} />
+      : !state.query.isError ? <WorkbenchState icon={{ ios: 'square.grid.2x2', android: 'apps', web: 'apps' }} title={connected ? 'No connected apps' : 'No matching apps'} detail="Choose an app to connect your account." /> : null}
     renderItem={({ item }) => {
       const active = item.account?.status === 'ACTIVE';
       const pending = appConnectionPending(item);
       const continuation = links.current.get(item.toolkit);
       const canContinue = pending && continuation?.account === item.account?.id;
-      return <View style={styles.item}><WorkbenchCard>
-        <View style={styles.appHeading}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
-              <AppIcon toolkit={item.toolkit} />
-            </View><Text style={[styles.name, { color: theme.text, flexShrink: 1 }]}>{item.name}</Text>
-          </View>
-          <Text style={[styles.status, { color: active ? theme.accent : theme.textSecondary }]}>{active ? 'Connected' : pending ? 'Sign-in pending' : item.account ? item.account.status : 'Not connected'}</Text></View>
-        {item.description && <Text numberOfLines={3} style={[styles.detail, { color: theme.textSecondary }]}>{item.description}</Text>}
+      const status: TicketStatus = active ? { label: 'Connected', icon: { android: 'check', web: 'check' }, tone: 'success' }
+        : pending ? { label: 'Sign-in pending', icon: { android: 'hourglass_empty', web: 'hourglass_empty' }, tone: 'warning' }
+          : { label: item.account ? item.account.status : 'Not connected', icon: { android: 'link_off', web: 'link_off' }, tone: 'neutral' };
+      return <View style={styles.item}><TicketCard number={item.toolkit.toUpperCase()} title={item.name} titleLines={1}
+        mark={<View style={[styles.mark, { backgroundColor: theme.surfaceMuted }]}><AppIcon toolkit={item.toolkit} size={16} /></View>} station={active ? 'Available to agents' : null} status={status}>
+        {item.description ? <Text numberOfLines={2} style={[styles.detail, { color: theme.textSecondary }]}>{item.description}</Text> : null}
         {pending && <Text style={[styles.detail, { color: theme.textSecondary }]}>Finish browser sign-in, then refresh the connection status.</Text>}
         <View style={styles.actions}><WorkbenchButton label={busy === item.toolkit ? 'Updating…' : active ? 'Disconnect' : pending ? canContinue ? 'Continue sign-in' : 'Pending' : item.connectable ? 'Connect' : 'Unavailable'} primary={!active && !pending && item.connectable}
+          destructive={active}
           disabled={Boolean(busy) || !state.fresh || (!active && !item.connectable) || pending && !canContinue} onPress={() => {
             if (canContinue && continuation) { void Linking.openURL(continuation.url).catch(() => setFeedback('Could not open browser sign-in. Refresh and retry.')); return; }
             if (active) Alert.alert(`Disconnect ${item.name}?`, 'Agents will lose access to this app account.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => void operate(item, true) }]);
             else void operate(item, false);
           }} /></View>
-      </WorkbenchCard></View>;
+      </TicketCard></View>;
     }}
     ListFooterComponent={<View style={styles.actions}>
       {previous.length > 0 && <WorkbenchButton label="Previous" onPress={() => { setAfter(previous.at(-1) ?? null); setPrevious(previous.slice(0, -1)); }} />}
       {state.data?.catalog.nextCursor && <WorkbenchButton label="Next" onPress={() => { setPrevious([...previous, after]); setAfter(state.data!.catalog.nextCursor); }} />}
     </View>} />;
 }
-const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, paddingBottom: 32 }, header: { gap: 12, marginBottom: 20 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, item: { marginBottom: 12 }, appHeading: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' }, name: { fontSize: 17, lineHeight: 24, fontWeight: '600' }, status: { fontSize: 12, lineHeight: 18, fontWeight: '600' }, detail: { fontSize: 14, lineHeight: 21 } });
+const styles = StyleSheet.create({ content: { width: '100%', maxWidth: 800, alignSelf: 'center', padding: 16, paddingBottom: 32 }, header: { gap: 12, marginBottom: 20 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, item: { marginBottom: 12 }, toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, mark: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' }, detail: { fontSize: 14, lineHeight: 21 } });

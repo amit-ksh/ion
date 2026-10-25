@@ -32,17 +32,19 @@ import { WorkbenchRow } from '@/components/workbench';
 import { AppSymbol } from '@/components/app-symbol';
 import { ConnectionBanner, useConnectionNotice } from '@/components/connection-banner';
 import { DaemonPickerSheet } from '@/components/daemon-picker-sheet';
-import { GlassSurface } from '@/components/glass-surface';
+import { PressableScale } from '@/components/press-scale';
+import { StatusPill, ticketStatus } from '@/components/ticket-card';
 import { ConnectionStatus, connectionPhaseLabel } from '@/components/connection-status';
 import { ProviderIcon } from '@/components/provider-icon';
 import { RenameDialog } from '@/components/rename-dialog';
 import { TaskRowMenu } from '@/components/task-row-menu';
-import { NativeTint, Radius, Spacing } from '@/constants/theme';
+import { MonoFont, Radius, Spacing } from '@/constants/theme';
 import { useTaskState } from '@/hooks/use-daemon-data';
 import { useTheme } from '@/hooks/use-theme';
 import { useDaemon } from '@/lib/daemon-context';
 import { sessionIsRunning } from '@/lib/mobile-runtime';
 import { useRuntime } from '@/lib/runtime-context';
+import { ticketNumber, ticketState } from '@/lib/ticket';
 import {
   displaySessionTitle,
   groupSessions,
@@ -164,8 +166,8 @@ function TaskDrawerContent({
     };
   }, [open]);
   const listExtraData = useMemo(
-    () => ({ runtimes: runtime.runtimes, now }),
-    [runtime.runtimes, now],
+    () => ({ runtimes: runtime.runtimes, permissions: runtime.permissions, userInputs: runtime.userInputs, now }),
+    [runtime.runtimes, runtime.permissions, runtime.userInputs, now],
   );
   const visibleSessions = useMemo(() => {
     if (!taskState.data) return [];
@@ -275,7 +277,9 @@ function TaskDrawerContent({
         renderItem={({ item }) => (
           <SessionRow
             drawerWidth={drawerWidth}
+            animate={open}
             item={item}
+            needsYou={Boolean(runtime.permissions[item.session.id] || runtime.userInputs[item.session.id]) || ticketState(item.session.status) === 'needsYou'}
             now={now}
             running={runtime.runtimes[item.session.id]?.running ?? sessionIsRunning(item.session)}
             selected={item.session.id === selectedSessionId}
@@ -308,7 +312,7 @@ function TaskDrawerContent({
           pointerEvents="box-none"
           style={[styles.searchDockAvoider, { bottom: insets.bottom + SearchDockGap }]}>
           <View pointerEvents="box-none" style={styles.searchDock}>
-            <GlassSurface interactive style={styles.searchCapsule}>
+            <View style={[styles.searchCapsule, { backgroundColor: theme.ticket, borderColor: theme.borderStrong, boxShadow: theme.elevationFloat }]}>
               <View style={styles.searchCapsuleInner}>
                 <AppSymbol
                   name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
@@ -321,7 +325,7 @@ function TaskDrawerContent({
                   autoCorrect={false}
                   placeholder="Search"
                   placeholderTextColor={theme.textTertiary}
-                  selectionColor={NativeTint}
+                  selectionColor={theme.accent}
                   style={[styles.searchInput, { color: theme.text }]}
                   value={search}
                   onChangeText={setSearch}
@@ -330,9 +334,8 @@ function TaskDrawerContent({
                   <Pressable
                     accessibilityLabel="Clear search"
                     accessibilityRole="button"
-                    hitSlop={8}
                     onPress={() => setSearch('')}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+                    style={({ pressed }) => [styles.clearButton, { opacity: pressed ? 0.5 : 1 }]}>
                     <AppSymbol
                       name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
                       size={16}
@@ -341,22 +344,23 @@ function TaskDrawerContent({
                   </Pressable>
                 )}
               </View>
-            </GlassSurface>
+            </View>
             {daemon.phase === 'connected' && (
-              <GlassSurface interactive style={styles.composeButton}>
-                <Pressable
-                  accessibilityLabel="New task"
-                  accessibilityRole="button"
-                  hitSlop={6}
-                  onPress={showNewTask}
-                  style={({ pressed }) => [styles.roundInner, { opacity: pressed ? 0.5 : 1 }]}>
-                  <AppSymbol
-                    name={{ ios: 'square.and.pencil', android: 'edit_square', web: 'edit' }}
-                    size={20}
-                    tintColor={theme.text}
-                  />
-                </Pressable>
-              </GlassSurface>
+              <PressableScale
+                accessibilityLabel="New task"
+                accessibilityRole="button"
+                onPress={showNewTask}
+                style={({ pressed }) => [styles.composeButton, {
+                  backgroundColor: theme.primary,
+                  boxShadow: theme.elevationFloat,
+                  opacity: pressed ? 0.85 : 1,
+                }]}>
+                <AppSymbol
+                  name={{ ios: 'square.and.pencil', android: 'edit_square', web: 'edit' }}
+                  size={20}
+                  tintColor={theme.onPrimary}
+                />
+              </PressableScale>
             )}
           </View>
         </KeyboardAvoidingView>
@@ -382,7 +386,7 @@ function DaemonPill({ onPress }: { onPress: () => void }) {
   const theme = useTheme();
   const daemon = useDaemon();
   return (
-    <GlassSurface interactive style={styles.daemonButton}>
+    <View style={[styles.daemonButton, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder, boxShadow: theme.elevationRest }]}>
       <Pressable
         accessibilityHint="Opens the daemon switcher"
         accessibilityLabel={daemon.activeProfile
@@ -391,7 +395,7 @@ function DaemonPill({ onPress }: { onPress: () => void }) {
         accessibilityRole="button"
         hitSlop={8}
         onPress={onPress}
-        style={({ pressed }) => [styles.daemonButtonInner, { opacity: pressed ? 0.62 : 1 }]}>
+        style={({ pressed }) => [styles.daemonButtonInner, { backgroundColor: pressed ? theme.overlay : 'transparent' }]}>
         {daemon.activeProfile ? <ConnectionStatus compact phase={daemon.phase} /> : (
           <AppSymbol
             name={{ ios: 'plus', android: 'add', web: 'add' }}
@@ -408,7 +412,7 @@ function DaemonPill({ onPress }: { onPress: () => void }) {
           tintColor={theme.textTertiary}
         />
       </Pressable>
-    </GlassSurface>
+    </View>
   );
 }
 
@@ -456,35 +460,37 @@ function TaskListEmpty({
   }
   return (
     <View style={styles.emptyState}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.overlayStrong }]}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.accentSoft }]}>
         <AppSymbol
           name={{ ios: 'text.bubble', android: 'chat_bubble', web: 'chat' }}
           size={25}
-          tintColor={theme.textTertiary}
+          tintColor={theme.accent}
         />
       </View>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No tasks yet</Text>
       <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-        Start an agent on anything — a bug, a feature, a question about the code.
+        Start an agent on anything: a bug, a feature, a question about the code.
       </Text>
       {phase === 'connected' && (
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           onPress={onNewTask}
           style={({ pressed }) => [
             styles.emptyAction,
-            { backgroundColor: theme.inverse, opacity: pressed ? 0.7 : 1 },
+            { backgroundColor: theme.primary, opacity: pressed ? 0.85 : 1 },
           ]}>
-          <Text style={[styles.emptyActionText, { color: theme.onInverse }]}>New task</Text>
-        </Pressable>
+          <Text style={[styles.emptyActionText, { color: theme.onPrimary }]}>New task</Text>
+        </PressableScale>
       )}
     </View>
   );
 }
 
 function SessionRow({
+  animate,
   drawerWidth,
   item,
+  needsYou,
   now,
   running,
   selected,
@@ -492,8 +498,12 @@ function SessionRow({
   onRename,
   onSelect,
 }: {
+  /** Spinners only run while the drawer is open: a closed drawer stays
+   * mounted, and a native spinner would otherwise redraw every frame. */
+  animate: boolean;
   drawerWidth: number;
   item: SessionListItem;
+  needsYou: boolean;
   now: number;
   running: boolean;
   selected: boolean;
@@ -509,18 +519,21 @@ function SessionRow({
     : relativeSessionTime(session.last_reply_at, now);
   return (
     <TaskRowMenu
-      accessibilityLabel={`${displaySessionTitle(session)}, ${providerLabel(session.provider)} in ${item.projectName}${running ? ', Running' : ''}${lastReplyTime ? `, Last reply: ${lastReplyTime}` : ''}`}
+      accessibilityLabel={`${displaySessionTitle(session)}, ${providerLabel(session.provider)} in ${item.projectName}${needsYou ? ', Needs you' : running ? ', Running' : ''}${lastReplyTime ? `, Last reply: ${lastReplyTime}` : ''}`}
       onDelete={onDelete}
       onRename={onRename}
       onSelect={onSelect}
       renderTrigger={(pressed) => (
         <View
+          collapsable={false}
           style={[
             styles.sessionRow,
             {
               backgroundColor: pressed
-                ? theme.surfaceMuted
-                : selected ? theme.backgroundSelected : 'transparent',
+                ? theme.overlayStrong
+                : selected ? theme.ticket : 'transparent',
+              borderColor: needsYou ? theme.primary : selected ? theme.ticketBorder : 'transparent',
+              boxShadow: selected ? theme.elevationRest : undefined,
               width: rowWidth,
             },
           ]}>
@@ -528,16 +541,19 @@ function SessionRow({
             <Text numberOfLines={1} style={[styles.sessionTitle, { color: theme.text }]}>
               {displaySessionTitle(session)}
             </Text>
-            {running && (
+            {needsYou ? <StatusPill {...ticketStatus('needsYou')} /> : running && animate && (
               <ActivityIndicator
                 accessibilityLabel="Running"
-                color={theme.textTertiary}
+                color={theme.accent}
                 size="small"
                 style={styles.sessionSpinner}
               />
             )}
           </View>
           <View style={styles.sessionMetadata}>
+            <Text style={[styles.sessionNumber, { color: needsYou ? theme.accent : theme.textTertiary }]}>
+              {ticketNumber(session.id)}
+            </Text>
             <ProviderIcon color={theme.textTertiary} provider={session.provider} size={12} />
             <Text
               numberOfLines={1}
@@ -567,7 +583,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 30,
   },
-  roundInner: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   searchDockAvoider: {
     left: 0,
     position: 'absolute',
@@ -580,17 +595,19 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: Spacing.three,
   },
-  searchCapsule: { borderRadius: Radius.pill, flex: 1 },
+  searchCapsule: { borderRadius: Radius.pill, borderWidth: StyleSheet.hairlineWidth, flex: 1 },
   searchCapsuleInner: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 9,
     minHeight: 50,
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 4,
   },
+  clearButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 44 },
   searchInput: { flex: 1, fontSize: 16.5, paddingVertical: 10 },
-  composeButton: { borderRadius: Radius.pill, height: 50, width: 50 },
-  daemonButton: { borderRadius: Radius.pill, maxWidth: 176 },
+  composeButton: { alignItems: 'center', borderRadius: Radius.pill, height: 50, justifyContent: 'center', width: 50 },
+  daemonButton: { borderRadius: Radius.pill, borderWidth: StyleSheet.hairlineWidth, maxWidth: 196, overflow: 'hidden' },
   daemonButtonInner: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -605,9 +622,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     letterSpacing: 0,
-    marginBottom: 4,
+    marginBottom: 6,
     marginHorizontal: 24,
-    marginTop: 14,
+    marginTop: 18,
   },
   emptyState: {
     alignItems: 'center',
@@ -618,7 +635,7 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     alignItems: 'center',
-    borderRadius: 20,
+    borderRadius: 16,
     height: 64,
     justifyContent: 'center',
     marginBottom: 18,
@@ -630,28 +647,29 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     justifyContent: 'center',
     marginTop: 18,
-    minHeight: 42,
-    paddingHorizontal: 18,
+    minHeight: 48,
+    paddingHorizontal: 22,
   },
   emptyActionText: { fontSize: 14, fontWeight: '700' },
-  sessionMenu: { height: 62, marginHorizontal: 12 },
+  sessionMenu: { height: 64, marginHorizontal: 12 },
   sessionRow: {
-    borderRadius: 10,
-    gap: 3,
-    height: 62,
+    borderRadius: Radius.medium,
+    borderWidth: 1,
+    gap: 4,
+    height: 64,
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
   sessionHeading: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-  sessionMetadata: { alignItems: 'center', flexDirection: 'row', gap: 5 },
+  sessionMetadata: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+  sessionNumber: { fontFamily: MonoFont, fontSize: 12, fontVariant: ['tabular-nums'], lineHeight: 17 },
   sessionProject: { flex: 1, fontSize: 12.5, lineHeight: 17 },
   sessionTime: { flexShrink: 0, fontSize: 12.5, lineHeight: 17, marginLeft: 3 },
   sessionSpinner: { height: 14, transform: [{ scale: 0.72 }], width: 14 },
   sessionTitle: {
     flex: 1,
-    fontSize: 16.5,
-    fontWeight: '400',
-    letterSpacing: -0.2,
-    lineHeight: 22,
+    fontSize: 15.5,
+    fontWeight: '500',
+    lineHeight: 21,
   },
 });

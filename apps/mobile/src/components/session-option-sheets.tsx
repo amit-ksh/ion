@@ -366,9 +366,9 @@ export function ModelPickerSheet({
               <AppSymbol
                 name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
                 size={14}
-                tintColor={NativeTint}
+                tintColor={theme.accent}
               />
-              <Text style={[styles.backLabel, { color: NativeTint }]}>
+              <Text style={[styles.backLabel, { color: theme.accent }]}>
                 {browsing ? providerLabel(browsing) : 'Provider'}
               </Text>
             </Pressable>

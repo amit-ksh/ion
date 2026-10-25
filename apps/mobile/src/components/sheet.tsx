@@ -47,7 +47,7 @@ export function Sheet({
   const body = (
     <>
       {title ? (
-        <Text style={[styles.title, { color: theme.textSecondary }]}>{title}</Text>
+        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{title}</Text>
       ) : null}
       {children}
     </>
@@ -55,7 +55,7 @@ export function Sheet({
   return (
     <BottomSheetModal
       ref={sheet}
-      backgroundStyle={liquidGlass ? undefined : { backgroundColor: theme.surface }}
+      backgroundStyle={liquidGlass ? undefined : { backgroundColor: theme.ticket }}
       enablePanDownToClose
       onDismiss={onDismiss}>
       <BottomSheetView
@@ -84,6 +84,7 @@ export function SheetRow({
   destructive = false,
   disabled = false,
   leading,
+  trailing,
   onPress,
 }: {
   label: string;
@@ -92,6 +93,7 @@ export function SheetRow({
   destructive?: boolean;
   disabled?: boolean;
   leading?: ReactNode;
+  trailing?: ReactNode;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -112,23 +114,28 @@ export function SheetRow({
       <View style={styles.rowCopy}>
         <Text
           numberOfLines={1}
-          style={[styles.rowLabel, { color: destructive ? theme.danger : theme.text }]}>
+          style={[styles.rowLabel, { color: destructive ? theme.danger : theme.text, fontWeight: selected ? '600' : '500' }]}>
           {label}
         </Text>
         {description ? (
-          <Text numberOfLines={2} style={[styles.rowDescription, { color: theme.textTertiary }]}>
+          <Text numberOfLines={2} style={[styles.rowDescription, { color: theme.textSecondary }]}>
             {description}
           </Text>
         ) : null}
       </View>
-      {selected && (
-        <AppSymbol
-          name={{ ios: 'checkmark', android: 'check', web: 'check' }}
-          size={15}
-          tintColor={NativeTint}
-        />
-      )}
+      {selected && <SelectedCheck />}
+      {trailing}
     </Pressable>
+  );
+}
+
+/** Lime disc with a dark-ink check: the one selected item in a menu. */
+export function SelectedCheck() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.check, { backgroundColor: theme.primary }]}>
+      <AppSymbol name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={15} tintColor={theme.onPrimary} />
+    </View>
   );
 }
 
@@ -138,24 +145,24 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   title: {
-    fontSize: 12,
+    fontSize: 17,
     fontWeight: '600',
-    letterSpacing: 0.4,
-    marginBottom: 6,
+    lineHeight: 24,
+    marginBottom: 8,
     marginHorizontal: 12,
-    marginTop: 6,
-    textTransform: 'uppercase',
+    marginTop: 2,
   },
   row: {
     alignItems: 'center',
     borderRadius: Radius.medium,
     flexDirection: 'row',
-    gap: 11,
-    minHeight: 50,
+    gap: 12,
+    minHeight: 56,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
   },
   rowCopy: { flex: 1, minWidth: 0 },
-  rowLabel: { fontSize: 15.5, fontWeight: '500' },
-  rowDescription: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
+  rowLabel: { fontSize: 16, fontWeight: '500', lineHeight: 22 },
+  rowDescription: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  check: { alignItems: 'center', borderRadius: 12, height: 24, justifyContent: 'center', width: 24 },
 });

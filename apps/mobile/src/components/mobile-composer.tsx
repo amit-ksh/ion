@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppSymbol } from "./app-symbol";
 import { AttachmentTile } from "./attachment-tile";
 import { ComposerAccessMenu } from "./composer-access-menu";
+import { ComposerIconButton } from "./composer-icon-button";
 import { ComposerContextPicker } from "./composer-context-picker";
 import { useComposerLocalCommands } from "./composer-command-sheets";
 import {
@@ -34,6 +35,7 @@ import type { ComposerTextInputProps } from "./composer-text-input.types";
 import { GlassSurface, liquidGlass } from "./glass-surface";
 import { ModelTraitsSheet } from "./session-option-sheets";
 import { PhoneDictationControl } from "./phone-dictation-control";
+import { PressableScale } from "./press-scale";
 import { LiveDictationPreview } from "@/components/live-dictation-preview";
 import { MonoFont, NativeTint, Radius } from "@/constants/theme";
 import { useProviderModels, useTaskState } from "@/hooks/use-daemon-data";
@@ -56,8 +58,9 @@ import { mobileHarness } from "@/lib/mobile-capabilities";
 
 /**
  * The composer surface shared by the session screen and the new-task screen:
- * a tall rounded card holding the input with an icon toolbar underneath —
- * option toggles on the left, meters and the send button on the right.
+ * a floating card (hairline + soft offset shadow) holding the input over a
+ * toolbar. Left: pill chips, scrolling sideways when they outgrow the row;
+ * right: dictation, meters and the round send button, always in reach.
  */
 export function ComposerCard({
   beforeInput,
@@ -77,8 +80,9 @@ export function ComposerCard({
       style={[
         styles.card,
         !liquidGlass && {
-          borderColor: theme.border,
+          borderColor: theme.borderStrong,
           borderWidth: StyleSheet.hairlineWidth,
+          boxShadow: theme.elevationFloat,
         },
       ]}>
       {beforeInput}
@@ -91,47 +95,31 @@ export function ComposerCard({
         placeholder={`${inputProps.placeholder ?? "Do anything…"}\n@ files, teams & apps · @@ teams · @@@ apps`}
       />
       <View style={styles.toolbar}>
-        <View style={styles.cluster}>{left}</View>
-        <View style={styles.toolbarSpacer} />
+        <View style={styles.chips}>
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.cluster, styles.chipsContent]}>
+            {left}
+          </ScrollView>
+          {/* Chips that run past the edge fade out rather than being cut. */}
+          {!liquidGlass && (
+            <View
+              pointerEvents="none"
+              style={[styles.chipsFade, {
+                experimental_backgroundImage: `linear-gradient(90deg, ${theme.composer}00 0%, ${theme.composer} 100%)`,
+              }]}
+            />
+          )}
+        </View>
         <View style={styles.cluster}>{right}</View>
       </View>
     </GlassSurface>
   );
 }
 
-export function ComposerIconButton({
-  icon,
-  label,
-  onPress,
-  active = false,
-  disabled = false,
-}: {
-  icon: Parameters<typeof AppSymbol>[0]["name"];
-  label: string;
-  onPress: () => void;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled, selected: active }}
-      disabled={disabled}
-      hitSlop={4}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.iconButton,
-        {
-          backgroundColor: active ? theme.accentSoft : "transparent",
-          opacity: disabled ? 0.35 : pressed ? 0.55 : 1,
-        },
-      ]}>
-      <AppSymbol name={icon} size={19} tintColor={active ? theme.accent : theme.textSecondary} />
-    </Pressable>
-  );
-}
+export { ComposerIconButton };
 
 export function SendButton({
   onPress,
@@ -150,36 +138,33 @@ export function SendButton({
 }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <PressableScale
       accessibilityLabel={label}
       accessibilityRole="button"
       accessibilityState={{ disabled, busy }}
       disabled={disabled}
       hitSlop={4}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.sendButton,
-        {
-          backgroundColor: disabled
-            ? theme.surfaceMuted
-            : theme.primary,
-          opacity: pressed || busy ? 0.6 : 1,
-        },
-      ]}>
-      {busy ? (
-        <ActivityIndicator color={disabled ? theme.textTertiary : theme.onPrimary} size="small" />
-      ) : (
-        <AppSymbol
-          name={queueing
-            ? { ios: "text.append", android: "playlist_add", web: "playlist_add",
-                }
-            : { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward",
-                }}
-          size={17}
-          tintColor={disabled ? theme.textTertiary : theme.onPrimary}
-        />
-      )}
-    </Pressable>
+      style={styles.sendButton}>
+      <View style={[styles.sendDisc, {
+        backgroundColor: disabled ? theme.overlayStrong : theme.primary,
+        opacity: busy ? 0.7 : 1,
+      }]}>
+        {busy ? (
+          <ActivityIndicator color={disabled ? theme.textTertiary : theme.onPrimary} size="small" />
+        ) : (
+          <AppSymbol
+            name={queueing
+              ? { ios: "text.append", android: "playlist_add", web: "playlist_add",
+                  }
+              : { ios: "arrow.up", android: "arrow_upward", web: "arrow_upward",
+                  }}
+            size={20}
+            tintColor={disabled ? theme.textTertiary : theme.onPrimary}
+          />
+        )}
+      </View>
+    </PressableScale>
   );
 }
 
@@ -484,7 +469,7 @@ export function MobileComposer({
               setLocalError(null);
               runtime.dismissError(session.id);
             }}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+            style={({ pressed }) => [styles.smallTarget, { opacity: pressed ? 0.5 : 1 }]}>
             <AppSymbol
               name={{ ios: "xmark", android: "close", web: "close" }}
               size={12}
@@ -511,9 +496,9 @@ export function MobileComposer({
           <Pressable
             accessibilityLabel="Remove queued message"
             accessibilityRole="button"
-            hitSlop={8}
+            hitSlop={4}
             onPress={() => void runtime.removeQueuedMessage(session.id, message.id).catch(() => {})}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+            style={({ pressed }) => [styles.smallTarget, { opacity: pressed ? 0.5 : 1 }]}>
             <AppSymbol
               name={{ ios: "xmark", android: "close", web: "close" }}
               size={11}
@@ -570,6 +555,13 @@ export function MobileComposer({
               onApply={(mode) => applyOptions({ runtimeMode: mode })}
             />
             )}
+            {providerAvailable && !session.team_assignment && activeModel && modelHasConfigurableTraits(activeModel) && (
+              <ComposerIconButton
+                icon={{ ios: "speedometer", android: "speed", web: "speed" }}
+                label="Model options"
+                onPress={() => setTraitsSheetOpen(true)}
+              />
+            )}
           </>
         }
         placeholder={placeholder}
@@ -588,30 +580,21 @@ export function MobileComposer({
                 );
               }}
             />
-            {providerAvailable && !session.team_assignment && activeModel && modelHasConfigurableTraits(activeModel) && (
-              <ComposerIconButton
-                icon={{ ios: "speedometer", android: "speed", web: "speed" }}
-                label="Model options"
-                onPress={() => setTraitsSheetOpen(true)}
-              />
-            )}
             {canStop && (
-              <Pressable
+              <PressableScale
                 accessibilityLabel="Stop agent"
                 accessibilityRole="button"
                 hitSlop={4}
                 onPress={() => void stop()}
-                style={({ pressed }) => [
-                  styles.sendButton,
-                  { backgroundColor: theme.dangerSoft, opacity: pressed ? 0.55 : 1,
-                  },
-                ]}>
-                <AppSymbol
-                  name={{ ios: "stop.fill", android: "stop", web: "stop" }}
-                  size={14}
-                  tintColor={theme.danger}
-                />
-              </Pressable>
+                style={styles.sendButton}>
+                <View style={[styles.sendDisc, { backgroundColor: theme.dangerSoft }]}>
+                  <AppSymbol
+                    name={{ ios: "stop.fill", android: "stop", web: "stop" }}
+                    size={18}
+                    tintColor={theme.danger}
+                  />
+                </View>
+              </PressableScale>
             )}
             <SendButton
               busy={submitting}
@@ -695,7 +678,7 @@ function PermissionPanel({
   const [responding, setResponding] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   return (
-    <RequestPanel borderColor={theme.warning}>
+    <RequestPanel borderColor={theme.primary}>
       <View style={styles.requestHeading}>
         <AppSymbol
           name={{ ios: "hand.raised.fill", android: "front_hand", web: "pan_tool",
@@ -737,19 +720,19 @@ function PermissionPanel({
             style={({ pressed }) => [
               styles.optionButton,
               {
-                backgroundColor: option.allow ? theme.inverse : theme.surfaceMuted,
+                backgroundColor: option.allow ? theme.primary : theme.overlayStrong,
                 opacity: pressed || (responding && responding !== option.id) ? 0.55 : 1,
               },
             ]}>
             {responding === option.id && (
               <ActivityIndicator
-                color={option.allow ? theme.onInverse : theme.text}
+                color={option.allow ? theme.onPrimary : theme.text}
                 size="small"
               />
             )}
             <Text style={[
               styles.optionButtonText,
-              { color: option.allow ? theme.onInverse : theme.text },
+              { color: option.allow ? theme.onPrimary : theme.text },
             ]}>{option.label}</Text>
           </Pressable>
         ))}
@@ -828,7 +811,7 @@ function UserInputPanel({
   }
 
   return (
-    <RequestPanel borderColor={theme.accent}>
+    <RequestPanel borderColor={theme.primary}>
       <View style={styles.questionHeader}>
         <Text style={[styles.questionEyebrow, { color: theme.textTertiary }]}>{question.header}</Text>
         {input.questions.length > 1 && (
@@ -851,7 +834,7 @@ function UserInputPanel({
                 styles.questionOption,
                 {
                   backgroundColor: checked ? theme.overlayStrong : theme.surfaceMuted,
-                  borderColor: checked ? NativeTint : "transparent",
+                  borderColor: checked ? theme.accent : "transparent",
                   opacity: pressed ? 0.65 : 1,
                 },
               ]}>
@@ -868,7 +851,7 @@ function UserInputPanel({
                 <AppSymbol
                   name={{ ios: "checkmark", android: "check", web: "check" }}
                   size={14}
-                  tintColor={NativeTint}
+                  tintColor={theme.accent}
                 />
               )}
             </Pressable>
@@ -884,7 +867,7 @@ function UserInputPanel({
             styles.customAnswer,
             {
               backgroundColor: theme.surfaceMuted,
-              borderColor: custom.trim() ? NativeTint : "transparent",
+              borderColor: custom.trim() ? theme.accent : "transparent",
               color: theme.text,
             },
           ]}
@@ -915,13 +898,13 @@ function UserInputPanel({
           onPress={() => void advance()}
           style={({ pressed }) => [
             styles.nextButton,
-            { backgroundColor: theme.inverse, opacity: !canContinue || submitting || pressed ? 0.55 : 1,
+            { backgroundColor: theme.primary, opacity: !canContinue || submitting || pressed ? 0.55 : 1,
             },
           ]}>
           {submitting && (
-            <ActivityIndicator color={theme.onInverse} size="small" />
+            <ActivityIndicator color={theme.onPrimary} size="small" />
           )}
-          <Text style={[styles.nextButtonText, { color: theme.onInverse }]}>
+          <Text style={[styles.nextButtonText, { color: theme.onPrimary }]}>
             {last ? "Submit" : "Next"}
           </Text>
         </Pressable>
@@ -935,7 +918,7 @@ function RequestPanel({ borderColor, children,
 }) {
   const theme = useTheme();
   return (
-    <View style={[styles.requestPanel, { backgroundColor: theme.surface, borderColor },
+    <View style={[styles.requestPanel, { backgroundColor: theme.ticket, borderColor, boxShadow: theme.elevationFloat },
       ]}>
       {children}
     </View>
@@ -945,18 +928,18 @@ function RequestPanel({ borderColor, children,
 const styles = StyleSheet.create({
   shell: { paddingHorizontal: 12, paddingTop: 4 },
   card: {
-    borderRadius: Radius.large,
-    paddingBottom: 8,
-    paddingHorizontal: 10,
-    paddingTop: 6,
+    borderRadius: 18,
+    paddingBottom: 4,
+    paddingHorizontal: 8,
+    paddingTop: 8,
   },
   input: {
     fontSize: 16,
-    lineHeight: 21,
-    maxHeight: 120,
-    minHeight: 42,
-    paddingHorizontal: 6,
-    paddingVertical: 8,
+    lineHeight: 22,
+    maxHeight: 132,
+    minHeight: 52,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   attachmentStrip: { gap: 8, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 6,
   },
@@ -970,23 +953,23 @@ const styles = StyleSheet.create({
     width: 80,
   },
   attachmentName: { fontSize: 11.5 },
-  toolbar: { alignItems: "flex-end", flexDirection: "row", marginTop: 2 },
-  toolbarSpacer: { flex: 1 },
-  cluster: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", flexShrink: 1, gap: 8 },
-  iconButton: {
+  toolbar: { alignItems: "center", flexDirection: "row", gap: 4, marginTop: 2 },
+  chips: { flex: 1, minWidth: 0 },
+  chipsContent: { paddingRight: 20 },
+  chipsFade: { bottom: 0, position: "absolute", right: 0, top: 0, width: 24 },
+  cluster: { alignItems: "center", flexDirection: "row", gap: 6 },
+  sendButton: {
     alignItems: "center",
-    borderRadius: Radius.pill,
     height: 48,
     justifyContent: "center",
     width: 48,
   },
-  sendButton: {
+  sendDisc: {
     alignItems: "center",
     borderRadius: Radius.pill,
-    height: 48,
+    height: 42,
     justifyContent: "center",
-    marginLeft: 4,
-    width: 48,
+    width: 42,
   },
   errorBanner: {
     alignItems: "center",
@@ -1009,6 +992,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   queuedText: { flex: 1, fontSize: 12.5 },
+  smallTarget: { alignItems: "center", height: 40, justifyContent: "center", marginVertical: -8, width: 40 },
   requestPanel: {
     borderRadius: Radius.large,
     borderWidth: 1,
@@ -1016,7 +1000,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   requestHeading: { alignItems: "center", flexDirection: "row", gap: 8 },
-  requestTitle: { flex: 1, fontSize: 14, fontWeight: "700" },
+  requestTitle: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 21 },
   detailScroll: {
     borderRadius: Radius.small,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1032,14 +1016,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     flexDirection: "row",
     gap: 6,
-    minHeight: 38,
+    minHeight: 48,
     paddingHorizontal: 14,
   },
-  optionButtonText: { fontSize: 13, fontWeight: "700" },
+  optionButtonText: { fontSize: 14, fontWeight: "600" },
   panelError: { fontSize: 12, lineHeight: 17, marginTop: 8 },
   questionHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between",
   },
-  questionEyebrow: { fontSize: 11, fontWeight: "700", letterSpacing: 0.55, textTransform: "uppercase",
+  questionEyebrow: { fontSize: 12.5, fontWeight: "600",
   },
   progress: { fontSize: 11, fontWeight: "600" },
   questionText: { fontSize: 14, fontWeight: "600", lineHeight: 20, marginTop: 7,
@@ -1052,7 +1036,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginBottom: 6,
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: 11,
     paddingVertical: 8,
   },
@@ -1064,13 +1048,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     fontSize: 13,
     lineHeight: 18,
-    minHeight: 42,
+    minHeight: 48,
     paddingHorizontal: 11,
     paddingVertical: 9,
   },
   questionActions: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10,
   },
-  backButton: { justifyContent: "center", minHeight: 36, paddingHorizontal: 6 },
+  backButton: { justifyContent: "center", minHeight: 48, paddingHorizontal: 6 },
   backButtonText: { fontSize: 13, fontWeight: "600" },
   nextButton: {
     alignItems: "center",
@@ -1078,9 +1062,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
     justifyContent: "center",
-    minHeight: 36,
+    minHeight: 48,
     minWidth: 78,
     paddingHorizontal: 14,
   },
-  nextButtonText: { fontSize: 13, fontWeight: "700" },
+  nextButtonText: { fontSize: 14, fontWeight: "600" },
 });

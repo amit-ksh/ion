@@ -38,7 +38,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppSymbol } from "@/components/app-symbol";
 import { DiffView } from "@/components/diff-view";
 import { liquidGlass } from "@/components/glass-surface";
-import { MonoFont, NativeTint, Radius } from "@/constants/theme";
+import { MonoFont, Radius } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
   collectWorkspaceDiff,
@@ -416,9 +416,9 @@ function FilesSurface({ root }: { root: string | null }) {
               web: "arrow_back",
             }}
             size={13}
-            tintColor={NativeTint}
+            tintColor={theme.accent}
           />
-          <Text style={[styles.backLabel, { color: NativeTint }]}>Files</Text>
+          <Text style={[styles.backLabel, { color: theme.accent }]}>Files</Text>
         </Pressable>
         {file.isPending ? (
           <LoadingMessage />
@@ -761,6 +761,7 @@ function HeaderTextButton({
   label: string;
   onPress: () => void;
 }) {
+  const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -771,7 +772,7 @@ function HeaderTextButton({
         { opacity: pressed ? 0.5 : 1 },
       ]}
     >
-      <Text style={[styles.textButtonLabel, { color: NativeTint }]}>
+      <Text style={[styles.textButtonLabel, { color: theme.accent }]}>
         {label}
       </Text>
     </Pressable>
@@ -782,7 +783,7 @@ function LoadingMessage() {
   const theme = useTheme();
   return (
     <View accessibilityLabel="Loading" style={styles.loading}>
-      <ActivityIndicator color={NativeTint} />
+      <ActivityIndicator color={theme.accent} />
       <Text style={[styles.loadingText, { color: theme.textTertiary }]}>
         Loading…
       </Text>

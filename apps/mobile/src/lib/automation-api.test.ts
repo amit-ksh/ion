@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { WakuRpcError, type AutomationRun, type Command, type ResponsePayload } from '@waku/client';
-import { startSavedAutomation, requestMobileAutomation, type SubmissionStorage } from './automation-api';
+import { intervalLabel, startSavedAutomation, requestMobileAutomation, type SubmissionStorage } from './automation-api';
 const ID = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
 const DEFINITION = '00000000-0000-4000-8000-000000000003';
@@ -172,4 +172,16 @@ test('mobile can start and enable verified local automation teams', async () => 
   await requestMobileAutomation(transport, { type: 'startAutomation', id: ID, definitionId: DEFINITION, expectedDefinitionRevision: 7 });
   await requestMobileAutomation(transport, { type: 'setRoutinePaused', id: 'routine', expectedRevision: 7, paused: false });
   expect(calls.map(command => command.type)).toEqual(['loadWorkspaceControl', 'startAutomation', 'loadWorkspaceControl', 'setRoutinePaused']);
+});
+
+test('routine intervals read in the largest whole unit', () => {
+  expect(intervalLabel(1)).toBe('Every minute');
+  expect(intervalLabel(45)).toBe('Every 45 minutes');
+  expect(intervalLabel(60)).toBe('Every hour');
+  expect(intervalLabel(240)).toBe('Every 4 hours');
+  expect(intervalLabel(90)).toBe('Every 90 minutes');
+  expect(intervalLabel(1_440)).toBe('Every day');
+  expect(intervalLabel(4_320)).toBe('Every 3 days');
+  expect(intervalLabel(10_080)).toBe('Every week');
+  expect(intervalLabel(20_160)).toBe('Every 2 weeks');
 });

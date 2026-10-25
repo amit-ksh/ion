@@ -1,4 +1,5 @@
 import { assertMobileTeam } from './mobile-capabilities';
+import { localTimeLabel } from './time-labels';
 import { WakuRpcError, type ControlSnapshot, type AutomationRun, type CalendarSchedule, type RoutineTrigger, type WorkflowTarget, type WorkflowTransition, type Command, type ResponsePayload } from '@waku/client';
 
 export interface AutomationTransport {
@@ -106,12 +107,19 @@ export function automationStatus(status: AutomationRun['status']): string {
 }
 export function routineTime(seconds: number): string {
   if (!seconds) return 'Paused';
-  const date = new Date(seconds * 1000);
-  return Number.isFinite(date.getTime()) ? date.toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'Unknown time';
+  return localTimeLabel(seconds);
+}
+
+/** "Every 4 hours" rather than "Every 240 minutes". */
+export function intervalLabel(minutes: number): string {
+  const units: [number, string][] = [[10_080, 'week'], [1_440, 'day'], [60, 'hour'], [1, 'minute']];
+  const [size, unit] = units.find(([size]) => minutes >= size && minutes % size === 0) ?? [1, 'minute'];
+  const count = minutes / size;
+  return count === 1 ? `Every ${unit}` : `Every ${count} ${unit}s`;
 }
 
 export function scheduleLabel(interval: number, calendar?: CalendarSchedule | null): string {
-  if (!calendar) return `Every ${interval} minutes`;
+  if (!calendar) return intervalLabel(interval);
   const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const recurrence = calendar.recurrence.type === 'daily' ? 'Daily'
     : calendar.recurrence.type === 'weekly' ? calendar.recurrence.days.map((day) => weekdays[day]).filter(Boolean).join(', ')

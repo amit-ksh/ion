@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ProviderKind, RuntimeMode } from '@waku/client';
+import type { ProviderKind, RuntimeMode, Team } from '@waku/client';
+import { teamReference } from '@waku/client/composer-autocomplete';
 import {
   rememberedModelTraits,
   rememberComposerSession,
@@ -12,15 +13,20 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppSymbol } from '@/components/app-symbol';
+import { Chip } from '@/components/chip';
+import { ConnectionStatus } from '@/components/connection-status';
+import { GlowField } from '@/components/glow-field';
+import { LiveWork } from '@/components/live-work';
+import { ProviderIcon } from '@/components/provider-icon';
 import { ComposerAccessMenu } from '@/components/composer-access-menu';
 import { ComposerAddMenu } from '@/components/composer-add-menu';
 import { ComposerContextPicker } from '@/components/composer-context-picker';
@@ -41,7 +47,7 @@ import {
   type ProviderModelSelection,
 } from '@/components/session-option-sheets';
 import { Sheet, SheetRow } from '@/components/sheet';
-import { Radius, Spacing } from '@/constants/theme';
+import { MonoFont, Radius } from '@/constants/theme';
 import { useAllProviderModels, useProviderCatalog, useTaskState } from '@/hooks/use-daemon-data';
 import { useComposerPicker } from '@/hooks/use-composer-picker';
 import { useSyncedComposerDraft } from '@/hooks/use-synced-composer-draft';
@@ -69,15 +75,16 @@ type SheetKind =
   | 'model'
   | 'traits'
   | 'workspace'
-  | 'setup'
   | 'branch';
 
 export default function NewTaskScreen() {
-  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string;project?:string}>();
+  const proposalParams = useLocalSearchParams<{proposal?:string;owner?:string;project?:string;team?:string}>();
+  const teamLoaded = useRef<string | null>(null);
   const proposalLoaded = useRef<string | null>(null);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerInset = useScreenHeaderInset();
+  const { height } = useWindowDimensions();
   const daemon = useDaemon();
   const runtime = useRuntime();
   const taskState = useTaskState();
@@ -251,6 +258,26 @@ export default function NewTaskScreen() {
     }).catch((cause)=>{if(!canceled)setError(cause instanceof Error?cause.message:String(cause));});
     return()=>{canceled=true;};
   },[daemon.client,daemon.phase,daemon.activeProfile?.id,daemon.activeProfile?.address,proposalParams.proposal,proposalParams.owner,restoredAddress,taskState.data]);
+  // A team's "New task" opens here with the team addressed; the user writes the objective.
+  useEffect(() => {
+    const client = daemon.client; const id = proposalParams.team;
+    const key = `${daemon.activeProfile?.id}:${id}`;
+    if (!id || !client || daemon.phase !== 'connected' || restoredAddress !== daemon.activeProfile?.address || teamLoaded.current === key) return;
+    let canceled = false;
+    void client.request({ type: 'loadWorkspaceControl' }).then((response) => {
+      if (canceled) return;
+      if (response.type !== 'workspaceControl') throw new Error('Could not load the team.');
+      const teams = response.snapshot.records.filter((r): r is Team & { kind: 'team' } => r.kind === 'team');
+      const team = teams.find((t) => t.id === id);
+      if (!team) throw new Error('This team is no longer available.');
+      teamLoaded.current = key;
+      const mention = teamReference(team, teams);
+      if (promptRef.current.startsWith(mention)) return;
+      draftSyncRef.current.markEdited();
+      setPrompt(`${mention} ${promptRef.current.trimStart()}`);
+    }).catch((cause) => { if (!canceled) setError(cause instanceof Error ? cause.message : String(cause)); });
+    return () => { canceled = true; };
+  }, [daemon.client, daemon.phase, daemon.activeProfile?.id, daemon.activeProfile?.address, proposalParams.team, restoredAddress]);
   const contextPicker = useComposerPicker({
     text: prompt,
     onChangeText: (value) => {
@@ -393,132 +420,126 @@ export default function NewTaskScreen() {
     ?? 'Default branch';
   const startDisabled = !selectedProject || !provider || !prompt.trim() || submitting;
 
+  const connecting = daemon.phase === 'connecting' || daemon.phase === 'booting' || daemon.phase === 'reconnecting';
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.background }]}>
-      {/* Title and back button are the native navigation bar's; keep clear of it. */}
-      <View style={{ height: headerInset }} />
-      <View style={{ flex: 1, paddingHorizontal: 24 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Choose model: ${modelLabel}`} onPress={() => setOpenSheet('model')}
-          style={{ minHeight: 48, alignSelf: 'center', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Text numberOfLines={1} style={{ color: theme.text, fontSize: 17, fontWeight: '600', flexShrink: 1 }}>{modelLabel}</Text>
-          <AppSymbol name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={18} tintColor={theme.textSecondary} />
-        </Pressable>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 28, fontWeight: '600', textAlign: 'center' }}>What can we work on?</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Conversation setup" onPress={() => setOpenSheet('setup')}
-          style={{ minHeight: 48, flexDirection: 'row', gap: 8, alignItems: 'center', alignSelf: 'center' }}>
-          <AppSymbol name={{ ios: 'folder', android: 'folder_open', web: 'folder_open' }} size={17} tintColor={theme.textSecondary} />
-          <Text numberOfLines={1} style={{ color: theme.textSecondary, flexShrink: 1 }}>{selectedProject?.name ?? 'Choose project'} · {daemon.activeProfile?.name ?? 'Desktop'}</Text>
-          <AppSymbol name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }} size={17} tintColor={theme.textSecondary} />
-        </Pressable>
-      </View>
-      <View style={[styles.composerShell, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {error && (
-          <View
-            accessibilityLiveRegion="polite"
-            style={[styles.error, { backgroundColor: theme.dangerSoft }]}>
-            <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
-          </View>
-        )}
-        <LiveDictationPreview text={speechPreview} />
-        <ComposerCard
-          {...contextPicker.inputProps}
-          accessibilityLabel="Task prompt"
-          editable={!submitting}
-          left={(
-            <>
-              <ComposerAddMenu
-                disabled={submitting || daemon.phase !== 'connected' || !selectedProject || !provider}
-                onChooseContext={contextPicker.open}
-              />
-              <ComposerAccessMenu
-                mode={runtimeMode}
-                onApply={setRuntimeMode}
-              />
-            </>
+      <GlowField />
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.home, {
+          paddingTop: headerInset + Math.max(16, Math.round(height * 0.05)),
+          paddingBottom: Math.max(insets.bottom, 16) + 16,
+        }]}>
+        {/* Title and menu button are the native navigation bar's; the headline sits clear of it. */}
+        <Text accessibilityRole="header" style={[styles.headline, { color: theme.text }]}>
+          What should we build?
+        </Text>
+        <View style={styles.composer}>
+          {error && (
+            <View
+              accessibilityLiveRegion="polite"
+              style={[styles.error, { backgroundColor: theme.dangerSoft }]}>
+              <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+            </View>
           )}
-          placeholder="Message Ion"
-          right={(
-            <>
-              <PhoneDictationControl
-                client={daemon.client}
-                onPreview={setSpeechPreview}
-                contextKey={`new-task:${projectId ?? ''}:${provider ?? ''}`}
-                host={daemon.activeProfile?.name ?? 'the selected daemon'}
-                disabled={submitting || daemon.phase !== 'connected'}
-                onError={setError}
-                onTranscript={(text) => {
-                  draftSync.markEdited();
-                  setPrompt((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
-                }}
-              />
-              {activeModel && modelHasConfigurableTraits(activeModel) && (
-                <ComposerIconButton
-                  icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
-                  label="Model options"
-                  onPress={() => setOpenSheet('traits')}
+          <LiveDictationPreview text={speechPreview} />
+          <ComposerCard
+            {...contextPicker.inputProps}
+            accessibilityLabel="Task prompt"
+            editable={!submitting}
+            left={(
+              <>
+                <ComposerAddMenu
+                  disabled={submitting || daemon.phase !== 'connected' || !selectedProject || !provider}
+                  onChooseContext={contextPicker.open}
                 />
-              )}
-              <SendButton
-                busy={submitting}
-                disabled={startDisabled}
-                label="Start task"
-                onPress={() => void start()}
-              />
-            </>
-          )}
-          value={prompt}
-        />
-      </View>
-
-      <Sheet onDismiss={() => setOpenSheet(null)} title="Conversation setup" visible={openSheet === 'setup'}>
-      <View style={[styles.rows, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <SelectorRow
-          icon={{ ios: 'laptopcomputer', android: 'laptop_mac', web: 'laptop_mac' }}
-          label="Desktop"
-          loading={
-            daemon.phase === 'connecting'
-            || daemon.phase === 'booting'
-            || daemon.phase === 'reconnecting'
-          }
-          value={daemon.activeProfile?.name ?? 'Pair desktop'}
-          onPress={() => setOpenSheet('daemon')}
-        />
-        <SelectorRow
-          icon={{ ios: 'folder', android: 'folder', web: 'folder' }}
-          label="Project"
-          loading={taskState.isPending}
-          value={selectedProject?.name ?? 'Choose a project'}
-          onPress={() => setOpenSheet('project')}
-        />
-        <SelectorRow
-          icon={{ ios: 'sparkle', android: 'auto_awesome', web: 'auto_awesome' }}
-          label="Model"
-          loading={catalog.isPending}
-          value={modelLabel}
-          onPress={() => setOpenSheet('model')}
-        />
-        <SelectorRow
-          icon={{ ios: 'laptopcomputer', android: 'laptop_mac', web: 'laptop_mac' }}
-          label="Workspace"
-          value={isolated ? 'Isolated worktree' : 'Work locally'}
-          onPress={() => setOpenSheet('workspace')}
-        />
-        {isolated && (
-          <SelectorRow
-            icon={{ ios: 'arrow.triangle.branch', android: 'account_tree', web: 'account_tree' }}
-            label="Base branch"
-            loading={branches.isPending && branches.fetchStatus !== 'idle'}
-            value={branchLabel}
-            onPress={() => setOpenSheet('branch')}
+                <Chip
+                  accessibilityLabel={`Choose model: ${modelLabel}`}
+                  icon={provider ? undefined : { ios: 'sparkle', android: 'auto_awesome', web: 'auto_awesome' }}
+                  label={modelLabel}
+                  mark={provider ? <ProviderIcon provider={provider} size={16} /> : undefined}
+                  maxLabelWidth={150}
+                  onPress={() => setOpenSheet('model')}
+                />
+                {activeModel && modelHasConfigurableTraits(activeModel) && (
+                  <ComposerIconButton
+                    icon={{ ios: 'speedometer', android: 'speed', web: 'speed' }}
+                    label="Model options"
+                    onPress={() => setOpenSheet('traits')}
+                  />
+                )}
+              </>
+            )}
+            placeholder="Do anything…"
+            right={(
+              <>
+                <PhoneDictationControl
+                  client={daemon.client}
+                  onPreview={setSpeechPreview}
+                  contextKey={`new-task:${projectId ?? ''}:${provider ?? ''}`}
+                  host={daemon.activeProfile?.name ?? 'the selected daemon'}
+                  disabled={submitting || daemon.phase !== 'connected'}
+                  onError={setError}
+                  onTranscript={(text) => {
+                    draftSync.markEdited();
+                    setPrompt((current) => current.trim() ? `${current.trimEnd()} ${text}` : text);
+                  }}
+                />
+                <SendButton
+                  busy={submitting}
+                  disabled={startDisabled}
+                  label="Start task"
+                  onPress={() => void start()}
+                />
+              </>
+            )}
+            value={prompt}
           />
-        )}
-      </View>
-
-      </Sheet>
+          <View style={styles.context}>
+            <Chip
+              quiet
+              accessibilityLabel={`Project: ${selectedProject?.name ?? 'Choose a project'}`}
+              disabled={taskState.isPending}
+              icon={{ ios: 'folder', android: 'folder_open', web: 'folder_open' }}
+              label={taskState.isPending ? 'Loading projects…' : selectedProject?.name ?? 'Choose project'}
+              maxLabelWidth={160}
+              onPress={() => setOpenSheet('project')}
+            />
+            <Chip
+              quiet
+              accessibilityLabel={`Desktop: ${daemon.activeProfile?.name ?? 'Pair desktop'}`}
+              label={connecting ? 'Connecting…' : daemon.activeProfile?.name ?? 'Pair desktop'}
+              mark={daemon.activeProfile ? <ConnectionStatus compact phase={daemon.phase} /> : undefined}
+              icon={daemon.activeProfile ? undefined : { ios: 'laptopcomputer', android: 'laptop_mac', web: 'laptop_mac' }}
+              maxLabelWidth={140}
+              onPress={() => setOpenSheet('daemon')}
+            />
+            <Chip
+              quiet
+              accessibilityLabel={`Workspace: ${isolated ? 'Isolated worktree' : 'Work locally'}`}
+              icon={{ ios: 'arrow.triangle.branch', android: 'account_tree', web: 'account_tree' }}
+              label={isolated ? 'Worktree' : 'Local'}
+              onPress={() => setOpenSheet('workspace')}
+            />
+            {isolated && (
+              <Chip
+                quiet
+                accessibilityLabel={`Base branch: ${branchLabel}`}
+                disabled={branches.isPending && branches.fetchStatus !== 'idle'}
+                icon={{ ios: 'arrow.branch', android: 'call_split', web: 'call_split' }}
+                label={branchLabel}
+                maxLabelWidth={140}
+                onPress={() => setOpenSheet('branch')}
+              />
+            )}
+            <ComposerAccessMenu quiet mode={runtimeMode} onApply={setRuntimeMode} />
+          </View>
+        </View>
+        <LiveWork />
+      </ScrollView>
 
       <DaemonPickerSheet
         onDismiss={() => setOpenSheet(null)}
@@ -541,7 +562,7 @@ export default function NewTaskScreen() {
           leading={(
             <AppSymbol
               name={{ ios: 'externaldrive', android: 'hard_drive', web: 'hard_drive' }}
-              size={16}
+              size={18}
               tintColor={theme.textSecondary}
             />
           )}
@@ -624,72 +645,21 @@ export default function NewTaskScreen() {
   );
 }
 
-function SelectorRow({
-  icon,
-  label,
-  value,
-  onPress,
-  loading = false,
-}: {
-  icon: Parameters<typeof AppSymbol>[0]['name'];
-  label: string;
-  value: string;
-  onPress: () => void;
-  loading?: boolean;
-}) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityLabel={`${label}: ${value}`}
-      accessibilityRole="button"
-      disabled={loading}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        { backgroundColor: pressed ? theme.overlay : 'transparent' },
-      ]}>
-      <AppSymbol name={icon} size={19} tintColor={theme.textSecondary} />
-      {loading ? (
-        <ActivityIndicator color={theme.textTertiary} size="small" />
-      ) : (
-        <Text numberOfLines={1} style={[styles.rowValue, { color: theme.text }]}>
-          {value}
-        </Text>
-      )}
-      <AppSymbol
-        name={{ ios: 'chevron.up.chevron.down', android: 'unfold_more', web: 'unfold_more' }}
-        size={13}
-        tintColor={theme.textTertiary}
-      />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  configuration: { flex: 1 },
-  configurationContent: { flexGrow: 1, justifyContent: 'flex-end', padding: 16 },
-  rows: { gap: 2, padding: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.large },
-  row: {
-    alignItems: 'center',
-    borderRadius: Radius.medium,
-    flexDirection: 'row',
-    gap: 14,
-    minHeight: 52,
-    paddingHorizontal: 6,
+  home: { alignSelf: 'center', gap: 22, maxWidth: 760, paddingHorizontal: 16, width: '100%' },
+  headline: {
+    fontFamily: MonoFont,
+    fontSize: 28,
+    fontWeight: '500',
+    lineHeight: 36,
+    paddingHorizontal: 8,
+    textAlign: 'center',
   },
-  rowValue: { flexShrink: 1, fontSize: 16.5, fontWeight: '500' },
-  composerShell: { paddingHorizontal: 12 },
+  composer: { gap: 2 },
+  context: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 4 },
   error: { borderRadius: Radius.medium, marginBottom: 8, padding: 11 },
-  errorText: { fontSize: 12.5, fontWeight: '600', lineHeight: 17 },
+  errorText: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   sheetLoading: { alignItems: 'center', paddingVertical: 14 },
-  sheetSection: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-    marginHorizontal: 12,
-    marginTop: 12,
-  },
   sheetNote: { fontSize: 13, lineHeight: 18, paddingHorizontal: 12, paddingVertical: 10 },
 });

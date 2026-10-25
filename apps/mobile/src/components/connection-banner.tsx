@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 
 import { AppSymbol } from '@/components/app-symbol';
-import { NativeTint, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useTheme } from '@/hooks/use-theme';
 import { useDaemon } from '@/lib/daemon-context';
@@ -229,6 +229,7 @@ function BannerAction({
   disabled?: boolean;
   onPress: () => void;
 }) {
+  const theme = useTheme();
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
@@ -238,7 +239,7 @@ function BannerAction({
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => [styles.action, { opacity: pressed || disabled ? 0.45 : 1 }]}>
-      <Text style={[styles.actionText, { color: NativeTint }]}>{label}</Text>
+      <Text style={[styles.actionText, { color: theme.accent }]}>{label}</Text>
     </Pressable>
   );
 }

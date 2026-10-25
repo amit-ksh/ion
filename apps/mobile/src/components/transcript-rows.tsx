@@ -169,7 +169,7 @@ function UserBubbleInner({ message }: { message: Message }) {
           accessibilityHint="Long press to copy"
           delayLongPress={350}
           onLongPress={() => void copy()}
-          style={[styles.userBubble, { backgroundColor: theme.raised }]}>
+          style={[styles.userBubble, { backgroundColor: theme.ticket, borderColor: theme.ticketBorder, boxShadow: theme.elevationRest }]}>
           <Text selectable style={[styles.userText, { color: theme.text }]}>{content}</Text>
         </Pressable>
       ) : null}
@@ -320,11 +320,12 @@ const styles = StyleSheet.create({
   userBubble: {
     borderRadius: Radius.large,
     borderBottomRightRadius: 6,
+    borderWidth: 1,
     maxWidth: '88%',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 11,
   },
-  userText: { fontSize: 14, lineHeight: 21 },
+  userText: { fontSize: 15, lineHeight: 22 },
   messageFooter: { fontSize: 10.5, marginTop: 10 },
   systemFrame: { alignItems: 'center' },
   systemMessage: {

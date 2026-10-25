@@ -31,11 +31,13 @@ export function ComposerAddMenu({
       accessibilityState={{ disabled }}
       style={[styles.trigger, { opacity: disabled ? 0.35 : 1 }]}
     >
-      <AppSymbol
-        name={{ ios: "plus", android: "add", web: "add" }}
-        size={20}
-        tintColor={theme.textSecondary}
-      />
+      <View style={[styles.disc, { backgroundColor: theme.overlay, borderColor: theme.border }]}>
+        <AppSymbol
+          name={{ ios: "plus", android: "add", web: "add" }}
+          size={20}
+          tintColor={theme.textSecondary}
+        />
+      </View>
     </View>
   );
   if (disabled) return trigger;
@@ -77,9 +79,16 @@ export function ComposerAddMenu({
 const styles = StyleSheet.create({
   trigger: {
     alignItems: "center",
-    borderRadius: Radius.pill,
     height: 48,
     justifyContent: "center",
     width: 48,
+  },
+  disc: {
+    alignItems: "center",
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
   },
 });

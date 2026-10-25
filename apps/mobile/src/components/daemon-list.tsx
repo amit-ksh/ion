@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { AppSymbol } from '@/components/app-symbol';
 import { ConnectionStatus, connectionPhaseLabel } from '@/components/connection-status';
 import { DaemonAvatar } from '@/components/daemon-avatar';
-import { NativeTint, Radius } from '@/constants/theme';
+import { Radius } from '@/constants/theme';
+import { SelectedCheck } from '@/components/sheet';
 import { useTheme } from '@/hooks/use-theme';
 import { useDaemon } from '@/lib/daemon-context';
 import { displayHost, type DaemonProfile } from '@/lib/daemon-profile';
@@ -23,7 +24,7 @@ export function DaemonList({
     <View
       style={[
         styles.group,
-        { backgroundColor: theme.overlay },
+        { backgroundColor: theme.ticket, borderColor: theme.ticketBorder, boxShadow: theme.elevationRest },
       ]}>
       {daemon.profiles.map((profile, index) => {
         const active = profile.id === daemon.activeProfile?.id;
@@ -56,13 +57,9 @@ export function DaemonList({
                   </Text>
                 </View>
                 {selecting ? (
-                  <ActivityIndicator color={NativeTint} size="small" />
+                  <ActivityIndicator color={theme.accent} size="small" />
                 ) : active ? (
-                  <AppSymbol
-                    name={{ ios: 'checkmark', android: 'check', web: 'check' }}
-                    size={16}
-                    tintColor={NativeTint}
-                  />
+                  <SelectedCheck />
                 ) : null}
               </Pressable>
               {onEdit && (
@@ -74,7 +71,7 @@ export function DaemonList({
                   <AppSymbol
                     name={{ ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' }}
                     size={20}
-                    tintColor={NativeTint}
+                    tintColor={theme.textSecondary}
                   />
                 </Pressable>
               )}
@@ -91,6 +88,7 @@ export function DaemonList({
 
 const styles = StyleSheet.create({
   group: {
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.large,
     overflow: 'hidden',
   },

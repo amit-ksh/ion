@@ -10,7 +10,6 @@ import {
 import {
   ActivityIndicator,
   AppState,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -18,7 +17,10 @@ import {
 import { cloudAccount } from "@/lib/cloud-account";
 import type { CloudAccountStatus } from "@/lib/cloud-account.types";
 import { useTheme } from "@/hooks/use-theme";
-import { AppSymbol } from "./app-symbol";
+import { GlowField } from "./glow-field";
+import { IonMarkTile } from "./ion-mark";
+import { WorkbenchButton } from "./workbench";
+import { MonoFont } from "@/constants/theme";
 
 /** No route or daemon/runtime provider mounts before a verified account is ready. */
 export function AccountGate({ children }: { children: ReactNode }) {
@@ -135,17 +137,10 @@ export function AccountGate({ children }: { children: ReactNode }) {
             { backgroundColor: theme.background },
           ]}
         >
+          <GlowField />
           <View style={styles.content}>
-            <AppSymbol
-              name={{
-                ios: "person.crop.circle",
-                android: "account_circle",
-                web: "account_circle",
-              }}
-              size={36}
-              tintColor={theme.text}
-            />
-            <Text style={[styles.heading, { color: theme.text }]}>
+            <IonMarkTile size={64} />
+            <Text accessibilityRole="header" style={[styles.heading, { color: theme.text }]}>
               Sign in to Ion
             </Text>
             <Text style={[styles.body, { color: theme.textSecondary }]}>
@@ -163,41 +158,18 @@ export function AccountGate({ children }: { children: ReactNode }) {
             ) : (
               <View style={styles.actions}>
                 {status.available && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: busy }}
+                  <WorkbenchButton
                     disabled={busy}
+                    label={busy ? "Opening sign-in…" : "Sign in"}
                     onPress={() => void signIn()}
-                    style={({ pressed }) => [
-                      styles.button,
-                      {
-                        backgroundColor: theme.primary,
-                        opacity: pressed || busy ? 0.65 : 1,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.label, { color: theme.onPrimary }]}>
-                      {busy ? "Opening sign-in…" : "Sign in"}
-                    </Text>
-                  </Pressable>
+                    primary
+                  />
                 )}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: busy }}
+                <WorkbenchButton
                   disabled={busy}
+                  label="Retry"
                   onPress={() => void reload(true)}
-                  style={({ pressed }) => [
-                    styles.button,
-                    {
-                      backgroundColor: theme.inset,
-                      opacity: pressed || busy ? 0.65 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.label, { color: theme.text }]}>
-                    Retry
-                  </Text>
-                </Pressable>
+                />
               </View>
             )}
             {problem && (
@@ -222,15 +194,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 28,
   },
-  content: { width: "100%", maxWidth: 440, gap: 18 },
-  heading: { fontSize: 28, fontWeight: "600" },
-  body: { fontSize: 15, lineHeight: 22 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  button: {
-    minHeight: 48,
-    borderRadius: 9,
-    paddingHorizontal: 20,
-    justifyContent: "center",
-  },
-  label: { fontSize: 15, fontWeight: "600" },
+  content: { width: "100%", maxWidth: 420, gap: 16, alignItems: "center" },
+  heading: { fontFamily: MonoFont, fontSize: 28, lineHeight: 36, fontWeight: "500", textAlign: "center", marginTop: 8 },
+  body: { fontSize: 15.5, lineHeight: 23, textAlign: "center" },
+  actions: { alignSelf: "stretch", gap: 10, marginTop: 8 },
 });

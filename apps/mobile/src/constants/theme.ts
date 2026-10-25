@@ -4,8 +4,8 @@ import { Platform, PlatformColor, type ColorValue } from 'react-native';
  * Ion's workbench palette, mirrored from the desktop theme (src/theme.rs) so
  * every client reads as one product. Layer tokens follow the desktop naming:
  * background (canvas) → surface (raised cards) → surfaceMuted (fills on cards)
- * → inset (code / terminal wells), with hairline `border` strokes instead of
- * shadows.
+ * → inset (code / terminal wells), with hairline `border` strokes. Tickets,
+ * the composer and floating layers add the soft `elevation*` shadows.
  */
 export const Colors = {
   light: {
@@ -46,6 +46,9 @@ export const Colors = {
     glowLime: 'rgba(214, 245, 160, 0.55)',
     ticket: '#ffffff',
     ticketBorder: 'hsla(150, 8%, 12%, 0.09)',
+    /** Layered soft shadows mirroring desktop `elevation()` (contact + ambient). */
+    elevationRest: '0px 1px 2px rgba(18, 32, 22, 0.09), 0px 6px 18px -4px rgba(18, 32, 22, 0.07)',
+    elevationFloat: '0px 4px 10px rgba(18, 32, 22, 0.10), 0px 18px 44px -4px rgba(18, 32, 22, 0.13)',
   },
   dark: {
     text: '#eef2ec',
@@ -84,6 +87,8 @@ export const Colors = {
     glowLime: 'rgba(160, 222, 70, 0.12)',
     ticket: '#181d1b',
     ticketBorder: 'hsla(150, 10%, 90%, 0.09)',
+    elevationRest: '0px 1px 2px rgba(0, 0, 0, 0.40), 0px 6px 18px -4px rgba(0, 0, 0, 0.32)',
+    elevationFloat: '0px 4px 10px rgba(0, 0, 0, 0.45), 0px 18px 44px -4px rgba(0, 0, 0, 0.58)',
   },
 } as const;
 

@@ -39,6 +39,7 @@ export function DaemonPickerSheet({
   visible: boolean;
 }) {
   const daemon = useDaemon();
+  const theme = useTheme();
   const reducedMotion = useReducedMotion();
   const { width } = useWindowDimensions();
   const [editorTarget, setEditorTarget] = useState<EditorTarget>(undefined);
@@ -156,7 +157,7 @@ export function DaemonPickerSheet({
                 <AppSymbol
                   name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }}
                   size={22}
-                  tintColor={NativeTint}
+                  tintColor={theme.accent}
                 />
               )}
               onPress={() => pushEditor(null)}
@@ -389,10 +390,10 @@ function DaemonEditor({
           onPress={() => void save()}
           style={({ pressed }) => [
             styles.editorButton,
-            { backgroundColor: NativeTint, opacity: !canSave ? 0.35 : pressed ? 0.6 : 1 },
+            { backgroundColor: theme.primary, opacity: !canSave ? 0.45 : pressed ? 0.8 : 1 },
           ]}>
-          {saving && <ActivityIndicator color="#ffffff" size="small" />}
-          <Text style={[styles.editorButtonText, styles.saveButtonText]}>
+          {saving && <ActivityIndicator color={theme.onPrimary} size="small" />}
+          <Text style={[styles.editorButtonText, { color: theme.onPrimary }]}>
             {saving ? 'Saving…' : profile ? 'Save' : 'Add'}
           </Text>
         </Pressable>
@@ -441,7 +442,7 @@ function SheetPageHeader({
           <AppSymbol
             name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
             size={20}
-            tintColor={NativeTint}
+            tintColor={theme.accent}
           />
         </Pressable>
       ) : (
@@ -554,7 +555,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   editorButtonText: { fontSize: 16, fontWeight: '600' },
-  saveButtonText: { color: '#ffffff' },
   removeButton: {
     alignItems: 'center',
     flexDirection: 'row',

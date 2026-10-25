@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
 
-import { AppSymbol } from './app-symbol';
+import { Chip } from './chip';
+import { ComposerIconButton } from './composer-icon-button';
 import type { ComposerAccessMenuProps } from './composer-access-menu.types';
 import { AccessSheet } from './session-option-sheets';
-import { Radius } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import { runtimeModeLabel } from '@/lib/session-presentation';
 
 const MODE_ICONS = {
@@ -16,19 +14,30 @@ const MODE_ICONS = {
 } as const;
 
 /** Non-iOS fallback. iOS replaces this with a native anchored menu. */
-export function ComposerAccessMenu({ mode, onApply }: ComposerAccessMenuProps) {
-  const theme = useTheme();
+export function ComposerAccessMenu({ mode, onApply, quiet = false }: ComposerAccessMenuProps) {
   const [open, setOpen] = useState(false);
+  const label = `Agent access, ${runtimeModeLabel(mode)}`;
 
   return (
     <>
-      <Pressable
-        accessibilityLabel={`Agent access, ${runtimeModeLabel(mode)}`}
-        accessibilityRole="button"
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.trigger, { opacity: pressed ? 0.55 : 1 }]}>
-        <AppSymbol name={MODE_ICONS[mode]} size={19} tintColor={theme.textSecondary} />
-      </Pressable>
+      {quiet ? (
+        <Chip
+          quiet
+          accessibilityLabel={label}
+          icon={MODE_ICONS[mode]}
+          label={runtimeModeLabel(mode)}
+          onPress={() => setOpen(true)}
+        />
+      ) : (
+        // Icon only: the toolbar has no room for a labelled chip at phone
+        // width. Full access tints so it stays noticeable.
+        <ComposerIconButton
+          active={mode === 'fullAccess'}
+          icon={MODE_ICONS[mode]}
+          label={label}
+          onPress={() => setOpen(true)}
+        />
+      )}
       <AccessSheet
         mode={mode}
         onApply={onApply}
@@ -38,13 +47,3 @@ export function ComposerAccessMenu({ mode, onApply }: ComposerAccessMenuProps) {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  trigger: {
-    alignItems: 'center',
-    borderRadius: Radius.pill,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-});

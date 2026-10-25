@@ -2,7 +2,12 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppSymbol } from "@/components/app-symbol";
 import { ArtifactFilter } from "@/components/artifact-filter";
+import { TicketCard } from "@/components/ticket-card";
+import { WorkbenchState } from "@/components/workbench";
+import { relativeSessionTime } from "@/lib/session-presentation";
+import { ticketNumber } from "@/lib/ticket";
 import {
   AutomationButton,
   AutomationRefresh,
@@ -13,9 +18,11 @@ import { useAutomationQuery } from "@/hooks/use-automation-query";
 import { useTheme } from "@/hooks/use-theme";
 import { ARTIFACT_FORMATS, loadArtifactLibrary } from "@/lib/artifact-library";
 import { loadTaskState } from "@/lib/daemon-api";
-import { routineTime } from "@/lib/automation-api";
+import { localTimeLabel } from "@/lib/time-labels";
 import type { WakuClient } from "@waku/client";
-const NAMES: Record<string, string> = {
+// Typed against the format list so a new format cannot ship without a name;
+// a missing one used to crash the Formats filter.
+const NAMES: Record<(typeof ARTIFACT_FORMATS)[number], string> = {
   md: "Markdown",
   txt: "Text",
   json: "JSON",
@@ -26,7 +33,13 @@ const NAMES: Record<string, string> = {
   docx: "Word",
   xlsx: "Excel",
   pptx: "PowerPoint",
+  png: "PNG image",
+  svg: "SVG image",
+  xml: "XML",
+  yaml: "YAML",
+  yml: "YAML (YML)",
 };
+const formatName = (format: string) => NAMES[format as keyof typeof NAMES] ?? format.toUpperCase();
 export default function ArtifactsScreen() {
   const theme = useTheme(),
     insets = useSafeAreaInsets(),
@@ -104,10 +117,10 @@ export default function ArtifactsScreen() {
         keyExtractor={(item) => item.id}
         initialNumToRender={12}
         maxToRenderPerBatch={12}
-        contentContainerStyle={{
+        contentContainerStyle={[styles.list, {
           paddingTop: header + 8,
           paddingBottom: insets.bottom + 24,
-        }}
+        }]}
         refreshControl={
           <RefreshControl
             refreshing={state.query.isFetching}
@@ -118,12 +131,17 @@ export default function ArtifactsScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <ConnectionBanner />
-            <AutomationRefresh
-              refreshing={
-                state.query.isFetching || state.daemon.phase !== "connected"
-              }
-              onRefresh={refresh}
-            />
+            <View style={styles.summary}>
+              <Text style={[styles.body, styles.count, { color: theme.textSecondary }]}>
+                {data ? `${data.page.total} agent-published documents` : " "}
+              </Text>
+              <AutomationRefresh
+                refreshing={
+                  state.query.isFetching || state.daemon.phase !== "connected"
+                }
+                onRefresh={refresh}
+              />
+            </View>
             <View style={styles.actions}>
               <ArtifactFilter
                 label="Projects"
@@ -153,7 +171,7 @@ export default function ArtifactsScreen() {
                 value={format}
                 choices={ARTIFACT_FORMATS.map((id) => ({
                   id,
-                  name: NAMES[id]!,
+                  name: NAMES[id],
                 }))}
                 disabled={busy}
                 onChange={(id) => {
@@ -163,11 +181,6 @@ export default function ArtifactsScreen() {
                 }}
               />
             </View>
-            {data && (
-              <Text style={[styles.body, { color: theme.textSecondary }]}>
-                {data.page.total} agent-published documents
-              </Text>
-            )}
             {state.query.error && (
               <Text
                 accessibilityRole="alert"
@@ -182,15 +195,27 @@ export default function ArtifactsScreen() {
           </View>
         }
         ListEmptyComponent={
-          <Text style={[styles.empty, { color: theme.textSecondary }]}>
-            {state.query.isFetching
-              ? "Loading documents…"
-              : state.daemon.phase !== "connected"
-                ? "Connect to the owner daemon to view artifacts."
-                : state.query.error
-                  ? "Refresh the library to retry."
-                  : "No agent-published documents match these filters."}
-          </Text>
+          state.query.isFetching ? (
+            <WorkbenchState title="Loading documents…" />
+          ) : state.daemon.phase !== "connected" ? (
+            <WorkbenchState
+              icon={{ android: "link_off", web: "link_off" }}
+              title="Connect to your desktop"
+              detail="Connect to the owner daemon to view artifacts."
+            />
+          ) : state.query.error ? (
+            <WorkbenchState
+              icon={{ android: "cloud_off", web: "cloud_off" }}
+              title="Could not load documents"
+              detail="Refresh the library to retry."
+            />
+          ) : (
+            <WorkbenchState
+              icon={{ android: "description", web: "description" }}
+              title="No documents yet"
+              detail="No agent-published documents match these filters."
+            />
+          )
         }
         ListFooterComponent={
           <View style={[styles.actions, { padding: 20 }]}>
@@ -217,29 +242,18 @@ export default function ArtifactsScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.row, { borderBottomColor: theme.border }]}>
-            <Text
-              accessibilityRole="header"
-              style={[styles.title, { color: theme.text }]}
-            >
-              {item.name}
-            </Text>
-            <Text style={[styles.body, { color: theme.textSecondary }]}>
-              {NAMES[item.format]} · {item.bytes.toLocaleString()} bytes ·{" "}
-              {routineTime(item.createdAt)}
-            </Text>
-            <Text
-              numberOfLines={2}
-              style={[styles.body, { color: theme.textSecondary }]}
-            >
-              {projectNames.get(item.projectId) ?? "Project"} ·{" "}
-              {taskNames.get(item.taskId) ?? "Task"}
-            </Text>
-            <AutomationButton
-              label={`Open ${item.name}`}
-              disabled={busy}
+          <View style={styles.row}>
+            <TicketCard
+              number={ticketNumber(item.id)}
+              time={relativeSessionTime(item.createdAt)}
+              title={item.name}
+              mark={<AppSymbol name={FORMAT_ICON} size={15} tintColor={theme.textSecondary} />}
+              station={`${projectNames.get(item.projectId) ?? "Project"} · ${taskNames.get(item.taskId) ?? "Task"}`}
+              status={{ label: `${formatName(item.format)} · ${formatBytes(item.bytes)}`, icon: FORMAT_ICON, tone: "neutral" }}
+              accessibilityLabel={`Open ${item.name}`}
+              accessibilityHint={`${formatName(item.format)}, ${formatBytes(item.bytes)}, ${localTimeLabel(item.createdAt)}`}
               onPress={() => {
-                if (!data || !state.fresh || !state.daemon.activeProfile)
+                if (busy || !data || !state.fresh || !state.daemon.activeProfile)
                   return;
                 router.push({
                   pathname: "/artifact-document",
@@ -257,16 +271,20 @@ export default function ArtifactsScreen() {
     </View>
   );
 }
+const FORMAT_ICON = { ios: "doc.text", android: "description", web: "description" } as const;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10_240 ? 1 : 0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, gap: 12, paddingBottom: 20 },
-  row: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
-  },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  title: { fontSize: 17, fontWeight: "600", lineHeight: 24 },
+  list: { width: "100%", maxWidth: 1000, alignSelf: "center" },
+  header: { paddingHorizontal: 16, gap: 10, paddingBottom: 16 },
+  row: { paddingHorizontal: 16, paddingBottom: 12 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  summary: { flexDirection: "row", alignItems: "center", gap: 8 },
+  count: { flex: 1, fontVariant: ["tabular-nums"] },
   body: { fontSize: 14, lineHeight: 21 },
-  empty: { padding: 24, fontSize: 15, lineHeight: 22 },
 });

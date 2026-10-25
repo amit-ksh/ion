@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
+import { IonMarkTile } from './ion-mark';
 import { WorkbenchButton } from './workbench';
 import { cloudAccount } from '@/lib/cloud-account';
 import { useTheme } from '@/hooks/use-theme';
@@ -18,8 +19,14 @@ export function CloudAccountSection() {
     catch { setError('Could not sign out. Try again.'); }
     finally { setBusy(false); }
   }
-  return <View style={{ gap: 12 }}>
-    <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>Ion account</Text>
+  return <View style={{ gap: 14 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <IonMarkTile size={40} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 16, lineHeight: 22, fontWeight: '600' }}>Ion account</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 18 }}>Signed in on this phone</Text>
+      </View>
+    </View>
     <WorkbenchButton label={busy ? 'Signing out…' : 'Sign out'} disabled={busy} onPress={() => Alert.alert('Sign out?', 'Your saved desktops stay on this device.',
       [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', onPress: () => void signOut() }])} />
     {error && <Text accessibilityRole="alert" style={{ color: theme.danger }}>{error}</Text>}

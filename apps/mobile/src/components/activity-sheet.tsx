@@ -37,7 +37,7 @@ import { ACTIVITY_ICONS } from './activity-icons';
 import { AppSymbol } from './app-symbol';
 import { DiffView } from './diff-view';
 import { liquidGlass } from './glass-surface';
-import { MonoFont, NativeTint, Radius, Spacing } from '@/constants/theme';
+import { MonoFont, Radius, Spacing } from '@/constants/theme';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useTheme } from '@/hooks/use-theme';
 import { findActivityBlock, type ActivityGroupTarget } from '@/lib/session-presentation';
@@ -169,9 +169,9 @@ export function ActivitySheetHost({
                         <AppSymbol
                           name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
                           size={14}
-                          tintColor={NativeTint}
+                          tintColor={theme.accent}
                         />
-                        <Text style={[styles.backLabel, { color: NativeTint }]}>Back</Text>
+                        <Text style={[styles.backLabel, { color: theme.accent }]}>Back</Text>
                       </Pressable>
                       <ActivityDetail activity={selected} />
                     </>
@@ -276,7 +276,7 @@ function RowState({ activity, hasDetail }: { activity: ActivityItem; hasDetail: 
     );
   }
   if (activity.complete) return null;
-  return <View accessibilityLabel="Running" style={[styles.runningDot, { backgroundColor: NativeTint }]} />;
+  return <View accessibilityLabel="Running" style={[styles.runningDot, { backgroundColor: theme.accent }]} />;
 }
 
 /** Page two: everything the desktop shows in an expanded card. */
@@ -362,7 +362,7 @@ function ActivityStatus({ activity }: { activity: ActivityItem }) {
   if (!activity.complete && !activity.reasoning) {
     return (
       <View accessibilityLiveRegion="polite" style={styles.status}>
-        <View style={[styles.runningDot, { backgroundColor: NativeTint }]} />
+        <View style={[styles.runningDot, { backgroundColor: theme.accent }]} />
         <Text style={[styles.statusText, { color: theme.textTertiary }]}>In progress</Text>
       </View>
     );
