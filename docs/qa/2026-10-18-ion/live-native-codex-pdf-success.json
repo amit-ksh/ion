@@ -1,0 +1,173 @@
+{
+  "artifact": {
+    "kind": "artifact",
+    "id": "23ea56e8-7e2c-4414-a5ec-f342a8f495f6",
+    "name": "qa-codex.pdf",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "taskId": "6d692d6f-5f50-4f43-87d9-65954ff036db",
+    "reference": "ion-document:23ea56e8-7e2c-4414-a5ec-f342a8f495f6",
+    "format": "pdf",
+    "createdAt": 1792339653,
+    "evidence": {
+      "version": 1,
+      "bytes": 596,
+      "sha256": "57a633361ef9c10bfa0152a5cb9d3d9474b0dadc3a248a644d264c264eaddf29",
+      "producer": {
+        "origin": "teamAssignment",
+        "turnId": null,
+        "activityId": "ion-file-publication",
+        "sourcePath": null,
+        "runId": "8225dcdc-7974-424b-b53e-61fa2481fce3",
+        "assignmentId": "8b3a75b0-275e-4878-b6d0-3850a2b38392",
+        "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "requestId": "4001020d-3605-4cdc-8518-9c9e723db52a"
+      }
+    }
+  },
+  "sha256": "57a633361ef9c10bfa0152a5cb9d3d9474b0dadc3a248a644d264c264eaddf29",
+  "bytes": 596,
+  "exactSourceBytes": true,
+  "run": {
+    "type": "teamRun",
+    "snapshot": {
+      "workspace": null,
+      "id": "8225dcdc-7974-424b-b53e-61fa2481fce3",
+      "rootTaskId": "6d692d6f-5f50-4f43-87d9-65954ff036db",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "definitionRevision": 28,
+      "revision": 18,
+      "status": "completed",
+      "team": {
+        "id": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+        "name": "QA Document Team",
+        "objective": "Use built-in save_document to produce concise HTML, Markdown, text, CSV, JSON, SVG, XML and YAML originals. Report their artifact IDs. Do not edit source files or use shell/network/apps.",
+        "limits": {
+          "maxWorkItems": 8,
+          "maxParallelTasks": 1,
+          "maxDepth": 3,
+          "maxAttempts": 1,
+          "maxModelCalls": 24,
+          "maxTokens": 2200000,
+          "requireChildReview": true,
+          "maxReworkRounds": 1,
+          "timeoutSeconds": 600
+        },
+        "members": [
+          {
+            "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+            "parentId": null
+          }
+        ]
+      },
+      "profiles": [
+        {
+          "id": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "name": "QA Evidence",
+          "expertise": "Generate concise evidence documents",
+          "instructions": "Use only built-in document tools. Save a small Markdown report containing QA_CHILD_OK and one JSON document with {\"ready\":true}. Return their artifact IDs with report_result. Preserve source files. No shell, network tools, connected apps, publishing, deployment or infrastructure.",
+          "provider": "nebius",
+          "model": "nvidia/Nemotron-3_5-Lightning",
+          "expectedOutput": "",
+          "execution": {
+            "environment": "local",
+            "sandboxTarget": null,
+            "localFallback": true
+          },
+          "access": {
+            "workspaceRead": true,
+            "workspaceWrite": false,
+            "shell": false,
+            "network": false,
+            "appActions": []
+          },
+          "maxParallelTasks": 1
+        }
+      ],
+      "limits": {
+        "maxWorkItems": 8,
+        "maxParallelTasks": 1,
+        "maxDepth": 3,
+        "maxAttempts": 1,
+        "maxModelCalls": 24,
+        "maxTokens": 2200000,
+        "requireChildReview": true,
+        "maxReworkRounds": 1,
+        "timeoutSeconds": 600
+      },
+      "usage": {
+        "modelCalls": 3,
+        "consumedTokens": 14815,
+        "reservedTokens": 0,
+        "unknownCalls": 0,
+        "unmeteredCalls": 0,
+        "allowanceViolations": 0
+      },
+      "access": {
+        "workspaceRead": true,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": []
+      },
+      "createdAt": 1792339644,
+      "deadline": 1792340244,
+      "work": [
+        {
+          "canResume": false,
+          "canReconcile": false,
+          "id": "8b3a75b0-275e-4878-b6d0-3850a2b38392",
+          "taskId": "6d692d6f-5f50-4f43-87d9-65954ff036db",
+          "parentId": null,
+          "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "objective": "Use inspect_file_document on the existing file qa-documents/qa-codex.pdf in this disposable project. Then use save_file_document to publish that file, passing the exact SHA-256 value returned by inspect_file_document without recomputing, altering, or substituting it. Call report_result with the actual published artifact ID. Do not use save_pdf or generate base64. Do not modify any files. No shell, network, apps, external messages, deployment, or provisioning.",
+          "expectedOutput": "",
+          "outputContract": {
+            "minimumDocuments": 0,
+            "requiredFormats": [],
+            "requiredChecks": []
+          },
+          "requiresReview": false,
+          "reworkOf": null,
+          "review": null,
+          "dependencies": [],
+          "access": {
+            "workspaceRead": true,
+            "workspaceWrite": false,
+            "shell": false,
+            "network": false,
+            "appActions": []
+          },
+          "status": "completed",
+          "reason": null,
+          "attempts": [
+            {
+              "id": "19cdd2fa-5f57-4198-b20d-904f201f5b3b",
+              "environment": "local",
+              "host": "local",
+              "fallbackReason": null,
+              "startedAt": 1792339646,
+              "leaseExpiresAt": 1792339837,
+              "generation": 0,
+              "status": "completed"
+            }
+          ],
+          "result": {
+            "summary": "Inspected and published qa-codex.pdf from qa-documents directory using SHA-256 verification. The file was read with inspect_file_document, SHA-256 57a633361ef9c10bfa0152a5cb9d3d9474b0dadc3a248a644d264c264eaddf29 was captured, and the file was republished via save_file_document preserving exact bytes. No modifications were made.",
+            "artifactIds": [
+              "23ea56e8-7e2c-4414-a5ec-f342a8f495f6"
+            ],
+            "checks": []
+          }
+        }
+      ],
+      "decisions": [],
+      "sourcePrompt": "@team:9f39028e-5888-47af-9fa9-fa9a492ebd65 Use inspect_file_document on the existing file qa-documents/qa-codex.pdf in this disposable project. Then use save_file_document to publish that file, passing the exact SHA-256 value returned by inspect_file_document without recomputing, altering, or substituting it. Call report_result with the actual published artifact ID. Do not use save_pdf or generate base64. Do not modify any files. No shell, network, apps, external messages, deployment, or provisioning.",
+      "inputs": [],
+      "followUps": [],
+      "origin": {
+        "taskId": "c6636bb0-cdea-4ede-8f90-96578c483390",
+        "requestId": "codex-team-24483bec12a7bb0686ef6e455ce2cb836f8b451bcca08d398d0c2ca59ec3fd68"
+      }
+    }
+  }
+}

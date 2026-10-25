@@ -1,0 +1,19 @@
+{
+  "verifiedAt": "2026-10-19T13:56:38.7505987+05:30",
+  "cleaned": [
+    {
+      "path": "C:\\Users\\ksami\\AppData\\Local\\pip\\Cache",
+      "cacheBytes": 537135227.0,
+      "files": 1528
+    },
+    {
+      "path": "C:\\Users\\ksami\\AppData\\Local\\npm-cache\\_cacache",
+      "cacheBytes": 550590802.0,
+      "files": 2098
+    }
+  ],
+  "freeBefore": 920600576,
+  "freeAfter": 3466719232,
+  "freed": 2546118656,
+  "scope": "Regenerable pip download and npm content caches only; owner documents, credentials, installed packages, current temp/runtime and logs preserved"
+}

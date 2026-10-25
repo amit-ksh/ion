@@ -1,0 +1,25 @@
+{
+  "verifiedAt": "2026-10-19T10:14:12.767Z",
+  "taskId": "2fc5511e-c0f7-476a-b75c-59f292d1854c",
+  "provider": "openCode",
+  "model": "opencode/deepseek-v4.1-flash-free",
+  "status": "waiting",
+  "base": {
+    "turnId": "5965ee9b-732f-482c-9f84-aa41efc1c9e1"
+  },
+  "turn": {
+    "id": "5965ee9b-732f-482c-9f84-aa41efc1c9e1",
+    "turn_count": 3,
+    "status": "running",
+    "provider_turn_started": true,
+    "started_at": 1792404789,
+    "completed_at": null,
+    "checkpoint": null
+  },
+  "steer": {
+    "turnId": "5965ee9b-732f-482c-9f84-aa41efc1c9e1",
+    "accepted": true
+  },
+  "answer": null,
+  "queuedMessages": []
+}

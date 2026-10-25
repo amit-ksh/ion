@@ -1,0 +1,137 @@
+{
+  "type": "teamRun",
+  "snapshot": {
+    "workspace": null,
+    "id": "23c130a0-fbc1-4f62-b323-914b025c63f7",
+    "rootTaskId": "fd011fdf-0086-46fe-a4c9-d9f3cea29326",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "definitionRevision": 27,
+    "revision": 69,
+    "status": "canceled",
+    "team": {
+      "id": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+      "name": "QA Document Team",
+      "objective": "Use built-in save_document to produce concise HTML, Markdown, text, CSV, JSON, SVG, XML and YAML originals. Report their artifact IDs. Do not edit source files or use shell/network/apps.",
+      "limits": {
+        "maxWorkItems": 8,
+        "maxParallelTasks": 1,
+        "maxDepth": 3,
+        "maxAttempts": 1,
+        "maxModelCalls": 24,
+        "maxTokens": 2200000,
+        "requireChildReview": true,
+        "maxReworkRounds": 1,
+        "timeoutSeconds": 600
+      },
+      "members": [
+        {
+          "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "parentId": null
+        }
+      ]
+    },
+    "profiles": [
+      {
+        "id": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "name": "QA Evidence",
+        "expertise": "Generate concise evidence documents",
+        "instructions": "Use only built-in document tools. Save a small Markdown report containing QA_CHILD_OK and one JSON document with {\"ready\":true}. Return their artifact IDs with report_result. Preserve source files. No shell, network tools, connected apps, publishing, deployment or infrastructure.",
+        "provider": "nebius",
+        "model": "nvidia/Nemotron-3_5-Lightning",
+        "expectedOutput": "",
+        "execution": {
+          "environment": "local",
+          "sandboxTarget": null,
+          "localFallback": true
+        },
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "maxParallelTasks": 1
+      }
+    ],
+    "limits": {
+      "maxWorkItems": 8,
+      "maxParallelTasks": 1,
+      "maxDepth": 3,
+      "maxAttempts": 1,
+      "maxModelCalls": 24,
+      "maxTokens": 2200000,
+      "requireChildReview": true,
+      "maxReworkRounds": 1,
+      "timeoutSeconds": 600
+    },
+    "usage": {
+      "modelCalls": 16,
+      "consumedTokens": 184031,
+      "reservedTokens": 0,
+      "unknownCalls": 0,
+      "unmeteredCalls": 0,
+      "allowanceViolations": 0
+    },
+    "access": {
+      "workspaceRead": true,
+      "workspaceWrite": false,
+      "shell": false,
+      "network": false,
+      "appActions": []
+    },
+    "createdAt": 1792339108,
+    "deadline": 1792339708,
+    "work": [
+      {
+        "canResume": false,
+        "canReconcile": false,
+        "id": "6d7634cb-cc7e-4ce2-a906-9bca0648f1e7",
+        "taskId": "fd011fdf-0086-46fe-a4c9-d9f3cea29326",
+        "parentId": null,
+        "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "objective": "Create a small valid one-page PDF named QA_AGENT_PDF.pdf using save_pdf, with readable text QA_AGENT_PDF_OK, and report_result with its actual artifact ID. No source edits, shell, network tools, apps, external messages, publication, deployment or provisioning.",
+        "expectedOutput": "",
+        "outputContract": {
+          "minimumDocuments": 0,
+          "requiredFormats": [],
+          "requiredChecks": []
+        },
+        "requiresReview": false,
+        "reworkOf": null,
+        "review": null,
+        "dependencies": [],
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "status": "canceled",
+        "reason": "User stopped the team",
+        "attempts": [
+          {
+            "id": "7707ead8-e9e0-4f8d-86eb-e5fb7aed22fc",
+            "environment": "local",
+            "host": "local",
+            "fallbackReason": null,
+            "startedAt": 1792339110,
+            "leaseExpiresAt": 1792339368,
+            "generation": 0,
+            "status": "canceled"
+          }
+        ],
+        "result": null
+      }
+    ],
+    "decisions": [],
+    "sourcePrompt": "@team:9f39028e-5888-47af-9fa9-fa9a492ebd65 Create a small valid one-page PDF named QA_AGENT_PDF.pdf using save_pdf, with readable text QA_AGENT_PDF_OK, and report_result with its actual artifact ID. No source edits, shell, network tools, apps, external messages, publication, deployment or provisioning.",
+    "inputs": [],
+    "followUps": [],
+    "origin": {
+      "taskId": "c6636bb0-cdea-4ede-8f90-96578c483390",
+      "requestId": "codex-team-c8d88602c6202c169f42a8f1687ac5feb514b045d723fdb647a94eef27d8d895"
+    }
+  }
+}

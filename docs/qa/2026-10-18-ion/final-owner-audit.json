@@ -1,0 +1,39 @@
+{
+  "verifiedAt": "2026-10-18T19:30:25.705Z",
+  "removedProjectAbsent": true,
+  "retainedProjects": [
+    {
+      "id": "970a9416-d157-4f9c-86b4-76977bfd01db",
+      "name": "waku"
+    },
+    {
+      "id": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "name": "ion-qa-disposable-20261018"
+    }
+  ],
+  "sourceSentinelSha256": "286d85f643809cc5b3541e182fc802c2ca281988d0f7cc30b658fa8e32d7289c",
+  "nebiusQaUsage": {
+    "pages": 1,
+    "records": 60,
+    "inputTokens": 413528,
+    "outputTokens": 13781,
+    "unknownTokenRecords": 0,
+    "scopeSummary": {
+      "records": 60,
+      "modelCalls": 60,
+      "inputTokens": 413528,
+      "outputTokens": 13781,
+      "reservedTokens": 0,
+      "unknownCalls": 0,
+      "unknownCostRecords": 60,
+      "elapsedMilliseconds": 0,
+      "costs": []
+    },
+    "models": [
+      "nvidia/Nemotron-3_5-Lightning"
+    ],
+    "estimatedUsdKnownTokens": 0.028119119999999997,
+    "pricing": "Selected Nemotron Lightning public catalog, fetched 2026-10-18; estimates, not charges",
+    "duplicateSourceIds": false
+  }
+}

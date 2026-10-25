@@ -1,0 +1,67 @@
+{
+  "verifiedAt": "2026-10-19T07:53:57.638Z",
+  "key": "failure",
+  "runId": "49a52253-c749-4207-938e-51fb2bf4603f",
+  "status": "completed",
+  "usage": {
+    "modelCalls": 5,
+    "consumedTokens": 18885,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "decisions": [
+    {
+      "id": "57fdbe52-cce3-44c3-a6f4-99d299297320",
+      "status": "approved",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_8tjHHZD502Un",
+          "action": "SLACK_API_TEST",
+          "version": "20261015_00"
+        },
+        "argumentsJson": "{\"error\":\"qa_expected_error\"}"
+      }
+    }
+  ],
+  "appStarted": 1,
+  "appSettled": 1,
+  "artifacts": [
+    {
+      "id": "7279e0f9-69db-49d6-a67f-febf8f2ea1c8",
+      "name": "QA_CONNECTED_FAILURE_OK",
+      "format": "md",
+      "bytes": 450,
+      "sha256": "cc1566ee2851d356ddbb14c331f7a0dc455e494ac4154b1c068cb6f486420b0b",
+      "expectedMarker": true
+    },
+    {
+      "id": "d51480f2-9867-4f68-9476-9f79abd6587b",
+      "name": "App-action-57fdbe52cce344c3a6f499d299297320.json",
+      "format": "json",
+      "bytes": 256,
+      "sha256": "9d8495b36991b72e9aec5ddcce21386f58195a0ad825d35e1ed85e7acfb826c0",
+      "receipt": {
+        "successful": true,
+        "logId": "log_Q6aINEiwMS3B",
+        "truncated": false,
+        "providerOk": false,
+        "dataKeys": [
+          "args",
+          "error",
+          "ok"
+        ],
+        "error": null
+      }
+    },
+    {
+      "id": "e3c8eb92-dd82-43ec-8e5a-4a6492affe8d",
+      "name": "QA_CONNECTED_FAILURE_OK",
+      "format": "md",
+      "bytes": 213,
+      "sha256": "940a26ca72c4d4975d771f5d97badccac662843ba222562c6cbaee8d64c210c5",
+      "expectedMarker": true
+    }
+  ]
+}

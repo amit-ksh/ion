@@ -1,0 +1,589 @@
+{
+  "verifiedAt": "2026-10-19T08:21:57.320Z",
+  "native": true,
+  "freeModelCatalog": {
+    "input": 0,
+    "output": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "source": "installed OpenCode 1.18.15 models opencode --verbose"
+  },
+  "results": [
+    {
+      "marker": "QA_OPENCODE_FREE_NATIVE_OK",
+      "taskId": "dec99b60-cca2-4d19-afc3-5a3d13b58c70",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "provider": "openCode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "status": "idle",
+      "assistant": [
+        "QA_OPENCODE_FREE_NATIVE_OK"
+      ],
+      "toolBlocks": [],
+      "usage": [
+        {
+          "sequence": 349,
+          "kind": "soloModelCall",
+          "sourceId": "eb506015-e8d2-8b13-a026-cc191d243917",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "dec99b60-cca2-4d19-afc3-5a3d13b58c70",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396041,
+          "startedAt": null,
+          "updatedAt": 1792396041,
+          "status": "reported",
+          "inputTokens": 18256,
+          "outputTokens": 10,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        }
+      ]
+    },
+    {
+      "marker": "QA_OPENCODE_FREE_READ_OK",
+      "taskId": "e16372d8-c164-4269-a914-a0484aa603bb",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "provider": "openCode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "status": "idle",
+      "assistant": [
+        "I'll ask the question first.",
+        "QA_OPENCODE_FREE_READ_OK\n# Ion QA disposable project"
+      ],
+      "toolBlocks": [
+        {
+          "after_message": 2,
+          "turn_id": "94fea5e4-50ab-425a-9b0a-6a65c9f935f5",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "d83104fe-2b7b-49fe-8a7c-f0336f94f487",
+                "source_id": "call_00_dxogjup4v1l38vxshn9ul13k",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"question\": \"Which QA file should I inspect?\",\n      \"header\": \"QA file\",\n      \"options\": [\n        {\n          \"label\": \"README.md\",\n          \"description\": \"Inspect README.md and report its first heading\"\n        },\n        {\n          \"label\": \"Do not read\",\n          \"description\": \"Do not read any file\"\n        }\n      ]\n    }\n  ]\n}",
+                "output": "User has answered your questions: \"Which QA file should I inspect?\"=\"README.md\". You can now continue with the user's answers in mind.",
+                "failed": false,
+                "complete": true
+              },
+              {
+                "id": "523e6b5a-fd9d-4f6c-8d9e-a20e4f36ef42",
+                "source_id": "call_00_25vejqhua5rii2n8zm5wty32",
+                "kind": "fileRead",
+                "title": "read",
+                "tool_name": "read",
+                "detail": null,
+                "arguments": "{\n  \"filePath\": \"D:\\\\personal\\\\apps\\\\waku\\\\.waku-cache\\\\ion-qa-disposable-20261018\\\\README.md\"\n}",
+                "output": "<path>D:\\personal\\apps\\waku\\.waku-cache\\ion-qa-disposable-20261018\\README.md</path>\n<type>file</type>\n<content>\n1: # Ion QA disposable project\n\n(End of file - total 1 lines)\n</content>",
+                "failed": false,
+                "complete": true,
+                "display_target": "D:\\personal\\apps\\waku\\.waku-cache\\ion-qa-disposable-20261018\\README.md"
+              }
+            ]
+          }
+        }
+      ],
+      "usage": [
+        {
+          "sequence": 412,
+          "kind": "soloModelCall",
+          "sourceId": "186c59b2-4edb-8109-9f01-f59048331a37",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "e16372d8-c164-4269-a914-a0484aa603bb",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396438,
+          "startedAt": null,
+          "updatedAt": 1792396438,
+          "status": "reported",
+          "inputTokens": 18620,
+          "outputTokens": 16,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 411,
+          "kind": "soloModelCall",
+          "sourceId": "2cc4098d-a8fb-8ed3-b1d2-57b4139f060d",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "e16372d8-c164-4269-a914-a0484aa603bb",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396434,
+          "startedAt": null,
+          "updatedAt": 1792396434,
+          "status": "reported",
+          "inputTokens": 18484,
+          "outputTokens": 63,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 410,
+          "kind": "soloModelCall",
+          "sourceId": "1e6f9197-7249-83eb-9611-a81e0af67b2d",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "e16372d8-c164-4269-a914-a0484aa603bb",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396432,
+          "startedAt": null,
+          "updatedAt": 1792396432,
+          "status": "reported",
+          "inputTokens": 18336,
+          "outputTokens": 107,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        }
+      ]
+    },
+    {
+      "marker": "QA_OPENCODE_FREE_CANCEL_TEST",
+      "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "provider": "openCode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "status": "idle",
+      "assistant": [
+        "Stopped",
+        "QA_OPENCODE_FREE_RETRY_OK",
+        "QA_OPENCODE_FREE_MULTI_OK\nMarkdown\nQA_TYPED_LABEL"
+      ],
+      "toolBlocks": [
+        {
+          "after_message": 1,
+          "turn_id": "6deae2e5-a6bf-49fc-9d51-75c90f43780e",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "da12de17-4e1b-4af4-952e-eb61623134e3",
+                "source_id": "call_00_sp6ksomokmlaxeej4h4qck0e",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"question\": \"May I continue the disposable QA test?\",\n      \"header\": \"QA test\",\n      \"options\": [\n        {\n          \"label\": \"Continue\",\n          \"description\": \"Proceed with the disposable QA test\"\n        },\n        {\n          \"label\": \"Do not continue\",\n          \"description\": \"Stop and take no further action\"\n        }\n      ]\n    }\n  ]\n}",
+                "failed": false,
+                "complete": true
+              }
+            ]
+          }
+        },
+        {
+          "after_message": 5,
+          "turn_id": "1cc975cc-00ce-4c19-9fff-b303eaaafb7e",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "41a4dd34-3e59-49d3-9967-cdfc8d440023",
+                "source_id": "call_00_2a2sm5yx0d89o3mka5yewpwl",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"header\": \"Format\",\n      \"question\": \"Which output format?\",\n      \"options\": [\n        {\n          \"label\": \"Markdown\",\n          \"description\": \"Use Markdown output\"\n        },\n        {\n          \"label\": \"Plain text\",\n          \"description\": \"Use plain text output\"\n        }\n      ]\n    },\n    {\n      \"header\": \"Label\",\n      \"question\": \"Which QA label?\",\n      \"options\": [\n        {\n          \"label\": \"Default\",\n          \"description\": \"Use the default QA label\"\n        },\n        {\n          \"label\": \"Custom\",\n          \"description\": \"Type a custom QA label\"\n        }\n      ]\n    }\n  ]\n}",
+                "output": "User has answered your questions: \"Which output format?\"=\"Markdown\", \"Which QA label?\"=\"QA_TYPED_LABEL\". You can now continue with the user's answers in mind.",
+                "failed": false,
+                "complete": true
+              }
+            ]
+          }
+        }
+      ],
+      "usage": [
+        {
+          "sequence": 457,
+          "kind": "soloModelCall",
+          "sourceId": "46ecdb3d-6290-875d-9ee5-1c149444d1e5",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792397896,
+          "startedAt": null,
+          "updatedAt": 1792397896,
+          "status": "reported",
+          "inputTokens": 18767,
+          "outputTokens": 22,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 456,
+          "kind": "soloModelCall",
+          "sourceId": "77196797-e638-8c6a-94f7-673042d4c27c",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792397894,
+          "startedAt": null,
+          "updatedAt": 1792397894,
+          "status": "reported",
+          "inputTokens": 18574,
+          "outputTokens": 141,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 440,
+          "kind": "soloModelCall",
+          "sourceId": "fc426a46-2438-8280-8fc4-a05ecd5b3dd8",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396885,
+          "startedAt": null,
+          "updatedAt": 1792396885,
+          "status": "reported",
+          "inputTokens": 18449,
+          "outputTokens": 11,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        }
+      ]
+    },
+    {
+      "marker": "QA_OPENCODE_FREE_RETRY_OK",
+      "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "provider": "openCode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "status": "idle",
+      "assistant": [
+        "Stopped",
+        "QA_OPENCODE_FREE_RETRY_OK",
+        "QA_OPENCODE_FREE_MULTI_OK\nMarkdown\nQA_TYPED_LABEL"
+      ],
+      "toolBlocks": [
+        {
+          "after_message": 1,
+          "turn_id": "6deae2e5-a6bf-49fc-9d51-75c90f43780e",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "da12de17-4e1b-4af4-952e-eb61623134e3",
+                "source_id": "call_00_sp6ksomokmlaxeej4h4qck0e",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"question\": \"May I continue the disposable QA test?\",\n      \"header\": \"QA test\",\n      \"options\": [\n        {\n          \"label\": \"Continue\",\n          \"description\": \"Proceed with the disposable QA test\"\n        },\n        {\n          \"label\": \"Do not continue\",\n          \"description\": \"Stop and take no further action\"\n        }\n      ]\n    }\n  ]\n}",
+                "failed": false,
+                "complete": true
+              }
+            ]
+          }
+        },
+        {
+          "after_message": 5,
+          "turn_id": "1cc975cc-00ce-4c19-9fff-b303eaaafb7e",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "41a4dd34-3e59-49d3-9967-cdfc8d440023",
+                "source_id": "call_00_2a2sm5yx0d89o3mka5yewpwl",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"header\": \"Format\",\n      \"question\": \"Which output format?\",\n      \"options\": [\n        {\n          \"label\": \"Markdown\",\n          \"description\": \"Use Markdown output\"\n        },\n        {\n          \"label\": \"Plain text\",\n          \"description\": \"Use plain text output\"\n        }\n      ]\n    },\n    {\n      \"header\": \"Label\",\n      \"question\": \"Which QA label?\",\n      \"options\": [\n        {\n          \"label\": \"Default\",\n          \"description\": \"Use the default QA label\"\n        },\n        {\n          \"label\": \"Custom\",\n          \"description\": \"Type a custom QA label\"\n        }\n      ]\n    }\n  ]\n}",
+                "output": "User has answered your questions: \"Which output format?\"=\"Markdown\", \"Which QA label?\"=\"QA_TYPED_LABEL\". You can now continue with the user's answers in mind.",
+                "failed": false,
+                "complete": true
+              }
+            ]
+          }
+        }
+      ],
+      "usage": [
+        {
+          "sequence": 457,
+          "kind": "soloModelCall",
+          "sourceId": "46ecdb3d-6290-875d-9ee5-1c149444d1e5",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792397896,
+          "startedAt": null,
+          "updatedAt": 1792397896,
+          "status": "reported",
+          "inputTokens": 18767,
+          "outputTokens": 22,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 456,
+          "kind": "soloModelCall",
+          "sourceId": "77196797-e638-8c6a-94f7-673042d4c27c",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792397894,
+          "startedAt": null,
+          "updatedAt": 1792397894,
+          "status": "reported",
+          "inputTokens": 18574,
+          "outputTokens": 141,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 440,
+          "kind": "soloModelCall",
+          "sourceId": "fc426a46-2438-8280-8fc4-a05ecd5b3dd8",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396885,
+          "startedAt": null,
+          "updatedAt": 1792396885,
+          "status": "reported",
+          "inputTokens": 18449,
+          "outputTokens": 11,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        }
+      ]
+    },
+    {
+      "marker": "QA_OPENCODE_FREE_MULTI_OK",
+      "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "provider": "openCode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "status": "idle",
+      "assistant": [
+        "Stopped",
+        "QA_OPENCODE_FREE_RETRY_OK",
+        "QA_OPENCODE_FREE_MULTI_OK\nMarkdown\nQA_TYPED_LABEL"
+      ],
+      "toolBlocks": [
+        {
+          "after_message": 1,
+          "turn_id": "6deae2e5-a6bf-49fc-9d51-75c90f43780e",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "da12de17-4e1b-4af4-952e-eb61623134e3",
+                "source_id": "call_00_sp6ksomokmlaxeej4h4qck0e",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"question\": \"May I continue the disposable QA test?\",\n      \"header\": \"QA test\",\n      \"options\": [\n        {\n          \"label\": \"Continue\",\n          \"description\": \"Proceed with the disposable QA test\"\n        },\n        {\n          \"label\": \"Do not continue\",\n          \"description\": \"Stop and take no further action\"\n        }\n      ]\n    }\n  ]\n}",
+                "failed": false,
+                "complete": true
+              }
+            ]
+          }
+        },
+        {
+          "after_message": 5,
+          "turn_id": "1cc975cc-00ce-4c19-9fff-b303eaaafb7e",
+          "content": {
+            "kind": "activities",
+            "data": [
+              {
+                "id": "41a4dd34-3e59-49d3-9967-cdfc8d440023",
+                "source_id": "call_00_2a2sm5yx0d89o3mka5yewpwl",
+                "kind": "tool",
+                "title": "question",
+                "tool_name": "question",
+                "detail": null,
+                "arguments": "{\n  \"questions\": [\n    {\n      \"header\": \"Format\",\n      \"question\": \"Which output format?\",\n      \"options\": [\n        {\n          \"label\": \"Markdown\",\n          \"description\": \"Use Markdown output\"\n        },\n        {\n          \"label\": \"Plain text\",\n          \"description\": \"Use plain text output\"\n        }\n      ]\n    },\n    {\n      \"header\": \"Label\",\n      \"question\": \"Which QA label?\",\n      \"options\": [\n        {\n          \"label\": \"Default\",\n          \"description\": \"Use the default QA label\"\n        },\n        {\n          \"label\": \"Custom\",\n          \"description\": \"Type a custom QA label\"\n        }\n      ]\n    }\n  ]\n}",
+                "output": "User has answered your questions: \"Which output format?\"=\"Markdown\", \"Which QA label?\"=\"QA_TYPED_LABEL\". You can now continue with the user's answers in mind.",
+                "failed": false,
+                "complete": true
+              }
+            ]
+          }
+        }
+      ],
+      "usage": [
+        {
+          "sequence": 457,
+          "kind": "soloModelCall",
+          "sourceId": "46ecdb3d-6290-875d-9ee5-1c149444d1e5",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792397896,
+          "startedAt": null,
+          "updatedAt": 1792397896,
+          "status": "reported",
+          "inputTokens": 18767,
+          "outputTokens": 22,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 456,
+          "kind": "soloModelCall",
+          "sourceId": "77196797-e638-8c6a-94f7-673042d4c27c",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792397894,
+          "startedAt": null,
+          "updatedAt": 1792397894,
+          "status": "reported",
+          "inputTokens": 18574,
+          "outputTokens": 141,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        },
+        {
+          "sequence": 440,
+          "kind": "soloModelCall",
+          "sourceId": "fc426a46-2438-8280-8fc4-a05ecd5b3dd8",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "taskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+          "runId": null,
+          "assignmentId": null,
+          "attemptId": null,
+          "agentId": null,
+          "agentName": null,
+          "provider": "openCode",
+          "model": "opencode/deepseek-v4.1-flash-free",
+          "environment": "local",
+          "host": "local",
+          "observedAt": 1792396885,
+          "startedAt": null,
+          "updatedAt": 1792396885,
+          "status": "reported",
+          "inputTokens": 18449,
+          "outputTokens": 11,
+          "reservedTokens": 0,
+          "elapsedMilliseconds": null,
+          "cost": null,
+          "spendingAllowance": null
+        }
+      ]
+    }
+  ]
+}

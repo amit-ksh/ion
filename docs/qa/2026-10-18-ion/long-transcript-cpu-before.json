@@ -1,0 +1,7 @@
+{
+  "scenario": "1000 synthetic messages, 1161919 characters; CPU sample only, not frame-time measurement",
+  "cpuSeconds": 21.03125,
+  "pid": 18928,
+  "workingSetBytes": 166215680,
+  "timestamp": "2026-10-18T21:26:17.6125702+05:30"
+}

@@ -1,0 +1,170 @@
+{
+  "artifact": {
+    "kind": "artifact",
+    "id": "2ef5854a-4409-434c-b492-a7508dcd65ff",
+    "name": "QA_NATIVE_TEAM.xml",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "taskId": "9510ce76-f56b-41cd-b225-ceee7d452fdc",
+    "reference": "ion-document:2ef5854a-4409-434c-b492-a7508dcd65ff",
+    "format": "xml",
+    "createdAt": 1792337176,
+    "evidence": {
+      "version": 1,
+      "bytes": 26,
+      "sha256": "eb5fd9a56c386fc1d0877c7d5f379ef78eef6dbf63a149543c292cda946ae9f6",
+      "producer": {
+        "origin": "teamAssignment",
+        "turnId": null,
+        "activityId": null,
+        "sourcePath": null,
+        "runId": "9510ce76-f56b-41cd-b225-ceee7d452fdc",
+        "assignmentId": "db92fa6d-5b0d-40f8-9d60-c840bf719656",
+        "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "requestId": "ecc3d18b-df92-44ac-a7fb-d8a7d1bfbaf9"
+      }
+    }
+  },
+  "exactContent": "<qa>QA_NATIVE_TEAM_OK</qa>",
+  "sha256": "eb5fd9a56c386fc1d0877c7d5f379ef78eef6dbf63a149543c292cda946ae9f6",
+  "run": {
+    "type": "teamRun",
+    "snapshot": {
+      "workspace": null,
+      "id": "9510ce76-f56b-41cd-b225-ceee7d452fdc",
+      "rootTaskId": "9510ce76-f56b-41cd-b225-ceee7d452fdc",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "definitionRevision": 26,
+      "revision": 14,
+      "status": "completed",
+      "team": {
+        "id": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+        "name": "QA Document Team",
+        "objective": "Use built-in save_document to produce concise HTML, Markdown, text, CSV, JSON, SVG, XML and YAML originals. Report their artifact IDs. Do not edit source files or use shell/network/apps.",
+        "limits": {
+          "maxWorkItems": 8,
+          "maxParallelTasks": 1,
+          "maxDepth": 3,
+          "maxAttempts": 1,
+          "maxModelCalls": 24,
+          "maxTokens": 2200000,
+          "requireChildReview": true,
+          "maxReworkRounds": 1,
+          "timeoutSeconds": 600
+        },
+        "members": [
+          {
+            "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+            "parentId": null
+          }
+        ]
+      },
+      "profiles": [
+        {
+          "id": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "name": "QA Evidence",
+          "expertise": "Generate concise evidence documents",
+          "instructions": "Use only built-in document tools. Save a small Markdown report containing QA_CHILD_OK and one JSON document with {\"ready\":true}. Return their artifact IDs with report_result. Preserve source files. No shell, network tools, connected apps, publishing, deployment or infrastructure.",
+          "provider": "nebius",
+          "model": "nvidia/Nemotron-3_5-Lightning",
+          "expectedOutput": "",
+          "execution": {
+            "environment": "local",
+            "sandboxTarget": null,
+            "localFallback": true
+          },
+          "access": {
+            "workspaceRead": true,
+            "workspaceWrite": false,
+            "shell": false,
+            "network": false,
+            "appActions": []
+          },
+          "maxParallelTasks": 1
+        }
+      ],
+      "limits": {
+        "maxWorkItems": 8,
+        "maxParallelTasks": 1,
+        "maxDepth": 3,
+        "maxAttempts": 1,
+        "maxModelCalls": 24,
+        "maxTokens": 2200000,
+        "requireChildReview": true,
+        "maxReworkRounds": 1,
+        "timeoutSeconds": 600
+      },
+      "usage": {
+        "modelCalls": 2,
+        "consumedTokens": 9402,
+        "reservedTokens": 0,
+        "unknownCalls": 0,
+        "unmeteredCalls": 0,
+        "allowanceViolations": 0
+      },
+      "access": {
+        "workspaceRead": true,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": []
+      },
+      "createdAt": 1792337172,
+      "deadline": 1792337772,
+      "work": [
+        {
+          "canResume": false,
+          "canReconcile": false,
+          "id": "db92fa6d-5b0d-40f8-9d60-c840bf719656",
+          "taskId": "9510ce76-f56b-41cd-b225-ceee7d452fdc",
+          "parentId": null,
+          "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "objective": "QA native composer test: save exactly one XML document named QA_NATIVE_TEAM.xml with content <qa>QA_NATIVE_TEAM_OK</qa>, then report_result with its real artifact ID. Use only save_document and report_result. Preserve source files. No shell, network tools, apps, publishing, deployment or provisioning.",
+          "expectedOutput": "",
+          "outputContract": {
+            "minimumDocuments": 0,
+            "requiredFormats": [],
+            "requiredChecks": []
+          },
+          "requiresReview": false,
+          "reworkOf": null,
+          "review": null,
+          "dependencies": [],
+          "access": {
+            "workspaceRead": true,
+            "workspaceWrite": false,
+            "shell": false,
+            "network": false,
+            "appActions": []
+          },
+          "status": "completed",
+          "reason": null,
+          "attempts": [
+            {
+              "id": "64db88a6-29c3-4ff9-83d6-32bf27abceac",
+              "environment": "local",
+              "host": "local",
+              "fallbackReason": null,
+              "startedAt": 1792337173,
+              "leaseExpiresAt": 1792337358,
+              "generation": 0,
+              "status": "completed"
+            }
+          ],
+          "result": {
+            "summary": "QA native composer test: saved exactly one XML document named QA_NATIVE_TEAM.xml with content <qa>QA_NATIVE_TEAM_OK</qa>",
+            "artifactIds": [
+              "2ef5854a-4409-434c-b492-a7508dcd65ff"
+            ],
+            "checks": [
+              "QA_NATIVE_TEAM_XML_SAVE"
+            ]
+          }
+        }
+      ],
+      "decisions": [],
+      "sourcePrompt": "@team:{QA Document Team} QA native composer test: save exactly one XML document named QA_NATIVE_TEAM.xml with content <qa>QA_NATIVE_TEAM_OK</qa>, then report_result with its real artifact ID. Use only save_document and report_result. Preserve source files. No shell, network tools, apps, publishing, deployment or provisioning.",
+      "inputs": [],
+      "followUps": []
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "key": "cancel",
+  "verifiedAt": "2026-10-19T03:42:21.008Z",
+  "runId": "bcdca87e-f115-4999-a588-a6a2f0da62fe",
+  "status": "canceled",
+  "revision": 14,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 8,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 2,
+    "consumedTokens": 6158,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+      "status": "canceled",
+      "reason": "User stopped the team",
+      "result": null,
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_8tjHHZD502Un",
+            "action": "SLACK_TEST_AUTH",
+            "version": "20261015_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "adc6600f-4643-4567-9b3d-b386f7180270",
+          "host": "local",
+          "status": "canceled"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "e5d526d7-faf7-4baf-9899-fe8ab201e531",
+      "runId": "bcdca87e-f115-4999-a588-a6a2f0da62fe",
+      "projectId": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+      "assignmentId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+      "taskId": "bcdca87e-f115-4999-a588-a6a2f0da62fe",
+      "agentId": "e61bce63-2197-49e0-9aee-0595ac3b8f55",
+      "definitionRevision": 28,
+      "runRevision": 12,
+      "attemptId": "adc6600f-4643-4567-9b3d-b386f7180270",
+      "host": "local",
+      "title": "Run SLACK_TEST_AUTH",
+      "proposal": "App action: SLACK_TEST_AUTH\nConnected account: ca_8tjHHZD502Un\nTool version: 20261015_00\nArguments:\n{}",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_8tjHHZD502Un",
+          "action": "SLACK_TEST_AUTH",
+          "version": "20261015_00"
+        },
+        "argumentsJson": "{}"
+      },
+      "status": "canceled",
+      "revision": 2,
+      "createdAt": 1792381078
+    }
+  ],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 72,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792381064
+      },
+      {
+        "cursor": 73,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792381064
+      },
+      {
+        "cursor": 74,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792381066
+      },
+      {
+        "cursor": 75,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "model_call",
+        "detail": "Reserved call 2a91750a-4dc0-436e-a6bf-a7c1e491028e for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792381069
+      },
+      {
+        "cursor": 76,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "model_usage",
+        "detail": "Call 2a91750a-4dc0-436e-a6bf-a7c1e491028e provider receipt: 2822 input + 183 output tokens",
+        "timestamp": 1792381073
+      },
+      {
+        "cursor": 77,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "model_call",
+        "detail": "Reserved call 1604c3d8-15a9-4103-a4e3-a066d306971d for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792381075
+      },
+      {
+        "cursor": 78,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "model_usage",
+        "detail": "Call 1604c3d8-15a9-4103-a4e3-a066d306971d provider receipt: 3025 input + 128 output tokens",
+        "timestamp": 1792381078
+      },
+      {
+        "cursor": 79,
+        "workId": "19f6ee9d-7df3-48ef-bc9c-acf403109dbc",
+        "event": "decision_requested",
+        "detail": "e5d526d7-faf7-4baf-9899-fe8ab201e531",
+        "timestamp": 1792381078
+      },
+      {
+        "cursor": 80,
+        "workId": null,
+        "event": "stop_requested",
+        "detail": "Queued work canceled; active hosts must confirm cancellation",
+        "timestamp": 1792381281
+      }
+    ]
+  }
+}

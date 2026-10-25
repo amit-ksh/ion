@@ -1,0 +1,61 @@
+{
+  "verifiedAt": "2026-10-19T09:53:12.511Z",
+  "key": "packageGmail",
+  "runId": "c789ea28-88d5-4802-b895-e04820754213",
+  "status": "completed",
+  "usage": {
+    "modelCalls": 4,
+    "consumedTokens": 15359,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "decisions": [
+    {
+      "id": "9d7cea3e-641b-4132-9954-c3f587cf8068",
+      "status": "approved",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_V8OriN53zVfq",
+          "action": "GMAIL_GET_PROFILE",
+          "version": "20261018_00"
+        },
+        "argumentsJson": "{\"user_id\":\"me\"}"
+      }
+    }
+  ],
+  "appStarted": 1,
+  "appSettled": 1,
+  "artifacts": [
+    {
+      "id": "6c9e700a-1dae-497d-8504-c42aa30a52da",
+      "name": "App-action-9d7cea3e641b41329954c3f587cf8068.json",
+      "format": "json",
+      "bytes": 231,
+      "sha256": "9d5af6c096f9a18c9527f613f7f31d9ea06f4daa46e3f97ad22147571e1239a0",
+      "receipt": {
+        "successful": true,
+        "logId": "log_D--97mKV5gmv",
+        "truncated": false,
+        "providerOk": null,
+        "dataKeys": [
+          "display_url",
+          "emailAddress",
+          "historyId",
+          "messagesTotal",
+          "threadsTotal"
+        ],
+        "error": null
+      }
+    },
+    {
+      "id": "a6a7a3b1-fb86-49ba-935b-7cbcb416069d",
+      "name": "QA_CONNECTED_GMAIL_OK",
+      "format": "md",
+      "bytes": 558,
+      "sha256": "b897edda44eae4435664c5d6b66402710f7311746c67ec455090e9c17b0840fe",
+      "expectedMarker": true
+    }
+  ]
+}

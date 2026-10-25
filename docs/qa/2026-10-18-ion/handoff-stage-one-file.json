@@ -1,0 +1,20 @@
+{
+  "run": "a0b6205d-598b-41f2-b2f3-67826bec91e7",
+  "workspace": "\\\\?\\D:\\personal\\apps\\waku\\temp\\ion-team-workspaces\\3638e4e4-a026-41a2-86f1-afdb14f49764",
+  "exact": true,
+  "sha256": "213900CDEB64035A681B4001C41E22BFBEBC82F84DFB42C1A4570896C72FB50C",
+  "failedProbe": [
+    {
+      "id": "6fd56864-fda2-4333-ab85-091a941c5f44",
+      "source_id": "nebius-tool-8b4b6a5e-de1e-43ce-8c72-982f1624eced",
+      "kind": "tool",
+      "title": "read file",
+      "tool_name": "read_file",
+      "detail": "{\"error\":\"The system cannot find the file specified. (os error 2)\"}",
+      "arguments": "{\n  \"path\": \"missing-qa-file.txt\"\n}",
+      "output": "{\"error\":\"The system cannot find the file specified. (os error 2)\"}",
+      "failed": true,
+      "complete": true
+    }
+  ]
+}

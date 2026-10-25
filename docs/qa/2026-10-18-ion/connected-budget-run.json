@@ -1,0 +1,104 @@
+{
+  "key": "budget",
+  "verifiedAt": "2026-10-19T03:29:49.676Z",
+  "runId": "0e5a78a9-98ba-4b5f-b6c0-77aa5e507ac7",
+  "status": "active",
+  "revision": 10,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 1,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 1,
+    "consumedTokens": 2804,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "8c173567-be9b-40bb-b3dc-15969aa38729",
+      "status": "blocked",
+      "reason": "Team model-call budget reached",
+      "result": null,
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_8tjHHZD502Un",
+            "action": "SLACK_TEST_AUTH",
+            "version": "20261015_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "60767326-20cf-4d36-908c-7b94482924d5",
+          "host": "local",
+          "status": "blocked"
+        }
+      ]
+    }
+  ],
+  "decisions": [],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 61,
+        "workId": "8c173567-be9b-40bb-b3dc-15969aa38729",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792380565
+      },
+      {
+        "cursor": 62,
+        "workId": "8c173567-be9b-40bb-b3dc-15969aa38729",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792380565
+      },
+      {
+        "cursor": 63,
+        "workId": "8c173567-be9b-40bb-b3dc-15969aa38729",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792380566
+      },
+      {
+        "cursor": 64,
+        "workId": "8c173567-be9b-40bb-b3dc-15969aa38729",
+        "event": "model_call",
+        "detail": "Reserved call fc4885c6-e82c-402a-a794-06d462831189 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380569
+      },
+      {
+        "cursor": 65,
+        "workId": "8c173567-be9b-40bb-b3dc-15969aa38729",
+        "event": "model_usage",
+        "detail": "Call fc4885c6-e82c-402a-a794-06d462831189 provider receipt: 2699 input + 105 output tokens",
+        "timestamp": 1792380572
+      },
+      {
+        "cursor": 66,
+        "workId": "8c173567-be9b-40bb-b3dc-15969aa38729",
+        "event": "reported",
+        "detail": "blocked",
+        "timestamp": 1792380574
+      }
+    ]
+  }
+}

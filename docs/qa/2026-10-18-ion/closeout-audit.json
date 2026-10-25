@@ -1,0 +1,141 @@
+{
+  "verifiedAt": "2026-10-19T09:56:21.918Z",
+  "profiles": [
+    {
+      "profile": "debug",
+      "qaProjects": [
+        {
+          "id": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "name": "ion-qa-disposable-20261018"
+        },
+        {
+          "id": "747303d9-ead7-4c60-b332-d0142e41beb3",
+          "name": "ion-qa-owned-workspace-20261019"
+        },
+        {
+          "id": "2a454c73-b691-4512-affd-eec1c3ff0f06",
+          "name": "ion-qa-handoff-20261019"
+        }
+      ],
+      "pages": 4,
+      "verifiedMarkers": [
+        {
+          "id": "6e249fa3-af76-4dfd-b494-6941c41c4d5c",
+          "marker": "QA_ATTACHMENT_OK QA_AGENT_PDF_OK",
+          "exactOutput": true
+        }
+      ],
+      "nebiusCalls": 143,
+      "inputTokens": 795809,
+      "outputTokens": 26173,
+      "unknownTokenRecords": 0,
+      "unknownCostRecords": 143,
+      "models": [
+        "deepseek-ai/DeepSeek-V4.1-Flash",
+        "nvidia/Nemotron-3_5-Lightning"
+      ],
+      "estimatedKnownTokenUsd": 0.09935310000000001,
+      "perModel": [
+        {
+          "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+          "calls": 40,
+          "inputTokens": 148398,
+          "outputTokens": 10112,
+          "estimatedKnownTokenUsd": 0.056653800000000004
+        },
+        {
+          "model": "nvidia/Nemotron-3_5-Lightning",
+          "calls": 103,
+          "inputTokens": 647411,
+          "outputTokens": 16061,
+          "estimatedKnownTokenUsd": 0.0426993
+        }
+      ],
+      "duplicateSourceIds": false
+    },
+    {
+      "profile": "installed",
+      "qaProjects": [
+        {
+          "id": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+          "name": "ion-qa-disposable-20261018"
+        }
+      ],
+      "pages": 1,
+      "verifiedMarkers": [
+        {
+          "id": "f858b40f-0cc3-4386-afc0-a7048c2de841",
+          "marker": "QA_FINAL_PACKAGE_CODEX_OK",
+          "exactOutput": true,
+          "status": "idle"
+        },
+        {
+          "id": "93d8853d-ebb4-45ce-a1e3-ebd4c5697cea",
+          "marker": "QA_FINAL_PACKAGE_NEBIUS_OK",
+          "exactOutput": true,
+          "status": "idle"
+        },
+        {
+          "id": "93d8853d-ebb4-45ce-a1e3-ebd4c5697cea",
+          "marker": "QA_CLOSEOUT_INSTALLER_NEBIUS_OK",
+          "exactOutput": true,
+          "status": "idle"
+        }
+      ],
+      "nebiusCalls": 25,
+      "inputTokens": 90213,
+      "outputTokens": 3335,
+      "unknownTokenRecords": 0,
+      "unknownCostRecords": 25,
+      "models": [
+        "deepseek-ai/DeepSeek-V4.1-Flash",
+        "nvidia/Nemotron-3_5-Lightning"
+      ],
+      "estimatedKnownTokenUsd": 0.020802300000000003,
+      "perModel": [
+        {
+          "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+          "calls": 15,
+          "inputTokens": 48840,
+          "outputTokens": 2987,
+          "estimatedKnownTokenUsd": 0.0182364
+        },
+        {
+          "model": "nvidia/Nemotron-3_5-Lightning",
+          "calls": 10,
+          "inputTokens": 41373,
+          "outputTokens": 348,
+          "estimatedKnownTokenUsd": 0.0025659
+        }
+      ],
+      "duplicateSourceIds": false
+    }
+  ],
+  "sentinels": [
+    {
+      "path": ".waku-cache/ion-qa-disposable-20261018/owner-data-sentinel.txt",
+      "sha256": "789f9f2315a589b5c937533ef898bb58237f54737e7cd019e201879e426f7c2c",
+      "unchanged": true
+    },
+    {
+      "path": ".waku-cache/ion-qa-removal-20261018/owner-data-sentinel.txt",
+      "sha256": "286d85f643809cc5b3541e182fc802c2ca281988d0f7cc30b658fa8e32d7289c",
+      "unchanged": true
+    },
+    {
+      "path": ".waku-cache/ion-qa-owned-workspace-20261019/sentinel.txt",
+      "sha256": "a5f60f1780e9ec6a51de489d569cd05293008a878ac0511030566cdb1023f27a",
+      "unchanged": true
+    },
+    {
+      "path": ".waku-cache/ion-qa-handoff-20261019/sentinel.txt",
+      "sha256": "ac20dfe2d56227c4fc4ad0508b12f0782632c19bde83e29dbf8c6a5cf0bd57fe",
+      "unchanged": true
+    }
+  ],
+  "handoffSourceUntouched": true,
+  "totalKnownTokenEstimateUsd": 0.12015540000000002,
+  "pricingCatalogFetched": "2026-10-18",
+  "reportedMonetaryChargesAvailable": false,
+  "note": "Read-only final audit. Estimates cover all recorded QA-project Nebius receipts across debug and installed profiles. Generator requests absent from the ledger are not counted as zero. Native account statements remain the authoritative charge source."
+}

@@ -1,0 +1,85 @@
+test deepseek_pool::tests::sessions_using_one_binary_share_the_resident_host ... ignored, requires an installed DeepSeek Harness
+test deepseek_session::tests::installed_harness_host_answers_rpc ... ignored, requires an installed DeepSeek Harness
+test deepseek_session::tests::installed_harness_session_contracts_round_trip ... ignored, requires an installed DeepSeek Harness
+test driver::acp::tests::cursor_parameterized_model_selection_finishes_a_real_turn ... ignored, requires an installed, authenticated cursor-agent
+test driver::acp::tests::grok_prompt_response_from_the_sdk_finishes_the_turn ... ignored, requires an installed, authenticated grok
+test driver::acp::tests::kimi_never_reports_an_empty_turn_as_a_success ... ignored, requires an installed, authenticated kimi
+test driver::amp::tests::amp_steering_folds_a_mid_turn_message_into_the_running_turn ... ignored, requires an installed, authenticated amp
+test driver::amp::tests::amp_streaming_session_against_the_real_cli ... ignored, requires an installed, authenticated amp
+test driver::codex::source_teams::tests::codex_source_team_native_app_server_invokes_through_actual_ion_driver ... ignored, Requires ION_NATIVE_CODEX_BINARY; private fake account and localhost Responses fixture only
+test driver::codex::tests::codex_fork_preserves_history_and_both_sessions_against_real_cli ... ignored, requires an installed, authenticated codex
+test driver::codex::tests::codex_title_generation_against_the_real_cli ... ignored, requires an installed, authenticated codex
+test driver::opencode2::tests::opencode2_computer_use_against_the_adopted_service ... ignored, requires a configured OpenCode 2 model and a packaged Waku app
+test driver::opencode2::tests::opencode2_session_against_the_adopted_service ... ignored, requires a healthy opencode2 background service
+test driver::opencode::tests::opencode_session_against_a_real_server ... ignored, requires an installed, authenticated opencode
+test driver::opencode::tests::opencode_steering_folds_a_mid_turn_message_into_the_running_turn ... ignored, requires an installed, authenticated opencode
+test driver::pi::tests::ohmypi_context_usage_against_the_real_rpc ... ignored, requires an installed, authenticated omp
+test driver::pi::tests::pi_context_usage_against_the_real_rpc ... ignored, requires an installed, authenticated pi
+test driver::source_teams::antigravity::tests::native::antigravity_source_team_native_driver_approved_resume_stale_and_cleanup ... ignored, Requires released ION_TEST_ANTIGRAVITY_BINARY=1.3.1; isolated fake native account and localhost only
+test driver::source_teams::antigravity::tests::native::antigravity_source_team_native_driver_stop_approval_cancels_queue_and_recovers ... ignored, Requires released ION_TEST_ANTIGRAVITY_BINARY=1.3.1; isolated fake native account and localhost only
+test driver::source_teams::cursor::native_tests::cursor_source_team_native_driver_invocation_resume_replay_and_stale_definition ... ignored, Requires pinned ION_TEST_CURSOR_RUNTIME; private fake account and loopback only
+test driver::source_teams::cursor::native_tests::cursor_source_team_native_driver_refuses_preapproved_native_route ... ignored, Requires pinned ION_TEST_CURSOR_RUNTIME; private fake account and loopback only
+test driver::source_teams::cursor::native_tests::cursor_source_team_native_driver_rejects_unadvertised_remembered_approval ... ignored, Requires pinned ION_TEST_CURSOR_RUNTIME; private fake account and loopback only
+test driver::source_teams::cursor::native_tests::cursor_source_team_native_driver_stop_and_new_turn ... ignored, Requires pinned ION_TEST_CURSOR_RUNTIME; private fake account and loopback only
+test driver::source_teams::grok::tests::native::grok_source_team_native_driver_approved_invocation_resume_and_stale_definition ... ignored, Requires ION_TEST_GROK_BINARY=1.0.46 and ION_TEST_ION_DAEMON; private profile/loopback fake model only
+test driver::source_teams::grok::tests::native::grok_source_team_native_driver_stop_at_owner_approval ... ignored, Requires ION_TEST_GROK_BINARY=1.0.46 and ION_TEST_ION_DAEMON; private profile/loopback fake model only
+test driver::source_teams::grok::tests::native::grok_source_team_native_driver_untrusted_project_cannot_invoke ... ignored, Requires ION_TEST_GROK_BINARY=1.0.46 and ION_TEST_ION_DAEMON; private profile/loopback fake model only
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_approval_and_result ... ignored, requires explicit pinned Kimi source and Node runtime
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_bash ... ignored, requires explicit pinned Kimi source or compiled package and Node runtime
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_builtin_read ... ignored, requires explicit pinned Kimi source and Node runtime
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_denial ... ignored, requires explicit pinned Kimi source and Node runtime
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_resume ... ignored, requires explicit pinned Kimi source and Node runtime
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_stale_definition ... ignored, requires explicit pinned Kimi source and Node runtime
+test driver::source_teams::kimi::tests::native::kimi_source_native_driver_stop ... ignored, requires explicit pinned Kimi source and Node runtime
+test driver::source_teams::opencode::tests::amp_source_team_generated_hook_calls_owner_through_actual_native_runtime ... ignored, Requires installed Amp binary and its unmodified extracted plugin runtime; fake profile/localhost only
+test driver::source_teams::opencode::tests::deepseek_source_team_generated_plugin_calls_owner_through_actual_native_runtime ... ignored, Requires verified native DeepSeek runtime; private fake profile and loopback only
+test driver::source_teams::opencode::tests::opencode2_source_team_native_plugin_through_actual_driver ... ignored, Requires ION_NATIVE_OPENCODE2_BINARY=2.0.29; private native profile and loopback fake model only
+test driver::source_teams::opencode::tests::opencode2_source_team_native_stop_at_owner_approval ... ignored, Requires ION_NATIVE_OPENCODE2_BINARY=2.0.29; private native profile and loopback fake model only
+test driver::source_teams::opencode::tests::opencode_source_team_native_plugin_start_resume_and_stop_through_actual_driver ... ignored, Requires ION_NATIVE_OPENCODE_BINARY=1.18.15; private profile, fake account and localhost Responses only
+test driver::source_teams::opencode::tests::pi_source_team_installed_rpc_calls_native_extension_in_both_flavors ... ignored, Requires native Pi and Oh My Pi binaries; private fake account and loopback only
+test driver::team_antigravity::tests::team_antigravity_installed_one_request_blocks_auxiliary_and_tools ... ignored, Requires Antigravity 1.3.0/1.3.1; fake key and loopback only
+test driver::team_codex::tests::team_codex_installed_cli_uses_one_request_with_tools_disabled ... ignored, Requires installed Codex; uses fake authentication and loopback provider only
+test driver::team_deepseek::tests::team_deepseek_native_runtime_completes_one_metered_call_with_no_effects ... ignored, Requires verified DeepSeek executable; loopback and fixture account only
+test driver::team_fx::tests::team_fx_installed_ask_one_request_is_bounded ... ignored, Requires Fx 0.0.13 on Linux/macOS; fake key and loopback only
+test driver::team_grok::tests::team_grok_native_one_metered_prompt_no_effects_or_auxiliary_billing ... ignored, Requires verified Grok executable; fixture key and loopback only
+test driver::team_jobs::check_tests::command_check_native_project_upload_receipt_replay_and_parent_review ... ignored, Requires project fixture exported by the reviewed native Linux CLI acceptance
+test driver::team_jobs::tests::team_job_native_linux_receipt_full_run_transfer_replay_and_artifact ... ignored, requires fixtures exported by the actual pinned Linux job-worker CLI
+test driver::team_kimi::tests::team_kimi_native_runtime_completes_one_metered_call_without_effects ... ignored, Requires verified Kimi Code executable; loopback and fixture account only
+test driver::team_omp::tests::team_omp_native_catalog_and_completion_use_one_metered_request_without_tools ... ignored, Requires current Oh My Pi executable; uses only loopback and fixture credentials
+test driver::team_opencode2::tests::team_opencode2_installed_standalone_has_one_bounded_request ... ignored, Requires verified OpenCode 2 binary; only fake key and localhost provider
+test driver::team_opencode::installed_tests::team_opencode_installed_cli_uses_one_request_without_native_tools ... ignored, Requires installed OpenCode pure mode; only fake authentication and loopback provider
+test driver::team_pi::tests::team_pi_installed_cli_uses_one_request_without_native_tools ... ignored, Requires installed current Pi; only fake authentication and loopback provider
+test model_catalog::opencode_effort_smoke::discovers_reasoning_efforts_from_the_installed_cli ... ignored, requires an installed, authenticated opencode
+test model_catalog::tests::installed_deepseek_harness_reports_models ... ignored, requires an installed DeepSeek Harness
+test model_catalog::tests::installed_fx_reports_models ... ignored, requires an installed and configured Fx
+test model_catalog::tests::installed_kimi_reports_models_and_a_default ... ignored, requires an installed Kimi Code CLI
+test model_catalog::tests::ohmypi_catalog_against_the_real_cli ... ignored, requires an installed, authenticated omp
+test opencode2_api::tests::live_service_answers_health_and_catalogues ... ignored, requires a running opencode2 service
+test opencode2_service::tests::adopts_the_registered_service ... ignored, requires the user's running OpenCode 2 service
+test opencode2_session::discovery_smoke::discovers_models_from_the_adopted_service ... ignored, requires a running opencode2 background service
+test opencode2_session::tests::discovers_the_real_model_and_agent_catalog ... ignored, requires a running opencode2 background service
+test opencode2_session::tests::imports_a_real_transcript_without_redaction_placeholders ... ignored, requires a running opencode2 background service and WAKU_OPENCODE2_TEST_SESSION_ID
+test opencode2_session::tests::lists_real_root_sessions_across_workspaces ... ignored, requires a running opencode2 background service
+test opencode_pool::tests::concurrent_acquires_start_one_server ... ignored, requires an installed opencode
+test opencode_pool::tests::dead_server_recovers_without_cross_generation_teardown ... ignored, requires an installed opencode
+test opencode_pool::tests::dedicated_server_dies_with_its_last_handle ... ignored, requires an installed opencode
+test opencode_pool::tests::workspace_sessions_share_one_server_until_the_last_drops ... ignored, requires an installed opencode
+test opencode_session::tests::forks_away_a_real_single_turn_session ... ignored, requires an installed opencode and WAKU_OPENCODE_TEST_SESSION_ID
+test opencode_session::tests::lists_sessions_across_projects_on_a_real_server ... ignored, requires an installed opencode
+test slash_command_catalog::tests::opencode2_builtin_catalog_against_a_real_service ... ignored, requires an installed opencode2; reads a cold workspace catalogue without creating sessions
+test slash_command_catalog::tests::opencode_builtin_catalog_against_a_real_server ... ignored, requires an installed opencode; reads its catalogue without creating sessions
+test teams::documents::html_bundle::svg::sprites::computed_names::integration_tests::native_computed_css_phone_fixture ... ignored, Exports a production native computed-name fixture only to ION_COMPUTED_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::context_styles::publication_tests::native_context_css_phone_fixture ... ignored, Exports the actual production context CSS document to ION_CONTEXT_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::font_styles::publication_tests::native_font_css_phone_fixture ... ignored, Exports production native font CSS to ION_FONT_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::named_styles::animation::fallback_tests::native_animation_fallback_phone_fixture ... ignored, Exports actual whole-value fallback output to ION_ANIMATION_FALLBACK_FIXTURE
+test teams::documents::html_bundle::svg::sprites::named_styles::animation::tests::native_animation_css_phone_fixture ... ignored, Exports the actual production animation shorthand document to ION_ANIMATION_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::named_styles::counters::tests::native_counter_css_phone_fixture ... ignored, Exports actual native counter-style output to ION_COUNTER_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::named_styles::publication_tests::native_named_css_phone_fixture ... ignored, Exports the actual native named-CSS document to ION_NAMED_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::property_styles::publication_tests::native_property_css_phone_fixture ... ignored, Exports actual production native CSS properties to ION_PROPERTY_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::scope_styles::publication_tests::native_scope_css_phone_fixture ... ignored, Exports production scope CSS to ION_SCOPE_CSS_FIXTURE
+test teams::documents::html_bundle::svg::sprites::tests::native_svg_sprite_phone_fixture ... ignored, Exports a production native sprite fixture only to ION_SVG_SPRITE_FIXTURE
+test teams::project::tests::team_job_project_export_host_executable_archive ... ignored, Exports an actual host Git snapshot for separate installed Linux worker acceptance
+test teams::project::tests::team_job_project_native_executable_receipt_matches_owner_archive ... ignored, Requires actual owner archive executed by the installed Linux worker
+test teams::tests::binary_documents::html_sources::native_html_resources_phone_fixture ... ignored, Exports actual HTML resource RPC shapes to ION_HTML_RESOURCES_FIXTURE
+test teams::tests::binary_documents::native_mathml_phone_fixture ... ignored, Exports actual publication/replay output to ION_MATHML_NATIVE_FIXTURE
+test teams::tests::binary_documents::native_pptx_phone_fixture ... ignored, Publishes the PPTX source at ION_PPTX_SOURCE_FIXTURE and exports actual protocol bytes to ION_PPTX_NATIVE_FIXTURE

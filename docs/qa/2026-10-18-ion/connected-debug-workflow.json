@@ -1,0 +1,57 @@
+{
+  "type": "automationRun",
+  "run": {
+    "id": "6d8fc59c-489e-44c7-9eea-e9137aea14d5",
+    "name": "QA Connected Nebius Workflow",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "workflowId": "9d14344b-518b-41a8-bb9c-fb5151f67961",
+    "routineId": null,
+    "definitionRevision": 75,
+    "revision": 5,
+    "createdAt": 1792396688,
+    "scheduledAt": null,
+    "deadline": 1792397288,
+    "status": "running",
+    "reason": null,
+    "currentStage": 1,
+    "stages": [
+      {
+        "route": {
+          "target": {
+            "type": "stage",
+            "index": 1
+          },
+          "artifactId": null,
+          "sha256": null,
+          "matched": null
+        },
+        "title": "Gmail profile read",
+        "instructions": "Follow the saved QA Connected gmail instructions; no messages or mailbox content. Produce the actual receipt summary Markdown.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "c12b50a0-299b-464a-99d6-052f81d9a96b",
+        "teamRunId": "c4bf5c27-c974-451b-b565-a6db94dfb7d0",
+        "taskId": "ba59a05e-3856-4a06-9f42-d59789f69106",
+        "requiresDecision": false,
+        "approved": false,
+        "started": true,
+        "completed": true
+      },
+      {
+        "title": "Slack auth read",
+        "instructions": "Follow the saved QA Connected slack1 instructions; no messages or conversation content. Produce the actual receipt summary Markdown.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "7ef094ef-234c-47d4-bc02-7610cf2b6e0a",
+        "teamRunId": "9c4617fb-b478-4e62-a8c5-8af3ce1ac9a8",
+        "taskId": "ea96d216-80bd-44a6-8fcc-5254fffe846a",
+        "requiresDecision": true,
+        "approved": true,
+        "started": true,
+        "completed": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "type": "workflowDraft",
+  "workflow": {
+    "id": "8be2fc7e-5691-4c3d-a2ce-e5b169a2fe6e",
+    "name": "QA Document Workflow",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "prompt": "QA only: draft two short stages using built-in document tools. First save a Markdown report, then require my decision before saving an HTML summary. No external apps, shell, network tools, source changes, messages, publication, deployment or provisioning.",
+    "stages": [
+      {
+        "title": "Save Markdown Report",
+        "instructions": "Use built-in document tools to save the analysis as a Markdown report. No external apps, shell, network tools, source changes, messages, publication, deployment, or provisioning.",
+        "requiresDecision": false,
+        "teamId": null,
+        "requiredFormats": [
+          "md"
+        ]
+      },
+      {
+        "title": "HTML Summary Decision",
+        "instructions": "Review the Markdown report and decide whether to save an HTML summary using built-in tools. No external apps, shell, network tools, source changes, messages, publication, deployment, or provisioning.",
+        "requiresDecision": true,
+        "teamId": null,
+        "requiredFormats": [
+          "html"
+        ]
+      }
+    ],
+    "limits": null
+  }
+}

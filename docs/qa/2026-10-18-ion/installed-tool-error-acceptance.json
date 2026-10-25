@@ -1,0 +1,35 @@
+{
+  "verifiedAt": "2026-10-19T02:34:02.396Z",
+  "runId": "3ea0edfa-625a-4162-834c-665d2ddd0a9d",
+  "provider": "nebius",
+  "model": "nvidia/Nemotron-3_5-Lightning",
+  "status": "completed",
+  "failedProbePreserved": true,
+  "subsequentValidReadSucceeded": true,
+  "failedActivity": {
+    "id": "b03bfb89-c04c-4d9c-a0d2-f690c96554a5",
+    "source_id": "nebius-tool-f826c0c6-3373-426a-b6fc-b7cb931b409b",
+    "kind": "tool",
+    "title": "read file",
+    "tool_name": "read_file",
+    "detail": "{\"error\":\"The system cannot find the file specified. (os error 2)\"}",
+    "arguments": "{\n  \"path\": \"missing-qa-file.txt\"\n}",
+    "output": "{\"error\":\"The system cannot find the file specified. (os error 2)\"}",
+    "failed": true,
+    "complete": true
+  },
+  "publishedArtifact": {
+    "id": "f599c0bd-4501-4210-932a-96540ae6a966",
+    "bytes": 54,
+    "sha256": "e06c1c83cfa6f67eedfa6cd38f93cfb86f149f1841ae824a450197284e03d075",
+    "content": "QA_INSTALLED_TEAM_ERROR_OK\n# Ion QA disposable project"
+  },
+  "usage": {
+    "modelCalls": 7,
+    "consumedTokens": 33932,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  }
+}

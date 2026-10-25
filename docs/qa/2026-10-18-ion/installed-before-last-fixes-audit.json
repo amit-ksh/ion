@@ -1,0 +1,55 @@
+{
+  "verifiedAt": "2026-10-18T23:44:20.638Z",
+  "note": "Native installed restart separately captured. Known-token estimates are not reported charges. Both connections held idle for at least 60 seconds without resubmission.",
+  "profiles": [
+    {
+      "profile": "debug",
+      "verifiedTasks": [],
+      "pages": 1,
+      "nebiusCalls": 60,
+      "inputTokens": 413528,
+      "outputTokens": 13781,
+      "unknownTokenRecords": 0,
+      "unknownCostRecords": 60,
+      "models": [
+        "nvidia/Nemotron-3_5-Lightning"
+      ],
+      "estimatedKnownTokenUsd": 0.028119119999999997,
+      "duplicateSourceIds": false,
+      "idleReadAfterMs": 60123,
+      "idleReadSucceeded": true
+    },
+    {
+      "profile": "installed",
+      "verifiedTasks": [
+        {
+          "id": "f858b40f-0cc3-4386-afc0-a7048c2de841",
+          "provider": "codex",
+          "status": "idle",
+          "marker": "QA_INSTALLED_CODEX_0123_OK",
+          "exactOutput": true
+        },
+        {
+          "id": "93d8853d-ebb4-45ce-a1e3-ebd4c5697cea",
+          "provider": "nebius",
+          "status": "idle",
+          "marker": "QA_INSTALLED_NEBIUS_0123_OK",
+          "exactOutput": true
+        }
+      ],
+      "pages": 1,
+      "nebiusCalls": 1,
+      "inputTokens": 2518,
+      "outputTokens": 17,
+      "unknownTokenRecords": 0,
+      "unknownCostRecords": 1,
+      "models": [
+        "nvidia/Nemotron-3_5-Lightning"
+      ],
+      "estimatedKnownTokenUsd": 0.00015516,
+      "duplicateSourceIds": false,
+      "idleReadAfterMs": 60160,
+      "idleReadSucceeded": true
+    }
+  ]
+}

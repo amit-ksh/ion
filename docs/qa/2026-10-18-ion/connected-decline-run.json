@@ -1,0 +1,211 @@
+{
+  "key": "decline",
+  "verifiedAt": "2026-10-19T03:28:31.237Z",
+  "runId": "d9492605-a088-4f2a-b0c4-8f407bae2755",
+  "status": "completed",
+  "revision": 26,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 8,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 4,
+    "consumedTokens": 14931,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "37c6e867-5a36-46df-b73f-52e5555daf31",
+      "status": "completed",
+      "reason": null,
+      "result": {
+        "summary": "Decline path of the read-only connected-app QA test completed. describe_app_action pinned GMAIL_GET_PROFILE on account ca_V8OriN53zVfq at version 20261018_00 with arguments {\"user_id\":\"me\"}; request_app_action for exactly that account/action/arguments was submitted once. The host user declined (decision 3af4839c-fbad-445c-b22d-497f06d1e398, revision 2). No execution occurred, no provider receipt exists, and the declined action was not re-requested, retried, or substituted. No email or chat content was read and no external mutations were made. QA_CONNECTED_DECLINE_OK documents the decline and the absence of execution.",
+        "artifactIds": [
+          "93907ad5-62c6-41f2-abe5-2c9976efdb5d"
+        ],
+        "checks": [
+          "Host approval gate enforced: GMAIL_GET_PROFILE on ca_V8OriN53zVfq was declined (decision 3af4839c-fbad-445c-b22d-497f06d1e398) and not executed",
+          "No provider receipt: no successful or failure app receipt was produced because approval was declined",
+          "No re-request, retry, substitution, or execution of any other app/action after decline",
+          "No email/chat content read and no external mutation performed"
+        ]
+      },
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_V8OriN53zVfq",
+            "action": "GMAIL_GET_PROFILE",
+            "version": "20261018_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "59d2f5c2-d0c1-4501-8d86-041b3663967d",
+          "host": "local",
+          "status": "completed"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "3af4839c-fbad-445c-b22d-497f06d1e398",
+      "runId": "d9492605-a088-4f2a-b0c4-8f407bae2755",
+      "projectId": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+      "assignmentId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+      "taskId": "d9492605-a088-4f2a-b0c4-8f407bae2755",
+      "agentId": "c40b6ca3-7829-4226-8c81-3848f7bfb088",
+      "definitionRevision": 27,
+      "runRevision": 12,
+      "attemptId": "59d2f5c2-d0c1-4501-8d86-041b3663967d",
+      "host": "local",
+      "title": "Run GMAIL_GET_PROFILE",
+      "proposal": "App action: GMAIL_GET_PROFILE\nConnected account: ca_V8OriN53zVfq\nTool version: 20261018_00\nArguments:\n{\"user_id\":\"me\"}",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_V8OriN53zVfq",
+          "action": "GMAIL_GET_PROFILE",
+          "version": "20261018_00"
+        },
+        "argumentsJson": "{\"user_id\":\"me\"}"
+      },
+      "status": "declined",
+      "revision": 2,
+      "createdAt": 1792380469
+    }
+  ],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 25,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792380457
+      },
+      {
+        "cursor": 26,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792380457
+      },
+      {
+        "cursor": 27,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792380459
+      },
+      {
+        "cursor": 28,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_call",
+        "detail": "Reserved call 9f0763c1-7827-46f6-ba9f-783829f6fa00 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380462
+      },
+      {
+        "cursor": 29,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_usage",
+        "detail": "Call 9f0763c1-7827-46f6-ba9f-783829f6fa00 provider receipt: 2835 input + 109 output tokens",
+        "timestamp": 1792380464
+      },
+      {
+        "cursor": 30,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_call",
+        "detail": "Reserved call f5e6d346-4cb1-4c2f-abdb-ae4d4fc73d7e for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380466
+      },
+      {
+        "cursor": 31,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_usage",
+        "detail": "Call f5e6d346-4cb1-4c2f-abdb-ae4d4fc73d7e provider receipt: 3255 input + 107 output tokens",
+        "timestamp": 1792380469
+      },
+      {
+        "cursor": 32,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "decision_requested",
+        "detail": "3af4839c-fbad-445c-b22d-497f06d1e398",
+        "timestamp": 1792380469
+      },
+      {
+        "cursor": 33,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "decision_answered",
+        "detail": "3af4839c-fbad-445c-b22d-497f06d1e398: declined",
+        "timestamp": 1792380484
+      },
+      {
+        "cursor": 34,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "resumed",
+        "detail": "User decision receipt delivered under a fresh lease generation",
+        "timestamp": 1792380485
+      },
+      {
+        "cursor": 38,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_call",
+        "detail": "Reserved call d1c66872-f9af-486a-83d5-cd79e2cabc9c for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380487
+      },
+      {
+        "cursor": 42,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_usage",
+        "detail": "Call d1c66872-f9af-486a-83d5-cd79e2cabc9c provider receipt: 3756 input + 387 output tokens",
+        "timestamp": 1792380496
+      },
+      {
+        "cursor": 43,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "document",
+        "detail": "Published 93907ad5-62c6-41f2-abe5-2c9976efdb5d",
+        "timestamp": 1792380496
+      },
+      {
+        "cursor": 45,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_call",
+        "detail": "Reserved call 139c6740-892b-4665-be0a-42c8dd152513 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380497
+      },
+      {
+        "cursor": 47,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "model_usage",
+        "detail": "Call 139c6740-892b-4665-be0a-42c8dd152513 provider receipt: 4116 input + 366 output tokens",
+        "timestamp": 1792380503
+      },
+      {
+        "cursor": 48,
+        "workId": "37c6e867-5a36-46df-b73f-52e5555daf31",
+        "event": "reported",
+        "detail": "completed",
+        "timestamp": 1792380503
+      }
+    ]
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "key": "slack1",
+  "verifiedAt": "2026-10-19T03:29:49.202Z",
+  "runId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+  "status": "active",
+  "revision": 19,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 8,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 2,
+    "consumedTokens": 6094,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+      "status": "blocked",
+      "reason": "Composio request failed (HTTP 400 Bad Request). Check your project key and app permissions.",
+      "result": null,
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_8tjHHZD502Un",
+            "action": "SLACK_TEST_AUTH",
+            "version": "20261015_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "6a4eb383-2d6a-4ad8-b820-18fc17da24c3",
+          "host": "local",
+          "status": "blocked"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "58df8184-a548-476b-aa88-9ccfc8d984df",
+      "runId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+      "projectId": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+      "assignmentId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+      "taskId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+      "agentId": "82d14956-633a-4da1-856c-474181e293c4",
+      "definitionRevision": 27,
+      "runRevision": 12,
+      "attemptId": "6a4eb383-2d6a-4ad8-b820-18fc17da24c3",
+      "host": "local",
+      "title": "Run SLACK_TEST_AUTH",
+      "proposal": "App action: SLACK_TEST_AUTH\nConnected account: ca_8tjHHZD502Un\nTool version: 20261015_00\nArguments:\n{}",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_8tjHHZD502Un",
+          "action": "SLACK_TEST_AUTH",
+          "version": "20261015_00"
+        },
+        "argumentsJson": "{}"
+      },
+      "status": "approved",
+      "revision": 2,
+      "createdAt": 1792380498
+    }
+  ],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 35,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792380486
+      },
+      {
+        "cursor": 36,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792380486
+      },
+      {
+        "cursor": 37,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792380487
+      },
+      {
+        "cursor": 39,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "model_call",
+        "detail": "Reserved call d93bf654-b3f1-499d-b9ff-661877b241af for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380490
+      },
+      {
+        "cursor": 40,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "model_usage",
+        "detail": "Call d93bf654-b3f1-499d-b9ff-661877b241af provider receipt: 2827 input + 126 output tokens",
+        "timestamp": 1792380493
+      },
+      {
+        "cursor": 41,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "model_call",
+        "detail": "Reserved call 58fa14b5-ec24-421e-8da7-e87d7579e507 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380495
+      },
+      {
+        "cursor": 44,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "model_usage",
+        "detail": "Call 58fa14b5-ec24-421e-8da7-e87d7579e507 provider receipt: 3028 input + 113 output tokens",
+        "timestamp": 1792380497
+      },
+      {
+        "cursor": 46,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "decision_requested",
+        "detail": "58df8184-a548-476b-aa88-9ccfc8d984df",
+        "timestamp": 1792380498
+      },
+      {
+        "cursor": 49,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "decision_answered",
+        "detail": "58df8184-a548-476b-aa88-9ccfc8d984df: approved",
+        "timestamp": 1792380521
+      },
+      {
+        "cursor": 50,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "resumed",
+        "detail": "User decision receipt delivered under a fresh lease generation",
+        "timestamp": 1792380522
+      },
+      {
+        "cursor": 51,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "app_action_started",
+        "detail": "58df8184-a548-476b-aa88-9ccfc8d984df",
+        "timestamp": 1792380524
+      },
+      {
+        "cursor": 54,
+        "workId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "event": "reported",
+        "detail": "blocked",
+        "timestamp": 1792380524
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "verifiedAt": "2026-10-19T09:58:00.724Z",
+  "profiles": [
+    {
+      "profile": "debug",
+      "pendingDecisions": [],
+      "nonterminalTeams": [],
+      "routines": [
+        {
+          "id": "4bde4829-d88f-453c-9b55-ca5e64c29c5c",
+          "name": "QA Paused Routine",
+          "paused": true,
+          "nextRun": 0
+        }
+      ],
+      "settings": {}
+    },
+    {
+      "profile": "installed",
+      "pendingDecisions": [],
+      "nonterminalTeams": [],
+      "routines": [],
+      "settings": {}
+    }
+  ]
+}

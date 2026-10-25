@@ -1,0 +1,152 @@
+{
+  "type": "teamRun",
+  "snapshot": {
+    "workspace": null,
+    "id": "13812cbf-7f3a-47fd-bfb5-79844fa2b231",
+    "rootTaskId": "13812cbf-7f3a-47fd-bfb5-79844fa2b231",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "definitionRevision": 27,
+    "revision": 17,
+    "status": "active",
+    "team": {
+      "id": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+      "name": "QA Document Team",
+      "objective": "Use built-in save_document to produce concise HTML, Markdown, text, CSV, JSON, SVG, XML and YAML originals. Report their artifact IDs. Do not edit source files or use shell/network/apps.",
+      "limits": {
+        "maxWorkItems": 8,
+        "maxParallelTasks": 1,
+        "maxDepth": 3,
+        "maxAttempts": 1,
+        "maxModelCalls": 24,
+        "maxTokens": 2200000,
+        "requireChildReview": true,
+        "maxReworkRounds": 1,
+        "timeoutSeconds": 600
+      },
+      "members": [
+        {
+          "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "parentId": null
+        }
+      ]
+    },
+    "profiles": [
+      {
+        "id": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "name": "QA Evidence",
+        "expertise": "Generate concise evidence documents",
+        "instructions": "Use only built-in document tools. Save a small Markdown report containing QA_CHILD_OK and one JSON document with {\"ready\":true}. Return their artifact IDs with report_result. Preserve source files. No shell, network tools, connected apps, publishing, deployment or infrastructure.",
+        "provider": "nebius",
+        "model": "nvidia/Nemotron-3_5-Lightning",
+        "expectedOutput": "",
+        "execution": {
+          "environment": "local",
+          "sandboxTarget": null,
+          "localFallback": true
+        },
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "maxParallelTasks": 1
+      }
+    ],
+    "limits": {
+      "maxWorkItems": 8,
+      "maxParallelTasks": 1,
+      "maxDepth": 3,
+      "maxAttempts": 1,
+      "maxModelCalls": 24,
+      "maxTokens": 2200000,
+      "requireChildReview": true,
+      "maxReworkRounds": 1,
+      "timeoutSeconds": 600
+    },
+    "usage": {
+      "modelCalls": 2,
+      "consumedTokens": 9719,
+      "reservedTokens": 0,
+      "unknownCalls": 0,
+      "unmeteredCalls": 0,
+      "allowanceViolations": 0
+    },
+    "access": {
+      "workspaceRead": true,
+      "workspaceWrite": false,
+      "shell": false,
+      "network": false,
+      "appActions": []
+    },
+    "createdAt": 1792337256,
+    "deadline": 1792337856,
+    "work": [
+      {
+        "canResume": false,
+        "canReconcile": true,
+        "id": "20aee61f-5a47-41df-9314-08840ae4d5f3",
+        "taskId": "13812cbf-7f3a-47fd-bfb5-79844fa2b231",
+        "parentId": null,
+        "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "objective": "QA decision test. Your first and only initial tool must be request_decision, title \"QA harmless document decision\", proposal \"May I save a short Markdown report in Ion with QA_DECISION_OK? This does not change source files or use external apps.\" Await the actual human answer. If approved, save that Markdown and report_result; if declined, report_blocker. No shell, workspace writes, network tools, apps or external effects.",
+        "expectedOutput": "",
+        "outputContract": {
+          "minimumDocuments": 0,
+          "requiredFormats": [],
+          "requiredChecks": []
+        },
+        "requiresReview": false,
+        "reworkOf": null,
+        "review": null,
+        "dependencies": [],
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "status": "blocked",
+        "reason": "User declined the QA document decision proposal",
+        "attempts": [
+          {
+            "id": "6ff5c856-ca10-4fdd-86c3-344322883be0",
+            "environment": "local",
+            "host": "local",
+            "fallbackReason": null,
+            "startedAt": 1792337257,
+            "leaseExpiresAt": 1792337533,
+            "generation": 2,
+            "status": "blocked"
+          }
+        ],
+        "result": null
+      }
+    ],
+    "decisions": [
+      {
+        "id": "4f6c22e3-fd8d-4b2b-9f50-3683a4a944cf",
+        "runId": "13812cbf-7f3a-47fd-bfb5-79844fa2b231",
+        "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+        "assignmentId": "20aee61f-5a47-41df-9314-08840ae4d5f3",
+        "taskId": "13812cbf-7f3a-47fd-bfb5-79844fa2b231",
+        "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "definitionRevision": 27,
+        "runRevision": 8,
+        "attemptId": "6ff5c856-ca10-4fdd-86c3-344322883be0",
+        "host": "local",
+        "title": "QA harmless document decision",
+        "proposal": "May I save a short Markdown report in Ion with QA_DECISION_OK? This does not change source files or use external apps.",
+        "appAction": null,
+        "status": "declined",
+        "revision": 2,
+        "createdAt": 1792337261
+      }
+    ],
+    "sourcePrompt": "@team:{QA Document Team} QA decision test. Your first and only initial tool must be request_decision, title \"QA harmless document decision\", proposal \"May I save a short Markdown report in Ion with QA_DECISION_OK? This does not change source files or use external apps.\" Await the actual human answer. If approved, save that Markdown and report_result; if declined, report_blocker. No shell, workspace writes, network tools, apps or external effects.",
+    "inputs": [],
+    "followUps": []
+  }
+}

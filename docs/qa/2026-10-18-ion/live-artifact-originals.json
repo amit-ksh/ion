@@ -1,0 +1,98 @@
+{
+  "runId": "dbae367e-6da8-44e4-9563-a78ad9d2a2e8",
+  "artifacts": [
+    {
+      "id": "0dcbc2d1-82f6-4ed0-bded-6e97d1aeef65",
+      "name": "QA_DOCUMENT_OK.html",
+      "format": "html",
+      "bytes": 62,
+      "sha256": "8001964190e50c5473b089f68a5a4c4c4431fd3034f2bad433ff1df45258604f",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "2f4bb96f-7ded-4071-b02b-a4b22bc0b4b3",
+      "name": "QA_DOCUMENT_OK.csv",
+      "format": "csv",
+      "bytes": 32,
+      "sha256": "ea0ddc92cb04e54c0b379204b2e42be3f1733abe4a8ec2a254a427bb4f461349",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "4f6737b9-125f-42d3-bf8d-8361ea6faf2d",
+      "name": "QA_DOCUMENT_OK.txt",
+      "format": "txt",
+      "bytes": 14,
+      "sha256": "7f61e858616cdc1c6cc6c2da665d4762fd0dd173727a81ad739daa74eec67a17",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "59887126-caa9-458f-95d4-df6d50aedeb4",
+      "name": "QA_DOCUMENT_OK.svg",
+      "format": "svg",
+      "bytes": 127,
+      "sha256": "e3f6a8b587b816d46672dfe6e03cd089c3e4d07058559a9ab5253e0fe8c32157",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "63e3504e-f9be-4ef3-98e0-ac5c7bb0fabd",
+      "name": "qa-large.html",
+      "format": "html",
+      "bytes": 2100069,
+      "sha256": "d8fe024d62a73ca2f66f60ed986e7314dc1f561a70231f9eed78f825d877a910",
+      "originalFixtureBytesMatch": true,
+      "publicationKind": "Agent captured disposable fixture"
+    },
+    {
+      "id": "6d845a4d-7870-4b67-a090-f302db6cc734",
+      "name": "qa-native.pdf",
+      "format": "pdf",
+      "bytes": 584,
+      "sha256": "1a6940d45161a6decdb2b5e0c8f9c3a10dd4a2c9da321556412394189f98cc1f",
+      "originalFixtureBytesMatch": true,
+      "publicationKind": "Agent captured disposable fixture"
+    },
+    {
+      "id": "7f18990d-4427-4639-bb9c-a2da1a85dcaf",
+      "name": "QA_DOCUMENT_OK.md",
+      "format": "md",
+      "bytes": 83,
+      "sha256": "48f09634a93a763748d9cdc79cebf49969f9e577be655881555928dd5870aa9e",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "8c278bad-c5ff-4bd1-aed8-0f33c2014fe1",
+      "name": "QA_DOCUMENT_OK.yaml",
+      "format": "yaml",
+      "bytes": 33,
+      "sha256": "eba62b8dffa55ff628fa0d2633ac9d3ef5d10e42916a210f458503a03d136472",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "c09f2fb8-3e65-4fba-b5de-9362554a7950",
+      "name": "QA_DOCUMENT_OK.json",
+      "format": "json",
+      "bytes": 44,
+      "sha256": "385dc007e72f81287a2495192bf18235179227a20a51eca21f5156239d4674f3",
+      "originalFixtureBytesMatch": null,
+      "publicationKind": "Agent generated original"
+    },
+    {
+      "id": "ee46917b-7c0e-426d-a7c7-d5e040cc6441",
+      "name": "qa-large.txt",
+      "format": "txt",
+      "bytes": 90035,
+      "sha256": "66b39356fb26bb4af195e917810948274dbd3a33bfac9a773abfb2b6cae2d735",
+      "originalFixtureBytesMatch": true,
+      "publicationKind": "Agent captured disposable fixture"
+    }
+  ],
+  "missingRequestedFormats": [
+    "xml"
+  ]
+}

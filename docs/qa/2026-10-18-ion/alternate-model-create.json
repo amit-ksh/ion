@@ -1,0 +1,150 @@
+{
+  "verifiedAt": "2026-10-19T02:03:20.024Z",
+  "snapshot": {
+    "workspace": {
+      "path": "\\\\?\\D:\\personal\\apps\\waku\\temp\\ion-team-workspaces\\136ee231-ff5c-4778-ae2c-0a44e60017cb",
+      "sourcePath": "\\\\?\\D:\\personal\\apps\\waku\\.waku-cache\\ion-qa-handoff-20261019",
+      "branch": "ion/team-136ee231ff5c4778ae2c0a44e60017cb",
+      "baseCommit": "69258789fc4e8ab96aa2bc4eefe36b044a506721"
+    },
+    "id": "136ee231-ff5c-4778-ae2c-0a44e60017cb",
+    "rootTaskId": "136ee231-ff5c-4778-ae2c-0a44e60017cb",
+    "projectId": "2a454c73-b691-4512-affd-eec1c3ff0f06",
+    "definitionRevision": 45,
+    "revision": 25,
+    "status": "completed",
+    "team": {
+      "id": "93042426-c55a-4c8e-a277-344ffeff6bdd",
+      "name": "QA Alternate Create Team",
+      "objective": "One bounded file-creation comparison using the exact typed JSON tool arguments. Verify actual evidence.",
+      "limits": {
+        "maxWorkItems": 2,
+        "maxParallelTasks": 1,
+        "maxDepth": 1,
+        "maxAttempts": 1,
+        "maxModelCalls": 8,
+        "maxTokens": 2200000,
+        "requireChildReview": true,
+        "maxReworkRounds": 0,
+        "timeoutSeconds": 300
+      },
+      "members": [
+        {
+          "agentId": "43d235d9-9e20-4d88-998d-167025f0949d",
+          "parentId": null
+        }
+      ]
+    },
+    "profiles": [
+      {
+        "id": "43d235d9-9e20-4d88-998d-167025f0949d",
+        "name": "QA Alternate Creator",
+        "expertise": "Bounded isolated QA file edits and evidence",
+        "instructions": "Use only read_file, write_file, save_document and report_result. Create exactly one file qa-created.txt in the isolated workspace with content QA_ALTERNATE_CREATE_OK using old_content actual JSON null. Never change README, sentinel or qa-handoff.txt. Read the created file and verify exact bytes before saving qa-alternate-create.md containing QA_ALTERNATE_CREATE_OK and reporting its actual artifact. On any tool error immediately report_blocker without claiming success. No shell, network tools, apps, messages, publish, deploy, provisioning or source integration.",
+        "provider": "nebius",
+        "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "expectedOutput": "",
+        "execution": {
+          "environment": "local",
+          "sandboxTarget": null,
+          "localFallback": true
+        },
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": true,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "maxParallelTasks": 1
+      }
+    ],
+    "limits": {
+      "maxWorkItems": 2,
+      "maxParallelTasks": 1,
+      "maxDepth": 1,
+      "maxAttempts": 1,
+      "maxModelCalls": 8,
+      "maxTokens": 2200000,
+      "requireChildReview": true,
+      "maxReworkRounds": 0,
+      "timeoutSeconds": 300
+    },
+    "usage": {
+      "modelCalls": 4,
+      "consumedTokens": 18388,
+      "reservedTokens": 0,
+      "unknownCalls": 0,
+      "unmeteredCalls": 0,
+      "allowanceViolations": 0
+    },
+    "access": {
+      "workspaceRead": true,
+      "workspaceWrite": true,
+      "shell": false,
+      "network": false,
+      "appActions": []
+    },
+    "createdAt": 1792375357,
+    "deadline": 1792375657,
+    "work": [
+      {
+        "canResume": false,
+        "canReconcile": false,
+        "id": "06fd6094-4a08-4c39-8200-e10c72cb035e",
+        "taskId": "136ee231-ff5c-4778-ae2c-0a44e60017cb",
+        "parentId": null,
+        "agentId": "43d235d9-9e20-4d88-998d-167025f0949d",
+        "objective": "QA only: create qa-created.txt containing exactly QA_ALTERNATE_CREATE_OK with no newline. Supply JSON null for old_content, read and verify the file, save the Markdown evidence, and report_result. Never integrate into source. All other tools/effects are prohibited.",
+        "expectedOutput": "",
+        "outputContract": {
+          "minimumDocuments": 0,
+          "requiredFormats": [],
+          "requiredChecks": []
+        },
+        "requiresReview": false,
+        "reworkOf": null,
+        "review": null,
+        "dependencies": [],
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": true,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "status": "completed",
+        "reason": null,
+        "attempts": [
+          {
+            "id": "84d1e5ba-eab0-4edf-9a26-0de6567b31d2",
+            "environment": "local",
+            "host": "local",
+            "fallbackReason": null,
+            "startedAt": 1792375360,
+            "leaseExpiresAt": 1792375558,
+            "generation": 0,
+            "status": "completed"
+          }
+        ],
+        "result": {
+          "summary": "Created exactly one file, qa-created.txt, in the isolated team run workspace with content QA_ALTERNATE_CREATE_OK (write receipt edit_id 0d4e8dde-fd99-491d-96a7-e12614e67e3e, status applied, 22 bytes) using old_content actual JSON null. Read the file back and verified the content is exactly QA_ALTERNATE_CREATE_OK with no trailing newline. Published Markdown evidence artifact 2b64f57b-dc27-418d-9b24-a423780ad53a containing the marker and verification detail. No README, sentinel or qa-handoff.txt changes; no source integration; no shell, network, app or other effects.",
+          "artifactIds": [
+            "2b64f57b-dc27-418d-9b24-a423780ad53a"
+          ],
+          "checks": [
+            "qa-created.txt created with old_content JSON null, edit_id 0d4e8dde-fd99-491d-96a7-e12614e67e3e, status applied, 22 bytes",
+            "Read-back of qa-created.txt returned exactly QA_ALTERNATE_CREATE_OK with no trailing newline (truncated: false)",
+            "README, sentinel and qa-handoff.txt untouched; no source checkout modification"
+          ]
+        }
+      }
+    ],
+    "decisions": [],
+    "sourcePrompt": "@team:93042426-c55a-4c8e-a277-344ffeff6bdd QA only: create qa-created.txt containing exactly QA_ALTERNATE_CREATE_OK with no newline. Supply JSON null for old_content, read and verify the file, save the Markdown evidence, and report_result. Never integrate into source. All other tools/effects are prohibited.",
+    "inputs": [],
+    "followUps": []
+  },
+  "exactCreatedFile": true,
+  "sourceUnchanged": true
+}

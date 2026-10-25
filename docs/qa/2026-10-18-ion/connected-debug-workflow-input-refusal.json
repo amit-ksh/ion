@@ -1,0 +1,57 @@
+{
+  "type": "automationRun",
+  "run": {
+    "id": "88527b2b-b6e1-4448-8181-7fe4a4d72f6c",
+    "name": "QA Connected Nebius Workflow",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "workflowId": "9d14344b-518b-41a8-bb9c-fb5151f67961",
+    "routineId": null,
+    "definitionRevision": 67,
+    "revision": 5,
+    "createdAt": 1792396387,
+    "scheduledAt": null,
+    "deadline": 1792396987,
+    "status": "blocked",
+    "reason": "The team lead needs workspace read access to use attached inputs",
+    "currentStage": 1,
+    "stages": [
+      {
+        "route": {
+          "target": {
+            "type": "stage",
+            "index": 1
+          },
+          "artifactId": null,
+          "sha256": null,
+          "matched": null
+        },
+        "title": "Gmail profile read",
+        "instructions": "Follow the saved QA Connected gmail instructions; no messages or mailbox content. Produce the actual receipt summary Markdown.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "c12b50a0-299b-464a-99d6-052f81d9a96b",
+        "teamRunId": "a0319c68-e550-44a8-9eb2-ec952dd2e7b8",
+        "taskId": "170ca3ff-1354-4b05-882b-e7c4b13f29e4",
+        "requiresDecision": false,
+        "approved": false,
+        "started": true,
+        "completed": true
+      },
+      {
+        "title": "Slack auth read",
+        "instructions": "Follow the saved QA Connected slack1 instructions; no messages or conversation content. Produce the actual receipt summary Markdown.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "00853442-f519-470a-9830-196aa4534e17",
+        "teamRunId": "7010d27d-2a63-4a0e-998e-59c1405d96ad",
+        "taskId": "c76d16a1-45a7-47d0-b656-c9fc96fdc13f",
+        "requiresDecision": true,
+        "approved": true,
+        "started": false,
+        "completed": false
+      }
+    ]
+  }
+}

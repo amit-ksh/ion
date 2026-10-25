@@ -1,0 +1,27 @@
+{
+  "verifiedAt": "2026-10-19T08:05:47.389Z",
+  "key": "ungranted",
+  "runId": "ee53bb6a-2d62-43ba-a883-81af42e549da",
+  "status": "completed",
+  "usage": {
+    "modelCalls": 3,
+    "consumedTokens": 9804,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "decisions": [],
+  "appStarted": 0,
+  "appSettled": 0,
+  "artifacts": [
+    {
+      "id": "d612c438-a6b1-40a9-968b-e52406b8681b",
+      "name": "QA_CONNECTED_UNGRANTED_OK",
+      "format": "md",
+      "bytes": 1182,
+      "sha256": "310d2ae51b1e62798773eee6e918a3a5a3e6c63cc9ce51ec455a4b5ceda54068",
+      "expectedMarker": true
+    }
+  ]
+}

@@ -1,0 +1,238 @@
+[
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 1,
+    "event": {
+      "kind": "promptSubmitted",
+      "payload": {
+        "message": "Reply with exactly QA_CODEX_CANDIDATE_OK. Do not call any tools, edit files, invoke teams, browse, publish, deploy, send external messages or use external apps. This is a harmless integration test.",
+        "turnId": "a5666553-bf2c-4de1-870c-41b80b7534c6",
+        "messageId": "40d06202-81b5-43de-9cec-8d01e9af4b1c"
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 2,
+    "event": {
+      "kind": "connected",
+      "payload": {
+        "provider": "codex",
+        "threadId": "01a14ebb-d627-73c2-bb5d-5425e93cd8d5"
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 3,
+    "event": {
+      "kind": "goalUpdated",
+      "payload": null
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 4,
+    "event": {
+      "kind": "error",
+      "payload": "GitLab: MCP client for `GitLab` failed to start: MCP startup failed: handshaking with MCP server failed: Send message error Transport [codex_rmcp_client::event_notification_transport::EventNotificationTransport<rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client_adapter::StreamableHttpClientAdapter>>>] error: unexpected server response: HTTP 422: <!DOCTYPE html>\n<html>\n<head>\n  <meta content=\"width=device-width, initial-scale=1\" name=\"viewport\">\n  <title>The change you requested was rejected (422)</title>\n  <style>\n    body {\n      color: #333238;\n      text-align: center;\n      font-family: \"Nunito Sans\", -apple-system, \".SFNSText-Regular\", \"San Francisco\", BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n    }\n\n    h1 {\n      font-size: 1.75rem;\n      line-height: 2.25rem;\n      margin: 1rem 0;\n    }\n\n    p {\n      margin-bottom: .5rem;\n    }\n\n    img {\n      display: block;\n      margin: 0 auto;\n    }\n\n    a {\n      text-decoration: none;\n      color: #1068bf;\n    }\n\n    a:hover {\n      text-decoration: underline;\n    }\n\n    .error-container {\n      max-width: 65ch;\n      margin: auto;\n      padding: 1rem 0;\n    }\n\n    .action-container {\n      margin-top: 1.5rem;\n    }\n\n    .go-back {\n      display: none;\n    }\n  </style>\n</head>\n\n<body>\n  <div class=\"error-container\">\n    <img src='/-/error-illustrations/error-422-lg.svg' alt=\"422 error\"/>\n    <h1>422: The change you requested was rejected</h1>\n    <p>Make sure you have access to the thing you tried to change.</p>\n    <p>Please contact your GitLab administrator if you think this is a mistake.</p>\n    <div class=\"action-container\">\n      <a href=\"javascript:history.back()\" class=\"js-go-back go-back\">Go back</a>\n    </div>\n  </div>\n  <script>\n    (function () {\n      var goBack = document.querySelector('.js-go-back');\n\n      if (history.length > 1) {\n        goBack.style.display = 'inline';\n      }\n    })();\n\n  </script>\n</body>\n</html>\n, when send initialize request: Send message error Transport [codex_rmcp_client::event_notification_transport::EventNotificationTransport<rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client_adapter::StreamableHttpClientAdapter>>>] error: unexpected server response: HTTP 422: <!DOCTYPE html>\n<html>\n<head>\n  <meta content=\"width=device-width, initial-scale=1\" name=\"viewport\">\n  <title>The change you requested was rejected (422)</title>\n  <style>\n    body {\n      color: #333238;\n      text-align: center;\n      font-family: \"Nunito Sans\", -apple-system, \".SFNSText-Regular\", \"San Francisco\", BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n    }\n\n    h1 {\n      font-size: 1.75rem;\n      line-height: 2.25rem;\n      margin: 1rem 0;\n    }\n\n    p {\n      margin-bottom: .5rem;\n    }\n\n    img {\n      display: block;\n      margin: 0 auto;\n    }\n\n    a {\n      text-decoration: none;\n      color: #1068bf;\n    }\n\n    a:hover {\n      text-decoration: underline;\n    }\n\n    .error-container {\n      max-width: 65ch;\n      margin: auto;\n      padding: 1rem 0;\n    }\n\n    .action-container {\n      margin-top: 1.5rem;\n    }\n\n    .go-back {\n      display: none;\n    }\n  </style>\n</head>\n\n<body>\n  <div class=\"error-container\">\n    <img src='/-/error-illustrations/error-422-lg.svg' alt=\"422 error\"/>\n    <h1>422: The change you requested was rejected</h1>\n    <p>Make sure you have access to the thing you tried to change.</p>\n    <p>Please contact your GitLab administrator if you think this is a mistake.</p>\n    <div class=\"action-container\">\n      <a href=\"javascript:history.back()\" class=\"js-go-back go-back\">Go back</a>\n    </div>\n  </div>\n  <script>\n    (function () {\n      var goBack = document.querySelector('.js-go-back');\n\n      if (history.length > 1) {\n        goBack.style.display = 'inline';\n      }\n    })();\n\n  </script>\n</body>\n</html>\n, when send initialize request"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 5,
+    "event": {
+      "kind": "turnStarted",
+      "payload": null
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 6,
+    "event": {
+      "kind": "error",
+      "payload": "GitLab: MCP client for `GitLab` failed to start: MCP startup failed: handshaking with MCP server failed: Send message error Transport [codex_rmcp_client::event_notification_transport::EventNotificationTransport<rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client_adapter::StreamableHttpClientAdapter>>>] error: unexpected server response: HTTP 422: <!DOCTYPE html>\n<html>\n<head>\n  <meta content=\"width=device-width, initial-scale=1\" name=\"viewport\">\n  <title>The change you requested was rejected (422)</title>\n  <style>\n    body {\n      color: #333238;\n      text-align: center;\n      font-family: \"Nunito Sans\", -apple-system, \".SFNSText-Regular\", \"San Francisco\", BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n    }\n\n    h1 {\n      font-size: 1.75rem;\n      line-height: 2.25rem;\n      margin: 1rem 0;\n    }\n\n    p {\n      margin-bottom: .5rem;\n    }\n\n    img {\n      display: block;\n      margin: 0 auto;\n    }\n\n    a {\n      text-decoration: none;\n      color: #1068bf;\n    }\n\n    a:hover {\n      text-decoration: underline;\n    }\n\n    .error-container {\n      max-width: 65ch;\n      margin: auto;\n      padding: 1rem 0;\n    }\n\n    .action-container {\n      margin-top: 1.5rem;\n    }\n\n    .go-back {\n      display: none;\n    }\n  </style>\n</head>\n\n<body>\n  <div class=\"error-container\">\n    <img src='/-/error-illustrations/error-422-lg.svg' alt=\"422 error\"/>\n    <h1>422: The change you requested was rejected</h1>\n    <p>Make sure you have access to the thing you tried to change.</p>\n    <p>Please contact your GitLab administrator if you think this is a mistake.</p>\n    <div class=\"action-container\">\n      <a href=\"javascript:history.back()\" class=\"js-go-back go-back\">Go back</a>\n    </div>\n  </div>\n  <script>\n    (function () {\n      var goBack = document.querySelector('.js-go-back');\n\n      if (history.length > 1) {\n        goBack.style.display = 'inline';\n      }\n    })();\n\n  </script>\n</body>\n</html>\n, when send initialize request: Send message error Transport [codex_rmcp_client::event_notification_transport::EventNotificationTransport<rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client_adapter::StreamableHttpClientAdapter>>>] error: unexpected server response: HTTP 422: <!DOCTYPE html>\n<html>\n<head>\n  <meta content=\"width=device-width, initial-scale=1\" name=\"viewport\">\n  <title>The change you requested was rejected (422)</title>\n  <style>\n    body {\n      color: #333238;\n      text-align: center;\n      font-family: \"Nunito Sans\", -apple-system, \".SFNSText-Regular\", \"San Francisco\", BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n    }\n\n    h1 {\n      font-size: 1.75rem;\n      line-height: 2.25rem;\n      margin: 1rem 0;\n    }\n\n    p {\n      margin-bottom: .5rem;\n    }\n\n    img {\n      display: block;\n      margin: 0 auto;\n    }\n\n    a {\n      text-decoration: none;\n      color: #1068bf;\n    }\n\n    a:hover {\n      text-decoration: underline;\n    }\n\n    .error-container {\n      max-width: 65ch;\n      margin: auto;\n      padding: 1rem 0;\n    }\n\n    .action-container {\n      margin-top: 1.5rem;\n    }\n\n    .go-back {\n      display: none;\n    }\n  </style>\n</head>\n\n<body>\n  <div class=\"error-container\">\n    <img src='/-/error-illustrations/error-422-lg.svg' alt=\"422 error\"/>\n    <h1>422: The change you requested was rejected</h1>\n    <p>Make sure you have access to the thing you tried to change.</p>\n    <p>Please contact your GitLab administrator if you think this is a mistake.</p>\n    <div class=\"action-container\">\n      <a href=\"javascript:history.back()\" class=\"js-go-back go-back\">Go back</a>\n    </div>\n  </div>\n  <script>\n    (function () {\n      var goBack = document.querySelector('.js-go-back');\n\n      if (history.length > 1) {\n        goBack.style.display = 'inline';\n      }\n    })();\n\n  </script>\n</body>\n</html>\n, when send initialize request"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 7,
+    "event": {
+      "kind": "textDelta",
+      "payload": "QA"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 8,
+    "event": {
+      "kind": "textDelta",
+      "payload": "_CODE"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 9,
+    "event": {
+      "kind": "textDelta",
+      "payload": "X"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 10,
+    "event": {
+      "kind": "textDelta",
+      "payload": "_C"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 11,
+    "event": {
+      "kind": "textDelta",
+      "payload": "AND"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 12,
+    "event": {
+      "kind": "textDelta",
+      "payload": "ID"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 13,
+    "event": {
+      "kind": "textDelta",
+      "payload": "ATE"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 14,
+    "event": {
+      "kind": "textDelta",
+      "payload": "_OK"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 15,
+    "event": {
+      "kind": "usageUpdated",
+      "payload": {
+        "contextTokens": 17820,
+        "contextWindow": 258400
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 16,
+    "event": {
+      "kind": "planUsageUpdated",
+      "payload": {
+        "planLabel": "Plus",
+        "windows": [
+          {
+            "label": "5-hour limit",
+            "percent": 80,
+            "resetsAt": 1792335371
+          },
+          {
+            "label": "Weekly limit",
+            "percent": 28,
+            "resetsAt": 1792900982
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 17,
+    "event": {
+      "kind": "turnFinished",
+      "payload": {
+        "success": true,
+        "summary": null
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 18,
+    "event": {
+      "kind": "autoTitleUpdated",
+      "payload": "QA_CODEX_CANDIDATE_OK"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "b0e39991-99af-4897-ba2b-6173487d72c5",
+    "runtimeId": "104bbb5f-8c81-4f5f-9318-258d92d63bc5",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 19,
+    "event": {
+      "kind": "autoTitleUpdated",
+      "payload": "QA_CODEX_CANDIDATE_OK"
+    }
+  }
+]

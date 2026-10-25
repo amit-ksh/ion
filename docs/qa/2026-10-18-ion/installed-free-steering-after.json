@@ -1,0 +1,36 @@
+{
+  "verifiedAt": "2026-10-19T10:14:55.800Z",
+  "taskId": "2fc5511e-c0f7-476a-b75c-59f292d1854c",
+  "provider": "openCode",
+  "model": "opencode/deepseek-v4.1-flash-free",
+  "status": "idle",
+  "base": {
+    "turnId": "5965ee9b-732f-482c-9f84-aa41efc1c9e1"
+  },
+  "turn": {
+    "id": "5965ee9b-732f-482c-9f84-aa41efc1c9e1",
+    "turn_count": 3,
+    "status": "completed",
+    "provider_turn_started": true,
+    "started_at": 1792404789,
+    "completed_at": 1792404886,
+    "checkpoint": {
+      "turn_count": 3,
+      "git_ref": "refs/waku/session-2fc5511e-c0f7-476a-b75c-59f292d1854c-turn-3",
+      "status": "unavailable",
+      "files": [],
+      "additions": 0,
+      "deletions": 0,
+      "created_at": 1792404886
+    }
+  },
+  "steer": {
+    "turnId": "5965ee9b-732f-482c-9f84-aa41efc1c9e1",
+    "accepted": true
+  },
+  "answer": {
+    "turnId": "5965ee9b-732f-482c-9f84-aa41efc1c9e1",
+    "exact": true
+  },
+  "queuedMessages": []
+}

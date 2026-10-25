@@ -1,0 +1,37 @@
+{
+  "verifiedAt": "2026-10-19T15:37:25.3814474+05:30",
+  "processes": [
+    {
+      "ProcessId": 51540,
+      "ParentProcessId": 46260,
+      "Name": "bun.exe",
+      "ExecutablePath": "C:\\Users\\ksami\\.bun\\bin\\bun.exe"
+    },
+    {
+      "ProcessId": 22304,
+      "ParentProcessId": 21964,
+      "Name": "waku.exe",
+      "ExecutablePath": "C:\\Users\\ksami\\AppData\\Local\\Programs\\Waku\\waku.exe"
+    },
+    {
+      "ProcessId": 39364,
+      "ParentProcessId": 22304,
+      "Name": "waku-daemon.exe",
+      "ExecutablePath": "C:\\Users\\ksami\\AppData\\Local\\Programs\\Waku\\waku-daemon.exe"
+    },
+    {
+      "ProcessId": 61860,
+      "ParentProcessId": 51540,
+      "Name": "waku.exe",
+      "ExecutablePath": "D:\\personal\\apps\\waku\\target\\debug\\waku.exe"
+    },
+    {
+      "ProcessId": 50476,
+      "ParentProcessId": 61860,
+      "Name": "waku-debug-daemon.exe",
+      "ExecutablePath": "D:\\personal\\apps\\waku\\target\\debug\\waku-debug-daemon.exe"
+    }
+  ],
+  "watchers": 1,
+  "speechProcesses": 0
+}

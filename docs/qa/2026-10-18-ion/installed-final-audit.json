@@ -1,0 +1,69 @@
+{
+  "verifiedAt": "2026-10-19T01:07:23.658Z",
+  "note": "Native installed restart separately captured. Known-token estimates are not reported charges. Both connections held idle for at least 60 seconds without resubmission.",
+  "profiles": [
+    {
+      "profile": "debug",
+      "verifiedTasks": [],
+      "pages": 1,
+      "nebiusCalls": 60,
+      "inputTokens": 413528,
+      "outputTokens": 13781,
+      "unknownTokenRecords": 0,
+      "unknownCostRecords": 60,
+      "models": [
+        "nvidia/Nemotron-3_5-Lightning"
+      ],
+      "estimatedKnownTokenUsd": 0.028119119999999997,
+      "duplicateSourceIds": false,
+      "idleReadAfterMs": 60097,
+      "idleReadSucceeded": true
+    },
+    {
+      "profile": "installed",
+      "verifiedTasks": [
+        {
+          "id": "f858b40f-0cc3-4386-afc0-a7048c2de841",
+          "provider": "codex",
+          "status": "idle",
+          "marker": "QA_INSTALLED_CODEX_0123_OK",
+          "exactOutput": true
+        },
+        {
+          "id": "93d8853d-ebb4-45ce-a1e3-ebd4c5697cea",
+          "provider": "nebius",
+          "status": "idle",
+          "marker": "QA_INSTALLED_NEBIUS_0123_OK",
+          "exactOutput": true
+        },
+        {
+          "id": "f858b40f-0cc3-4386-afc0-a7048c2de841",
+          "provider": "codex",
+          "status": "idle",
+          "marker": "QA_FINAL_PACKAGE_CODEX_OK",
+          "exactOutput": true
+        },
+        {
+          "id": "93d8853d-ebb4-45ce-a1e3-ebd4c5697cea",
+          "provider": "nebius",
+          "status": "idle",
+          "marker": "QA_FINAL_PACKAGE_NEBIUS_OK",
+          "exactOutput": true
+        }
+      ],
+      "pages": 1,
+      "nebiusCalls": 2,
+      "inputTokens": 5099,
+      "outputTokens": 30,
+      "unknownTokenRecords": 0,
+      "unknownCostRecords": 2,
+      "models": [
+        "nvidia/Nemotron-3_5-Lightning"
+      ],
+      "estimatedKnownTokenUsd": 0.00031314,
+      "duplicateSourceIds": false,
+      "idleReadAfterMs": 60299,
+      "idleReadSucceeded": true
+    }
+  ]
+}

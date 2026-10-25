@@ -1,0 +1,172 @@
+{
+  "key": "gmail",
+  "verifiedAt": "2026-10-19T03:30:04.091Z",
+  "runId": "5e4ef24c-bcde-4707-b05a-b28a70b1f9e9",
+  "status": "active",
+  "revision": 19,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 8,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 2,
+    "consumedTokens": 6481,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+      "status": "blocked",
+      "reason": "Composio request failed (HTTP 400 Bad Request). Check your project key and app permissions.",
+      "result": null,
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_V8OriN53zVfq",
+            "action": "GMAIL_GET_PROFILE",
+            "version": "20261018_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "09441142-9373-4f20-b15e-a271ebe076c0",
+          "host": "local",
+          "status": "blocked"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "195c1a63-59e3-49af-94f9-13f168879072",
+      "runId": "5e4ef24c-bcde-4707-b05a-b28a70b1f9e9",
+      "projectId": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+      "assignmentId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+      "taskId": "5e4ef24c-bcde-4707-b05a-b28a70b1f9e9",
+      "agentId": "dde24087-41ef-4822-a44c-768d16420678",
+      "definitionRevision": 28,
+      "runRevision": 12,
+      "attemptId": "09441142-9373-4f20-b15e-a271ebe076c0",
+      "host": "local",
+      "title": "Run GMAIL_GET_PROFILE",
+      "proposal": "App action: GMAIL_GET_PROFILE\nConnected account: ca_V8OriN53zVfq\nTool version: 20261018_00\nArguments:\n{\"user_id\":\"me\"}",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_V8OriN53zVfq",
+          "action": "GMAIL_GET_PROFILE",
+          "version": "20261018_00"
+        },
+        "argumentsJson": "{\"user_id\":\"me\"}"
+      },
+      "status": "approved",
+      "revision": 2,
+      "createdAt": 1792380538
+    }
+  ],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 52,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792380523
+      },
+      {
+        "cursor": 53,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792380524
+      },
+      {
+        "cursor": 55,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792380526
+      },
+      {
+        "cursor": 56,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "model_call",
+        "detail": "Reserved call 7e492f37-dde0-4fbb-ac5d-e407ae1642f7 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380528
+      },
+      {
+        "cursor": 57,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "model_usage",
+        "detail": "Call 7e492f37-dde0-4fbb-ac5d-e407ae1642f7 provider receipt: 2837 input + 241 output tokens",
+        "timestamp": 1792380532
+      },
+      {
+        "cursor": 58,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "model_call",
+        "detail": "Reserved call 7158739a-dcd5-4d30-9c8b-d1a8fe520940 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792380535
+      },
+      {
+        "cursor": 59,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "model_usage",
+        "detail": "Call 7158739a-dcd5-4d30-9c8b-d1a8fe520940 provider receipt: 3273 input + 130 output tokens",
+        "timestamp": 1792380537
+      },
+      {
+        "cursor": 60,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "decision_requested",
+        "detail": "195c1a63-59e3-49af-94f9-13f168879072",
+        "timestamp": 1792380538
+      },
+      {
+        "cursor": 67,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "decision_answered",
+        "detail": "195c1a63-59e3-49af-94f9-13f168879072: approved",
+        "timestamp": 1792380577
+      },
+      {
+        "cursor": 68,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "resumed",
+        "detail": "User decision receipt delivered under a fresh lease generation",
+        "timestamp": 1792380578
+      },
+      {
+        "cursor": 69,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "app_action_started",
+        "detail": "195c1a63-59e3-49af-94f9-13f168879072",
+        "timestamp": 1792380580
+      },
+      {
+        "cursor": 70,
+        "workId": "eb57bc72-90d9-4b68-9fd1-c312ebc8429c",
+        "event": "reported",
+        "detail": "blocked",
+        "timestamp": 1792380580
+      }
+    ]
+  }
+}

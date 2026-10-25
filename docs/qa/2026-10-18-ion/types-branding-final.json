@@ -1,0 +1,18 @@
+[
+  {
+    "project": "packages/waku-client",
+    "exit": 0
+  },
+  {
+    "project": "apps/mobile",
+    "exit": 0
+  },
+  {
+    "project": "apps/web",
+    "exit": 0
+  },
+  {
+    "project": "packages/personal-gateway",
+    "exit": 0
+  }
+]

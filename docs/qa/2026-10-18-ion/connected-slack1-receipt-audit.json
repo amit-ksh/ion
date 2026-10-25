@@ -1,0 +1,31 @@
+{
+  "verifiedAt": "2026-10-19T03:29:40.570Z",
+  "key": "slack1",
+  "runId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+  "status": "active",
+  "usage": {
+    "modelCalls": 2,
+    "consumedTokens": 6094,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "decisions": [
+    {
+      "id": "58df8184-a548-476b-aa88-9ccfc8d984df",
+      "status": "approved",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_8tjHHZD502Un",
+          "action": "SLACK_TEST_AUTH",
+          "version": "20261015_00"
+        },
+        "argumentsJson": "{}"
+      }
+    }
+  ],
+  "appStarted": 1,
+  "appSettled": 0,
+  "artifacts": []
+}

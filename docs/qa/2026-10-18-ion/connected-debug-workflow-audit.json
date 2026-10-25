@@ -1,0 +1,207 @@
+{
+  "verifiedAt": "2026-10-19T08:05:00.264Z",
+  "automation": {
+    "id": "6d8fc59c-489e-44c7-9eea-e9137aea14d5",
+    "name": "QA Connected Nebius Workflow",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "workflowId": "9d14344b-518b-41a8-bb9c-fb5151f67961",
+    "routineId": null,
+    "definitionRevision": 75,
+    "revision": 6,
+    "createdAt": 1792396688,
+    "scheduledAt": null,
+    "deadline": 1792397288,
+    "status": "completed",
+    "reason": null,
+    "currentStage": 2,
+    "stages": [
+      {
+        "route": {
+          "target": {
+            "type": "stage",
+            "index": 1
+          },
+          "artifactId": null,
+          "sha256": null,
+          "matched": null
+        },
+        "title": "Gmail profile read",
+        "instructions": "Follow the saved QA Connected gmail instructions; no messages or mailbox content. Produce the actual receipt summary Markdown.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "c12b50a0-299b-464a-99d6-052f81d9a96b",
+        "teamRunId": "c4bf5c27-c974-451b-b565-a6db94dfb7d0",
+        "taskId": "ba59a05e-3856-4a06-9f42-d59789f69106",
+        "requiresDecision": false,
+        "approved": false,
+        "started": true,
+        "completed": true
+      },
+      {
+        "route": {
+          "target": {
+            "type": "finish"
+          },
+          "artifactId": null,
+          "sha256": null,
+          "matched": null
+        },
+        "title": "Slack auth read",
+        "instructions": "Follow the saved QA Connected slack1 instructions; no messages or conversation content. Produce the actual receipt summary Markdown.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "7ef094ef-234c-47d4-bc02-7610cf2b6e0a",
+        "teamRunId": "9c4617fb-b478-4e62-a8c5-8af3ce1ac9a8",
+        "taskId": "ea96d216-80bd-44a6-8fcc-5254fffe846a",
+        "requiresDecision": true,
+        "approved": true,
+        "started": true,
+        "completed": true
+      }
+    ]
+  },
+  "stages": [
+    {
+      "index": 0,
+      "runId": "c4bf5c27-c974-451b-b565-a6db94dfb7d0",
+      "status": "completed",
+      "usage": {
+        "modelCalls": 4,
+        "consumedTokens": 15712,
+        "reservedTokens": 0,
+        "unknownCalls": 0,
+        "unmeteredCalls": 0,
+        "allowanceViolations": 0
+      },
+      "reasons": [],
+      "decisions": [
+        {
+          "id": "a4350f21-3742-4108-9452-711923f870f2",
+          "runId": "c4bf5c27-c974-451b-b565-a6db94dfb7d0",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "assignmentId": "37853331-71e8-4717-8ace-95629cccad5d",
+          "taskId": "ba59a05e-3856-4a06-9f42-d59789f69106",
+          "agentId": "a7911ffc-d446-4eb6-8321-e4c78cfe6400",
+          "definitionRevision": 75,
+          "runRevision": 12,
+          "attemptId": "d5a77618-9a9b-4821-bab5-e9d21b53e008",
+          "host": "local",
+          "title": "Run GMAIL_GET_PROFILE",
+          "proposal": "App action: GMAIL_GET_PROFILE\nConnected account: ca_V8OriN53zVfq\nTool version: 20261018_00\nArguments:\n{\"user_id\":\"me\"}",
+          "appAction": {
+            "grant": {
+              "accountId": "ca_V8OriN53zVfq",
+              "action": "GMAIL_GET_PROFILE",
+              "version": "20261018_00"
+            },
+            "argumentsJson": "{\"user_id\":\"me\"}"
+          },
+          "status": "approved",
+          "revision": 2,
+          "createdAt": 1792396697
+        }
+      ],
+      "inputs": [],
+      "results": [
+        {
+          "summary": "Stage 1/2 complete: read-only Gmail profile verification on account ca_V8OriN53zVfq, action GMAIL_GET_PROFILE v20261018_00, arguments {\"user_id\":\"me\"}. describe_app_action confirmed the pinned schema, then request_app_action was submitted and the host recorded approval (receipt a4350f21-3742-4108-9452-711923f870f2) and executed the exact payload once, returning a durable app_action_receipt with successful=true (Composio log_id log_7VZaBVmu8tG8). Documented outcome in QA_CONNECTED_GMAIL_OK.md with only tool name, success flag and log_id; no personal email address, identity, or provider data reproduced, and no mailbox content read. No messages, conversations, drafts, sends, or access changes occurred. Stage 2 (Slack) not started; it requires its own separate host approval and human gate.",
+          "artifactIds": [
+            "6916ea41-db44-4131-b2bb-c401a68ee1b4"
+          ],
+          "checks": [
+            "App action described via describe_app_action for ca_V8OriN53zVfq/GMAIL_GET_PROFILE (no execution)",
+            "Host approval receipt a4350f21-3742-4108-9452-711923f870f2 approved and executed exactly once",
+            "Durable execution receipt: successful=true, log_id log_7VZaBVmu8tG8",
+            "No emails, conversations, drafts, sends, or access changes performed"
+          ]
+        }
+      ],
+      "appStarted": 1,
+      "appSettled": 1,
+      "receipts": [
+        {
+          "artifactId": "2ff97cfb-a778-459f-9722-a53f49e5ce7b",
+          "sha256": "e66e7f548a187edb63a90b5ccd4a7d27d4895364e94557d690ff790d7f162ee9",
+          "successful": true,
+          "logId": "log_7VZaBVmu8tG8",
+          "providerOk": null
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "runId": "9c4617fb-b478-4e62-a8c5-8af3ce1ac9a8",
+      "status": "completed",
+      "usage": {
+        "modelCalls": 5,
+        "consumedTokens": 26224,
+        "reservedTokens": 0,
+        "unknownCalls": 0,
+        "unmeteredCalls": 0,
+        "allowanceViolations": 0
+      },
+      "reasons": [],
+      "decisions": [
+        {
+          "id": "7f2311e5-64e0-465f-a28a-a3280f67ed1b",
+          "runId": "9c4617fb-b478-4e62-a8c5-8af3ce1ac9a8",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "assignmentId": "a9fced3b-ac3e-418a-a249-e4dda7c3842e",
+          "taskId": "ea96d216-80bd-44a6-8fcc-5254fffe846a",
+          "agentId": "14d94bf0-8b51-4823-b04e-eb3909a49e84",
+          "definitionRevision": 75,
+          "runRevision": 18,
+          "attemptId": "77f9d3aa-52d5-43e2-8727-1bb33571816d",
+          "host": "local",
+          "title": "Run SLACK_TEST_AUTH",
+          "proposal": "App action: SLACK_TEST_AUTH\nConnected account: ca_8tjHHZD502Un\nTool version: 20261015_00\nArguments:\n{}",
+          "appAction": {
+            "grant": {
+              "accountId": "ca_8tjHHZD502Un",
+              "action": "SLACK_TEST_AUTH",
+              "version": "20261015_00"
+            },
+            "argumentsJson": "{}"
+          },
+          "status": "approved",
+          "revision": 2,
+          "createdAt": 1792396804
+        }
+      ],
+      "inputs": [
+        {
+          "key": "previous-result",
+          "name": "previous-result.txt",
+          "bytes": 796
+        },
+        {
+          "key": "6916ea41-db44-4131-b2bb-c401a68ee1b4",
+          "name": "QA_CONNECTED_GMAIL_OK",
+          "bytes": 478
+        }
+      ],
+      "results": [
+        {
+          "summary": "Stage 2/2 complete: read-only Slack authentication verification on connected account ca_8tjHHZD502Un, action SLACK_TEST_AUTH v20261015_00, arguments {}. describe_app_action confirmed the pinned schema (no parameters), then request_app_action was submitted and the host recorded its own approval (decision 7f2311e5-64e0-465f-a28a-a3280f67ed1b) and executed the exact payload once, returning a durable app_action_receipt with successful=true and Composio log_id log_HKwcUMG3RGhc. Saved QA_CONNECTED_SLACK1_OK.md with only tool name, success flag and log_id; no identity, username, team, workspace URL, or other provider data reproduced. No messages, conversations, drafts, sends, posts, or access changes occurred and no other app/action was invoked. No children were delegated (no direct reports), so no child review was required.",
+          "artifactIds": [
+            "86784cb5-baf2-4391-a7a2-e51af7d811af"
+          ],
+          "checks": []
+        }
+      ],
+      "appStarted": 1,
+      "appSettled": 1,
+      "receipts": [
+        {
+          "artifactId": "c7393762-5187-424d-a6a0-b0631619f9dd",
+          "sha256": "b5577f5815f87180bc3adca65d38e86bc805109895b218e8db45cd757f8b7ba2",
+          "successful": true,
+          "logId": "log_HKwcUMG3RGhc",
+          "providerOk": true
+        }
+      ]
+    }
+  ]
+}

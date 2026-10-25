@@ -1,0 +1,8 @@
+{
+  "observation": "Loaded final marker, scrolled several virtualized messages and opened Find without unresponsiveness. Includes screenshot/input and background work; not frame-time/FPS measurement.",
+  "pid": 18928,
+  "workingSetBytes": 167800832,
+  "cpuSeconds": 7.265625,
+  "elapsedSeconds": 55.5381879,
+  "timestamp": "2026-10-18T21:27:13.1507581+05:30"
+}

@@ -1,0 +1,65 @@
+{
+  "type": "automationRun",
+  "run": {
+    "id": "b7e2a3c1-2197-4c14-b404-c18e9934ef7c",
+    "name": "QA Gated Workflow",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "workflowId": "8400a1d5-96f2-424d-ae7e-dfa6c90a2081",
+    "routineId": null,
+    "definitionRevision": 10,
+    "revision": 6,
+    "createdAt": 1792330275,
+    "scheduledAt": null,
+    "deadline": 1792330875,
+    "status": "completed",
+    "reason": null,
+    "currentStage": 2,
+    "stages": [
+      {
+        "route": {
+          "target": {
+            "type": "stage",
+            "index": 1
+          },
+          "artifactId": null,
+          "sha256": null,
+          "matched": null
+        },
+        "title": "Evidence",
+        "instructions": "Save QA-stage-one.md with QA_STAGE_ONE_OK and report_result. Keep output short.",
+        "requiredFormats": [
+          "md"
+        ],
+        "teamId": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+        "teamRunId": "82b6de38-0aa3-435d-8550-b3068ffc0589",
+        "taskId": "956d4a23-6279-4f2d-9c7a-91e41fbdfe66",
+        "requiresDecision": true,
+        "approved": true,
+        "started": true,
+        "completed": true
+      },
+      {
+        "route": {
+          "target": {
+            "type": "finish"
+          },
+          "artifactId": null,
+          "sha256": null,
+          "matched": null
+        },
+        "title": "Summary",
+        "instructions": "Use preceding input evidence to save QA-stage-two.html with QA_STAGE_TWO_OK and report_result. Keep output short.",
+        "requiredFormats": [
+          "html"
+        ],
+        "teamId": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+        "teamRunId": "26984794-74c6-43ba-a1d5-922208fc470c",
+        "taskId": "a115a88e-776e-4797-b9ef-1f96c6f31bbc",
+        "requiresDecision": false,
+        "approved": false,
+        "started": true,
+        "completed": true
+      }
+    ]
+  }
+}

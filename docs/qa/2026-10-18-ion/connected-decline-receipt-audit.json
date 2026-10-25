@@ -1,0 +1,40 @@
+{
+  "verifiedAt": "2026-10-19T03:29:42.438Z",
+  "key": "decline",
+  "runId": "d9492605-a088-4f2a-b0c4-8f407bae2755",
+  "status": "completed",
+  "usage": {
+    "modelCalls": 4,
+    "consumedTokens": 14931,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "decisions": [
+    {
+      "id": "3af4839c-fbad-445c-b22d-497f06d1e398",
+      "status": "declined",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_V8OriN53zVfq",
+          "action": "GMAIL_GET_PROFILE",
+          "version": "20261018_00"
+        },
+        "argumentsJson": "{\"user_id\":\"me\"}"
+      }
+    }
+  ],
+  "appStarted": 0,
+  "appSettled": 0,
+  "artifacts": [
+    {
+      "id": "93907ad5-62c6-41f2-abe5-2c9976efdb5d",
+      "name": "QA_CONNECTED_DECLINE_OK",
+      "format": "md",
+      "bytes": 886,
+      "sha256": "b77054a27e870f73cca9efed36186d07009acc5da37ef713ef961cb5e67280d7",
+      "expectedMarker": true
+    }
+  ]
+}

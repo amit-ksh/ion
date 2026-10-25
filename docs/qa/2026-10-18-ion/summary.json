@@ -1,0 +1,702 @@
+{
+  "closedAt": "2026-10-19T15:47:39.2263435+05:30",
+  "version": "0.1.24",
+  "branch": "ion-prod",
+  "recommendation": "Not Ready",
+  "independentExecutionComplete": true,
+  "fullRequestedMatrixComplete": false,
+  "coverage": {
+    "Pass": 67,
+    "Fail": 1,
+    "Blocked": 13
+  },
+  "scenarios": [
+    {
+      "id": "S01",
+      "feature": "Existing-profile startup",
+      "expected": "Preserve workspace/history",
+      "actual": "Updated installed app retains projects, tasks, keys, appearance and new artifact across upgrade/restart",
+      "status": "Pass",
+      "evidenceAndDependency": "01–08, 305, 314–316; installed binary/hash and final read-only audit"
+    },
+    {
+      "id": "S02",
+      "feature": "Fresh first launch",
+      "expected": "Welcome, four optional steps",
+      "actual": "Existing-profile paths tested; app uses fixed per-user storage locations",
+      "status": "Blocked",
+      "evidenceAndDependency": "Disposable Windows user/profile needed; no owner profile reset authorized"
+    },
+    {
+      "id": "S03",
+      "feature": "Setup skip",
+      "expected": "Enter workspace without credentials",
+      "actual": "Skip for now opened New task",
+      "status": "Pass",
+      "evidenceAndDependency": "07"
+    },
+    {
+      "id": "S04",
+      "feature": "Setup resume / Finish setup",
+      "expected": "Persist step; reopen missing configuration",
+      "actual": "Gateway step survived restart; indicator opens setup",
+      "status": "Pass",
+      "evidenceAndDependency": "01–07"
+    },
+    {
+      "id": "S05a",
+      "feature": "Nebius save/test/persist",
+      "expected": "Vault storage, masked entry, truthful test",
+      "actual": "Owner saved key; rebuilt native Test verifies 28 models",
+      "status": "Pass",
+      "evidenceAndDependency": "58–60; earlier missing-key state correctly reported"
+    },
+    {
+      "id": "S05b",
+      "feature": "Credential replacement/removal",
+      "expected": "Exact secure lifecycle without losing owner data",
+      "actual": "Component coverage; owner keys preserved",
+      "status": "Blocked",
+      "evidenceAndDependency": "Native destructive lifecycle needs a disposable Windows profile/credential slot"
+    },
+    {
+      "id": "S06",
+      "feature": "Composio save/test/persist",
+      "expected": "Vault storage; valid project access",
+      "actual": "Rebuilt native Test verifies Tools read access; live catalog loads",
+      "status": "Pass",
+      "evidenceAndDependency": "61–63, 74–75; supersedes earlier HTTP 401"
+    },
+    {
+      "id": "S07",
+      "feature": "Speech/gateway credential lifecycle",
+      "expected": "Secure persistence and exact endpoint validation",
+      "actual": "No configured endpoint/pairing",
+      "status": "Blocked",
+      "evidenceAndDependency": "Existing trusted endpoint/token/invite required"
+    },
+    {
+      "id": "S08",
+      "feature": "Harness discovery and paths",
+      "expected": "Correct executable identity and models",
+      "actual": "Codex native 0.163 alpha and seven models; OpenCode 1.18.15 detected",
+      "status": "Pass",
+      "evidenceAndDependency": "Baseline native inventory; 12–14"
+    },
+    {
+      "id": "S09",
+      "feature": "Missing harness setup",
+      "expected": "Truthful unavailable status",
+      "actual": "Antigravity, Amp, Cursor, DeepSeek, Fx shown as setup required",
+      "status": "Pass",
+      "evidenceAndDependency": "Native baseline inventory"
+    },
+    {
+      "id": "S10",
+      "feature": "Theme/font/readability persistence",
+      "expected": "Readable light/dark; saved preferences",
+      "actual": "Both themes and 16px survive rebuild; original System/14px/code13 restored in both profiles",
+      "status": "Pass",
+      "evidenceAndDependency": "181–196, 248, 266, 299"
+    },
+    {
+      "id": "S11",
+      "feature": "Keyboard form fields",
+      "expected": "Tab/Shift-Tab traverses; visible focus",
+      "actual": "Rebuilt app traverses Name → Expertise and back with visible focus",
+      "status": "Pass",
+      "evidenceAndDependency": "77–78; production GPUI keyboard regression passes"
+    },
+    {
+      "id": "T01",
+      "feature": "Open disposable project",
+      "expected": "Correct folder and task context",
+      "actual": "Native folder picker selected exact fixture",
+      "status": "Pass",
+      "evidenceAndDependency": "08–11"
+    },
+    {
+      "id": "T02",
+      "feature": "Codex harmless real task",
+      "expected": "Stream, tools, exact file contents",
+      "actual": "Baseline marker/sentinel passed; candidate native task created a PDF, invoked a saved team and verified actual publication",
+      "status": "Pass",
+      "evidenceAndDependency": "18–25, 142, 159–166; live-native-codex-pdf-success.json verifies bytes, digest and source-task identity"
+    },
+    {
+      "id": "T03",
+      "feature": "Tool approval / Decisions",
+      "expected": "Exact approval and task routing",
+      "actual": "Cross-project Decisions listed approval; Review opened correct task; Allow once continued",
+      "status": "Pass",
+      "evidenceAndDependency": "20–25"
+    },
+    {
+      "id": "T04",
+      "feature": "Running chat removal",
+      "expected": "Refuse deletion before Stop",
+      "actual": "Confirmation followed by running-task refusal; history retained",
+      "status": "Pass",
+      "evidenceAndDependency": "20–21"
+    },
+    {
+      "id": "T05a",
+      "feature": "Deny / cancel / retry",
+      "expected": "Conventional controls and no repeated effects",
+      "actual": "Native proposal declined without effects; ordinary read command denied; running ordinary task canceled; blocked team stopped and Codex retry succeeded",
+      "status": "Pass",
+      "evidenceAndDependency": "113–115, 154–166, 171–173"
+    },
+    {
+      "id": "T05b",
+      "feature": "Structured questions",
+      "expected": "Ordered multiple questions, choices and custom answer",
+      "actual": "Actual free OpenCode question tool presents Format then Label; Markdown and typed QA_TYPED_LABEL survive Back/Next and return in order. Single question/read and pending-question cancel also pass",
+      "status": "Pass",
+      "evidenceAndDependency": "329–330,335–337,346–350; opencode-free-native-audit.json. Scoped to opencode/deepseek-v4.1-flash-free; Codex mode limitation remains"
+    },
+    {
+      "id": "T06",
+      "feature": "Reopen task / restart",
+      "expected": "Durable messages, result and usage",
+      "actual": "Reopened persisted XML, workflow, routine, Codex PDF task and 1,000-message transcript across watcher restarts",
+      "status": "Pass",
+      "evidenceAndDependency": "99, 130, 138, 165–166; final installer round tracked in R05"
+    },
+    {
+      "id": "T07",
+      "feature": "Chat removal confirmation/cancel",
+      "expected": "Cancel retains; confirmed inactive removal persists",
+      "actual": "Cancel retained the disposable chat; confirmed inactive removal removed only that chat",
+      "status": "Pass",
+      "evidenceAndDependency": "174–177; final post-rebuild catalog check tracked below"
+    },
+    {
+      "id": "T08",
+      "feature": "Project removal",
+      "expected": "Remove Ion history; preserve source bytes",
+      "actual": "Explicit owner removal survives restart and stale saves; unrelated projects/history and exact source bytes remain",
+      "status": "Pass",
+      "evidenceAndDependency": "Original failure 178 → 196; fixed native removal 197 and restart 199; final-owner-audit.json, real database regression and server group 18/0"
+    },
+    {
+      "id": "T09",
+      "feature": "Project running protection",
+      "expected": "Refuse removal if any child is active/preparing",
+      "actual": "Confirming removal while read approval was pending refused removal and retained project/task",
+      "status": "Pass",
+      "evidenceAndDependency": "168–170; owner project never removed"
+    },
+    {
+      "id": "T10",
+      "feature": "OpenCode harmless task",
+      "expected": "Actual configured account/model output",
+      "actual": "Explicit free opencode/deepseek-v4.1-flash-free returns exact marker; real question/read, cancel and fresh follow-up, ordered/custom questions, usage receipts and Open task routing pass",
+      "status": "Pass",
+      "evidenceAndDependency": "323–324,329–330,335–337,344–350; opencode-free-native-audit.json. Old paid routes remain expired; no credential changed and no bounded Teams transport inferred"
+    },
+    {
+      "id": "T11",
+      "feature": "Nebius harmless task",
+      "expected": "Actual selected model, streamed output",
+      "actual": "Exact final installed ordinary reply QA_CLOSEOUT_INSTALLER_NEBIUS_OK and real pinned team probe pass; restart retains output/artifact",
+      "status": "Pass",
+      "evidenceAndDependency": "306–308, 312–316; closeout-audit.json, installed-tool-error-acceptance.json"
+    },
+    {
+      "id": "T12",
+      "feature": "Other installed enabled harnesses",
+      "expected": "One harmless task each",
+      "actual": "Full non-Claude daemon inventory: Nebius/Codex/OpenCode/Pi installed; Pi has zero models; remaining CLIs absent",
+      "status": "Blocked",
+      "evidenceAndDependency": "live-harness-inventory.log; Pi needs a configured non-Claude model/account. Catalog defaults on absent CLIs are not execution passes"
+    },
+    {
+      "id": "T13a",
+      "feature": "Attachments, slash commands, history and search",
+      "expected": "Supported paths preserve exact data and context",
+      "actual": "Native PDF import, read approval and exact QA_ATTACHMENT_OK QA_AGENT_PDF_OK pass; slash/resume loads actual CLI history; transcript Find works",
+      "status": "Pass",
+      "evidenceAndDependency": "141, 233–236, 275–281; attachment original remains unchanged"
+    },
+    {
+      "id": "T13b",
+      "feature": "Provider goals",
+      "expected": "Real provider builtin opens native goal state",
+      "actual": "Current Codex catalog does not expose builtin /goal; submitted text is an ordinary turn",
+      "status": "Blocked",
+      "evidenceAndDependency": "282; a configured Codex build/account with thread-goal support is required; parser/driver regressions pass"
+    },
+    {
+      "id": "T13c",
+      "feature": "Live mid-turn steering",
+      "expected": "Actual active provider turn accepts updated instruction",
+      "actual": "Installed free OpenCode active turn accepts native queued-message Steer; after the real question answer it returns the changed marker. Base prompt, accepted steer and final answer share one turn ID, with no queued follow-up remaining",
+      "status": "Pass",
+      "evidenceAndDependency": "379–383; installed-free-steering-before.json / installed-free-steering-after.json and .exit0. Scoped to the actual free OpenCode route; earlier Codex quota failure retained"
+    },
+    {
+      "id": "T14a",
+      "feature": "Files, Git review, browser, skills",
+      "expected": "Existing native panels work on disposable data",
+      "actual": "Files open; README edit/Ctrl-S matches disk; Markdown preview, real Git diff, HTTPS Example Domain and read-only Skills catalog load",
+      "status": "Pass",
+      "evidenceAndDependency": "229–232, 248–256, 262–265; owner-user fixture avoids Git ownership exceptions"
+    },
+    {
+      "id": "T14b",
+      "feature": "Interactive terminal",
+      "expected": "Native terminal opens and executes harmless command",
+      "actual": "Backend/component terminal paths tested; terminal commands through Windows UI automation are prohibited by the active computer-use skill",
+      "status": "Blocked",
+      "evidenceAndDependency": "Owner-operated native terminal check needed. [Skill](C:/Users/ksami/.codex/plugins/cache/openai-bundled/computer-use/26.1013.40934/skills/computer-use/SKILL.md), bundled guidance: “Do not run Windows terminal commands via UI automation directly or indirectly.”"
+    },
+    {
+      "id": "A01",
+      "feature": "Agent instructions/expertise/harness/access/environment",
+      "expected": "Save exact per-agent choices",
+      "actual": "QA Lead saved with Nebius/Local, read-only access and explicit restrictions",
+      "status": "Pass",
+      "evidenceAndDependency": "27–36"
+    },
+    {
+      "id": "A02a",
+      "feature": "Editor field sizes",
+      "expected": "Fixed-height controls retain usable dimensions",
+      "actual": "Rebuilt fields and 120px instructions retain intended sizes; saved pinned QA Lead",
+      "status": "Pass",
+      "evidenceAndDependency": "76–81"
+    },
+    {
+      "id": "A02b",
+      "feature": "Long instructions",
+      "expected": "Scroll inside field without covering labels",
+      "actual": "Rebuilt editor scrolls at Ctrl-Home/End; caret and text stay within bounds",
+      "status": "Pass",
+      "evidenceAndDependency": "86–87; production GPUI scrolling regression"
+    },
+    {
+      "id": "A03",
+      "feature": "Multiple teams / hierarchy / cycles",
+      "expected": "One lead, valid parents, durable definitions",
+      "actual": "Two saved teams and lead/child hierarchy displayed; cycle rejection covered by owner tests",
+      "status": "Pass",
+      "evidenceAndDependency": "85, 91; native creation used for lead, production RPC for additional fixtures"
+    },
+    {
+      "id": "A04",
+      "feature": "Direct @team invocation",
+      "expected": "Durable pinned run with child tasks",
+      "actual": "Real hierarchy delegated/reviewed; native composer submitted a second team and produced exact XML",
+      "status": "Pass",
+      "evidenceAndDependency": "89–91, 105–110; live-native-team-xml.json verifies original bytes and completion"
+    },
+    {
+      "id": "A05",
+      "feature": "Ordinary task invokes saved team",
+      "expected": "Native source identity, approval, actual result",
+      "actual": "Live ordinary Codex task invoked the saved Nebius team, waited and read actual published PDF evidence",
+      "status": "Pass",
+      "evidenceAndDependency": "142, 153–156, 165–166; live-native-codex-pdf-success.json. Initial base64-only model attempt hit its finite 16-call native bound with no artifact; file-publication retry succeeded"
+    },
+    {
+      "id": "A06",
+      "feature": "Review/rework, output contracts, document links",
+      "expected": "Parent accepts/rejects actual evidence",
+      "actual": "Actual child HTML/JSON evidence accepted with qa_review; output contract and links visible",
+      "status": "Pass",
+      "evidenceAndDependency": "91, live-team-snapshot.json; rejection/rework remains component-only"
+    },
+    {
+      "id": "A07",
+      "feature": "Progress, Stop, recovery",
+      "expected": "Stop descendants; no uncertain replay",
+      "actual": "Progress/blocker shown; Stop changed blocked team to Stopped; finite budget enforced; subsequent source-task retry succeeded",
+      "status": "Pass",
+      "evidenceAndDependency": "154–156, 165–166 plus owner runtime tests; remote/app uncertainty remains dependent on W01/U06"
+    },
+    {
+      "id": "A08",
+      "feature": "Local/Nebius/fallback",
+      "expected": "Preserve harness/grants/budgets; refuse uncertainty",
+      "actual": "Local default shown; no provisioned remote target",
+      "status": "Blocked",
+      "evidenceAndDependency": "Registered pre-existing target needed for live fallback"
+    },
+    {
+      "id": "W01a",
+      "feature": "Apps catalog",
+      "expected": "Read actual Composio catalog",
+      "actual": "Successful live load after loading state",
+      "status": "Pass",
+      "evidenceAndDependency": "73–75, S06"
+    },
+    {
+      "id": "W01b",
+      "feature": "Connected accounts / actions",
+      "expected": "Exact account/grants; no implicit execution permission",
+      "actual": "Owner-authorized Gmail profile and two Slack auth connections complete with exact app approvals and durable real receipts. Two-stage Nebius workflow completes both actions; no mailbox/conversation content read",
+      "status": "Pass",
+      "evidenceAndDependency": "325–328,338–339; connected-debug-{gmail,slack1,slack2}-receipt-audit.json and connected-debug-workflow-audit.json with real Composio log IDs"
+    },
+    {
+      "id": "W02",
+      "feature": "App access / exact action approvals",
+      "expected": "Connecting account grants no execution authority",
+      "actual": "Exact grants/arguments/version, approve/decline/cancel, deliberate API error without retry and ungranted metadata refusal pass. Negative case has failed:true and 0 decisions/app starts; stale approval has no duplicate effect",
+      "status": "Pass",
+      "evidenceAndDependency": "321–322,342–343; connected-{decline,cancel,budget}-run.json, connected-debug-negative-audit.json, connected-slack1-stale-decision.json; component regressions also pass"
+    },
+    {
+      "id": "W03",
+      "feature": "Manual workflow stages/team/formats",
+      "expected": "Save/edit graph and pinned stages",
+      "actual": "Native generation/editing selected per-stage teams, formats and gate, then saved a separate two-stage definition",
+      "status": "Pass",
+      "evidenceAndDependency": "143–151; repeated-JSON labels reproduced in 150, fixed and verified in rebuilt native menu 167"
+    },
+    {
+      "id": "W04",
+      "feature": "Prompt-generated workflow",
+      "expected": "Real generator returns editable stages",
+      "actual": "Obsolete model reproduced HTTP 404; rebuilt production generator returns a bounded two-stage draft using a live model",
+      "status": "Pass",
+      "evidenceAndDependency": "live-workflow-generation-after.log/.exit 0 and live-workflow-generated.json; native editor rendering is tracked separately in W03"
+    },
+    {
+      "id": "W05",
+      "feature": "Stage gates / decisions / continuation",
+      "expected": "No next stage until exact approval",
+      "actual": "Native Decisions routed to exact workflow; approval produced MD then HTML; completed run persisted across restart",
+      "status": "Pass",
+      "evidenceAndDependency": "95–99; live-workflow-snapshot.json revision 6, 2 completed stages"
+    },
+    {
+      "id": "W06a",
+      "feature": "Branch selection / human gate",
+      "expected": "Route from original JSON; skip unselected stage; require exact decision",
+      "actual": "Actual original JSON selects stage 3, skips stage 2 and waits for approval; selected stages complete",
+      "status": "Pass",
+      "evidenceAndDependency": "286–288, 292, 302–303; final-handoff-audit.json"
+    },
+    {
+      "id": "W06b",
+      "feature": "Isolated code handoff",
+      "expected": "Exact receipted predecessor file in a distinct workspace; preserve source",
+      "actual": "First and final files match exact stage-one/two bytes in separate worktrees; source retains QA_HANDOFF_BASELINE; actual Markdown evidence verified",
+      "status": "Pass",
+      "evidenceAndDependency": "final-handoff-audit.json, 12 calls / 65,846 tokens, no allowance violation; source integration remains owner-test coverage, no native source application claimed"
+    },
+    {
+      "id": "W06c",
+      "feature": "Bounded workflow retries",
+      "expected": "Original attempt/budget, delays and no uncertain replay",
+      "actual": "Retry exhaustion/restart/no-replay owner tests pass. Existing OpenRouter route is refused before bounded execution; QA run stopped",
+      "status": "Blocked",
+      "evidenceAndDependency": "289–290; a configured supported bounded transport/account is required for live retry, not merely an ordinary-task catalog route"
+    },
+    {
+      "id": "W06d",
+      "feature": "New isolated file through typed tools",
+      "expected": "Actual JSON-null creation; verify bytes before reporting",
+      "actual": "DeepSeek Flash creates and reads exact QA_ALTERNATE_CREATE_OK in 4 calls. Lightning twice sent string None and overstated success; guards refused those edits",
+      "status": "Pass",
+      "evidenceAndDependency": "alternate-model-create.json, 304; this pass is scoped to the verified DeepSeek route. Lightning nullable-argument/model-summary limitation remains documented"
+    },
+    {
+      "id": "W06e",
+      "feature": "Lightning missing-file creation / truthful model summary",
+      "expected": "Valid typed creation followed by byte-backed summary",
+      "actual": "Two attempts sent string None rather than JSON null and claimed success despite actual errors; source remained unchanged",
+      "status": "Fail",
+      "evidenceAndDependency": "handoff-first-tool-arguments.json, handoff-second-diagnostics.json. Use the verified DeepSeek route for this flow or retest a suitable model; Ion must not coerce invalid comparison data"
+    },
+    {
+      "id": "W07a",
+      "feature": "Routine schedule/pause/resume/run",
+      "expected": "Durable firing identity, no duplicate, paused afterward",
+      "actual": "Exactly one real scheduled run completed and published QA_ROUTINE_OK; schedule is paused with nextRun 0",
+      "status": "Pass",
+      "evidenceAndDependency": "live-routine-status.json; QA driver polling used wrong response envelope and is retained as a driver failure, not a product failure"
+    },
+    {
+      "id": "W07b",
+      "feature": "Native routine editor",
+      "expected": "Create/edit schedule from UI",
+      "actual": "Native interval, missed-run/overlap and next-run preview; save preserved Paused/nextRun 0; Runs shows completed 1/1 stages",
+      "status": "Pass",
+      "evidenceAndDependency": "157–164, live-routine-native-save.exit 0. Initial definition created through production RPC"
+    },
+    {
+      "id": "D01",
+      "feature": "Agent-created HTML/PDF/MD/TXT/CSV/JSON",
+      "expected": "Original bytes collected with provenance",
+      "actual": "First team produced seven generated formats plus three captured fixtures; a separate native team produced XML and an ordinary Codex task created a PDF which its saved team inspected/published",
+      "status": "Pass",
+      "evidenceAndDependency": "live-artifact-originals.json, live-native-team-xml.json, live-native-codex-pdf-success.json, 165–166. The first model summary overstated its count and omitted XML; the audit records that failure truthfully. Captured fixtures are distinguished from authored originals"
+    },
+    {
+      "id": "D02",
+      "feature": "Supported document publication/export",
+      "expected": "Preserve all implemented original formats and bounded consumers",
+      "actual": "Thirteen actual publication exporters and 66 consumers pass; native XML/text/PDF/HTML verified",
+      "status": "Pass",
+      "evidenceAndDependency": "native-document-fixture-exports.log / native-to-phone-tests.log; Office layout preview is not implemented by the native PDF/text preview and is not claimed; physical phone acceptance is P05"
+    },
+    {
+      "id": "D03",
+      "feature": "Cards, search, filters, task/project links",
+      "expected": "Correct scoped results and responsive virtual grid",
+      "actual": "Populated cards, exact-name searches, team-output links and labels; PDF filter yields exactly two PDFs, empty-project scope yields zero and Clear restores 19",
+      "status": "Pass",
+      "evidenceAndDependency": "99, 109–112, 258–260"
+    },
+    {
+      "id": "D04a",
+      "feature": "Small HTML preview/source",
+      "expected": "Verified HTML renders and full source remains inspectable",
+      "actual": "Rebuilt native Reading view displays QA_DOCUMENT_OK",
+      "status": "Pass",
+      "evidenceAndDependency": "100; original blank-view reproduction 92–94"
+    },
+    {
+      "id": "D04b",
+      "feature": "Large HTML preview",
+      "expected": "Publication-sized HTML renders without truncation",
+      "actual": "Rebuilt native Reading view renders QA_LARGE_HTML_OK from the verified 2.1 MB original",
+      "status": "Pass",
+      "evidenceAndDependency": "111; original failure 102, exact full Source 103, byte verification live-artifact-originals.json"
+    },
+    {
+      "id": "D04c",
+      "feature": "PDF/text preview/export",
+      "expected": "Verify original/digest, readable PDF, complete text",
+      "actual": "Native PDF displays exact marker; Save copy matches the 596-byte authored original; 90,035-byte Unicode text reaches actual final and first markers with End/Home",
+      "status": "Pass",
+      "evidenceAndDependency": "112, 189, 200–201; export digest 57a633361ef9c10bfa0152a5cb9d3d9474b0dadc3a248a644d264c264eaddf29"
+    },
+    {
+      "id": "D05",
+      "feature": "Retention defaults and active-work protection",
+      "expected": "Retain until explicit cleanup; protect active evidence",
+      "actual": "Core retention and active-evidence deletion guards pass; no owner cleanup executed",
+      "status": "Pass",
+      "evidenceAndDependency": "core-functional-final.log, teams/retention regressions; native cleanup deliberately not executed"
+    },
+    {
+      "id": "D06",
+      "feature": "Static/resource documents and reader bounds",
+      "expected": "Exact originals, bounded resources and no active remote content",
+      "actual": "Thirteen publication fixtures and 66 consumer tests pass, including all 29 previously skipped fixtures; native small/large HTML and exact PDF export pass",
+      "status": "Pass",
+      "evidenceAndDependency": "100–112, 189–201, native-to-phone-tests.log; device acceptance remains P05"
+    },
+    {
+      "id": "U01",
+      "feature": "Settings Usage / hidden nav",
+      "expected": "Usage only in Settings; Dashboard/Inbox hidden",
+      "actual": "Hidden navigation observed",
+      "status": "Pass",
+      "evidenceAndDependency": "07,08,22,26"
+    },
+    {
+      "id": "U02",
+      "feature": "Ion activity rows / filters / pages / Open task",
+      "expected": "Every implemented receipt source, scope totals",
+      "actual": "Native Nebius/Codex filters and paging pass; current installed OpenCode filter shows four exact free-model receipts and Open task routes to its tested history",
+      "status": "Pass",
+      "evidenceAndDependency": "121–123,213–214,344–345,358,374–375; installed-free-opencode-audit.json; other harnesses require their configured account"
+    },
+    {
+      "id": "U03",
+      "feature": "Costs / missing usage / deduplication",
+      "expected": "Preserve reported/estimated/finality; missing not zero",
+      "actual": "Native Ion activity labels missing costs unavailable; CLI history separately labels raw/model-priced estimates; receipt/deduplication owner regressions pass",
+      "status": "Pass",
+      "evidenceAndDependency": "121–126, core-functional-final.log usage_ledger/Teams ledger tests. No invoice reconciliation claim"
+    },
+    {
+      "id": "U04",
+      "feature": "Existing CLI history",
+      "expected": "Separate daily/monthly/project views; no double sum",
+      "actual": "Native daily, monthly and populated Projects history load separately from Ion activity; slash-resume loads existing OpenCode history",
+      "status": "Pass",
+      "evidenceAndDependency": "124–127, 221, 233–236; historic excluded-harness entries were read only, no excluded task/model invoked"
+    },
+    {
+      "id": "U05",
+      "feature": "Billing connections/exports/budgets",
+      "expected": "Exact scope and decimal accounting; no new resources",
+      "actual": "No IAM billing/export/remote resource configured",
+      "status": "Blocked",
+      "evidenceAndDependency": "Existing IAM read scope and FOCUS export required"
+    },
+    {
+      "id": "U06a",
+      "feature": "Remote/billing/budget/resource native prerequisite states",
+      "expected": "Truthful empty/loading state without provisioning",
+      "actual": "Installed remote records settle empty; billing requires a connection; no shared budgets; command reservations show zero held with no active approval",
+      "status": "Pass",
+      "evidenceAndDependency": "215–220; only read operations, no cloud mutations"
+    },
+    {
+      "id": "U06b",
+      "feature": "Live remote executions/resources/gateway",
+      "expected": "Exact registered target, grants, receipt and recovery",
+      "actual": "No registered target/gateway",
+      "status": "Blocked",
+      "evidenceAndDependency": "Existing authorized remote target/gateway and billing/resource scope required"
+    },
+    {
+      "id": "P01a",
+      "feature": "Microphone icon",
+      "expected": "Visible, readable icon and state label",
+      "actual": "Composer microphone is visible; Record/Stop state changes are readable",
+      "status": "Pass",
+      "evidenceAndDependency": "07,14,25,130–136"
+    },
+    {
+      "id": "P01b",
+      "feature": "Microphone keyboard activation",
+      "expected": "Tab reaches microphone; Enter/Space activates",
+      "actual": "From the installed composer, four Tabs then Space started local dictation; Space also stops the focused microphone",
+      "status": "Pass",
+      "evidenceAndDependency": "224, 237–238; earlier probes stopped before reaching the control"
+    },
+    {
+      "id": "P02",
+      "feature": "Permission/record/stop/cancel/insert",
+      "expected": "Native microphone path; no accidental send",
+      "actual": "Rebuilt recording continues after discontinuity with warning; Cancel preserves draft; Stop finalizes silent audio to truthful no-speech message",
+      "status": "Pass",
+      "evidenceAndDependency": "130–136. OS access already allowed; no privacy setting changed. Controlled spoken-microphone transcription still needs the owner; WAV insertion passed separately"
+    },
+    {
+      "id": "P02b",
+      "feature": "Fresh OS permission / controlled spoken microphone",
+      "expected": "Exact OS app identity; meaningful spoken transcript insertion",
+      "actual": "Existing microphone access was already allowed; silence and WAV paths do not establish these variations",
+      "status": "Blocked",
+      "evidenceAndDependency": "Disposable OS permission state plus owner-operated prompt/spoken sample; actual macOS/iOS dialogs need those platforms"
+    },
+    {
+      "id": "P03a",
+      "feature": "Local ASR runtime",
+      "expected": "Installed model transcribes known audio",
+      "actual": "Cached Nemotron transcribed disposable Windows-generated speech correctly",
+      "status": "Pass",
+      "evidenceAndDependency": "local-speech-transcription.log/.exit; actual CLI, no hosted request or model download"
+    },
+    {
+      "id": "P03b",
+      "feature": "Local ASR native insertion",
+      "expected": "Known WAV becomes editable composer text",
+      "actual": "Native local WAV transcription produced expected words and inserted unsent editable text",
+      "status": "Pass",
+      "evidenceAndDependency": "116–118; WAV path is a disposable synthetic audio fixture; microphone acceptance remains P02"
+    },
+    {
+      "id": "P04",
+      "feature": "Hosted ASR",
+      "expected": "Exact trusted service, auth, cancellation and insertion",
+      "actual": "No configured hosted endpoint",
+      "status": "Blocked",
+      "evidenceAndDependency": "Existing HTTPS service URL/token"
+    },
+    {
+      "id": "P05",
+      "feature": "Pairing/phone dictation/remote control",
+      "expected": "Matching native build, exact owner/grants",
+      "actual": "ADB works but lists no connected device. Current offline Android rebuild fails in Ninja at a cached header path longer than 260 characters, including a shorter cache-junction retry",
+      "status": "Blocked",
+      "evidenceAndDependency": "android-devices-current.log, android-current-build.log, android-short-path-build.log; connect/unlock Moto G32 with authorized USB debugging; current Android native build needs corrected generated CMake/cache paths or long-path-capable Ninja. iPhone 15 + Apple signing host unavailable"
+    },
+    {
+      "id": "R01a",
+      "feature": "Apps populated layout",
+      "expected": "Both catalog columns fit; long labels truncate",
+      "actual": "Rebuilt real catalog contains both columns and connection buttons at wide and 982px native widths",
+      "status": "Pass",
+      "evidenceAndDependency": "83, 247, 257; 84 connected-account empty state"
+    },
+    {
+      "id": "R01b",
+      "feature": "Other native workspace pages",
+      "expected": "Shared insets, one heading, controls and readable empty states",
+      "actual": "Candidate Projects, empty Decisions, populated Tasks/Teams/Routines/Workflows/Artifacts fit the 982px-wide native window with aligned headings and visible controls",
+      "status": "Pass",
+      "evidenceAndDependency": "181–188; narrow Apps 257; wide evidence retained in 85–99/143–167"
+    },
+    {
+      "id": "R02",
+      "feature": "Long names / scroll / keyboard / errors",
+      "expected": "No clipping, clear focus, truthful recovery",
+      "actual": "Long names truncate or wrap; large instruction/document/transcript lists navigate; fixed split-pane cards, composer and team-run controls; actual provider failure remains failed",
+      "status": "Pass",
+      "evidenceAndDependency": "86–87, 137–141, 167, 200–201, 228, 248, 257–261. This is the tested state set, not a claim every permutation or high-refresh frame budget passed"
+    },
+    {
+      "id": "R03",
+      "feature": "Restart persistence",
+      "expected": "Exact tasks/settings/definitions remain",
+      "actual": "Watcher restarts preserve hierarchy/workflow/history; current installed controlled restart preserves free replies, actual question/read tools, usage, draft and connected-action report; original appearance retained",
+      "status": "Pass",
+      "evidenceAndDependency": "89,99,278–279,314–316,365,376–378; installed-free-after-controlled-restart.exit0, installed-connected-controlled-restart.exit0 and free-source-after-restart.exit0"
+    },
+    {
+      "id": "R04",
+      "feature": "Long transcripts/responsiveness",
+      "expected": "Virtualization and streaming cadence stay bounded",
+      "actual": "Native 1,000-message/1,161,919-character synthetic history loads end marker, scrolls and Find jumps to first message",
+      "status": "Pass",
+      "evidenceAndDependency": "137–141, long-transcript-fixture.json and CPU observation. Functional responsiveness, not a high-refresh frame-time guarantee; math cache benchmark separately passes"
+    },
+    {
+      "id": "R05",
+      "feature": "Updated installer",
+      "expected": "New version; exact source/binaries; native install/recheck",
+      "actual": "Current0.1.24 built/verified/installed with exit0; repaired exact Gmail action, free OpenCode questions/read, actual report preview, bundled local microphone cancellation and controlled restart pass",
+      "status": "Pass",
+      "evidenceAndDependency": "359–378; installer-connected-verification.log, installed-connected-binary.json, installed-free-after-controlled-restart.exit0 and installed-connected-controlled-restart.exit0. Unsigned; earlier0.1.23 proof retained as historical"
+    }
+  ],
+  "fixedGroups": 31,
+  "installer": {
+    "name": "ion-0.1.24-x86_64-Setup.exe",
+    "bytes": 33373298,
+    "sha256": "F93BF64CFA4AA6B8E557749BB892BFEBB9268ECA2F123723CBC20A92FFF46C23"
+  },
+  "archive": {
+    "name": "ion-0.1.24-x86_64-pc-windows-msvc.zip",
+    "bytes": 48162841,
+    "sha256": "58F0A9066D5CE40D95C4AE066C1C03E24A6F5C98FFD1FE7381DF6753188E44AD"
+  },
+  "installedExecutable": {
+    "version": "0.1.24",
+    "path": "C:\\Users\\ksami\\AppData\\Local\\Programs\\Waku\\waku.exe",
+    "sha256": "007643879EACA68A2EE604D1CD3498EBE3DEE728B0AB780F4D27239D243DADC2",
+    "verifiedAt": "2026-10-19T14:12:45.2189516+05:30",
+    "installerExit": 0,
+    "productName": "ion",
+    "installerSha256": "F93BF64CFA4AA6B8E557749BB892BFEBB9268ECA2F123723CBC20A92FFF46C23"
+  },
+  "authenticode": "NotSigned",
+  "knownTokenEstimateUsd": 0.12015540000000002,
+  "reportedMonetaryChargesAvailable": false,
+  "nebiusRecordedCalls": 168.0,
+  "noClaudeExecution": true,
+  "videosRecorded": 0,
+  "scopeNote": "Pass applies only to its stated scenario/evidence class. Thirteen prerequisite-blocked scenarios and one Lightning-specific model failure remain. Free OpenCode ordinary success does not establish a bounded Zen Teams adapter. Known-token estimates exclude unledgered generator calls and are not invoice charges.",
+  "continuation": "current-continuation.md",
+  "remaining": "remaining-now.md",
+  "evidence": [
+    "connected-final-source-audit.json",
+    "connected-final-runtime.json",
+    "connected-final-state.json",
+    "closeout-audit.json",
+    "installed-free-opencode-audit.json",
+    "connected-packageGmail-receipt-audit.json",
+    "installed-free-steering-before.json",
+    "installed-free-steering-after.json"
+  ]
+}

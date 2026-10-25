@@ -1,0 +1,38 @@
+{
+  "key": "slack1",
+  "runId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+  "decisionId": "58df8184-a548-476b-aa88-9ccfc8d984df",
+  "staleRevision": 1,
+  "outcome": {
+    "reply": {
+      "type": "teamDecision",
+      "decision": {
+        "id": "58df8184-a548-476b-aa88-9ccfc8d984df",
+        "runId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+        "projectId": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+        "assignmentId": "e526d2a9-b898-416e-b96e-996a598ef0d8",
+        "taskId": "ff06845c-f51a-44db-8c1b-9bb22635bc98",
+        "agentId": "82d14956-633a-4da1-856c-474181e293c4",
+        "definitionRevision": 27,
+        "runRevision": 12,
+        "attemptId": "6a4eb383-2d6a-4ad8-b820-18fc17da24c3",
+        "host": "local",
+        "title": "Run SLACK_TEST_AUTH",
+        "proposal": "App action: SLACK_TEST_AUTH\nConnected account: ca_8tjHHZD502Un\nTool version: 20261015_00\nArguments:\n{}",
+        "appAction": {
+          "grant": {
+            "accountId": "ca_8tjHHZD502Un",
+            "action": "SLACK_TEST_AUTH",
+            "version": "20261015_00"
+          },
+          "argumentsJson": "{}"
+        },
+        "status": "approved",
+        "revision": 2,
+        "createdAt": 1792380498
+      }
+    }
+  },
+  "appStarted": 1,
+  "appSettled": 0
+}

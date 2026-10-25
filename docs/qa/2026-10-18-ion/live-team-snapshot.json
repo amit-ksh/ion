@@ -1,0 +1,235 @@
+{
+  "type": "teamRun",
+  "snapshot": {
+    "workspace": null,
+    "id": "ec228ff3-2247-4598-94f9-3cd558a26a75",
+    "rootTaskId": "ec228ff3-2247-4598-94f9-3cd558a26a75",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "definitionRevision": 6,
+    "revision": 66,
+    "status": "completed",
+    "team": {
+      "id": "55955ee8-8779-4dec-ad5c-e5055874e731",
+      "name": "QA Demo Team",
+      "objective": "Delegate document evidence to the child, read and accept its actual result, save an HTML final summary including QA_TEAM_OK and report_result with generated artifacts.",
+      "limits": {
+        "maxWorkItems": 8,
+        "maxParallelTasks": 1,
+        "maxDepth": 3,
+        "maxAttempts": 1,
+        "maxModelCalls": 24,
+        "maxTokens": 2200000,
+        "requireChildReview": true,
+        "maxReworkRounds": 1,
+        "timeoutSeconds": 600
+      },
+      "members": [
+        {
+          "agentId": "c1cc1ddc-9f4a-4249-94e6-24825625479a",
+          "parentId": null
+        },
+        {
+          "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+          "parentId": "c1cc1ddc-9f4a-4249-94e6-24825625479a"
+        }
+      ]
+    },
+    "profiles": [
+      {
+        "id": "c1cc1ddc-9f4a-4249-94e6-24825625479a",
+        "name": "QA Lead",
+        "expertise": "QA review and delegation",
+        "instructions": "For QA only. Delegate evidence work to your direct report when present. Read and review its actual document before accepting. Publish a short HTML summary using document tools. Preserve all source files. Do not use shell, network tools, external apps, publish, deploy, or provision infrastructure.",
+        "provider": "nebius",
+        "model": "nvidia/Nemotron-3_5-Lightning",
+        "expectedOutput": "",
+        "execution": {
+          "environment": "local",
+          "sandboxTarget": null,
+          "localFallback": true
+        },
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "maxParallelTasks": 1
+      },
+      {
+        "id": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "name": "QA Evidence",
+        "expertise": "Generate concise evidence documents",
+        "instructions": "Use only built-in document tools. Save a small Markdown report containing QA_CHILD_OK and one JSON document with {\"ready\":true}. Return their artifact IDs with report_result. Preserve source files. No shell, network tools, connected apps, publishing, deployment or infrastructure.",
+        "provider": "nebius",
+        "model": "nvidia/Nemotron-3_5-Lightning",
+        "expectedOutput": "",
+        "execution": {
+          "environment": "local",
+          "sandboxTarget": null,
+          "localFallback": true
+        },
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "maxParallelTasks": 1
+      }
+    ],
+    "limits": {
+      "maxWorkItems": 8,
+      "maxParallelTasks": 1,
+      "maxDepth": 3,
+      "maxAttempts": 1,
+      "maxModelCalls": 24,
+      "maxTokens": 2200000,
+      "requireChildReview": true,
+      "maxReworkRounds": 1,
+      "timeoutSeconds": 600
+    },
+    "usage": {
+      "modelCalls": 12,
+      "consumedTokens": 70333,
+      "reservedTokens": 0,
+      "unknownCalls": 0,
+      "unmeteredCalls": 0,
+      "allowanceViolations": 0
+    },
+    "access": {
+      "workspaceRead": true,
+      "workspaceWrite": false,
+      "shell": false,
+      "network": false,
+      "appActions": []
+    },
+    "createdAt": 1792330172,
+    "deadline": 1792330772,
+    "work": [
+      {
+        "canResume": false,
+        "canReconcile": false,
+        "id": "e0fbe5f6-bfe4-4cda-a153-7c4642be5ef6",
+        "taskId": "ec228ff3-2247-4598-94f9-3cd558a26a75",
+        "parentId": null,
+        "agentId": "c1cc1ddc-9f4a-4249-94e6-24825625479a",
+        "objective": "Produce short reviewed document evidence. Delegate to your child, read and accept its document, save a final HTML summary with QA_TEAM_OK. Use only document tools; no source changes, shell, network tools, apps, publish, deploy or provisioning.",
+        "expectedOutput": "",
+        "outputContract": {
+          "minimumDocuments": 0,
+          "requiredFormats": [],
+          "requiredChecks": []
+        },
+        "requiresReview": false,
+        "reworkOf": null,
+        "review": null,
+        "dependencies": [],
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "status": "completed",
+        "reason": null,
+        "attempts": [
+          {
+            "id": "a813b4ce-63f0-406f-8b09-9881aa0414fb",
+            "environment": "local",
+            "host": "local",
+            "fallbackReason": null,
+            "startedAt": 1792330174,
+            "leaseExpiresAt": 1792330386,
+            "generation": 2,
+            "status": "completed"
+          }
+        ],
+        "result": {
+          "summary": "QA review completed successfully. Child assignment 435b6665 reviewed and accepted with qa_review check passed. Final HTML summary saved as artifact e8b7e61b with QA_TEAM_OK status. All child work completed and accepted.",
+          "artifactIds": [
+            "e8b7e61b-2aaa-40ff-a531-7cdbd4c8f3fa"
+          ],
+          "checks": [
+            "qa_review"
+          ]
+        }
+      },
+      {
+        "canResume": false,
+        "canReconcile": false,
+        "id": "435b6665-cd1d-4e94-ba2c-3a01494b7c4d",
+        "taskId": "4240f7c2-08f5-403f-925a-43c1c2924a09",
+        "parentId": "e0fbe5f6-bfe4-4cda-a153-7c4642be5ef6",
+        "agentId": "590caf24-3f1a-43d2-bf3a-4a64a9359d49",
+        "objective": "Generate concise QA review document evidence",
+        "expectedOutput": "A short HTML document with QA review status",
+        "outputContract": {
+          "minimumDocuments": 1,
+          "requiredFormats": [
+            "html"
+          ],
+          "requiredChecks": [
+            "qa_review"
+          ]
+        },
+        "requiresReview": true,
+        "reworkOf": null,
+        "review": {
+          "id": "c69ed311-1f2d-4252-bda8-1ae2cc0445dd",
+          "verdict": "accepted",
+          "feedback": "Child document reviewed successfully. qa_review check passed. All evidence acceptable.",
+          "artifactIds": [
+            "e34f49f4-60c0-4f6b-8c75-217d92983970",
+            "e63cc493-b091-4b8e-8734-fa349bf08fb3"
+          ],
+          "checks": [
+            "qa_review"
+          ],
+          "reviewerTaskId": "ec228ff3-2247-4598-94f9-3cd558a26a75",
+          "replacementAssignmentId": null,
+          "createdAt": 1792330201
+        },
+        "dependencies": [],
+        "access": {
+          "workspaceRead": true,
+          "workspaceWrite": false,
+          "shell": false,
+          "network": false,
+          "appActions": []
+        },
+        "status": "completed",
+        "reason": null,
+        "attempts": [
+          {
+            "id": "4f7e9797-35b7-45a2-9ff5-2e01cb771136",
+            "environment": "local",
+            "host": "local",
+            "fallbackReason": null,
+            "startedAt": 1792330180,
+            "leaseExpiresAt": 1792330368,
+            "generation": 0,
+            "status": "completed"
+          }
+        ],
+        "result": {
+          "summary": "Generated concise QA review document evidence with HTML format and JSON readiness confirmation. All QA checks passed successfully.",
+          "artifactIds": [
+            "e34f49f4-60c0-4f6b-8c75-217d92983970",
+            "e63cc493-b091-4b8e-8734-fa349bf08fb3"
+          ],
+          "checks": [
+            "qa_review"
+          ]
+        }
+      }
+    ],
+    "decisions": [],
+    "sourcePrompt": "@team:{QA Demo Team} Produce short reviewed document evidence. Delegate to your child, read and accept its document, save a final HTML summary with QA_TEAM_OK. Use only document tools; no source changes, shell, network tools, apps, publish, deploy or provisioning.",
+    "inputs": [],
+    "followUps": []
+  }
+}

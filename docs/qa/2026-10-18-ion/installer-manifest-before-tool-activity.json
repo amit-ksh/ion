@@ -1,0 +1,2818 @@
+{
+  "app": "ion",
+  "version": "0.1.23",
+  "branch": "ion-prod",
+  "sourceBaseCommit": "2b79018d4532d35fe56020ff14bdbeac1b473ed9",
+  "workingTreeChanges": true,
+  "sourceFiles": [
+    {
+      "path": ".cargo/config.toml",
+      "sha256": "8E07D8C3857D9B795FAA77705F9EEFF8D0A84181734290606A4EA60478B39EC4"
+    },
+    {
+      "path": "assets/fonts/JetBrainsMono-Bold.ttf",
+      "sha256": "5590990C82E097397517F275F430AF4546E1C45CFF408BDE4255DAD142479DCB"
+    },
+    {
+      "path": "assets/fonts/JetBrainsMono-BoldItalic.ttf",
+      "sha256": "4039D5CE0ED225BF9C8B2C8C6436290AE2F356B7E90D70FA666227238324AA3B"
+    },
+    {
+      "path": "assets/fonts/JetBrainsMono-Italic.ttf",
+      "sha256": "9D0A1F7A708E6AF183F1193B7E81D40DA294F5C67682C085D8401C60AAC8DED4"
+    },
+    {
+      "path": "assets/fonts/JetBrainsMono-Regular.ttf",
+      "sha256": "A0BF60EF0F83C5ED4D7A75D45838548B1F6873372DFAC88F71804491898D138F"
+    },
+    {
+      "path": "assets/fonts/LICENSE-nerd-fonts.txt",
+      "sha256": "84A7A98C82140FB12C37FE42B93805BAA16024CB3E5ACC599B7FFE612C55D847"
+    },
+    {
+      "path": "assets/fonts/OFL.txt",
+      "sha256": "30F0C136E3C88E422D0791ACD97238870F9054A9729BC34CF2FF0D4ED8CAC4AD"
+    },
+    {
+      "path": "assets/fonts/SymbolsNerdFontMono-Regular.ttf",
+      "sha256": "F0F624D9B474BEA1662CF7E862D44AEBE1AE1F6C7F9CB7A0CA5D0E5AC9561C60"
+    },
+    {
+      "path": "assets/icons/alert.svg",
+      "sha256": "D14F5F7D9D5AE7D32E75AD65D26C9836FB7C2990EE86522DD4CDD6928AD2033B"
+    },
+    {
+      "path": "assets/icons/appearance.svg",
+      "sha256": "F9D5DC6354DD631E2CA01AA4805FC3F61CE7FE0D62734A65AC5CEB0D135D9E37"
+    },
+    {
+      "path": "assets/icons/arrow-down.svg",
+      "sha256": "49FC6C8B68AD5CC7CE2B8CCA65BB368D5811F950E85CAF362506FC1648B6BE6D"
+    },
+    {
+      "path": "assets/icons/arrow-left.svg",
+      "sha256": "17405413E05CAE706A028DEA3ACA09F245DD74CFB4D5F565A8BCA6362BF8BB22"
+    },
+    {
+      "path": "assets/icons/arrow-right.svg",
+      "sha256": "121E497F12ACE8B141B9E12B34FE4163AE0FAD098FA428DDD83A75ED2991A79B"
+    },
+    {
+      "path": "assets/icons/arrow-up-right.svg",
+      "sha256": "33EDB2EF6C3C7F7784CFC4006F3D67639C577B7DEC81537458A4FE95C8539C7D"
+    },
+    {
+      "path": "assets/icons/arrow-up.svg",
+      "sha256": "BA23E19350E32ACBC0EC3E059B77103BF523D4408D73059F6D38AF776417D483"
+    },
+    {
+      "path": "assets/icons/block.svg",
+      "sha256": "9FC3D5EEEC03A4B958AC92905A59141E428DB3BA26D1FBD2ED95C396127A10FE"
+    },
+    {
+      "path": "assets/icons/bot.svg",
+      "sha256": "F4F20A6EDEF19C6D9919003AB526961B9922C77A92CB1B03C3B2426402AFD544"
+    },
+    {
+      "path": "assets/icons/case-sensitive.svg",
+      "sha256": "22BBC9A6DE00A63943873BACA2EEE5CF107C6F97C598744655E1EB74001AC8D4"
+    },
+    {
+      "path": "assets/icons/changes.svg",
+      "sha256": "20DD524883E386EAD9BB46FF90188750E6D6771D04B43B9F7269C1F1B6D41C5A"
+    },
+    {
+      "path": "assets/icons/chart-column.svg",
+      "sha256": "43F102EFC01D7B0107C8370E9EA31F73B80AC7DE71DF4331596A1D5C34767EED"
+    },
+    {
+      "path": "assets/icons/check.svg",
+      "sha256": "7D5FEDC46E0F2FCFD0AE8477589F41E884C5609D95494FB109EDA44BBF9595EB"
+    },
+    {
+      "path": "assets/icons/chevron-down.svg",
+      "sha256": "2675E82C87CD077CDAB4112D44841DE0208DF0E273A7821CFB790DA12F88776C"
+    },
+    {
+      "path": "assets/icons/chevron-right.svg",
+      "sha256": "84B870C21266FFDEDB38FC3CAAF00B572A0FED846A9A829895A46B998B777D2B"
+    },
+    {
+      "path": "assets/icons/chevron-up.svg",
+      "sha256": "68BEE0CF599E8347A404DD82A51A23AEB7B1B19D265C81D3A9C5B93F4EBCCD42"
+    },
+    {
+      "path": "assets/icons/chevrons-up-down.svg",
+      "sha256": "F0BE1F1ACCD30572B4426E624180EF2A90A452457FA1A065063C638F541E6B33"
+    },
+    {
+      "path": "assets/icons/cloud-upload.svg",
+      "sha256": "6EF09ED55EE6CC515BA9AD56C22EFD74CDA8A9879F3AB38F5F50358226D24EA5"
+    },
+    {
+      "path": "assets/icons/command.svg",
+      "sha256": "64B3D5D565101DAF10096126FECBEC0F662B11AC53DFB0ADDEA9E38BAF26270C"
+    },
+    {
+      "path": "assets/icons/compose.svg",
+      "sha256": "C974FB948009ACD1F1AD8963DEF47E272F1A23DD4A7D123D28DD79D00EF19051"
+    },
+    {
+      "path": "assets/icons/copy.svg",
+      "sha256": "4E893209424E065979CB3F1191B4F47E3A0E5AD44623878A5982D2ED9C14C9F8"
+    },
+    {
+      "path": "assets/icons/corner-down-right.svg",
+      "sha256": "8210CD4CCC62EE5850F1A5FCC5B3866A4FE951AF7A721D07C474A28BAACD8203"
+    },
+    {
+      "path": "assets/icons/cursor-spark.svg",
+      "sha256": "B1B0604A53BD7629AD491416B2F8CD80D535C1C4CC734D46F8EF531C3C4EFFE4"
+    },
+    {
+      "path": "assets/icons/download.svg",
+      "sha256": "F411F7D7E07E75FC0005D88BA1F99163B69A83DD2C98802F6E7791A6694F129F"
+    },
+    {
+      "path": "assets/icons/ellipsis.svg",
+      "sha256": "F4C05664FA20B5409BE1AA518BBF6917A1DE4D83E9A259FAD83B23F72DFDDE87"
+    },
+    {
+      "path": "assets/icons/external-link.svg",
+      "sha256": "4C249D6B7ABF3D157B65A3ACB9FB01B2EA89259267A07FB03EC21D02C1894E41"
+    },
+    {
+      "path": "assets/icons/eye-off.svg",
+      "sha256": "A9B57D78205DE24D2D4F9BDD6C9A99F68E760702D7F38663EB59BBE3D96BFA47"
+    },
+    {
+      "path": "assets/icons/eye.svg",
+      "sha256": "CA259B149AEEF8B04AD06E08E66D40AFEC503494A29E070F1399537B1E977175"
+    },
+    {
+      "path": "assets/icons/file-bottom-left-arrow.svg",
+      "sha256": "41B466511A7CCEA586AAAAFD339438BD058F7FAA902230527F23BBB17A51D1EA"
+    },
+    {
+      "path": "assets/icons/file-diff.svg",
+      "sha256": "5C03C04984E568CF031D331478BA77506A5D88B0DFD5A942FFB3AC99934F5054"
+    },
+    {
+      "path": "assets/icons/file-types/angular.svg",
+      "sha256": "D76FC8D00DABA6E0FF44117D1648C1B595865C5B5AA90E835F9F218086992951"
+    },
+    {
+      "path": "assets/icons/file-types/astro.svg",
+      "sha256": "F6737F5A8839FD34EBFCB745F68F36E61D55D4DD5D0F008EC2F52549DB381953"
+    },
+    {
+      "path": "assets/icons/file-types/audio.svg",
+      "sha256": "CCA2358BA026A58BDEAB79E961E51602AAFEE52F4A90DC59F96288C6480CBC1C"
+    },
+    {
+      "path": "assets/icons/file-types/babel.svg",
+      "sha256": "81C729716FCC1856FE6B6B88CBC62BA2B3FE5B28CFF56FF486B4127504941177"
+    },
+    {
+      "path": "assets/icons/file-types/biome.svg",
+      "sha256": "1C9CB403238FF4FE4512A1A7B7FF9E903D1990867ECA10D8F255EE7F0A90A554"
+    },
+    {
+      "path": "assets/icons/file-types/bun.svg",
+      "sha256": "AB4C6AE546CC19B849597D4D6833FDDEDAE7CD09FECA2C63B4E0E0FA7E13B341"
+    },
+    {
+      "path": "assets/icons/file-types/c.svg",
+      "sha256": "B57D26E525D821657BB2F22D00FAFCD356CA30781FE194A01881153BFA2CF54A"
+    },
+    {
+      "path": "assets/icons/file-types/certificate.svg",
+      "sha256": "2CDC0EF81DDE64F038787F7A695E2AF93BE11C47BEDA363773EC1A511AB67371"
+    },
+    {
+      "path": "assets/icons/file-types/clojure.svg",
+      "sha256": "C65C991999FCC53D89B56ED4485CFA84C9E6D8491ACCE1F86CEE35635F6E2583"
+    },
+    {
+      "path": "assets/icons/file-types/cmake.svg",
+      "sha256": "799EC9A3DF8CD98DF055A30D8422355DF298809DA986581D18F5DB64E54E819C"
+    },
+    {
+      "path": "assets/icons/file-types/coffee.svg",
+      "sha256": "BBE14DC652F65FEA7505F35449191ED9039B6497F6D84C49A0E8317B79302B2D"
+    },
+    {
+      "path": "assets/icons/file-types/console.svg",
+      "sha256": "2BDF4C315C330049FB6EA9D69D030A252B461B0F822C8D3B5E58F4D7623F9080"
+    },
+    {
+      "path": "assets/icons/file-types/cpp.svg",
+      "sha256": "9995EE9DDDBC09BDFCD55C860DBBEB8A366929422F4A407250802A78CD839158"
+    },
+    {
+      "path": "assets/icons/file-types/crystal.svg",
+      "sha256": "C5E9EDC9AEE1E5C176414A320D7BB93753B18423C8202F0F16D2B191E5030F56"
+    },
+    {
+      "path": "assets/icons/file-types/csharp.svg",
+      "sha256": "54E56938F6628BF74FF6ADBEE70531C03D05A48330DD3221203CE188C8433789"
+    },
+    {
+      "path": "assets/icons/file-types/css.svg",
+      "sha256": "FA1DD5D88BD920B0CB8F2360D097E68A16193708740B647FCB6023349991689C"
+    },
+    {
+      "path": "assets/icons/file-types/dart.svg",
+      "sha256": "50EF55008EF1667DF8D8A00D4B3371F3A270F69227D8EF5DF8AC2DDA1D985AE3"
+    },
+    {
+      "path": "assets/icons/file-types/database.svg",
+      "sha256": "395A6E1143FA7A5095029F45ADDA00B9B5D3D402446C786A3C6790CBE08F15AF"
+    },
+    {
+      "path": "assets/icons/file-types/deno.svg",
+      "sha256": "AB6646BD3EDB1E8620FFFF3F73314ED0C03441A6BE90C3046F33F79272182606"
+    },
+    {
+      "path": "assets/icons/file-types/diff.svg",
+      "sha256": "B7039333F587B6D234B0DB90622F46C4BA28B26BCDDB56DD0762160239FAF87F"
+    },
+    {
+      "path": "assets/icons/file-types/docker.svg",
+      "sha256": "EF3DE2F2562F2ED6364A5F48396A2A547AA9DC117003315BACF0551A7DBF00E7"
+    },
+    {
+      "path": "assets/icons/file-types/editorconfig.svg",
+      "sha256": "630F4FA68AC48D5D6F5FB5A8DD4D2D69D66B85ABE3D19B007C0A2DA521F0754D"
+    },
+    {
+      "path": "assets/icons/file-types/elixir.svg",
+      "sha256": "AFC1F088C20DF9FBE1F2BC3BF73099607E3EE661CC033C5A459D9D4F3DB5C935"
+    },
+    {
+      "path": "assets/icons/file-types/elm.svg",
+      "sha256": "AAD021B1135F8E1751AB6E4552E30A11E8E1CEF7C88A689D8B426260E3C1F644"
+    },
+    {
+      "path": "assets/icons/file-types/erlang.svg",
+      "sha256": "2427CB016C9669B9542806A81E85EAC30CDC75C187A9B6B69608E3895EE921FF"
+    },
+    {
+      "path": "assets/icons/file-types/eslint.svg",
+      "sha256": "BF05D88E4DFE7C4B0E2A976E2ED6F0944372D1654911A4718D308E89C1AFAFC3"
+    },
+    {
+      "path": "assets/icons/file-types/exe.svg",
+      "sha256": "3BEFFA89E7A89F02DBE8640721123718A2A990B385C46D556DC5FC62D8892401"
+    },
+    {
+      "path": "assets/icons/file-types/file.svg",
+      "sha256": "5BE0EEDBD8BD6B1269834CCE7694182A1CC9EF5BD0A0AF26B7663AC38F614B45"
+    },
+    {
+      "path": "assets/icons/file-types/firebase.svg",
+      "sha256": "DCC1F4A4ED6C0EEC4574CAB0C60B3EDF5DC6D1173A9C7305CE76ED55339BF8D5"
+    },
+    {
+      "path": "assets/icons/file-types/git.svg",
+      "sha256": "E06542A94215A0993469D4E9303888DC0271155734FC98A94211B3904C6E6F3B"
+    },
+    {
+      "path": "assets/icons/file-types/gitlab.svg",
+      "sha256": "5A0F3B0AC1647805268331FDAE9B0982D2C29B790058577D40A83DE9A61A1649"
+    },
+    {
+      "path": "assets/icons/file-types/go.svg",
+      "sha256": "A4C1595F96F07B8B2F47C3BC3D9FF14D964B6F679B868ECCCF8E3E87D04E4F69"
+    },
+    {
+      "path": "assets/icons/file-types/gradle.svg",
+      "sha256": "220B64ACD09693824F7FCA067561981F8DB57145E7580E9E03EB4E858EAD96DD"
+    },
+    {
+      "path": "assets/icons/file-types/graphql.svg",
+      "sha256": "EC091D467CD6CE73745F9195315D74821DCB89AF1BC86E8EDFF4B747552C48B3"
+    },
+    {
+      "path": "assets/icons/file-types/haskell.svg",
+      "sha256": "2D94F1EE5714AE2B3328C2F2CAAF9D9F75C574F24BEE8E7F28496A2E67CFCA0A"
+    },
+    {
+      "path": "assets/icons/file-types/haxe.svg",
+      "sha256": "088051600104DF73564A01E69DB73361594CE0ABAE213D54155C8D47B3148954"
+    },
+    {
+      "path": "assets/icons/file-types/helm.svg",
+      "sha256": "5D0A22519F66F424713105259EFBB835F8022356E6AEA73A7560F3191778A47A"
+    },
+    {
+      "path": "assets/icons/file-types/html.svg",
+      "sha256": "469429F67AD4448D756E7A59A7F69C71A1881EF74DAC84F251F2EB70AC6F6CB9"
+    },
+    {
+      "path": "assets/icons/file-types/image.svg",
+      "sha256": "9DE9B083B4D892C87AC7DB6EB288A4565B8D275B69B7DC6A86343913C50D38BB"
+    },
+    {
+      "path": "assets/icons/file-types/java.svg",
+      "sha256": "BBC062CE54C24D55F656935D29CE6905977745F8A0016B06EB5DB1A4B122CFF4"
+    },
+    {
+      "path": "assets/icons/file-types/javascript.svg",
+      "sha256": "BF39BF7B6FA37BF2B00D4952170133D4C6CF1C19310DAB7A5B9AF8C494736949"
+    },
+    {
+      "path": "assets/icons/file-types/jinja.svg",
+      "sha256": "9478370AFF9A76E795ED1D256224CAB01A1B154D19FE4B23401D97456561394E"
+    },
+    {
+      "path": "assets/icons/file-types/json.svg",
+      "sha256": "CF8DBE85E0D1C54B6E7E8A75BA1D919885EB756D7A0920625AF6D1155609B6B3"
+    },
+    {
+      "path": "assets/icons/file-types/julia.svg",
+      "sha256": "1117D6E1DBC281F7AC32FF2280F4096E7F8C884E58E2D5467D83D5262A943586"
+    },
+    {
+      "path": "assets/icons/file-types/kotlin.svg",
+      "sha256": "DFD07257605484D40E14489E448B56ADF2C6B1C1E78C458D60D115428C0A700F"
+    },
+    {
+      "path": "assets/icons/file-types/kubernetes.svg",
+      "sha256": "AF2D53AFC205C285C17D4B688C094B876F369BDB0570E3B0030F520DBD1386D9"
+    },
+    {
+      "path": "assets/icons/file-types/lock.svg",
+      "sha256": "6CE26F6A940683D2C316E186562D4339D3C36952A582E48415CC8F188F956D55"
+    },
+    {
+      "path": "assets/icons/file-types/lua.svg",
+      "sha256": "D5930F2D2BE761C89FFE0E3B44E21D4DD0C90E94B03939E5C992F35312D4C0B3"
+    },
+    {
+      "path": "assets/icons/file-types/makefile.svg",
+      "sha256": "BBB05D2283B380EC6ED0D150A911F4700D383801720A01766F4F07FDCCE82BBF"
+    },
+    {
+      "path": "assets/icons/file-types/markdown.svg",
+      "sha256": "BB05CC8EAD66DCF1B4C361666AFC3F7FECB47A3C4E5DFF95979A511BBBFF2FF0"
+    },
+    {
+      "path": "assets/icons/file-types/nest.svg",
+      "sha256": "B0A639BB81656A691B085FE220FE12A0B13A01EFE3891D9481C97E6E04779F55"
+    },
+    {
+      "path": "assets/icons/file-types/next.svg",
+      "sha256": "524704307887EA15E81F9427BAAEDBAB77358AAB65D1AE6FF3982BAF599EDB86"
+    },
+    {
+      "path": "assets/icons/file-types/nginx.svg",
+      "sha256": "D9394780C176DDF62F925300650745F341614E255662D4562DA140830042E5D2"
+    },
+    {
+      "path": "assets/icons/file-types/nix.svg",
+      "sha256": "A1B4D20D9E0562FD97DCC8304FD235104DCB8BEBAEA81644A0173106D63CE0BD"
+    },
+    {
+      "path": "assets/icons/file-types/nodejs.svg",
+      "sha256": "1ED519B301159F8208340DBF73021E31BCE12C58A4CCA824971E71EE478A2FEF"
+    },
+    {
+      "path": "assets/icons/file-types/npm.svg",
+      "sha256": "34711AD03F69B4699E590A3C35CE85AE73474C7CD79FFDE84CE74B3E94C02E49"
+    },
+    {
+      "path": "assets/icons/file-types/nuxt.svg",
+      "sha256": "673BBBEA5BA90C02D71D35FFA47D9593D0CFABFFE2540BA5C6977D256AA76238"
+    },
+    {
+      "path": "assets/icons/file-types/ocaml.svg",
+      "sha256": "E3F87BF8F3C11728AF38D7BE85EE731D6F1A3FD3A06A9E92A1183D2911B7A4F1"
+    },
+    {
+      "path": "assets/icons/file-types/pdf.svg",
+      "sha256": "D3B065173C38EB1CA1C0D34E00F4E70C7EF4F0660E82AC8DDE29FDC1321ACAB9"
+    },
+    {
+      "path": "assets/icons/file-types/perl.svg",
+      "sha256": "CD29D5202FCC35F702BDD03BD903101E0A3DF82CD18702D9A432E79E95710932"
+    },
+    {
+      "path": "assets/icons/file-types/php.svg",
+      "sha256": "0B459EE3ED57FA2249F164A24BB67905C5396DC292647FE71EB47A4C616D5419"
+    },
+    {
+      "path": "assets/icons/file-types/pnpm.svg",
+      "sha256": "3838686BAFD54676D0634D9A9E9311D10E67B70ACB4A83E43DCA3FCE855309BB"
+    },
+    {
+      "path": "assets/icons/file-types/powershell.svg",
+      "sha256": "424418F58AD57B202F2526983881201FC04871396AC9D4B7BCE2499FB4FAAC84"
+    },
+    {
+      "path": "assets/icons/file-types/prettier.svg",
+      "sha256": "3804FC5565D2ACCA98B0EB8D3EA3F78A6CF26B648F48DD972AE90924A62CEC1C"
+    },
+    {
+      "path": "assets/icons/file-types/prisma.svg",
+      "sha256": "105103B59119B6A58824A1183E7C40CF2710A7DF528D4EDD970F1918F79C8498"
+    },
+    {
+      "path": "assets/icons/file-types/proto.svg",
+      "sha256": "3991125FCE0486DFF7CF6DABC0BC3738E53AF176CAD87C8AC3451E7E4B43B3C0"
+    },
+    {
+      "path": "assets/icons/file-types/pug.svg",
+      "sha256": "E21A0A97918FD83045C0D9579044F647D8C35EEEA59119F4CE183E14635360A0"
+    },
+    {
+      "path": "assets/icons/file-types/python.svg",
+      "sha256": "01CFF33223EDB18E6268093B50E2C3CD5E20971045EEFEDF4FED52AA64D6EB03"
+    },
+    {
+      "path": "assets/icons/file-types/react.svg",
+      "sha256": "85008B05698B616987C8934358996BDF5B7B9B35298E2F59DFD6DD5EFA61C55F"
+    },
+    {
+      "path": "assets/icons/file-types/readme.svg",
+      "sha256": "BC9570BE930B281B2F1098CE765EC43BC5D11E7590837D3E5599445F7D827B06"
+    },
+    {
+      "path": "assets/icons/file-types/rollup.svg",
+      "sha256": "D8199B60D17AB5881FB7919F7F2DDE0B3745A085686A0BB9A75CCDF8F0C5190F"
+    },
+    {
+      "path": "assets/icons/file-types/ruby.svg",
+      "sha256": "B7905BC040F1023ABF9B5D8DED0111982C3B397484CD0E543F185B75132602CC"
+    },
+    {
+      "path": "assets/icons/file-types/rust.svg",
+      "sha256": "39A3366326E62D0896A0072425F62A75ECB23A6826CD3620B3C3BE25F78064CA"
+    },
+    {
+      "path": "assets/icons/file-types/sass.svg",
+      "sha256": "89919A01AD9DF71458E89DA9E0C128EBC043A7B59E0B1F14F1E145A24EB948F8"
+    },
+    {
+      "path": "assets/icons/file-types/scala.svg",
+      "sha256": "3777BE4B665D8D713A5466E7DE76967175B89B201B8846B391379DF81AE819B5"
+    },
+    {
+      "path": "assets/icons/file-types/settings.svg",
+      "sha256": "C97EAE217497C03625FC58FF760A727D05A3C66ABD5D6E5D9C9595B37A765BFE"
+    },
+    {
+      "path": "assets/icons/file-types/solidity.svg",
+      "sha256": "8BFEA3A10F4ED3A01D874D43AB1F1AFC5AFB539E36CA3FF4B4217FBCD735AD00"
+    },
+    {
+      "path": "assets/icons/file-types/SOURCE.md",
+      "sha256": "AA3C78BA98D62BEE2BA6789FC8DCC5CD7D35AE15175332AA25263428F51B2446"
+    },
+    {
+      "path": "assets/icons/file-types/storybook.svg",
+      "sha256": "4A73A7482719335DCBF2D571261947413EC5616BDA11E147589ACEE7137ADEA1"
+    },
+    {
+      "path": "assets/icons/file-types/stylelint.svg",
+      "sha256": "F63529E486C86986E7A8DBCBEDFFB84A337FCBAD0438BE8869ED5C7369C2A8D7"
+    },
+    {
+      "path": "assets/icons/file-types/supabase.svg",
+      "sha256": "FA2A601CD1FEA0B98D975B6A7406F42C849CED7FAEC160A37528662B438E09E3"
+    },
+    {
+      "path": "assets/icons/file-types/svelte.svg",
+      "sha256": "8D903529C02788D9702DB0205CF6F16DA99C9DE98EC917EEF98BCAF0143A17A4"
+    },
+    {
+      "path": "assets/icons/file-types/svg.svg",
+      "sha256": "09402079C5B5A6269A970BBF37C50776DEC93DB4A4E82007793ED32648A34368"
+    },
+    {
+      "path": "assets/icons/file-types/swift.svg",
+      "sha256": "00C1562319610646D358AF391F447124AA61E868956C45E2D35AE097A30A4891"
+    },
+    {
+      "path": "assets/icons/file-types/tailwindcss.svg",
+      "sha256": "771D37977A5093F67707831AFD67205BCC056BB1203D1CE9A314DF507D823A3B"
+    },
+    {
+      "path": "assets/icons/file-types/terraform.svg",
+      "sha256": "3E0E099A714430A85B6F49242D63DAC4DD3A5969E1A76AEE8B52A6171225544E"
+    },
+    {
+      "path": "assets/icons/file-types/tex.svg",
+      "sha256": "FFD57EB62C2C66C1C45DD21E6D401DA3E6586A2BEC6D7251BC7F9D661365CA4A"
+    },
+    {
+      "path": "assets/icons/file-types/turborepo.svg",
+      "sha256": "E2DAD8894E42F05B3E80D5FE710E07D3ABC654BB853E777EF19083E8C4CFBCD5"
+    },
+    {
+      "path": "assets/icons/file-types/typescript.svg",
+      "sha256": "EB8A9E640C8B718B8F6C61873209E74E216844087FCF04B600C2684CF85AD903"
+    },
+    {
+      "path": "assets/icons/file-types/video.svg",
+      "sha256": "5D07C09C82525C3AB187AD8E6E99A3D3AF8A4085AC79BE19AFA8D7CC817765CA"
+    },
+    {
+      "path": "assets/icons/file-types/vite.svg",
+      "sha256": "13A21EBB987250F4F7EC426A5640004C08CC78B4FA24644E1070A63C4A8BE402"
+    },
+    {
+      "path": "assets/icons/file-types/vitest.svg",
+      "sha256": "0DE77DFACD227EE6E3104C6A15F1FBF8347D72056E0EF91F85998D9B8F6AFFB1"
+    },
+    {
+      "path": "assets/icons/file-types/vue.svg",
+      "sha256": "BE28E2C77D1CFD7DE714FCAB553B42940B18141F5376B2985C8AFDD9AABC0A39"
+    },
+    {
+      "path": "assets/icons/file-types/webassembly.svg",
+      "sha256": "49A3DE7AB0DE85AA0A7F33D1FF635062685ACB73D25D51A46C026B86B10A9CA9"
+    },
+    {
+      "path": "assets/icons/file-types/webpack.svg",
+      "sha256": "1FD17A7F8E27792CAD138FC9D349307F1A1532740593A90D80604B2547F184C8"
+    },
+    {
+      "path": "assets/icons/file-types/xaml.svg",
+      "sha256": "FDB83D42701A4026A31FFD0BDB333D0763862647AAFB659D684C9E18B97D6D56"
+    },
+    {
+      "path": "assets/icons/file-types/xml.svg",
+      "sha256": "B138063976361BBC43A385B5FB9733389B3F687DF51CB039F6039512AA37FB68"
+    },
+    {
+      "path": "assets/icons/file-types/yaml.svg",
+      "sha256": "A363F4B5F027CA566FACFC207ADFB676489AD16020C12D753AA08B96D13ED6ED"
+    },
+    {
+      "path": "assets/icons/file-types/yarn.svg",
+      "sha256": "C9C9AA0E3F40053B064DA0558A70FEB2FEEFBB7739B7C950432AFB2B3E955A87"
+    },
+    {
+      "path": "assets/icons/file-types/zig.svg",
+      "sha256": "956E387CAA50CE636827EFA4C69522A502182549AFB798575CD9F86E07196B3E"
+    },
+    {
+      "path": "assets/icons/file-types/zip.svg",
+      "sha256": "2B89EB315C3BBEA78CE559C3B40C2300F1369D20DE25F1E520178651F56797C2"
+    },
+    {
+      "path": "assets/icons/file.svg",
+      "sha256": "079D74512E17BEEE2CC0FCFC540C60303E8620396766079288DE20100D37B606"
+    },
+    {
+      "path": "assets/icons/folder-new.svg",
+      "sha256": "5BBA820D24CC21DBB3271FE4B1081BF649AB751747B76C67EC55849205A5C3A7"
+    },
+    {
+      "path": "assets/icons/folder-open.svg",
+      "sha256": "05936F6B4B842D32CFE4E59D49D4E9F3A362CF3286B357BDBEE0A5863BC78118"
+    },
+    {
+      "path": "assets/icons/folder.svg",
+      "sha256": "86A198564B37BE8246DC9B3CC4B945C318A3E01E2BAAD7D959FE5D3D119ABB28"
+    },
+    {
+      "path": "assets/icons/fork.svg",
+      "sha256": "EB4BA88AC9DB35AA214BD2718C2C6D90F217582135FAF190CE8B2D9F360F315D"
+    },
+    {
+      "path": "assets/icons/gauge.svg",
+      "sha256": "D78344C44840C31EE4EB5332CAD3DD8C96BDFBAB56B334CC3C54BD0D5F3DD85D"
+    },
+    {
+      "path": "assets/icons/git-branch.svg",
+      "sha256": "D8CE9B63EA500A6D684905987003C0F139FE3BF4DEEAFE421E193350AC005CAB"
+    },
+    {
+      "path": "assets/icons/git-commit-horizontal.svg",
+      "sha256": "5C7EC89965CAA61F162501F51435F74C1EE58258D1009F8D536D1EBF5A7AD620"
+    },
+    {
+      "path": "assets/icons/github.svg",
+      "sha256": "8BE9229ADA0BA53FEF72EA81A46251921FF74497201B06E4BC85F1787B2FD938"
+    },
+    {
+      "path": "assets/icons/globe.svg",
+      "sha256": "359BDC64FECBECD6CA0B44FA6891073BF24DCBB6290782616A8AFE08D6D5514E"
+    },
+    {
+      "path": "assets/icons/hexagon.svg",
+      "sha256": "13945AC8AB590B27D6E9DED1D8C8DAC7FFC3142AFB8D317F3E8A541E6F809168"
+    },
+    {
+      "path": "assets/icons/hourglass.svg",
+      "sha256": "CC75859C92920F54AEA21A7D5CA6145EE8D32764D54E25FAD3A9D727F1F20CA2"
+    },
+    {
+      "path": "assets/icons/info.svg",
+      "sha256": "38EB6AD8C1783D7B64447E09C0963F2E06DF5281B63FB1444F4D769617E25917"
+    },
+    {
+      "path": "assets/icons/ion.svg",
+      "sha256": "F21CEA790D1896E6FAD7D3D79D97462BA473A2261782494AB9FE7DFF2C96EED0"
+    },
+    {
+      "path": "assets/icons/laptop.svg",
+      "sha256": "27B93D7BD7E0ECD1C25E3416BB14649CE2F46C135E0A2CFD88CEBBC4793A60F0"
+    },
+    {
+      "path": "assets/icons/list-filter.svg",
+      "sha256": "2615609C7F8BB11FB54336D0C016A5E2854E5AEDBBDEB9160C094CBAADE558FD"
+    },
+    {
+      "path": "assets/icons/list.svg",
+      "sha256": "14D0B8AFE1CFA8DD4DAF9A0B5CF8ABF10AED1064DB9379936F65EA77C8850713"
+    },
+    {
+      "path": "assets/icons/loader-circle.svg",
+      "sha256": "B4D93D8B2A51A35A25C2B50EED1E7CE4085124322BD4CE9DDFA8FBFB1B0D84F6"
+    },
+    {
+      "path": "assets/icons/lock-open.svg",
+      "sha256": "F622EFD3666568E407DB230713967C691AE81CB8316EF75677D90748D9140EE0"
+    },
+    {
+      "path": "assets/icons/lock.svg",
+      "sha256": "6642B1920F8E41F38F91FAC85EF606108C7295F4BCC3D9C866785A0AF57FA606"
+    },
+    {
+      "path": "assets/icons/mic.svg",
+      "sha256": "56EA5960EF7D0A39A9AB6ECFE150396269C321E0F3F803E9BA1F03ADC0D54402"
+    },
+    {
+      "path": "assets/icons/package.svg",
+      "sha256": "E8CDB0B175D0B0035737393259783271FFD7D31054B099E6755DA0595C5F52A2"
+    },
+    {
+      "path": "assets/icons/panel-left.svg",
+      "sha256": "596416C3E4A9E8E42F3E62734BAAC36F2DA9C789B18D42347B737F6AAD52F58E"
+    },
+    {
+      "path": "assets/icons/panel-right.svg",
+      "sha256": "13A6E80C10686E5C119B95EBE2BB92DF5D10901DB54CB7AFBCCF668B2266ACB0"
+    },
+    {
+      "path": "assets/icons/paperclip.svg",
+      "sha256": "A8CD8F6758F052F37491FB69A12B6FCFBA19A0CF81D19D71778BFD4D0281B101"
+    },
+    {
+      "path": "assets/icons/pencil.svg",
+      "sha256": "209ADC00F9D9B85E2993692508A4DFF582D3AC6B9840175A7D0FF854F909230C"
+    },
+    {
+      "path": "assets/icons/plus.svg",
+      "sha256": "8FA5A44F06C06E78CEDAFB0FEB9FBDABE07E79AA153A4899046BAF92AFA21ACA"
+    },
+    {
+      "path": "assets/icons/provider-amp.svg",
+      "sha256": "F445A927CF09FDA5C7AA54B94FA293DEB68F29BE8B4D63E2C626CD54DAC09C97"
+    },
+    {
+      "path": "assets/icons/provider-claude.svg",
+      "sha256": "65D1CB5AB48C5BA82AC6DA432AA6AD63240E8AB4AE8A11BFA264E5C8B682F2C3"
+    },
+    {
+      "path": "assets/icons/provider-cursor.svg",
+      "sha256": "AACF02BFB04BCC1DDFE4264B99684B48D276764BB93AA728F62A8382533F02F5"
+    },
+    {
+      "path": "assets/icons/provider-deepseek.svg",
+      "sha256": "A3DF000950C996132DA6651F631A52770CE15C925CE35B4D53D9D03F9DDB39DC"
+    },
+    {
+      "path": "assets/icons/provider-fx.svg",
+      "sha256": "85BFA4D549ABA16A0E458E6124D43A6EB8CFB8640E4B0467D96711FBEFAE630B"
+    },
+    {
+      "path": "assets/icons/provider-grok.svg",
+      "sha256": "8C400E514E9A1E7D2606E104F49326F0EC91F26737BAF5B451F593622B7F3E90"
+    },
+    {
+      "path": "assets/icons/provider-kimi.svg",
+      "sha256": "7DC3CC1FCCD6CEE908A61872B739B7A0F81B64CB39C9798425F6A1E15E75C6D5"
+    },
+    {
+      "path": "assets/icons/provider-ohmypi.svg",
+      "sha256": "1F1799D02C44D77BF01AA421B64CEEBCE5ACCA84A459DC9E7ABCE1727C399D4D"
+    },
+    {
+      "path": "assets/icons/provider-openai.svg",
+      "sha256": "49F43464FF1842C5B374DE88031C0DB53E10357457026CB1FA2D9FEDA4C7A01E"
+    },
+    {
+      "path": "assets/icons/provider-opencode.svg",
+      "sha256": "2DABD9F068A0F9B27FAAB6307E1444300C8E8B3C65F57A8E4E18998F576967FE"
+    },
+    {
+      "path": "assets/icons/provider-opencode2-badge.svg",
+      "sha256": "BD0CA73157BEDA09BF4A9EDFE843D81D725F833993C80FC157A28883AA35ED30"
+    },
+    {
+      "path": "assets/icons/provider-opencode2.svg",
+      "sha256": "2F8E208F09D9FF89CAC7AF2E9629EE6A87279626FE6916225AA49E071A79D8EE"
+    },
+    {
+      "path": "assets/icons/provider-pi.svg",
+      "sha256": "B1CBB7D01F1D55B0420F2B2E79894A3E0C80CB021F71305CCFE955A5D854FB28"
+    },
+    {
+      "path": "assets/icons/queue.svg",
+      "sha256": "9C0400355FDBAEC74DF72A745EF4CD112077FA7CF4246AE0F76ECF98D1B5AB37"
+    },
+    {
+      "path": "assets/icons/regex.svg",
+      "sha256": "353153C659C5851E3B0E3657AC6FD0DBAE0B2EEB516B72CE51933A5F33D2B313"
+    },
+    {
+      "path": "assets/icons/replace-all.svg",
+      "sha256": "A69ED1277ED997D0EFC57CE362DAD912CECD7523CCE7A9BAAF79483BF9ED3DCD"
+    },
+    {
+      "path": "assets/icons/replace.svg",
+      "sha256": "56E7619520DD413D34BF881E536E347530B5FABC79FEA155495A1F40DDB778F3"
+    },
+    {
+      "path": "assets/icons/rewind.svg",
+      "sha256": "E774DE36A2AD7603DBAD24EFF55EEB063242091CFD5B97AB52F4272900044333"
+    },
+    {
+      "path": "assets/icons/rotate-cw.svg",
+      "sha256": "EB04E941A0280B4D3054C32D0CCDF767FE0C4759AD13534B7575A53FB5F68B8F"
+    },
+    {
+      "path": "assets/icons/search.svg",
+      "sha256": "7A33475D9CB90D1258C7C59C34CC8D7D7304B4FAEF1629ABD5490CB948CAF7D0"
+    },
+    {
+      "path": "assets/icons/server.svg",
+      "sha256": "94E605FC4209AC7BA39090FF8814729CB53DF29EF45EC62D98957326CF0794F7"
+    },
+    {
+      "path": "assets/icons/settings.svg",
+      "sha256": "EAAB3812F0715A0D93AEE06D2D673B2346A98DE0950903FDA10E3DCF82954CD9"
+    },
+    {
+      "path": "assets/icons/slash.svg",
+      "sha256": "1D4200D048C94584A075F84BF14CFDB3ABB83E1EF6C01E51A2684BD652E41603"
+    },
+    {
+      "path": "assets/icons/sparkle.svg",
+      "sha256": "D3F6461862E1CA8F796A5C8ADE544967D0F096660F938D9E8934E295FB4B4F25"
+    },
+    {
+      "path": "assets/icons/star-filled.svg",
+      "sha256": "48ABB25363064343344825F4CD78B8824969596C1F2CF4627C61B58E068C57A5"
+    },
+    {
+      "path": "assets/icons/star.svg",
+      "sha256": "43F7FC9365ECF27774E5525D3FDEC34FD984AE9EFDD493C8544B6446DE5200E7"
+    },
+    {
+      "path": "assets/icons/stop-filled.svg",
+      "sha256": "088A83582884AFE28FAF7075B9EDDEE138D4A5E1809BDD87198D899C3B743980"
+    },
+    {
+      "path": "assets/icons/stop.svg",
+      "sha256": "37518746BB1B2A0004B923E112D8A4309DB5953C41FE5A6204E2EF38CB9F2186"
+    },
+    {
+      "path": "assets/icons/target.svg",
+      "sha256": "D71FD0676D606B7F618F190C07306947CEF41EAD76439835C04B757E0037AF01"
+    },
+    {
+      "path": "assets/icons/terminal-square.svg",
+      "sha256": "D86D227B2B9602EC01AFBC68ECA3AC4AEBE0870477FFE7AEF33DC41FE0F770FF"
+    },
+    {
+      "path": "assets/icons/terminal.svg",
+      "sha256": "001F835FDE91E519509D82F7244167F285B5EF7C1D6372DCC6ED7FBD1EB20D3C"
+    },
+    {
+      "path": "assets/icons/trash.svg",
+      "sha256": "0A57DE8CEF4F0DD14120A3226FA5B4D2364FDD48B9CA6430EDF5E67D6CFD5834"
+    },
+    {
+      "path": "assets/icons/whole-word.svg",
+      "sha256": "0950E1873E746652EFBD70D255BCB8D8E3F2411485DA5AE4A48CCB8E341479C5"
+    },
+    {
+      "path": "assets/icons/window-maximize.svg",
+      "sha256": "FC88DBA149B3A9BED5E237D9422D943BA40981310023E6788327810DECACFAE6"
+    },
+    {
+      "path": "assets/icons/window-minimize.svg",
+      "sha256": "1891F092925CBCF3199D18CA9A3B8C95180B1B282DB0863D2F55B8333CCB54B3"
+    },
+    {
+      "path": "assets/icons/window-restore.svg",
+      "sha256": "7A80554BF68CE75082F69A75BAB9DA4851B9C3F36877392FE30C0637816C15E2"
+    },
+    {
+      "path": "assets/icons/wrench.svg",
+      "sha256": "6E06A3D97DFAB8F093BA65C881EC47D33BFAC62D906BEC541847380639064B05"
+    },
+    {
+      "path": "assets/icons/x.svg",
+      "sha256": "FD539F7E715C1DFD7AB800AAACF813D62E40981BC2F089C94AA3CA70236C8D82"
+    },
+    {
+      "path": "assets/icons/zap.svg",
+      "sha256": "2F13CEADC965F5A29B66F214F3CA456D863D935C24E41378881C54286FB41E6E"
+    },
+    {
+      "path": "build.rs",
+      "sha256": "86996EC0E096E73718FEC743914FFAEF7F79D05093DA2F839875200DD90318B4"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "DD8EB069D352C4A3A00E23F43EBE83637D67B4FDBC490C3990F6982A0AC31BC9"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "626E58B9E73C3C4EF1F39A04436951D5C53E03AE394F70CA0A0F1637B05B5F70"
+    },
+    {
+      "path": "crates/waku-client/Cargo.toml",
+      "sha256": "7315C5708D759C9BAE6B43DF6E3C386B7CC3D795830E14BE988913CFAB3AF531"
+    },
+    {
+      "path": "crates/waku-client/README.md",
+      "sha256": "068E2A66EB98245D0821F88EDCD289A351013A8521D69CE75B5F02C3793EA8F2"
+    },
+    {
+      "path": "crates/waku-client/src/client.rs",
+      "sha256": "981C719FC08B7739FD30B4A37F71EFA9BEB6F0F04611EE0F566F5F5EB722C5AE"
+    },
+    {
+      "path": "crates/waku-client/src/command_env.rs",
+      "sha256": "F789DB2F753ABCEC193FFFF751B37F3094509ECE0498B3EDBF90CFC361AB41C0"
+    },
+    {
+      "path": "crates/waku-client/src/composer_complete.rs",
+      "sha256": "C5EFDD0D0FC360BE13FAB909D74F7941269C0C601AFCC00A4A73A204137741FE"
+    },
+    {
+      "path": "crates/waku-client/src/computer_use.rs",
+      "sha256": "FF1DC5A81F6BC01901A224B716B76EED141367E7ABA055DD38919586FD75B652"
+    },
+    {
+      "path": "crates/waku-client/src/driver.rs",
+      "sha256": "300D65B8AB68945EB7C28B8EC0A6455A9ED4C086184DECBD89A6B56FA180260E"
+    },
+    {
+      "path": "crates/waku-client/src/lib.rs",
+      "sha256": "21798D0A0541B1328A996265857B6790C363EF305A07C41696E7F968B73C6FCB"
+    },
+    {
+      "path": "crates/waku-client/src/onboarding.rs",
+      "sha256": "9C55711A7023F29546C218C3DF70FD8DF2CB56F7D6C65D1336E219D4FF9470B3"
+    },
+    {
+      "path": "crates/waku-client/src/persistence.rs",
+      "sha256": "E0DEFFCC470077C5AAC7B893EEA7BE59D5D460A8402253B558A94EFBF7C90B36"
+    },
+    {
+      "path": "crates/waku-client/src/process.rs",
+      "sha256": "33562FB79B739CD427C91E3488436F2E4DD92AB9745C69B5755863A9D38A763D"
+    },
+    {
+      "path": "crates/waku-client/src/workspace_client.rs",
+      "sha256": "49C9BDBFB61454DD06E00F61F90FBFFFCA66843C6666C1A1EA45622BC979AEB9"
+    },
+    {
+      "path": "crates/waku-computer-use/Cargo.toml",
+      "sha256": "6287AE4E615B2BD63029A12CEBF58BFE8277A57678007EECE9C1C76C77035F76"
+    },
+    {
+      "path": "crates/waku-computer-use/src/main.rs",
+      "sha256": "7C9D41F1B88C2C0E48A1AEF0E465ED81D4C3A8C4A0572130FBF254D2FF05AF7B"
+    },
+    {
+      "path": "crates/waku-computer-use/src/sdk.rs",
+      "sha256": "37607791F4B64B75D3970BC11A0BA2F7EE13CEF693B7C27262C577E6C6B2319E"
+    },
+    {
+      "path": "crates/waku-core/build.rs",
+      "sha256": "BF433BC507CFCCC88B290FEB32B6A3E8A2F5069867910F4C77875549228AE889"
+    },
+    {
+      "path": "crates/waku-core/Cargo.toml",
+      "sha256": "84B65AEBC60817BD1D49AD2F647C7F8AB15EBFD7DE84BA0E671A8AC7CFFA89FA"
+    },
+    {
+      "path": "crates/waku-core/README.md",
+      "sha256": "AE78937BCE227FF26C5ACE4457CBD15F800AAD7703FFC3B385505E0BB9B06ADC"
+    },
+    {
+      "path": "crates/waku-core/src/acp_session.rs",
+      "sha256": "0DC4513A19551B51D661A6AF5F74ADA5C5F49B9BED7EA20B7EA4A6381EBAD8AA"
+    },
+    {
+      "path": "crates/waku-core/src/amp_session.rs",
+      "sha256": "61ED9657C76B50F1C8937A98BBFD6FEFE58C1951C394188FB1A7566661EADC16"
+    },
+    {
+      "path": "crates/waku-core/src/attachments.rs",
+      "sha256": "C9A6D2AA7536FCEB72BFA7E3E26A690E0A3778321F309D2D6746AED66A13F4BB"
+    },
+    {
+      "path": "crates/waku-core/src/bin/ion-harness-worker.rs",
+      "sha256": "E7CF6A012F8B0B6106EB52046ED5ECC50E55CC5B7339128F61662F42D3FD5E9D"
+    },
+    {
+      "path": "crates/waku-core/src/blob_store.rs",
+      "sha256": "1092525E48D045AD645A705E025AB5EB132812417240702D807F34F11BD62D24"
+    },
+    {
+      "path": "crates/waku-core/src/checkpoint.rs",
+      "sha256": "FFB8C430B243F461BBC9CF45DA542DC6945E297A6C3A5F7171089C4711A779E4"
+    },
+    {
+      "path": "crates/waku-core/src/claude_metadata.rs",
+      "sha256": "77BD1B8EFBC65239C27EAA149EDC2F70D890D65C7CABE12239E92BB20870998D"
+    },
+    {
+      "path": "crates/waku-core/src/claude_session.rs",
+      "sha256": "8C170570E8C83F2EEB0B63E15F63EB03DB67AE1DED04019222FBC06DE27BA56C"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing.rs",
+      "sha256": "8C96EFA3059D9892DFE1597FC2C4EA758D5969E2076B5AAEC542477488913C97"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing/decimal.rs",
+      "sha256": "7627D5551F4CD502B6954CB43D6AF2E44AEE0FB08AC9A97E14CA74BB33AA2913"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing/discovery.rs",
+      "sha256": "F14F31D9E24522581662D3F38C1D04FB2BBB74011C0E596FA292D3466E8E6F17"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing/discovery/tests.rs",
+      "sha256": "F42B129206A5EC981E01A9C58ECC1DE56377DE1A640191481A99FC4D26C8CF0A"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing/focus.rs",
+      "sha256": "29C3F8F2D79BD9FBC0797FB5B121E3EC55D65D8FADCB932202748062C66BD040"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing/tests.rs",
+      "sha256": "8753F07D50643648404BE1D0545527D08647EEC206A646E835D6297D40836255"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_billing/transport.rs",
+      "sha256": "C0EB7739823EE08EF2BAC4D4C25C6D9BDADD79025EA63C9565CEB5EE27DC8BF2"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_spending.rs",
+      "sha256": "F3D01EB495ED596CC45A6A99CCC382E26EDC9D34619B51EBD3BC0321FF48F658"
+    },
+    {
+      "path": "crates/waku-core/src/cloud_spending/tests.rs",
+      "sha256": "BAA5DB29F399239C176EB24269BCDBACF665F6A04C53E8FAEA26C6A7097A4C56"
+    },
+    {
+      "path": "crates/waku-core/src/codex_session.rs",
+      "sha256": "E28783B414EA03D72F1632EFD71B04DC22CBC231071148346CC6FD463DFC65A7"
+    },
+    {
+      "path": "crates/waku-core/src/command_env.rs",
+      "sha256": "EA436F4EBA4340D403F38B2FFA219F21076A8ABF86EA08059EF46224F2059BA5"
+    },
+    {
+      "path": "crates/waku-core/src/command_env/working_directory.rs",
+      "sha256": "32C1ACBD90A3188789170A5D6760F376F47A2497D15A61B2C2E827B8872E8AF9"
+    },
+    {
+      "path": "crates/waku-core/src/composer_complete.rs",
+      "sha256": "7B2E9F9A8BD9A9D58BDC2D5612D42EC1580402F6212E55B76C331DEF1C480D4D"
+    },
+    {
+      "path": "crates/waku-core/src/computer_use.rs",
+      "sha256": "ABFAFFDCC4016CF1B8183A1CE4B67D967BF5559F7C7163CB1521B0CD66E6504B"
+    },
+    {
+      "path": "crates/waku-core/src/control.rs",
+      "sha256": "FB7EF57D51446D8863DDBF72E9DCA06E13B824D0B6BEBFF2CF055458ACEACF25"
+    },
+    {
+      "path": "crates/waku-core/src/control/artifact_library.rs",
+      "sha256": "8ED69A505267FDACBAF2B5424315828AE0C83913FDCF11EBA8300E5FC07232D4"
+    },
+    {
+      "path": "crates/waku-core/src/control/artifact_library/tests.rs",
+      "sha256": "ED00CD6F6A71D800178DE6AA3B5372A555011BD4733978AE54176EC600F2C015"
+    },
+    {
+      "path": "crates/waku-core/src/control/artifact_retention.rs",
+      "sha256": "F33351CB36775977B661D6B75B4ED4964022F4A9BFAA6DE9185B8DC8D24B05FB"
+    },
+    {
+      "path": "crates/waku-core/src/control/artifact_retention/tests.rs",
+      "sha256": "522F4EE8532AC850083D1ACE9ACD6B4D63915B8AA1BCFDBAE9EACA4E0D47C542"
+    },
+    {
+      "path": "crates/waku-core/src/control/gateway_inbox.rs",
+      "sha256": "762595E7279A8F9AEEA8BCA97FC5A623594072B97D03BC6233574F292DC568C8"
+    },
+    {
+      "path": "crates/waku-core/src/control/inbox_history_tests.rs",
+      "sha256": "DA656C2E08E33617EEEA5D9DCD3E5AF7A243866019DF621773C036979DF260E6"
+    },
+    {
+      "path": "crates/waku-core/src/control/inbox_history.rs",
+      "sha256": "89E94FAA4DDCDA5D2B71F4E78A0EB1A38A76758FA73D3314150CF213AF6BCBB8"
+    },
+    {
+      "path": "crates/waku-core/src/control/inbox.rs",
+      "sha256": "5E95162D5B58FA7E3C12EE5BE0D847219775BA28CF6728C7857FBBE071969DB3"
+    },
+    {
+      "path": "crates/waku-core/src/control/notifications.rs",
+      "sha256": "70B145003CE23C0B9700E45EF416A254B3358CED0357235344A3CD3322690649"
+    },
+    {
+      "path": "crates/waku-core/src/cursor_session.rs",
+      "sha256": "80201BC225906B5AF0F8B61443F8E254B40A666EB88C37C54C151B22DDC2416E"
+    },
+    {
+      "path": "crates/waku-core/src/daemon.rs",
+      "sha256": "E7BE010B36E04C5A9E8BC0F4CE8F9E42DEE576453AF7B8AB82E1878A858EDAA4"
+    },
+    {
+      "path": "crates/waku-core/src/deepseek_pool.rs",
+      "sha256": "7715BCBA9C5042A1F89C918214B59B6F823D12D9CBF753FB9FE2AA6B344FACAF"
+    },
+    {
+      "path": "crates/waku-core/src/deepseek_session.rs",
+      "sha256": "715B2985527F4BDDB4E58F40A1481314F5053BD721D1BEBEDA54BB84A87AB945"
+    },
+    {
+      "path": "crates/waku-core/src/driver/acp.rs",
+      "sha256": "06C32FEEDFB0F813A803537CCE391A661BBFD89D2B2F78CC7EF785221529EDCE"
+    },
+    {
+      "path": "crates/waku-core/src/driver/acp/windows_launch_tests.rs",
+      "sha256": "B0DB1CAF9438C3977D5EC2AF13B474F2F3B84AAB1B48EAB87F58D00C55D48F6D"
+    },
+    {
+      "path": "crates/waku-core/src/driver/activity.rs",
+      "sha256": "8E05F01A1ACAF79080F7081E33104DE61E0A2D0FB0D192EB5E27CC6C9393CD80"
+    },
+    {
+      "path": "crates/waku-core/src/driver/amp.rs",
+      "sha256": "9726360E19910DFF30CFD89497C8E3DD9594FCEB9139A46654F35B5D8A9EA51F"
+    },
+    {
+      "path": "crates/waku-core/src/driver/antigravity.rs",
+      "sha256": "5F2631DB5BD15C0ED708636E0619CA6551045F812F81CBFECB07CE55EA4077DC"
+    },
+    {
+      "path": "crates/waku-core/src/driver/claude.rs",
+      "sha256": "F95907AEB8AACC5CDC1EFC032C699F39ACCC7B1BA307B09447DBCFC6A09DC37A"
+    },
+    {
+      "path": "crates/waku-core/src/driver/claude/source_teams.rs",
+      "sha256": "CD137695B7C7132B11AA8D3D56BF6F32D9FBBCFCCDC642C1046C8ABB3C5929C9"
+    },
+    {
+      "path": "crates/waku-core/src/driver/codex.rs",
+      "sha256": "EC90618B284C485964641B0B4207FDA54B873E99A9B8EDC6825E22B73F4DA36E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/codex/source_teams.rs",
+      "sha256": "641DE6F32893556C696AE1581E80B23A1D4CAF307F9CADC1CD5BB09225B4EAD7"
+    },
+    {
+      "path": "crates/waku-core/src/driver/computer_use.rs",
+      "sha256": "1F2A8A1AFC949EAC37831CA2A2D2A90B521F4F21E2B2FC3AC966DAB0330B986E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/deepseek.rs",
+      "sha256": "C2537C7F0A01E274C95B297C6E25FB27DC95318E873CF9FCB7F80447E1FBE7FB"
+    },
+    {
+      "path": "crates/waku-core/src/driver/fixtures/codex_fork.sh",
+      "sha256": "E5A552EF9C6B7405C35C0F0D5D22C0B2EB75B42EBC07DBBDA5E3F1E801B11A89"
+    },
+    {
+      "path": "crates/waku-core/src/driver/mod.rs",
+      "sha256": "C143911DAE017A9709B521612AE6685D96440277723CD70C15B41D3FC586C0AB"
+    },
+    {
+      "path": "crates/waku-core/src/driver/nebius.rs",
+      "sha256": "22968068D07D7ECA73DCC2B9067B6DF32F04956B2640EA407D1CE2A31481114A"
+    },
+    {
+      "path": "crates/waku-core/src/driver/nebius/nemoclaw.rs",
+      "sha256": "7463255EF37ED7A248EC5D58E297E945D01738C22F03C85FEFB46B621FA2525D"
+    },
+    {
+      "path": "crates/waku-core/src/driver/nebius/team.rs",
+      "sha256": "E5A4449A4A536AF68FB9E1175F82C0389A440B307AF34E7C584BC74BAECEE51B"
+    },
+    {
+      "path": "crates/waku-core/src/driver/nebius/team/tests.rs",
+      "sha256": "DB066EADE01D3F1519012628D81891C01617FAC0E465DF35ABAEBEAABC1765CA"
+    },
+    {
+      "path": "crates/waku-core/src/driver/nebius/workflow.rs",
+      "sha256": "9D7C48C879012C35A0DD578C37C5A8B78B1AC283100CBED2C9C240C60327EB8F"
+    },
+    {
+      "path": "crates/waku-core/src/driver/nebius/workspace.rs",
+      "sha256": "234E2E6FB5DED4E2545FE1C8C5176ADEB849A86BD511FD74DC8F47585FCF8B78"
+    },
+    {
+      "path": "crates/waku-core/src/driver/opencode.rs",
+      "sha256": "D51B6D4707CE01DB12CA5579357E3E2FC8110591F9A848ED5C5FC6212CA71DF8"
+    },
+    {
+      "path": "crates/waku-core/src/driver/opencode2_computer_use.rs",
+      "sha256": "786D600E83B8CA3DB8BCCAD13617892005072F8DC73A1D68FCC465D36FFA5834"
+    },
+    {
+      "path": "crates/waku-core/src/driver/opencode2.rs",
+      "sha256": "A5E09B0047A08F36EA7294C6902A04FCB9A274964E9CF12D711D7EAC87275C66"
+    },
+    {
+      "path": "crates/waku-core/src/driver/pi.rs",
+      "sha256": "1BAD8551C9FC5D00B67C1FEFC638638DBF517917072E17B1AFE23B014B023FEA"
+    },
+    {
+      "path": "crates/waku-core/src/driver/solo_usage.rs",
+      "sha256": "EA9D389137BD32E240B1B1302F7586B6749AD57D5EE4320232D248AE27F0CC5E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/solo_usage/opencode.rs",
+      "sha256": "3F07F70F9DABE09CB40DA45C4A7D4B4F3F3C2C06A39BB046F4E885A5C48602BC"
+    },
+    {
+      "path": "crates/waku-core/src/driver/solo_usage/tests.rs",
+      "sha256": "70ABCB1935095C0927737A9E3BDDDA4CF478F5C8156DD0060828CDFF424A609D"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams.rs",
+      "sha256": "BC70264DACBD9FC4D53B218247CE4763B953E6A080F1323BCD0E5B91934A4D12"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/acp_bridge.rs",
+      "sha256": "25AC8CF4C2952224EFD4F52FD4B3E411C5E50791E923ADD62511AAD632FC3C7A"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/amp.rs",
+      "sha256": "EB95A221137ADE1A638C33267A45D3F8C87638167FE4CD863474F164F8074440"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/antigravity_native_tests.rs",
+      "sha256": "870D4C0897D69A70D589777C07BAFF1E30EFC8A067F4BC75F55CFADC9A3DC431"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/antigravity_tests.rs",
+      "sha256": "640D053D5815FF7C87DAC20659A55A4A6C62452691EAB073A91040D149C3D405"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/antigravity.rs",
+      "sha256": "104384CD8E6C54EEB09BF57B153EA1E63D952A5A20F8B6981CAD52E7BF2A134A"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/cursor.rs",
+      "sha256": "288C6799022742A5BEE99ABC2FBB41A74091ED4D8E46A6331BE26E23EC1CE646"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/cursor/binding.rs",
+      "sha256": "50DBCF29E8B9CB00C5FEC449D026654940BDFEF0BCF3D7AA3ADECEA1468DFB15"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/cursor/hook.ps1",
+      "sha256": "E874D7B8AD0260BBB156951693C5656B78059458DC95DA8729A1E843E8D4848C"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/cursor/lease.rs",
+      "sha256": "FA61EDC8D638074D034E585612F8087D6F13EF72B7FAD7C2BB55C9D936342B20"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/cursor/native_tests.rs",
+      "sha256": "7AD5084C4E55E9A38ABAB4E655930474631DF622A28EE017719ED678E7DA5009"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/cursor/worker_tests.rs",
+      "sha256": "2DBBC6E85EB1828931DC3F4DB9B7805DB1F1F957D552C09ABA1AAA5E5792D0F0"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/grok_native_tests.rs",
+      "sha256": "E6A3BD81B708608593364426A53AC02CD975925C67B487CFCA4464773FFE2EF1"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/grok_tests.rs",
+      "sha256": "65E5FA616B64E734E63FF65BEAFC7CDC993B76FEF31069CBF0A171A2EC56C52D"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/grok.rs",
+      "sha256": "273174B6FEBECA2D373DB8ED3675ED4710F7DE4CDAF3CC214ABBD640C894720C"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/kimi_native_tests.rs",
+      "sha256": "A3E96227F3771E44DAB96C7742EF55317DB1CDF3739853E8304080A11D703B0E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/kimi_tests.rs",
+      "sha256": "FA01A751AE88A7CE1F6D8A581C75B75278C179C97BF1ECBA6ED4E18D11476BF6"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/kimi.rs",
+      "sha256": "3F88F4E4B0FC4450064D1966CCF10545B70F313E9BDEE782A775D24B3B2C71A0"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/opencode.rs",
+      "sha256": "27B9CCF47210C7B11370127C2FC8CA5DCE33F1BF922200CC3A0325A75AC9C4B7"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/opencode2_native_tests.rs",
+      "sha256": "EBFE70EE04A9AE804DDE241C3CA672C3B9AABBBCB0A6D3DC9FDEF5786E7D754E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/opencode2.rs",
+      "sha256": "23F93841A093B0C0E35A6D278E4C479EA7239CCEBC98BF41D88C9A49F28BE840"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/project_bundle.rs",
+      "sha256": "7703C966605B1ED79C796139725AFB4ABFB70DE80D0F2BBF51C716BDCFD77F8E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/source_teams/worker.rs",
+      "sha256": "B33DF884D076E75E8923ED4AFD571A75809650BD796B237EA506E0BD27EC52F9"
+    },
+    {
+      "path": "crates/waku-core/src/driver/support.rs",
+      "sha256": "972BEC9FE549AFEE527211378AE71CD46528EE8FCFAE2E6AF2278110AD40215E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_antigravity.rs",
+      "sha256": "F99BCB3054548D26DCE97ADF77F13DD2C2E436C203AE27DFB716227BF18D5156"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_apps.rs",
+      "sha256": "E94A184EC2F4CF9E6DE86B6DF75EC2B3A65520F4D8592653868FFFA766E3F681"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_claude.rs",
+      "sha256": "CAD8695F29BBC7A7E1267E51B774F6B131EE57C94420323CBC3636F5A284B3E5"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_claude/tests.rs",
+      "sha256": "E26C82E3F1882E0203F6BEFBD16411E8B5209AE5A5A523BAC73CAF4A68A31A05"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_codex.rs",
+      "sha256": "59FA12C12B2FAF9E9CC5114CBBC33A35E4A93EB76AC042D01AC076F2788D2FAA"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_completion.rs",
+      "sha256": "5BC37ADF2A716B7346EAB56E82089F03DA7D98D0B388E856D0DCE375CD9E6795"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_deepseek.rs",
+      "sha256": "D4653F099620F77D8AF0F07528CDEB0FA6A2BE76BB359AB7B2509774522AB766"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_fx.rs",
+      "sha256": "4C79ACC4FD62501BC180993F5608ABC514E097A11742E3DE05051F21234491DE"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gate.rs",
+      "sha256": "BF1A059182A204AE5A2CC1EA73F14B6DAD8B47A615F6A44886F35915D4543A06"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu.rs",
+      "sha256": "35CEA3BC598D56C0D8C3692CA810313A62480098EE410941CC662BC9242C3277"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/preflight.rs",
+      "sha256": "F9B2A03A3AEE0F66C0AF135E8CE9826564CCB1E7EF28AFBDB4DC367D63E0B45A"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/preflight/tests.rs",
+      "sha256": "CB53E5B55FE39F0D07D7EFCB9F0569F417B7543C8E48B6335B48416E75B77999"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/pricing.rs",
+      "sha256": "5FE6C95E5AC311C003B5877FF5AA9C6C0CECA1B3CD0940A128817E65AC85A1BA"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/pricing/decimal.rs",
+      "sha256": "3F10AF513DCECE490B38C71BE0DD7F22D2933FEF5AB2BA8CD46AB04BA0C71BB7"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/pricing/tests.rs",
+      "sha256": "81BE2359B0B439D8C2B7AB39D7DD5391E55024061243EDFF5DF7D1502E237A9E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/recovery.rs",
+      "sha256": "0D8750C517854947DFF536FC80F1ABE1B8CBD37DB13B8A7676A5D0B39FB0E350"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/recovery/tests.rs",
+      "sha256": "79F88E230C84237B931B756823228EA358EB955BB6B21060928E6E2594599F4E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/resources.rs",
+      "sha256": "6CC432390B3BDFDBA96983109DB9FDBD95BBF2B0FA76EE335A09D7045D0F907E"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/resources/tests.rs",
+      "sha256": "BA150AFFC3968C399E82C60D7BAC9C4FD49B1E1D0E2BF7ACDBC39E1C003577AF"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/results.rs",
+      "sha256": "2F0D9EA4725C2CD60174072FE3A57B7D7643568FB59F5C55F1328CC3D5B9381C"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/results/tests.rs",
+      "sha256": "14E7A090428C02C92181E54A691B5EB2A04E36610563147FBB693EEF0033FF7B"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_gpu/results/wait_tests.rs",
+      "sha256": "B27AA9808271F98739BBDDCAF096F0E3A742F01B13648F35FCCCDF1B1DB91A87"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_grok.rs",
+      "sha256": "75D8B0AACDD5F1857CED974816A54BEB0E6BDE3A84453B93192751FA7CA88CEA"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_job_checks_tests.rs",
+      "sha256": "1E2081FD7F3B486DDD58EC0159CC82A6036AE7F0CFA172B6519EC49D905210D2"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_jobs.rs",
+      "sha256": "5721A1CD70D61CF492DCF8EFC7495E21503754D965E60198F7B66C024F7D7596"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_jobs/project.rs",
+      "sha256": "A3B1B06D1EA33BA256FD7502430C348593A9AE55AC812F992707EB234775A632"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_kimi.rs",
+      "sha256": "5792A71EC7B143800760CD12E1F4A986C5AAB70479120B497C8F8ACE198A29D5"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_omp.rs",
+      "sha256": "EC1273624A8C04B142A808A3EA2DFF7515EC19F20A9051332C572298807F33C4"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_opencode.rs",
+      "sha256": "E9F452C37897268B840E68FE2D5671A1731F060ECE2A91290CDB19A110610E68"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_opencode2.rs",
+      "sha256": "DC9DBE78F2EB0F103BCE4CC6FEFC132C5F41BFE332CC36465C26D66D3E1137D6"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_pi.rs",
+      "sha256": "C9020E5B76B090468B7D5F9589314FED7920EA94D48D2AEEC60B3B5AF11C1DB2"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_remote.rs",
+      "sha256": "BCE687BCE093702B1CF04AD2DBFE78DBFB82493BD8FBB5A55080FAA18F93F2F1"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_remote/identity.rs",
+      "sha256": "A9D00B6A31FFA9D4DE4D56FA642E416C4EFF4D1E6D8607A74C13AFE2982683BC"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_test_http.rs",
+      "sha256": "AF6446659EDF74350531DF2921F6B3BDB74D5BC1E0DCC82F82826CE3ABEC98BF"
+    },
+    {
+      "path": "crates/waku-core/src/driver/team_worker.rs",
+      "sha256": "1BEF0DB3C57843D25CAA4D2CC4C88F0DAB04357192D8E833B40C38249DD731A6"
+    },
+    {
+      "path": "crates/waku-core/src/driver/title_refresh.rs",
+      "sha256": "CD34C006E26D8CC61CB022805C532A44B29BEE5C423A55A900429414AE338FDF"
+    },
+    {
+      "path": "crates/waku-core/src/frontmatter.rs",
+      "sha256": "9D1916726B6BBCEAFE01B3BA24259FF73F4EF6FDDDD4BDC8DFF7D1407AA78A95"
+    },
+    {
+      "path": "crates/waku-core/src/fs_ext.rs",
+      "sha256": "BB7BF3ACFF1DB906CC15BB463860C1FE2BDC0532B2C4A21F0915E34D94F1EE9F"
+    },
+    {
+      "path": "crates/waku-core/src/gateway_owner.rs",
+      "sha256": "5CAD4711DB828AFB6CE8EC491B2384BB9F83DCEADD951F02CB76A0B3161BB415"
+    },
+    {
+      "path": "crates/waku-core/src/gateway_owner/inbox.rs",
+      "sha256": "48B0B06B34350F88796D446813AF438988AEAB349E70317D63BF0BFF31F5EA1B"
+    },
+    {
+      "path": "crates/waku-core/src/gateway_owner/notifications.rs",
+      "sha256": "C86F8CB8E32BD640F802DF3A88D89EB5D007E1916E7CF54C3632A3932AD4CBE9"
+    },
+    {
+      "path": "crates/waku-core/src/gateway_owner/portfolio.rs",
+      "sha256": "4A11D6C366F3A5949BE43759167390DCCEDBA310E004C1305187B06422A7B718"
+    },
+    {
+      "path": "crates/waku-core/src/gateway_owner/tests.rs",
+      "sha256": "3C3F45830DA5FAB3803F2182988193CE46CB869E8BF755B2FF18BD655C02AD73"
+    },
+    {
+      "path": "crates/waku-core/src/git_branch.rs",
+      "sha256": "222108DD6EAFFB6073FF318373F933DB9E412269AC7D57A751231994426463FF"
+    },
+    {
+      "path": "crates/waku-core/src/git_commit.rs",
+      "sha256": "546276FAE8A129A40B4C11E3B8D1C076473718E1A435749DBB5184EFA5036F52"
+    },
+    {
+      "path": "crates/waku-core/src/grok_session.rs",
+      "sha256": "ACA4E074DF275E855DEAC522F2E33BE241C7A2631B44198CCC7D3930BF16E33A"
+    },
+    {
+      "path": "crates/waku-core/src/harness_worker.rs",
+      "sha256": "1D5B21235FBF34BAB816C632B95AF5BC0723AD4B272BFB5A3F72818C0254A1F3"
+    },
+    {
+      "path": "crates/waku-core/src/http_wire.rs",
+      "sha256": "22AF59CCEE4F44A4FAED65D3FA671B8D0750E13E3CA8908502BCCEE0C7D8CCC0"
+    },
+    {
+      "path": "crates/waku-core/src/i18n.rs",
+      "sha256": "F27F7274A9868CB25761788D64206C34AA021C42630B211607FDE04003A2938A"
+    },
+    {
+      "path": "crates/waku-core/src/identity.rs",
+      "sha256": "68DB80F8D51C556DC2364B691C0B88CC4291EEF3091ABE166D8C7F752FB34464"
+    },
+    {
+      "path": "crates/waku-core/src/kimi_session.rs",
+      "sha256": "79C70ACD0DA36693D4AF01332A728913CB012100852804F02031C8F350CCA386"
+    },
+    {
+      "path": "crates/waku-core/src/lib.rs",
+      "sha256": "67487DFAD56F4210C90AAB8BF160F998148677725E828D7ECE65523F1FBE2833"
+    },
+    {
+      "path": "crates/waku-core/src/model_catalog.rs",
+      "sha256": "220D42D042E61F1C75BCC22809E2108431D226B53D1E094A0AE55130B9CE6D45"
+    },
+    {
+      "path": "crates/waku-core/src/model.rs",
+      "sha256": "22A78EC0EFA67159227722E0BC6A7660D1F022650EADB8861D527864FE9A908F"
+    },
+    {
+      "path": "crates/waku-core/src/model/codex_binary.rs",
+      "sha256": "700CCA7A03A2F94D0C3E154390EADCD38D94076E273DACA740D35411B145E20E"
+    },
+    {
+      "path": "crates/waku-core/src/native_team_hook.rs",
+      "sha256": "41FC187231C4E40FAFE888F25E465093AEFF82DB405CA3778D9FCA4C5F3B06AC"
+    },
+    {
+      "path": "crates/waku-core/src/opencode_pool.rs",
+      "sha256": "70D2C748667B05FE029CAE51C74588DA4ED83EBBDA70DD2A4E12D8473681F23C"
+    },
+    {
+      "path": "crates/waku-core/src/opencode_session.rs",
+      "sha256": "ACB1EEE653567E91257B18F5CDBA2C42B95DE7A9E72090EA9D4FA32BF255B139"
+    },
+    {
+      "path": "crates/waku-core/src/opencode2_api.rs",
+      "sha256": "91C8DFCD54C998C8A54DDDCBAE773F56EFA0C2778ECBD439579FCB88E754D28F"
+    },
+    {
+      "path": "crates/waku-core/src/opencode2_service.rs",
+      "sha256": "05C362190DFB8F33CBA184B9169AE72E27127F1310CC333CF5A1015495B68491"
+    },
+    {
+      "path": "crates/waku-core/src/opencode2_session.rs",
+      "sha256": "F1FF95D3907AEDFF300C2264FE6FF40D7C3D58E7C9946C9C77567B6C32D28313"
+    },
+    {
+      "path": "crates/waku-core/src/persistence.rs",
+      "sha256": "D4B60299B2166ACD9C0EA92A68665AF3194A50F511C81CDFDEDB8CA4E66FEA6D"
+    },
+    {
+      "path": "crates/waku-core/src/pi_session.rs",
+      "sha256": "4D63886B036B82A8618CD27EDC248C8167A6C5C19F68FE3B1AF5A3320899478B"
+    },
+    {
+      "path": "crates/waku-core/src/projectless.rs",
+      "sha256": "EDBC23DC14F3FFE52509B1630E0DC907CEA303EB4F264E681D1E39240A3C976C"
+    },
+    {
+      "path": "crates/waku-core/src/protocol.rs",
+      "sha256": "C9CD4109B5157876D92C2A52CF17575350D223329FEA3B819CAADD81E97ED704"
+    },
+    {
+      "path": "crates/waku-core/src/routine_schedule.rs",
+      "sha256": "89F7978D1FA11423148A388891016B12BF66E4A3C9360183C78A45D744C62FDC"
+    },
+    {
+      "path": "crates/waku-core/src/server.rs",
+      "sha256": "F2F95DAE555EB6B7CBD6282ABEB36A7006E6419763B07999F218EB5EC107D306"
+    },
+    {
+      "path": "crates/waku-core/src/settings.rs",
+      "sha256": "53BA732F1B7DA8948D7842E7E3E51497880BEFFBF3BE280C8B590111564147D6"
+    },
+    {
+      "path": "crates/waku-core/src/skills.rs",
+      "sha256": "41D0ABB02E993CCF617AD884BE90C743F203DE302AC0ECCAB6BDFFC3D23B923D"
+    },
+    {
+      "path": "crates/waku-core/src/slash_command_catalog.rs",
+      "sha256": "2488AA2093296AD9A54AFE83E1037426A686F078210ECC948317839CB0B66861"
+    },
+    {
+      "path": "crates/waku-core/src/speech.rs",
+      "sha256": "FD59A99EB40D930BA87FF630C117E72314293B66E827F72F6A0F681BB9AEDA67"
+    },
+    {
+      "path": "crates/waku-core/src/team_process.rs",
+      "sha256": "5C70BD45C5B1409098D7ADAAE1A624DAE966DB5698C35CF050AD2543041D4399"
+    },
+    {
+      "path": "crates/waku-core/src/team_runtime.rs",
+      "sha256": "EC60E26522D22EF8C40D7E611F1FC7323F7D699EA2C5712C09BE715BFE3DD369"
+    },
+    {
+      "path": "crates/waku-core/src/team_runtime/projection.rs",
+      "sha256": "89C214751676233489BBCC1329F8C16FB2E3DDEE445E599F5730BBB1063C24CA"
+    },
+    {
+      "path": "crates/waku-core/src/team_runtime/tests.rs",
+      "sha256": "37BAE6E410A711175130E55DF37A15BC349D44C49DEF4378B1CDFE9A433D89E4"
+    },
+    {
+      "path": "crates/waku-core/src/teams/apps.rs",
+      "sha256": "112637251A7809246AF987FC0026197F123F35DF228B86B5D975B45DA76D1415"
+    },
+    {
+      "path": "crates/waku-core/src/teams/automation_retry_tests.rs",
+      "sha256": "69549C3809B6CA94C396BBA517706B1D8041419C2EBBA97AB8A9675E32E4754D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/automation_routing.rs",
+      "sha256": "332DBCC63832DBE04D6E0542F2EDFF84A8FC2C5A373F1F2E3E4566F3832F183D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/automation_tests.rs",
+      "sha256": "78603C6DDADCC6B1AB0706DFCD95B36A2159521842A74FB17059A72CED3FDE8E"
+    },
+    {
+      "path": "crates/waku-core/src/teams/automation.rs",
+      "sha256": "BBB1F6FEA1926726243DC0FB3108C679C6E728CB923907B471A2E9F9DCF488B7"
+    },
+    {
+      "path": "crates/waku-core/src/teams/automation/retries.rs",
+      "sha256": "1DE30999861F63C8234EBAFAB68B723F0545177C2D0031E9DA338CEC2C1621A4"
+    },
+    {
+      "path": "crates/waku-core/src/teams/budget.rs",
+      "sha256": "4FE063E35459908F1C3D81BA50D2CA5F90102639BB9DC574BDB6FC201B66A681"
+    },
+    {
+      "path": "crates/waku-core/src/teams/checks.rs",
+      "sha256": "B197720BD58070C490DF3E8417216F459AC684FADA32165ABB2CF815E0120522"
+    },
+    {
+      "path": "crates/waku-core/src/teams/continuation.rs",
+      "sha256": "C371513E73315C3DC69A9E038C0995F0311BF54C1634C307D3B63103360AD510"
+    },
+    {
+      "path": "crates/waku-core/src/teams/decisions.rs",
+      "sha256": "92C9635D7ED43E9E1CD5989A0058A89D77F5FD31B65ACADB581540F9FD567989"
+    },
+    {
+      "path": "crates/waku-core/src/teams/dispatch.rs",
+      "sha256": "F884DF974BF4EC585DC3994F820F4AAE1535DCDE1B7FFCFD2086B1A60F481E7B"
+    },
+    {
+      "path": "crates/waku-core/src/teams/document_tests.rs",
+      "sha256": "33B1C96B8799AF0B6A24EAC04B568BB31C38F758F1E2435A95B1035FADAEAE69"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents.rs",
+      "sha256": "C18056380D1288C9A7FA228928DC47FF065D475755F00D9B3C1DF92C4F260077"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/files.rs",
+      "sha256": "88163386C1CE97D3CB21DC7B458632B106F4B2B72B8D8AB72D344D8BF341A34D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle.rs",
+      "sha256": "8FF565EA3560AA07D489BF32E50E43BC3EA35F51606F3012E044F15B1D392F1D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/sources.rs",
+      "sha256": "DC49A5A992973ABCBAE45B159A1482C7C30E3577B20ADED44C8DAC01C2F21F70"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg.rs",
+      "sha256": "73442FF408B006DAE8DCE1F8C8C579509B237A1A62AF61E8F690F9C2A34D281F"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites.rs",
+      "sha256": "A6A5F0A1D15E6BEAFD0616D44648364FE26AD6F6F4ED9872970E4744D408F6A9"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/computed_names.rs",
+      "sha256": "084201FAC80F44EA1E3441ED9A35CE8DFF9E37A02363D9437B1EB4204BFED6A5"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/context_styles.rs",
+      "sha256": "51F9C3A7627FD6489933097D31E407FCCAB11E13C85A0792904C8391CEF5CE74"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/font_casefold.rs",
+      "sha256": "794AF6A0B9972D705067BE70675A393974544E2199C1A0F161D16075B6629C41"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/font_casefold/.gitattributes",
+      "sha256": "8BE054EB8792CA7BD897D9840FDF92C856538A73FDE5535756E9B651DDE86565"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/font_casefold/CaseFolding-18.0.0.txt",
+      "sha256": "A004797658A457BEC4DC11683E39F69249EA3B595B752DBEA6721C4C9F587B0D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/font_casefold/LICENSE-UNICODE.txt",
+      "sha256": "E7A93B009565CFCE55919A381437AC4DB883E9DA2126FA28B91D12732BC53D96"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/font_styles.rs",
+      "sha256": "FE88D32877EE9A52FED9A1E49B028B01AC7B990C8D3A6CCF5F5B795307596976"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/named_styles.rs",
+      "sha256": "E8ADBCC71ACA2BECACD1F0D307D2884D1CB54104A32C9D0DFA0B3C31B0C30937"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/named_styles/animation_fallback_tests.rs",
+      "sha256": "711D017181432E6EE1283BEFDA8043F22ECD22116637E11D249DF88498DA555D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/named_styles/animation_tests.rs",
+      "sha256": "02882DBFCD3991DB690A9D50651CB8E156E60B3170231C8E12AB1838D18C6205"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/named_styles/animation.rs",
+      "sha256": "EE33EDF03E97F89E18339C5CE8C168095FB2C3475CD0A114ED0A151CE2C1224B"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/named_styles/computed_tests.rs",
+      "sha256": "0D45C3C26DD6CC8250FA173F0D72E45EC0153FC31DC29D351372C8A5DC60F62E"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/named_styles/counters.rs",
+      "sha256": "2FC00F7303EEB3486C390FC366A707F90F5F6A554D9334F086EBBEA65346E7EE"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/property_styles.rs",
+      "sha256": "891356DBEBA3B65DE3DF07BA48A8137CCF82C26420B9B8B113D740CBF9288BE0"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/svg/sprites/scope_styles.rs",
+      "sha256": "1F54A6DA635958B0E7CAE7B7FC631D47CB40A74FF2EB84B9273E493AB4BABDF0"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/html_bundle/transfer.rs",
+      "sha256": "2F98011AFF421997B736A46283A0A1168559FEA3CD422C90A45EB14A29381C73"
+    },
+    {
+      "path": "crates/waku-core/src/teams/documents/pdf.rs",
+      "sha256": "B3024590391517049BB5320F450FFA396E19B3EE9B2741C6095C590C22E25956"
+    },
+    {
+      "path": "crates/waku-core/src/teams/followup_tests.rs",
+      "sha256": "3CB577DBDC719DFFBBBE482F9A9806BB5A862B35B3AF555BD8A98B51849046B5"
+    },
+    {
+      "path": "crates/waku-core/src/teams/followups.rs",
+      "sha256": "BCAC11D8479E6D59CDFBD30B3E9857419D7E777E9B8659708BB305A813A913B3"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gateway_pdf_cache_tests.rs",
+      "sha256": "F527E8600FF1A5FF16BD6EA9DB2965ED8D8DF678BF777EFEF766DBAB56E742C9"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gateway_pdf_tests.rs",
+      "sha256": "A151796CE95084974619F003EC21C31873274D0BAF6E7618AEAB82DF4E1BE8A9"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gateway_pdf.rs",
+      "sha256": "2D9BD0BB3A5164AFB002A779A35AB13D71F4AEFC7840DC174FF47500EDE1ACC8"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs.rs",
+      "sha256": "864D3E81736195E63B06473AAC2D393E53DE67C170BD26B97483155FB9AF1B3F"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/collector_retention.rs",
+      "sha256": "EC02049EF498B25E0815EE8C1A1B6DDEFE0E11FBD28EE4A24D5F49C6E95277A0"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/collector_retention/tests.rs",
+      "sha256": "069C2AF844BBEDB92571082A3D7F4394C6D0AD50334B6D19EBF5A0D159E573B8"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/maintenance.rs",
+      "sha256": "F382A1F88D9D077A1F1CFB4D2F030EE958722ECAE245E5C1877B413F53C142C2"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/price_policy.rs",
+      "sha256": "F90391D9A43C468962470D8D8F393818136C6B626492926F08ADE4A40631E72D"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/recovery.rs",
+      "sha256": "7001FC007206421B312F72D7A905DE2E6F933BDEB1E0094C7764CD791ECDA3E5"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/resource_policy.rs",
+      "sha256": "E07B19BAA4C7A359E78F1538DE2C67DD76696981B2CEFB723F43AB7C2A00F84F"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/resources.rs",
+      "sha256": "A1336379C8B19A125A595CD09578D86F257D7522AC588E18E8577F7983B17C6F"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/results.rs",
+      "sha256": "1E7AE1A07F696A554BC3E514F5AA5960ACE196B1548DABEEE5C9DA246993A0B1"
+    },
+    {
+      "path": "crates/waku-core/src/teams/gpu_jobs/waits.rs",
+      "sha256": "21B46D08DFF21A0E7BCE8ABB58CBDBB3B0EADF9416B6FD7160C31CC0BF5B5726"
+    },
+    {
+      "path": "crates/waku-core/src/teams/html_source_tests.rs",
+      "sha256": "98C87026F16B39766CAFAAA75D1FE796C4881160E39C22AD406DA4C1FDC31778"
+    },
+    {
+      "path": "crates/waku-core/src/teams/inputs.rs",
+      "sha256": "5C275FBA87C2A43FE208C1E3E62907AF1B15C98F71D0837CAC4A5C7F1B110B09"
+    },
+    {
+      "path": "crates/waku-core/src/teams/inputs/tests.rs",
+      "sha256": "12F87AC19FEE50045B0481D3B56384BDE7AC04A96E88566A38DE929C220875A5"
+    },
+    {
+      "path": "crates/waku-core/src/teams/jobs.rs",
+      "sha256": "AFDE49FAA6C584438C59447BF33BB9AF4C7EBABF6360774E2EE3B00650200008"
+    },
+    {
+      "path": "crates/waku-core/src/teams/jobs/admission.rs",
+      "sha256": "696914E87236D7DE0FBDEA20152DD655756C2D24CE56097D89043EBF584B6CF3"
+    },
+    {
+      "path": "crates/waku-core/src/teams/jobs/admission/tests.rs",
+      "sha256": "068180F8E813ECED11C83CBCDB962F46BF6805DA7FD4F3BC4CF0278B47320879"
+    },
+    {
+      "path": "crates/waku-core/src/teams/materialize.rs",
+      "sha256": "9E1E443068EAE5C461A865BAC3696CE193F4DEA8B491FEE6716EE2B27E7A4CDA"
+    },
+    {
+      "path": "crates/waku-core/src/teams/mod.rs",
+      "sha256": "8153974A48494BF86293D73EE9A0D391E1A2DF36B9A8D96AC5164EDC95438B1F"
+    },
+    {
+      "path": "crates/waku-core/src/teams/project.rs",
+      "sha256": "F41B0D52834759D13B165FCFE5CCE506F64FD359189C94140F2B2323A1FBF478"
+    },
+    {
+      "path": "crates/waku-core/src/teams/projections.rs",
+      "sha256": "A93AC05E963E09146DE76F9A4E7849FF699AC401261D2437F0522F64206E27E7"
+    },
+    {
+      "path": "crates/waku-core/src/teams/recovery.rs",
+      "sha256": "69CFF35CEE459F040081941D60958FBA86016285021927CBB297EDE9E509C976"
+    },
+    {
+      "path": "crates/waku-core/src/teams/recovery/receipts.rs",
+      "sha256": "17A5C01C5B687C5A7FDF81928628D6DC003A79A90D7304C3F84D9904E033A720"
+    },
+    {
+      "path": "crates/waku-core/src/teams/recovery/tests.rs",
+      "sha256": "A8F5E3EE8CC43B5CA12E3548079E828FE89D8088C1D155D9B2356244D73E2C46"
+    },
+    {
+      "path": "crates/waku-core/src/teams/remote_control.rs",
+      "sha256": "571C31734DE72DFB6F46228FC0263B109CD2F92DA957EE56D9CDE22DE5B80081"
+    },
+    {
+      "path": "crates/waku-core/src/teams/remote.rs",
+      "sha256": "776B87B234985085B6DCD4515451341DBED2AF47B2CBF76013A69F5C2460088F"
+    },
+    {
+      "path": "crates/waku-core/src/teams/reviews.rs",
+      "sha256": "515176F213A378FD50F171735A44A255873592A949433590FDFFD9D102E8573A"
+    },
+    {
+      "path": "crates/waku-core/src/teams/storage.rs",
+      "sha256": "049F365ADC4E20E09359595D5AF0FEB8AF090ADD2E8DB1C31068E0AFA5598B65"
+    },
+    {
+      "path": "crates/waku-core/src/teams/tests.rs",
+      "sha256": "23279503F6FE7CC8B39CEB55A784E2164A76FE74D43E0BFBB244261BA7221430"
+    },
+    {
+      "path": "crates/waku-core/src/teams/usage_ledger_tests.rs",
+      "sha256": "213143BFEE9CA585482F25F4251F3FA3234CD374701237B9A61352BE29BA189E"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace.rs",
+      "sha256": "95284CCF2C63BC9F114B248E2D24081FAFB9DA13E7383C47F41F50EFEB52BA4E"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace/effect_recovery.rs",
+      "sha256": "9238E1896960D3EAD829303FC3571CDA9B6879F0A1C94022D9ACA308DA5A9A14"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace/files.rs",
+      "sha256": "F057FED41D964ED401E6512B9BCEF38D02CC4C78EFCF3E481A228C8B5D4C97DF"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace/inheritance_tests.rs",
+      "sha256": "C0433DB685C153849AECE0E6A8F56E788359C7ABF1C41021E602DECF32E6D0A0"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace/inheritance.rs",
+      "sha256": "9A97EE1D2C2902875D2D2D6FB40ADC3DEFC854B092FF97C6992A49B902D50F34"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace/integration.rs",
+      "sha256": "F302F3AC824291D9A2006B18730014FCDA75E582DA0FF408449D73C2551B4F5A"
+    },
+    {
+      "path": "crates/waku-core/src/teams/workspace/tests.rs",
+      "sha256": "DA4C75FDCA0B1A8B6AE940FA97CDDBE1BF47C128E27C22DB35095040D55BE18A"
+    },
+    {
+      "path": "crates/waku-core/src/terminal.rs",
+      "sha256": "774A68BED6D8825D46F9145A95AF989463BF33CC88A78A84850B37B2E0237BDF"
+    },
+    {
+      "path": "crates/waku-core/src/theme.rs",
+      "sha256": "9AC59F73CA88CE695BB7BFAE86F0D89747A470D219C973BE1C02EA4C36F932E7"
+    },
+    {
+      "path": "crates/waku-core/src/usage_history.rs",
+      "sha256": "B39178A83AC3E3CD03DEB3591DEFA82E9CE82B6BFB39B6F38D5F55C1D8F26A4C"
+    },
+    {
+      "path": "crates/waku-core/src/usage_ledger.rs",
+      "sha256": "9E5F929A5DAA44ABBF0B8E438C965306E8D33844BBE422FBA14D2CBB93466CBC"
+    },
+    {
+      "path": "crates/waku-core/src/usage.rs",
+      "sha256": "0D8ADB39FA71D34395172630A74F982367BA07362BEF569AF867C8F3076502F4"
+    },
+    {
+      "path": "crates/waku-core/src/workspace.rs",
+      "sha256": "7A9F4237EAEE82226E1931023FF1DC8AB62FC90964A9C16F1CCEFD804DC93E18"
+    },
+    {
+      "path": "crates/waku-core/src/worktree.rs",
+      "sha256": "568F5BCB95C3F68596D82C70BB0B43C44983DA176094A6E66DB9181C1F2399FA"
+    },
+    {
+      "path": "crates/waku-credentials/Cargo.toml",
+      "sha256": "7472BD22521DAAEA2B9CAD41C94703A6CF92015B712741FA3A782BB10FB673DB"
+    },
+    {
+      "path": "crates/waku-credentials/src/composio.rs",
+      "sha256": "DC21BA6DC62B4B2B081ACA69AF25228B4EF888E81F68B70628C8E4E0FB6154D2"
+    },
+    {
+      "path": "crates/waku-credentials/src/credentials/linux.rs",
+      "sha256": "7E4B8143BBC39CA9439BA347CE993F9FF57ECD64210C9305800953A9316E95FB"
+    },
+    {
+      "path": "crates/waku-credentials/src/credentials/macos.rs",
+      "sha256": "CF567FEE8CE2B06AD38EB936DFDE26623D4681195039F6C40FA7D26503381012"
+    },
+    {
+      "path": "crates/waku-credentials/src/credentials/windows.rs",
+      "sha256": "6EBD314C00751AB19C120C4044AD955190EF8FB498F9F9B74BF0A76A61DC29CA"
+    },
+    {
+      "path": "crates/waku-credentials/src/gateway_pairing_file.rs",
+      "sha256": "99CD9FDA733053F3648109F221BE17E9C6CC02AE80D96DCC52DCD78168D076B5"
+    },
+    {
+      "path": "crates/waku-credentials/src/lib.rs",
+      "sha256": "0A3D5B822109F09915C301E83B1DA0F0129F0327B6CD2F438D1B9DBA11F002BF"
+    },
+    {
+      "path": "crates/waku-credentials/src/speech.rs",
+      "sha256": "4AC8FC4D0BF275726D89881BC3D4F91324A0430499B39361BA6A8B3B9EA4EC2E"
+    },
+    {
+      "path": "crates/waku-credentials/src/speech/realtime.rs",
+      "sha256": "424F35CF00B59928A4D8436735D9768E89C0ED7F4EA5F0E96CF3BFA2048A6127"
+    },
+    {
+      "path": "crates/waku-credentials/src/speech/realtime/tests.rs",
+      "sha256": "1D1C8EF72AE5598BD9C6A9DD46FD107275C1C618C910925900CA5F3FA26987E5"
+    },
+    {
+      "path": "crates/waku-daemon/Cargo.toml",
+      "sha256": "A0C3FC98CD301D37FBB85A92586FE3BD5ADACFAADAF82B84C1DDDBC3E4CDF7B8"
+    },
+    {
+      "path": "crates/waku-daemon/deploy/Caddyfile.example",
+      "sha256": "52B8C6F2471EEE761F84EAE402C0460A53C8D7C9B6E6F717E8262B9906D2DC51"
+    },
+    {
+      "path": "crates/waku-daemon/deploy/ion-cloud-daemon.service.example",
+      "sha256": "66C0C71E8A7B2E43D7F0D772F276A468D9D9071E3418CF696243827E79AAA3DC"
+    },
+    {
+      "path": "crates/waku-daemon/README.md",
+      "sha256": "6D5ED5EE1ECB7BBC2A641F934CACB1E96CB604E96F6D84DE930333591F1A47FE"
+    },
+    {
+      "path": "crates/waku-daemon/src/bin/waku-debug-daemon.rs",
+      "sha256": "EF1EA389ADFC488B3F3A21A29A5B3142474FE9B1AA687598F0460B77FA6596C9"
+    },
+    {
+      "path": "crates/waku-daemon/src/main.rs",
+      "sha256": "2EF43A57CC295AE6DDBEF8E183A98BF4BECD8CF20D875A82CDE2D574B2EBF560"
+    },
+    {
+      "path": "crates/waku-document/Cargo.toml",
+      "sha256": "8BBC8A47B55382C151A3133C48F760851C049F151A71DD1638124FA3FA57C7A7"
+    },
+    {
+      "path": "crates/waku-document/src/lib.rs",
+      "sha256": "6C5FB5312F3A6D893348E63D91E3F0DACF833844FCBC76EFD7EB23FDBE5A4F7A"
+    },
+    {
+      "path": "crates/waku-protocol/Cargo.toml",
+      "sha256": "7295DE5C10C66FAAABC50CA22DAA0000B07EC32CDFC3BF5C2EA5F80668B1700C"
+    },
+    {
+      "path": "crates/waku-protocol/README.md",
+      "sha256": "9A169915DE7553B849E68FFB382A4EDCF6FA385391EE4B49DFA1E63054AA6E6D"
+    },
+    {
+      "path": "crates/waku-protocol/src/artifact_library.rs",
+      "sha256": "1AD35E9D63AE516D15A8D349F2F83985122D4F5BD3574F1749456C3E8D2FD84B"
+    },
+    {
+      "path": "crates/waku-protocol/src/artifact_retention.rs",
+      "sha256": "6CFF8F3EE9957F1E4E7538C32B61627851D4E27B63DCE51190AC80873D0D51D8"
+    },
+    {
+      "path": "crates/waku-protocol/src/attachments.rs",
+      "sha256": "B28F2799D3A624B50AB3CA019FF4BE390ADC3E01DE96895CE39D610CD6CEFC22"
+    },
+    {
+      "path": "crates/waku-protocol/src/bin/export_types.rs",
+      "sha256": "5DBF99D3E1E1EB9ACB6C878B92DC5C88EB31A08A40DCCBD5D277F0EBFF65AC95"
+    },
+    {
+      "path": "crates/waku-protocol/src/blob.rs",
+      "sha256": "054E569194D47881DDA5DE6E0305A7E1B42A7F4A48603117CBCFD77FC11FF4BC"
+    },
+    {
+      "path": "crates/waku-protocol/src/checkpoint.rs",
+      "sha256": "94DA8E84426C7A975C13B6849D757AFA2CDA11EC1CD5B5E40787C5EF94196D76"
+    },
+    {
+      "path": "crates/waku-protocol/src/cloud_billing.rs",
+      "sha256": "87838E82AFFA3A8BF2E8893EC01E92BF3C13204A9C3680BAA56F614652706657"
+    },
+    {
+      "path": "crates/waku-protocol/src/cloud_spending.rs",
+      "sha256": "7A5141F2445C2C706544E264EB229F9A0926FCA75662D1FD122B45693001A805"
+    },
+    {
+      "path": "crates/waku-protocol/src/command_resources.rs",
+      "sha256": "F291E01C13B7C5AC778C924CDE19814ED637418027878F95461DE42B03873473"
+    },
+    {
+      "path": "crates/waku-protocol/src/composer.rs",
+      "sha256": "92116C5D9D200673124087875A3D52F663A28ED23C999F10D830E3CCCB07FC13"
+    },
+    {
+      "path": "crates/waku-protocol/src/computer_use.rs",
+      "sha256": "B8D06ABDF4C6FCFE0B6C98586A44AE8EC1C838D3B83BC626355CCFC77069CFB2"
+    },
+    {
+      "path": "crates/waku-protocol/src/control.rs",
+      "sha256": "3532C55E3CAE913A78427673A61B3A2358C0E38A665571AFCF2E540799C9128F"
+    },
+    {
+      "path": "crates/waku-protocol/src/distribution.rs",
+      "sha256": "155ED79F05F3A724D844ABC919B1BC3F3851E5CDB1D448D61784EC4714AC1778"
+    },
+    {
+      "path": "crates/waku-protocol/src/driver_wire.rs",
+      "sha256": "816ED1D0F47C60A0B9C57E9D58998BB61E9A9A8DF5F503A2F3737F50FB2B7BB5"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_inbox.rs",
+      "sha256": "97AE4A50BA9957B448C0734883B25324DD03800D2D316EA15EA475A41D7256BB"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio.rs",
+      "sha256": "6B7A238BBCE378765A588E316F61F7EECA7DD3265F3602FC8094B821DE4DD1E9"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/billing.rs",
+      "sha256": "FBF48796E6D908B396FE45A8D5A41E112B0006FD4B10EBEFD98C33E267A03E22"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/billing/tests.rs",
+      "sha256": "9C75C42DA85CAB08409D06ECE5EFEA9D425B0A477D86DB7C5D86B38D846ED51F"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/history.rs",
+      "sha256": "2763A509EA8C7A34505F153EBEAEB1257DA2BB504E5C4C656405A194BF6734D0"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/history/tests.rs",
+      "sha256": "1DF00FD2BF8B4AED13C89964E52249D4A12D2D38C26545AC42B574F3BBD3A9D8"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/pdf.rs",
+      "sha256": "D786F1E86D1A3F41A233CD3D9A502AD2D20A8C3C7F606CF835D17E5EFF448707"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/remote.rs",
+      "sha256": "3C3BF3313CB50A9B7F0534F3D7DDB0871C8B51DDD7CDA4E51A48180B1C6AF7C3"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway_portfolio/tests.rs",
+      "sha256": "F2A1D6A6A2D27E33FCC99C30DD26814E7F21A768916717985D617D5E1B39D55A"
+    },
+    {
+      "path": "crates/waku-protocol/src/gateway.rs",
+      "sha256": "C02A8FB9213ABCDC2827567F05BA6D16219440CB7CA0DD8B8270973D8665500D"
+    },
+    {
+      "path": "crates/waku-protocol/src/git.rs",
+      "sha256": "4026F8425F04B974295457041029C4591E39A94703F33E75C7D805EC1709B310"
+    },
+    {
+      "path": "crates/waku-protocol/src/html_resources.rs",
+      "sha256": "72E0787E2DF61FBEDC4468CA8763EE249A37F9D41E79F9BEA19A924F1892D883"
+    },
+    {
+      "path": "crates/waku-protocol/src/i18n.rs",
+      "sha256": "620093A43AB09855FFAF48C9910D6069F1962F7B6954ABAC9F6468B0CC86DA3B"
+    },
+    {
+      "path": "crates/waku-protocol/src/identity.rs",
+      "sha256": "E8DEAE555ABCBFDF282F39D6C83AF68DE88E64D672AB235BABF9B332840E65BC"
+    },
+    {
+      "path": "crates/waku-protocol/src/inbox_notifications.rs",
+      "sha256": "12B1D0FEB82444F8A054FBD006036A23A4F2718821518E37A7456F196CD50C45"
+    },
+    {
+      "path": "crates/waku-protocol/src/inbox.rs",
+      "sha256": "21F85D25C1B2713C4E7BC35F27F9F9BCB372FC582BCFBECBD091AD90ECB4F650"
+    },
+    {
+      "path": "crates/waku-protocol/src/lib.rs",
+      "sha256": "757D765F7395E6D21FD23DA05CF5955CD4EEE55D98CB213D8527669FB5FC850E"
+    },
+    {
+      "path": "crates/waku-protocol/src/model_catalog.rs",
+      "sha256": "355A466869BAA09FEABF669F33979FE58AE9916EB24464D61A1B474487A18349"
+    },
+    {
+      "path": "crates/waku-protocol/src/model.rs",
+      "sha256": "2BE61A7FA26613137A0598C3FEE7BA5FDAD93C733517D9A89B46E6ADBEB18B16"
+    },
+    {
+      "path": "crates/waku-protocol/src/persistence.rs",
+      "sha256": "26D39223874E07AF7AA1189BD876F3F805D1DE35CAB7583CB30BD156F70F7585"
+    },
+    {
+      "path": "crates/waku-protocol/src/projectless.rs",
+      "sha256": "2EA8D26ACA223E39DDDDB91188160CB6DF57F6EDF3C7327A10014F9495C35D36"
+    },
+    {
+      "path": "crates/waku-protocol/src/protocol.rs",
+      "sha256": "FA39DC52A2CFA92634BEB1BB434F43B156CE65484E106CBE15BBC3F09B241DC7"
+    },
+    {
+      "path": "crates/waku-protocol/src/provider_session.rs",
+      "sha256": "4E94051F1AFD034F0EB83F53E196561B143AB4E563E3E48B981C9C2BADC73771"
+    },
+    {
+      "path": "crates/waku-protocol/src/remote_control.rs",
+      "sha256": "FC049EB9D94F364E56221378D8A3CB49E6EEB3C7B1BDD9FEE2AFBF0103329758"
+    },
+    {
+      "path": "crates/waku-protocol/src/settings.rs",
+      "sha256": "B36EB3BEFFCA31A5E1FAFF0C7C75D3E4E41758DBB5ACF56857FCAA46EA4E48BA"
+    },
+    {
+      "path": "crates/waku-protocol/src/skills.rs",
+      "sha256": "C4A44753B30BF6198AF8B3EA0E71B6FC42BEFBC94A016A55620847CEEEA88907"
+    },
+    {
+      "path": "crates/waku-protocol/src/teams.rs",
+      "sha256": "BBA52AB173309FD790096273E633865EADB8D5F5B8C3D1A1551B140D442E90CB"
+    },
+    {
+      "path": "crates/waku-protocol/src/teams/mentions.rs",
+      "sha256": "F89ED1E8B847E72B6287580B0DB951000506D0750C19E544AE44DAB49E38D085"
+    },
+    {
+      "path": "crates/waku-protocol/src/theme.rs",
+      "sha256": "6E83762F174ED413AE8ACD00DAB2B13BD3EB0A58D4D4AB85A01FF299F45A0A1F"
+    },
+    {
+      "path": "crates/waku-protocol/src/usage_history.rs",
+      "sha256": "657F1486AD240A2A15D2A3A50536596D8737E7622936BEDA722A57A43C5B8783"
+    },
+    {
+      "path": "crates/waku-protocol/src/usage_ledger.rs",
+      "sha256": "F7763F4194A21CA22475E16BC4D783F413D2BDB75FF5528097B994A0063DA062"
+    },
+    {
+      "path": "crates/waku-protocol/src/usage.rs",
+      "sha256": "6047F163589959410D1F3844608BEA6542765D4DA76D516A3EFBBC5794D28EA3"
+    },
+    {
+      "path": "crates/waku-protocol/src/workspace.rs",
+      "sha256": "FFF6127E8197D001350D94CD575EAF7EF7F650F49147F641698A39E947F23C5E"
+    },
+    {
+      "path": "locales/app.yml",
+      "sha256": "B42A5D0679439B1F8F2CC25EFF370CCD65E3444BDD70ED500BB00223AB36DB99"
+    },
+    {
+      "path": "locales/ja.yml",
+      "sha256": "2191C7BBB82F8DA8F615EE49A265CBF9B96141CCB1E90AC37BFEE422E0DEF17C"
+    },
+    {
+      "path": "locales/zh-CN.yml",
+      "sha256": "E55C96FDF57550AE79D59122E454F3DC56E47A2FB8D6353AB244626CF01F752D"
+    },
+    {
+      "path": "resources/AppIcon.icns",
+      "sha256": "512AB8895E6A3129E4A87103369C47471C747F717B77BC3D1B3C3D3C44E76C97"
+    },
+    {
+      "path": "resources/AppIconDev.icns",
+      "sha256": "512AB8895E6A3129E4A87103369C47471C747F717B77BC3D1B3C3D3C44E76C97"
+    },
+    {
+      "path": "resources/computer-use/cua-host.h",
+      "sha256": "A1EE5513F4A28B63455278B447056174423AE8ED069A06747EE583A068208EEB"
+    },
+    {
+      "path": "resources/computer-use/cua-host.rs",
+      "sha256": "A780B3DE6EE46F67291E8567B91A9E1C875EA7F7E0A17C2CD47EA4A59B6ECCD6"
+    },
+    {
+      "path": "resources/computer-use/CUA-LICENSE",
+      "sha256": "C0779290C1D4783169AA3DBFB55FEB505E563EF8A004BBF55298CEFFCFBDA8D9"
+    },
+    {
+      "path": "resources/computer-use/CuaDriver.swift",
+      "sha256": "670969F49582B5DDB8CE75F2175D3DC0E905E0AEADF7C3D210805349D44E5CFA"
+    },
+    {
+      "path": "resources/computer-use/Info.plist",
+      "sha256": "581A80D41763FD6E78AB2E96E61793BB5C5A5ED889BA9D6C40BBBEFEF2295FFD"
+    },
+    {
+      "path": "resources/computer-use/pi-extension.ts",
+      "sha256": "0D503BD9A1DA9B9A4E364FEAF06B4D8949B69A877F446BF25A5B4038A5D2AD84"
+    },
+    {
+      "path": "resources/computer-use/SKILL.md",
+      "sha256": "B11503D351DB1DF286F89C2C7FF568FB3ACD2CCC69C98D41CDBA453A05437C52"
+    },
+    {
+      "path": "resources/computer-use/WakuComputerUse.swift",
+      "sha256": "B241CA3C859E4E17100831F379C01C1F04801A72EE6E1C4F99A9E2904556A0CE"
+    },
+    {
+      "path": "resources/Info.plist",
+      "sha256": "6CCD564BF85B2B817CC097243D7D15C075C93E165218E843F3DE96F7AC13C32A"
+    },
+    {
+      "path": "resources/linux/self-update-v1",
+      "sha256": "86EF864F37B35037FB23C7F4FD1030A475524ADA63E081E6DAE057D47DF2235B"
+    },
+    {
+      "path": "resources/linux/sh.waku.desktop",
+      "sha256": "CAD4FD5F2F67B681FA760E5DF75D4578704659E06A140412A2159A092418EC23"
+    },
+    {
+      "path": "resources/windows/AppIcon.ico",
+      "sha256": "717F90441E0B5D378FD49F0D230D36C1B410971CD5447988D35973BDC439A171"
+    },
+    {
+      "path": "resources/windows/helper-build.rs",
+      "sha256": "9172DEAA14A5433F331D617D2A7D3D2967C4A96EB55ABB0F14BB4BFEAD96644D"
+    },
+    {
+      "path": "resources/windows/waku.iss",
+      "sha256": "2C5629324E8041DB5C9A8EE0549824F04236BE8E3AC435B0B7C74B75EE1A73CF"
+    },
+    {
+      "path": "scripts/appcast-linux.ts",
+      "sha256": "EF07D49CBFE1146B021072DBFDE79146FE0BE05951B949F099AB86CACB79A34C"
+    },
+    {
+      "path": "scripts/appcast-windows.ts",
+      "sha256": "34B3C208F55DF29890372AE47C04EA1093CEEEE2365A5D4F661ADBB76010B1B5"
+    },
+    {
+      "path": "scripts/appcast.ts",
+      "sha256": "9D84FAC001CC9800057F23DC26D081CEB6EA55366033965DAC66351BDF6641AA"
+    },
+    {
+      "path": "scripts/assets/ion-icon.py",
+      "sha256": "FEB311DFE82E64550D04590BA79005BEEF4916FA156A703655CDD1B3ED0AD304"
+    },
+    {
+      "path": "scripts/branding.test.ts",
+      "sha256": "06F035D65D0F60603262BB99152A626CCF40ADEFF3A7CEC0E6D266F3D8D47A4F"
+    },
+    {
+      "path": "scripts/bundle-linux.sh",
+      "sha256": "F36F6EDBF15EEF902B13DC154D862EFBDFDB2030D039F92A88F0BD78D4BE86FA"
+    },
+    {
+      "path": "scripts/bundle-windows.ts",
+      "sha256": "3127607C2A7FDCF7927CE7D6DD8757C5A360088AD56EDFA7B2C5A33643E5B9E5"
+    },
+    {
+      "path": "scripts/bundle.sh",
+      "sha256": "48DAA8931EF38C9934767BA13CEBEAFDBB84E0474891EC931AE0FAC9F9C7EA6A"
+    },
+    {
+      "path": "scripts/changelog.ts",
+      "sha256": "AB0494417FF5F214889148D75BBA5F8C8CEFCB2FD8761A7ACF62C56CC72C8EF1"
+    },
+    {
+      "path": "scripts/cua-api.ts",
+      "sha256": "A8AF9BA19BDF8F8F1DEC8EDE253A5357107D4B554B01D48FF57E4D1F0F23EC12"
+    },
+    {
+      "path": "scripts/cua-driver.ts",
+      "sha256": "AB716270AA943AED9D7A9DBAB5A567F00558A0911579292E906CAC70EB7CC39B"
+    },
+    {
+      "path": "scripts/cua-host.ts",
+      "sha256": "2382F43BFA4FF3E7E05DFDD550E54418B6BD7C2A32122EAF6250BF42F42A4512"
+    },
+    {
+      "path": "scripts/delete-debug-app.ts",
+      "sha256": "428E5963F576DE551285B75E94A19183059FF0CE958B87E09DCF653F29013AB2"
+    },
+    {
+      "path": "scripts/dev-watch.test.ts",
+      "sha256": "BABAA92B73E2DE0DADB031FA77ADF44048885C24F6F341EF49F3C4775793C1B9"
+    },
+    {
+      "path": "scripts/dev-watch.ts",
+      "sha256": "346E2FCB62F03F023EF2C73A569A46047C64501E47BC09AA8CE6454AB9AC4B52"
+    },
+    {
+      "path": "scripts/dev.ts",
+      "sha256": "B8880BF20E2B898BFC70042A7B16AE644519D419051B8D92D6CCFBA32D5BA0E1"
+    },
+    {
+      "path": "scripts/fixtures/antigravity-source-teams-contract.test.ts",
+      "sha256": "E070FF8903616419DB0370596C83AFC87E04934F61131A89B540229331708CFF"
+    },
+    {
+      "path": "scripts/fixtures/cursor-native-controller.mjs",
+      "sha256": "8BEDDA72C1D2419C86A486E44FEE0E3BEBDB99A0401A0E8FE45576883D001A64"
+    },
+    {
+      "path": "scripts/fixtures/cursor-source-teams-contract.test.ts",
+      "sha256": "3D0E5E3242859E3AADCDA953833CDE51EC9F88366E19D4C722B0662C2E26A44D"
+    },
+    {
+      "path": "scripts/fixtures/grok-source-teams-contract.test.ts",
+      "sha256": "9818024AB2FD79F48DBD95A253388B5318CD4224B53E59425E2F7BD6DA7DE4D1"
+    },
+    {
+      "path": "scripts/fixtures/kimi-compiled-host.test.ts",
+      "sha256": "525B65852BE1BB67865D87CF99CACBE9326F7EE0A05771BEE5C701AC880772E0"
+    },
+    {
+      "path": "scripts/fixtures/kimi-pty-controller.cjs",
+      "sha256": "B27C9AF4BFF65683D2E8C46381C527BB3AC0F905A94833259872140B3259AB90"
+    },
+    {
+      "path": "scripts/fixtures/kimi-source-host-cli.test.ts",
+      "sha256": "5F8D90B3315CD2001B79399087E5AFBCB638F59DEF97268C8E0678937A593929"
+    },
+    {
+      "path": "scripts/fixtures/kimi-source-host-contract.test.ts",
+      "sha256": "53E770C25ADE87B51C44F46FB1197B704DC7FDA0C320BB0DCEB022E3399F6646"
+    },
+    {
+      "path": "scripts/fixtures/kimi-source-host-controller.mjs",
+      "sha256": "9E43EF532A8881AEC7CB526C2BDE6B62741B1A529C83B6467C2EAA7BDFCD4035"
+    },
+    {
+      "path": "scripts/fixtures/native-team-hook.test.ts",
+      "sha256": "CEDFBF800F0CFEFC9BEB44E8D8CBD9749AFF928E1A20504A45AD3920E354816F"
+    },
+    {
+      "path": "scripts/kimi-host/build-compiled-host.mjs",
+      "sha256": "0D543484AE1B0CD8DCE5A2E8B071AE1F1D6CF639AD614BBC618CC1C9C3B2851B"
+    },
+    {
+      "path": "scripts/kimi-host/compile-runtime.mjs",
+      "sha256": "8FCEB84987C2B565DF0671B890F8AD15D11321C7D9C48A9072E64383D0ECE35D"
+    },
+    {
+      "path": "scripts/kimi-host/compiled-host.mjs",
+      "sha256": "500543D14BCBA8BA7F3DC4288C608BEB879B66362568989B4D954ADF1EB787E1"
+    },
+    {
+      "path": "scripts/kimi-host/compiled-package.mjs",
+      "sha256": "BD48A11B80D7A2E0E31F8154570F5D3FFABBDF6D976440392463F93D6A963C62"
+    },
+    {
+      "path": "scripts/kimi-host/host.mjs",
+      "sha256": "84177CC818EF9ADA5B3128DB5F6D2E6DD63DEB5A676E13C4065680F90FBBDE36"
+    },
+    {
+      "path": "scripts/kimi-host/identity.mjs",
+      "sha256": "0D3282422A739DC76A1ADAEFEC1B3D92160C43BC41C8597B34003ED382B30E75"
+    },
+    {
+      "path": "scripts/kimi-host/licenses/.gitattributes",
+      "sha256": "D4781CECC07FDD1AA140B5C1493A97063B2A7F9CE342879648D5FB9AE79D2008"
+    },
+    {
+      "path": "scripts/kimi-host/licenses/node-24.19.0.txt",
+      "sha256": "148EACF7863EF4329224A29398623077200A27194AA075569FAF4A0A85566CA5"
+    },
+    {
+      "path": "scripts/kimi-host/prepare-source-host.mjs",
+      "sha256": "3DA63FF514DA693B4BB782E685933999BB375964CA3ECE37C6B85B2173BE2E10"
+    },
+    {
+      "path": "scripts/kimi-host/source-inputs.json",
+      "sha256": "2BE09854AB6F0E3FEF8BAE0795FBBC8C81D0E8E2F419BA991C14F0CAD81D1A55"
+    },
+    {
+      "path": "scripts/kimi-host/teams.mjs",
+      "sha256": "983AB6772472ECCFCF67971665A08F3ADCA1DBF749B8F70FE1A6B25516567223"
+    },
+    {
+      "path": "scripts/mobile-check.mjs",
+      "sha256": "499095F9B42F25D0E5104DF1CBA0E36144E4911EC98E7CF39C4A1A4290A8A45C"
+    },
+    {
+      "path": "scripts/mobile-check/cli.mjs",
+      "sha256": "3734E18392CD70DBAC01ADA04AFA81AC7FEC858AB22F39DD76BA4B3F32C25BD6"
+    },
+    {
+      "path": "scripts/mobile-check/cli.test.mjs",
+      "sha256": "A197888A0C4DDC6888694F835D20A630E6DFE348FB0F2A9728649568037FE595"
+    },
+    {
+      "path": "scripts/release.ts",
+      "sha256": "F3E2472B6E3A1A98A9661C0E0B63C3D58E1D25D0BA17A5EDDFFF622EAC012BA7"
+    },
+    {
+      "path": "scripts/seed-mock-sessions.ts",
+      "sha256": "FE336C90664B919A48A17FB83FAF6DB66284ED7C5395BD7C25C212674A84148D"
+    },
+    {
+      "path": "scripts/test-computer-use.ts",
+      "sha256": "D0E715AFBCA4ABD97DC789F36A28A157D3949AFA5F499F2EE539E242BE45BD59"
+    },
+    {
+      "path": "scripts/test-preload.ts",
+      "sha256": "29FBB0D7398712ED55B85206AE512E17EB4DCDD58685FE1CE6ACDDCEB314F58D"
+    },
+    {
+      "path": "src/analytics.rs",
+      "sha256": "6C07C86441750B56A2AECB4AFBDCBB3EE009F45C6B27F0ECFDCE0F2AF9B574D3"
+    },
+    {
+      "path": "src/app.rs",
+      "sha256": "234E704526932913EDDDD5D7F26B8478343E969CACF3406EA77A46A6233BA034"
+    },
+    {
+      "path": "src/app/activity_diff.rs",
+      "sha256": "52C1D6280B960879041FA1B4B17C3E62A1970B7568E01DA6C9AC39F2B2D1882B"
+    },
+    {
+      "path": "src/app/autocomplete.rs",
+      "sha256": "1627548E4773DF971878666DE2B3A865C3087EADA4294947273A0AAE21094B11"
+    },
+    {
+      "path": "src/app/background_work.rs",
+      "sha256": "8F09022A1286F6F02C21606E7D4F2723FF35AF466BD0F3CBD0EA1DF5787D3929"
+    },
+    {
+      "path": "src/app/branches.rs",
+      "sha256": "B94166141768379DED2A70734089F27C18CCE0C20AF660349264022B25B7D20B"
+    },
+    {
+      "path": "src/app/command_palette.rs",
+      "sha256": "31C05CA417CD7C0BAAB99CA1BF8689AA1FA77062D6B247C8DCB4AFA3CE5C1202"
+    },
+    {
+      "path": "src/app/commit_dialog.rs",
+      "sha256": "B38D123614E84DEF94F0607CB63F72E84A8C7212C18E9B546CF18D6F8672B1DC"
+    },
+    {
+      "path": "src/app/components.rs",
+      "sha256": "685B15D3C89780C30435F2D33B52F72A1A5492034B9D4FD30DA31CD3B0ED8A68"
+    },
+    {
+      "path": "src/app/composer.rs",
+      "sha256": "204D0E8D7DE00456C2DE84828D9D9BDB9D074F6546F6C7FC70B748135B67C1BB"
+    },
+    {
+      "path": "src/app/drafts.rs",
+      "sha256": "1ABF8C07A8235D6F8C89FE43D985457BD6B5EB6B670A6D78EB8ED1EC9DF95A15"
+    },
+    {
+      "path": "src/app/file_search.rs",
+      "sha256": "37C281A07F1DA4F4AA69936FB3BA8E1D523AB4D10BBC5EAE174DB389810F9363"
+    },
+    {
+      "path": "src/app/goal_dialog.rs",
+      "sha256": "8003DC8423ECBBDD1666D07AC279D1C326654510BB76FA8818C693E00E8B7CBD"
+    },
+    {
+      "path": "src/app/image_preview.rs",
+      "sha256": "32C6FFAD5FCB320B041879219767AA8DD393A4EDC165D4D9186FD6EA6333963D"
+    },
+    {
+      "path": "src/app/onboarding.rs",
+      "sha256": "1CF0EDF70B28B9A1D052DCA611A48F7DDE7C6682A53C580063C32C2D9E6DC32C"
+    },
+    {
+      "path": "src/app/render.rs",
+      "sha256": "0AFFBEC1B74465FC86A54ACFD371DCE1CF23C3E451B26E32878125D355FC0F7E"
+    },
+    {
+      "path": "src/app/right_panel.rs",
+      "sha256": "9E89CFF5C2BD154F30B58D92697B5A09209B7910197C77EEC46BC2931C7CD1AA"
+    },
+    {
+      "path": "src/app/runtime.rs",
+      "sha256": "FAFC47E26145F8FA097CCD87EBB3476FF50925413A9A2000770D192F0BAA3B83"
+    },
+    {
+      "path": "src/app/sessions.rs",
+      "sha256": "1008022CE838265C1CBA9E2F8F40A56E8B9197EDC640D1C87D097EFC1732C38C"
+    },
+    {
+      "path": "src/app/settings.rs",
+      "sha256": "F1B1636A1CBB5F59EDE8C9E7A66BECBAB4BD19FDADD82CC1F91A5D1CEC70DC1F"
+    },
+    {
+      "path": "src/app/sidebar.rs",
+      "sha256": "B2A0787745B526D8A3F4E1FBCFA34D54D2EDCF37A28DB9428F107041902A01DC"
+    },
+    {
+      "path": "src/app/skills_page.rs",
+      "sha256": "EF0E0F51D94403DDA54D11A1F4C7DDB47E40D421A9BBCDD2B14BFC6D1736A93D"
+    },
+    {
+      "path": "src/app/streaming.rs",
+      "sha256": "69A18E661DBE41016DE7D93C0D20802A37238AEF5253CCA149734C10416D6493"
+    },
+    {
+      "path": "src/app/task_switcher.rs",
+      "sha256": "9FC971031CEEADDBFC6748B6C9B3F3DA706A708A464C793F07B195EECD9708C2"
+    },
+    {
+      "path": "src/app/team_tasks.rs",
+      "sha256": "15465457432F0FB7B0A3BBDEA7A975D523A7E4D853BEB5B01A2B5FAAE8CEE55E"
+    },
+    {
+      "path": "src/app/tests.rs",
+      "sha256": "EDEF3AAD33C3EFB4644BB1B4EEE7607DA3566FBD19D8DC0B6C715B29E98FA82F"
+    },
+    {
+      "path": "src/app/transcript_search.rs",
+      "sha256": "60CC4B2B9221FE29123AD02217A6E6963ACD4A2836CF6FA619D08E8670EAF34E"
+    },
+    {
+      "path": "src/app/transcript_view.rs",
+      "sha256": "443D41F2C1719B44532C31B78245F0BAB053C41D83C9EBB54073D0E66DB5B8DB"
+    },
+    {
+      "path": "src/app/transcript.rs",
+      "sha256": "72D488F11E0A9A6145D41C2886F86435C8CA96BFE71EE8B9BCC409E4EE3F6E71"
+    },
+    {
+      "path": "src/app/usage_meter.rs",
+      "sha256": "D280879A37403FC7D7BFA9FEBD2AD99B7570F8E898F2A1082A39CE366475C28E"
+    },
+    {
+      "path": "src/app/usage_page.rs",
+      "sha256": "898DB7F39543897586BB73E9106637C5DF6E8B5D5AA2AD8397A58DADAC801F83"
+    },
+    {
+      "path": "src/app/window_chrome.rs",
+      "sha256": "AA9EE0EA07E9266A2204C1411DC95CCCF008302058A12C9DABC73079DFB4C5E0"
+    },
+    {
+      "path": "src/app/workspace_control.rs",
+      "sha256": "1269F5C8894A96E08142DA1282BD1D71BDEAF624E0D0675C56FD08C22D46D33F"
+    },
+    {
+      "path": "src/app/workspace_control/artifacts_ui.rs",
+      "sha256": "EF687D2CE9C82F0B21FC8ADCCBB73DCE16BB31AE627950E459EB4DB297700645"
+    },
+    {
+      "path": "src/app/workspace_control/automation_ui.rs",
+      "sha256": "0CF6C997FE06F917104F2CCDD6AD8464883F9FEE84136ABB6353DA0B5B701923"
+    },
+    {
+      "path": "src/app/workspace_control/billing_ui.rs",
+      "sha256": "6112C1FAF0337269537B6B2C2DB210BFCD343D043D8BC8A556B9400E8EEE71F8"
+    },
+    {
+      "path": "src/app/workspace_control/budget_ui.rs",
+      "sha256": "185E03D2AD495F7B50FF72D944345554AFD26B7A24A2366E3C1E2FE93A268E1E"
+    },
+    {
+      "path": "src/app/workspace_control/collector_ui.rs",
+      "sha256": "FB5FAF70520CD7CEAFC44CEFAA60DC2BE1F845421CF1CA7B9075A24BF878EFD4"
+    },
+    {
+      "path": "src/app/workspace_control/document_preview.rs",
+      "sha256": "E76613F96D0F26A4BF39025CFA23EA22B3AEF584C313321B89BD9335BF124AF6"
+    },
+    {
+      "path": "src/app/workspace_control/inbox.rs",
+      "sha256": "59807A85611C02295EAEAD9C8042E1FD150FB9F7F476FA200330F48FA6A41314"
+    },
+    {
+      "path": "src/app/workspace_control/inbox/history.rs",
+      "sha256": "CD56D26738AE0F9AC0A85D742E2B70EC091A72CF83A2128E16289A5948C4E65E"
+    },
+    {
+      "path": "src/app/workspace_control/remote_ui.rs",
+      "sha256": "43EB07C8E210F4757AF55DACCFF3D9CB1D1D95B1E6077746FF56B313F35CF3C9"
+    },
+    {
+      "path": "src/app/workspace_control/resource_ui.rs",
+      "sha256": "BE53005636F1A9AFE9A0B17117D70BD4182EFF52147006D46ABECF91BE6E0B54"
+    },
+    {
+      "path": "src/app/workspace_control/routine_ui.rs",
+      "sha256": "760C131DFDE96E259379B166B14277B4FF488442F01C618D40FCA65023375E5D"
+    },
+    {
+      "path": "src/app/workspace_control/team_activity.rs",
+      "sha256": "8747002CF7E86D9754665F60D20DAD20D58684EFB554CAA0F78998AED7624DEA"
+    },
+    {
+      "path": "src/app/workspace_control/team_apps.rs",
+      "sha256": "F5F49DA1323BDC342139D7DDCA2EA3D489612C181C346A27C883B6BA3A612907"
+    },
+    {
+      "path": "src/app/workspace_control/team_integration.rs",
+      "sha256": "4720C63353736C7FEEB0FE28BB1EDD2431C9D6767AB6932B3EB0105226048197"
+    },
+    {
+      "path": "src/app/workspace_control/team_limits.rs",
+      "sha256": "1F299E6D68BD551E89189122E005BA5C768131D1A872D6F050153DF93ABCCC2A"
+    },
+    {
+      "path": "src/app/workspace_control/team_recovery.rs",
+      "sha256": "9CF8613741FCE688202D72E2925D060460B34F30E9ADFFF69655EF8C3699B720"
+    },
+    {
+      "path": "src/app/workspace_control/usage_ui.rs",
+      "sha256": "03559ECF0D4A1042F30375421E8736A92884339E915E966955AA95979B96C8CB"
+    },
+    {
+      "path": "src/app/workspace_control/workflow_ui.rs",
+      "sha256": "0A6C121A1234344E1037E3CD1839FBAD2E6B815F54E1D50B857FDFE64DA6E434"
+    },
+    {
+      "path": "src/assets.rs",
+      "sha256": "58663D73E24A81E8AD8D44A7A6F5647461897697EC0078E7390502822A3B6089"
+    },
+    {
+      "path": "src/bin/waku_js_repl.rs",
+      "sha256": "FD657254818B3FBDAA79914D7B7E47A67589377941E6D67F6836E30715DB7C43"
+    },
+    {
+      "path": "src/bin/waku-updater.rs",
+      "sha256": "3E65DA52201ADE4440344B3318B95E74045CAD4B0CE51E302F8F9C4744D491BE"
+    },
+    {
+      "path": "src/browser.rs",
+      "sha256": "97A6DA0CBB9B8FBBC428C311C8F305CF7EA90B60ABF99F6C3F8D26D0F4869507"
+    },
+    {
+      "path": "src/computer_use.rs",
+      "sha256": "E3E19C95DDCC71AA9E36578F9AFCA25DC938EEA321B20B5925057A6CF1EF63C4"
+    },
+    {
+      "path": "src/daemon.rs",
+      "sha256": "E057DCFBE8E6F5366B470ED34762195D51FC52AF9894830288CFAC8A45A23842"
+    },
+    {
+      "path": "src/document_html.rs",
+      "sha256": "92B8C3F23291FDE461BB23FEC1A0CA67F04A633835722D0D9EBA907A4B2563D6"
+    },
+    {
+      "path": "src/document_render.rs",
+      "sha256": "4CD5CCAA81FBAEE90C89FDF9BAAC3520A23C8F35091F19FFF35AF46225F5B63C"
+    },
+    {
+      "path": "src/driver/mod.rs",
+      "sha256": "6F28280176E3209513740E26AD655720F5FE634E210E747EB96160B1D8AD2E04"
+    },
+    {
+      "path": "src/gateway_bridge.rs",
+      "sha256": "44735E06ACE2161FF93E0BA8F1241AB4CE7D5EE53E8D545EB164383F574F3708"
+    },
+    {
+      "path": "src/gateway_bridge/automations.rs",
+      "sha256": "A506C85DA1EE957B8B8749B33161D76880BE497387C34BA489878A98192AC76E"
+    },
+    {
+      "path": "src/gateway_bridge/inbox.rs",
+      "sha256": "593A7E7CE7C55516CF0B9DB354FCA28B28E3623997341B491AF094443F6F977D"
+    },
+    {
+      "path": "src/gateway_bridge/notifications.rs",
+      "sha256": "8D474E63869877279B517F540D172555E598AFE21964109A5B78157080153FB9"
+    },
+    {
+      "path": "src/gateway_bridge/portfolio.rs",
+      "sha256": "9CFAF45721972B4BD4D853D3671065144019AB64B28F4D2B75DA6D541CF9355F"
+    },
+    {
+      "path": "src/input.rs",
+      "sha256": "F24D3097881F4575145944B37EF009D278DAB72B9BDAC92F02E4FE0022E5D984"
+    },
+    {
+      "path": "src/js_repl_bootstrap.js",
+      "sha256": "C1B73E9821D8CB93178732B3EA287DF7ED9AEDBA2864D63FB9AA5E272996943B"
+    },
+    {
+      "path": "src/js_repl.rs",
+      "sha256": "151D86FF666BA584F16CD2A07ABE90CC4B4E1030DEA84BD098E08E0AECC97353"
+    },
+    {
+      "path": "src/lib.rs",
+      "sha256": "A0F79C768ED25B8371C65CF23817E6774CF390532AC9C29BDE34DE308D9A82D0"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "BC780E64BB63DB1F7FC65CF54E5BDE15AB8A1E4382285DD40CFF9370169DBA63"
+    },
+    {
+      "path": "src/md/highlight.rs",
+      "sha256": "A6329EEB8FB792F5DF6CFC0872D619F454D77F3375EC70033A998BC47492402A"
+    },
+    {
+      "path": "src/md/math.rs",
+      "sha256": "2B166146EA777CE94AE0BF4C69A9FBBE8823FEFE578F565F93353B3DC6A1F6F5"
+    },
+    {
+      "path": "src/md/mend.rs",
+      "sha256": "A52B15E0B179C7214468B114136D1A89111D8BE1CC04A2F9FA2AACF1149A94A8"
+    },
+    {
+      "path": "src/md/mod.rs",
+      "sha256": "A9030CF0E71BF7B04E41DB143468429A1E9EC3D58D12D309E8AC3DB7BA58BEAE"
+    },
+    {
+      "path": "src/md/parser.rs",
+      "sha256": "4213DC00FACAD61F86127C4713353D344F8629A76CEF2BF5D19228EC51FB69F3"
+    },
+    {
+      "path": "src/md/render.rs",
+      "sha256": "67F017C586E9FA3E878A82CE8D854C49222636B13915EC7DFAC75718D38E11BA"
+    },
+    {
+      "path": "src/md/render/math_text.rs",
+      "sha256": "B500A5EF1B698F0584166D6BE5479558DA13FD2A4647CCA97DFB54E566C472AB"
+    },
+    {
+      "path": "src/md/selection.rs",
+      "sha256": "17A7FE0947677A6A66CD9FAAA6E32A7FFC50E740B2EA5629B499E82C0A87BF88"
+    },
+    {
+      "path": "src/md/veil.rs",
+      "sha256": "65F853ECDDD8252F47300DEBE1C4A8F067918BFDF714D043A4CD663222FD9A4B"
+    },
+    {
+      "path": "src/platform.rs",
+      "sha256": "5A26687A6EB6F51094DA5300A995865373A9C88F3F9E2437618C8516737899A5"
+    },
+    {
+      "path": "src/query.rs",
+      "sha256": "4AA54999031128EBAF2AA2A0818C04C298A1964896F3EB46F2D11FE134ABE38E"
+    },
+    {
+      "path": "src/review_diff.rs",
+      "sha256": "6C0B785BE1E249432FE837699AA28B6C605F69BB6A5A2735F9AFF9349F78FD03"
+    },
+    {
+      "path": "src/speech.rs",
+      "sha256": "80AE2B9CFC8FA3FF60D9D09BF88C56EEAAABABA5821A8CA2EA05883EB1A57D62"
+    },
+    {
+      "path": "src/terminal.rs",
+      "sha256": "1A86F150EB86B98E9C64B75E536A7752E90FCE3D867319D9E137A0C1FBB4C207"
+    },
+    {
+      "path": "src/theme.rs",
+      "sha256": "3945E2521CB00D0B9C8A9FB2334F06941636ABE446C3715150E00A18AAA177DE"
+    },
+    {
+      "path": "src/ui/menu.rs",
+      "sha256": "C5BC7EE2BE511358E31C6047C14982CAFB84834A476BF8CF30DE638FBDAD0719"
+    },
+    {
+      "path": "src/ui/mod.rs",
+      "sha256": "B0E7D81F8950FCD3CFA0907712E0AA4FF98922E8249828D2DACC8B191138069B"
+    },
+    {
+      "path": "src/ui/motion.rs",
+      "sha256": "864B87FA21B42E0CB9E5E56510170C30A6598B6CA7F0C72BD767DFB7E761D73B"
+    },
+    {
+      "path": "src/ui/scrollbar.rs",
+      "sha256": "685A6D0F8502A970D01437DCE30BE85BF230AD82165F0072C4D24FE3EC631A40"
+    },
+    {
+      "path": "src/ui/text_field.rs",
+      "sha256": "650006F829A8E9EB2B379A7A5C87E6ED18BE5DF580DBDC62C286DA1A3BCC23DF"
+    },
+    {
+      "path": "src/ui/tooltip.rs",
+      "sha256": "5D493C30E470BA0DD50560D240E44B3746D5F17DA925EF945E0FC523F2FD1D11"
+    },
+    {
+      "path": "src/updater.rs",
+      "sha256": "6575C6292B58FE590D2F360377B57FA72BEDA6955C0FFA289AE696422FE6F42E"
+    },
+    {
+      "path": "src/updater/linux.rs",
+      "sha256": "DFC60F36B4216AA4E508A35E24996EAD65259F33E7FB10A1C77F011293AD1D49"
+    }
+  ],
+  "verifiedAt": "2026-10-19T05:47:42.8224489+05:30",
+  "authenticode": "NotSigned",
+  "artifacts": [
+    {
+      "name": "ion-0.1.23-x86_64-Setup.exe",
+      "bytes": 33367043,
+      "sha256": "7C5D6156503FA90D67B11BCE9BB1AD8E57263076022578CCA6B77825AB1EDE6E"
+    },
+    {
+      "name": "ion-0.1.23-x86_64-pc-windows-msvc.zip",
+      "bytes": 48153697,
+      "sha256": "2755824D3A2E29DD1CA23EA386853D4BCAF8D3C0109A566D0822AD28C674DB30"
+    }
+  ],
+  "requiredFiles": 13,
+  "binaries": [
+    {
+      "name": "waku.exe",
+      "sha256": "564EE4C658BE5F1AA030B25DDFF16F5449654242390FF56A2F7E42F5E500B806"
+    },
+    {
+      "name": "waku-daemon.exe",
+      "sha256": "5EA48CB860E0F8BB7011979F1C0AAC638FBB4A44CD4F4EA119F23082FD2D1E39"
+    },
+    {
+      "name": "waku_js_repl.exe",
+      "sha256": "FE86EA79CE76E761E3B30E5A5265A33139482B9E8BFF332AED63430B0F5BF298"
+    },
+    {
+      "name": "waku_computer_use.exe",
+      "sha256": "80DD74EE1D56B7E834642291F99C54F940223B73A30BEFEAC3D5620BDB444EF4"
+    }
+  ],
+  "daemonSmoke": "--help exit 0",
+  "speechSmoke": "nemo-speech 0.1.0",
+  "extractedPackage": "D:\\personal\\apps\\waku\\.waku-cache\\ion-qa-0.1.23-verify-9b227dadf93a443aa19c684a4f8d9cc2\\ion-0.1.23-x86_64-pc-windows-msvc",
+  "nativeAcceptance": "See docs/qa/2026-10-18-ion/README.md"
+}

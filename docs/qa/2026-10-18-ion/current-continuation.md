@@ -1,0 +1,13 @@
+# Ion QA independent closeout — 19 October 2026
+
+**Independent authorized testing, fixes, current installer acceptance and final audits are complete. Full requested matrix is Not Ready: 67 Pass / 1 Fail / 13 Blocked.** Read [README.md](README.md) and [remaining-now.md](remaining-now.md) for exact evidence and dependencies. Do not repeat completed paid/provider tests automatically. Continue dependency-blocked work only when the relevant account/device/tooling state changes or the owner expands scope. No videos recorded.
+
+Current installer: `target/release/ion-0.1.24-x86_64-Setup.exe`, SHA256 `f93bf64cfa4aa6b8e557749bb892bfebb9268eca2f123723cbc20a92fff46c23`. Installed version 0.1.24 and exact binary match; native Gmail approval/receipt, free OpenCode question/read, bundled microphone cancellation, Usage links and controlled restart all pass (359–378). Historical 0.1.23 package is not the current deliverable.
+
+Additional previously blocked live steering now passes on installed free OpenCode (379–383). The active-provider before snapshot, accepted native Steer and exact QA_STEER_FREE_CHANGED_OK answer share turn5965ee9b-732f-482c-9f84-aa41efc1c9e1; no queued follow-up. `installed-free-steering-after.exit0` and before/after JSON prove actual same-turn behavior. No additional Nebius inference or source change. T13c is now Pass; only the Codex-specific earlier quota attempt remains historical.
+
+Last runtime: watcher PID51540, debug desktop61860/daemon50476 (`waku-debug-daemon.exe`), installed desktop22304/daemon39364. Debug address `127.0.0.1:59486`; installed `127.0.0.1:52723`. These are observations, not permanent IDs—inspect afresh before use. One watcher, no speech process. All693 frozen source hashes match. Both profiles have no pending QA approvals/nonterminal QA teams; routine remains paused/nextRun0. Original blocked pre-fix Gmail/Slack runs were stopped without replay/history deletion.
+
+Final known-token Nebius estimate $0.12015540 across168 recorded QA calls; not invoice charges and absent generator requests are not zero. All four sentinel bytes and source baseline remain unchanged. Details/history: [connected-continuation.md](connected-continuation.md); its older in-progress entries are historical and superseded by this closeout and README.
+
+Preserve owner data and dirty changes, inspect runtime before starting anything, use one existing watcher, no Claude models/harness, total Nebius cap $15, no external messages/deploy/publish/provision/videos. Real native validation and screenshots remain required. Full provider log-detail access was automatically rejected; the safe metadata-only alternative was used instead.

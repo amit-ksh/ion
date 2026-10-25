@@ -1,0 +1,136 @@
+[
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 1,
+    "event": {
+      "kind": "connected",
+      "payload": {
+        "provider": "nebius",
+        "sessionId": "a08079d6-5866-479e-9283-e9a92eb3408e"
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 2,
+    "event": {
+      "kind": "promptSubmitted",
+      "payload": {
+        "message": "Reply with exactly QA_NEBIUS_CANDIDATE_OK. Do not call any tools, edit files, invoke teams, browse, publish, deploy, send external messages or use external apps. This is a harmless integration test.",
+        "turnId": "5837118e-aff7-4a41-8c44-e3e9a842a192",
+        "messageId": "4380ecd0-6dbb-447e-8c5a-1ed7066c43c0"
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 3,
+    "event": {
+      "kind": "turnStarted",
+      "payload": null
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 4,
+    "event": {
+      "kind": "textDelta",
+      "payload": "Q"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 5,
+    "event": {
+      "kind": "textDelta",
+      "payload": "A_N"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 6,
+    "event": {
+      "kind": "textDelta",
+      "payload": "EBI"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 7,
+    "event": {
+      "kind": "textDelta",
+      "payload": "US_C"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 8,
+    "event": {
+      "kind": "textDelta",
+      "payload": "ANDID"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 9,
+    "event": {
+      "kind": "textDelta",
+      "payload": "ATE_OK"
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 10,
+    "event": {
+      "kind": "usageUpdated",
+      "payload": {
+        "contextTokens": 2541,
+        "contextWindow": null
+      }
+    }
+  },
+  {
+    "type": "event",
+    "sessionId": "9dc77246-a26b-4794-bc9c-5cc477f75537",
+    "runtimeId": "8f489172-0f08-48a0-ac2a-6bc3b743beea",
+    "epoch": "ae79fb14-7dfd-46fa-8906-65e6612e3c69",
+    "sequence": 11,
+    "event": {
+      "kind": "turnFinished",
+      "payload": {
+        "success": true,
+        "summary": null
+      }
+    }
+  }
+]

@@ -1,0 +1,67 @@
+{
+  "routine": {
+    "kind": "routine",
+    "id": "4bde4829-d88f-453c-9b55-ca5e64c29c5c",
+    "name": "QA Paused Routine",
+    "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+    "instructions": "Save a concise Markdown document containing QA_ROUTINE_OK. Return its artifact ID.",
+    "intervalMinutes": 60,
+    "paused": true,
+    "nextRun": 0,
+    "provider": "nebius",
+    "teamId": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+    "workflowId": null,
+    "lastError": null
+  },
+  "result": {
+    "type": "automationRuns",
+    "page": {
+      "runs": [
+        {
+          "id": "61467509-24f8-41ae-aac6-d5c7988d9e6b",
+          "trigger": {
+            "intervalMinutes": 60,
+            "calendar": null,
+            "missedRunPolicy": "runLatest",
+            "overlapPolicy": "skip"
+          },
+          "name": "QA Paused Routine",
+          "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+          "workflowId": null,
+          "routineId": "4bde4829-d88f-453c-9b55-ca5e64c29c5c",
+          "definitionRevision": 23,
+          "revision": 3,
+          "createdAt": 1792336067,
+          "scheduledAt": 1792336067,
+          "deadline": 1792339667,
+          "status": "completed",
+          "reason": null,
+          "currentStage": 1,
+          "stages": [
+            {
+              "route": {
+                "target": {
+                  "type": "finish"
+                },
+                "artifactId": null,
+                "sha256": null,
+                "matched": null
+              },
+              "title": "QA Paused Routine",
+              "instructions": "Save a concise Markdown document containing QA_ROUTINE_OK. Return its artifact ID.",
+              "teamId": "9f39028e-5888-47af-9fa9-fa9a492ebd65",
+              "teamRunId": "daf88f41-d0fd-4210-a70c-f2b4c4cb9f70",
+              "taskId": "45caf45c-fa80-4786-b0d2-b593b18d7be6",
+              "requiresDecision": false,
+              "approved": false,
+              "started": true,
+              "completed": true
+            }
+          ]
+        }
+      ],
+      "nextCursor": null,
+      "pendingCount": 0
+    }
+  }
+}

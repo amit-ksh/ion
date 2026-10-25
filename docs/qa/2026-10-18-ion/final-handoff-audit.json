@@ -1,0 +1,23 @@
+{
+  "verifiedAt": "2026-10-19T02:00:34.771Z",
+  "runId": "cc7254a0-99cd-4de7-86de-6db542743ebb",
+  "completed": true,
+  "selectedStage": 3,
+  "unselectedStageSkipped": true,
+  "exactGateApproved": true,
+  "workspaceFrom": "ee199434-1e05-41c7-a0c3-036f44b6079c",
+  "distinctIsolatedWorkspaces": true,
+  "firstFileExact": true,
+  "finalFileExact": true,
+  "sourceBaselineUnchanged": true,
+  "artifact": {
+    "id": "8436d73f-8317-4821-aab2-4307782e855b",
+    "bytes": 150,
+    "sha256": "e675db66675f1ea9ed4c1fb4d7271a4a98a6ce55b585ff60a04d9b28b29f519e",
+    "content": "QA_HANDOFF_OK\n\nInitial marker: QA_HANDOFF_STAGE_ONE\nFinal marker: QA_HANDOFF_STAGE_TWO\nActual observed markers in qa-handoff.txt: QA_HANDOFF_STAGE_TWO"
+  },
+  "modelCalls": 12,
+  "consumedTokens": 65846,
+  "allowanceViolations": 0,
+  "unmeteredCalls": 0
+}

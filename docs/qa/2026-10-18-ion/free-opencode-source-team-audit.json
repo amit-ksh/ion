@@ -1,0 +1,72 @@
+{
+  "verifiedAt": "2026-10-19T09:56:25.890Z",
+  "sourceTaskId": "1cc6b808-3302-4652-85d0-4328bbeda770",
+  "provider": "openCode",
+  "model": "opencode/deepseek-v4.1-flash-free",
+  "status": "idle",
+  "exactFinal": true,
+  "tools": [
+    {
+      "toolName": "ion_teams_list_teams",
+      "sourceId": "call_00_tv02kzq1evxs337otsjgszyv",
+      "failed": false,
+      "complete": true,
+      "mentionsTeam": true,
+      "mentionsMarker": false
+    },
+    {
+      "toolName": "ion_teams_invoke_team",
+      "sourceId": "call_00_tw4ud5nnzxvmdfie846y7jme",
+      "failed": false,
+      "complete": true,
+      "mentionsTeam": true,
+      "mentionsMarker": true
+    },
+    {
+      "toolName": "ion_teams_await_team",
+      "sourceId": "call_00_hx74naoqs6qk10otx9o1h174",
+      "failed": false,
+      "complete": true,
+      "mentionsTeam": false,
+      "mentionsMarker": true
+    },
+    {
+      "toolName": "ion_teams_read_team_document",
+      "sourceId": "call_00_cb0mwstek0lvm0ztztxm86h9",
+      "failed": false,
+      "complete": true,
+      "mentionsTeam": false,
+      "mentionsMarker": true
+    }
+  ],
+  "runs": [
+    {
+      "id": "4289d7bc-4189-4fc7-aef4-dbef6ead862e",
+      "status": "completed",
+      "usage": {
+        "modelCalls": 2,
+        "consumedTokens": 5298,
+        "reservedTokens": 0,
+        "unknownCalls": 0,
+        "unmeteredCalls": 0,
+        "allowanceViolations": 0
+      },
+      "work": [
+        {
+          "id": "ce032658-925c-4ea6-81fa-e07127e7a638",
+          "status": "completed",
+          "reason": null,
+          "taskId": "38e29bae-e4de-413b-84c9-3a4790bfef26"
+        }
+      ],
+      "artifacts": [
+        {
+          "id": "ae9f166b-f941-44f0-a0f2-7aa5177d1f65",
+          "bytes": 23,
+          "sha256": "4b27f52925409e41555893f6546af1a4d88512c9064f1d5f49e61f4b2a3ea591",
+          "marker": true
+        }
+      ]
+    }
+  ]
+}

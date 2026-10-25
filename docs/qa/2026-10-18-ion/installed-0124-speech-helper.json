@@ -1,0 +1,14 @@
+[
+  {
+    "ProcessId": 5820,
+    "ParentProcessId": 4948,
+    "Name": "nemo-speech.exe",
+    "ExecutablePath": "C:\\Users\\ksami\\AppData\\Local\\Programs\\Waku\\nemo-speech\\bin\\nemo-speech.exe"
+  },
+  {
+    "ProcessId": 25016,
+    "ParentProcessId": 5820,
+    "Name": "conhost.exe",
+    "ExecutablePath": "C:\\WINDOWS\\system32\\conhost.exe"
+  }
+]

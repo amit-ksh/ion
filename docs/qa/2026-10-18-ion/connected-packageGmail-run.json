@@ -1,0 +1,144 @@
+{
+  "key": "packageGmail",
+  "verifiedAt": "2026-10-19T08:47:08.297Z",
+  "runId": "c789ea28-88d5-4802-b895-e04820754213",
+  "status": "active",
+  "revision": 13,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 8,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 2,
+    "consumedTokens": 6500,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+      "status": "waiting",
+      "reason": "Waiting for your decision",
+      "result": null,
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_V8OriN53zVfq",
+            "action": "GMAIL_GET_PROFILE",
+            "version": "20261018_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "6198ea30-0fe4-4bb6-a9ca-b7f265d49ce5",
+          "host": "local",
+          "status": "waiting"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "9d7cea3e-641b-4132-9954-c3f587cf8068",
+      "runId": "c789ea28-88d5-4802-b895-e04820754213",
+      "projectId": "dffe9904-09c1-41a4-85b5-ce1b02cf409b",
+      "assignmentId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+      "taskId": "c789ea28-88d5-4802-b895-e04820754213",
+      "agentId": "d901ca34-fb43-4e71-a5d9-4eea07ca6d0d",
+      "definitionRevision": 30,
+      "runRevision": 12,
+      "attemptId": "6198ea30-0fe4-4bb6-a9ca-b7f265d49ce5",
+      "host": "local",
+      "title": "Run GMAIL_GET_PROFILE",
+      "proposal": "App action: GMAIL_GET_PROFILE\nConnected account: ca_V8OriN53zVfq\nTool version: 20261018_00\nArguments:\n{\"user_id\":\"me\"}",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_V8OriN53zVfq",
+          "action": "GMAIL_GET_PROFILE",
+          "version": "20261018_00"
+        },
+        "argumentsJson": "{\"user_id\":\"me\"}"
+      },
+      "status": "pending",
+      "revision": 1,
+      "createdAt": 1792399594
+    }
+  ],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 81,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792399578
+      },
+      {
+        "cursor": 82,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792399578
+      },
+      {
+        "cursor": 83,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792399581
+      },
+      {
+        "cursor": 84,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "model_call",
+        "detail": "Reserved call 316e5483-29ac-4fa4-b26e-975c91350066 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792399585
+      },
+      {
+        "cursor": 85,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "model_usage",
+        "detail": "Call 316e5483-29ac-4fa4-b26e-975c91350066 provider receipt: 2839 input + 234 output tokens",
+        "timestamp": 1792399588
+      },
+      {
+        "cursor": 86,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "model_call",
+        "detail": "Reserved call c3bbb36a-27a0-4317-a555-574118735351 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792399591
+      },
+      {
+        "cursor": 87,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "model_usage",
+        "detail": "Call c3bbb36a-27a0-4317-a555-574118735351 provider receipt: 3274 input + 153 output tokens",
+        "timestamp": 1792399593
+      },
+      {
+        "cursor": 88,
+        "workId": "90e66ead-71c1-45cd-9bfa-cc86ab0cfdcc",
+        "event": "decision_requested",
+        "detail": "9d7cea3e-641b-4132-9954-c3f587cf8068",
+        "timestamp": 1792399594
+      }
+    ]
+  }
+}

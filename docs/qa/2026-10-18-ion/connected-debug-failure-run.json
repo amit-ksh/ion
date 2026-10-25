@@ -1,0 +1,144 @@
+{
+  "key": "failure",
+  "verifiedAt": "2026-10-19T07:52:53.607Z",
+  "runId": "49a52253-c749-4207-938e-51fb2bf4603f",
+  "status": "active",
+  "revision": 13,
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "limits": {
+    "maxWorkItems": 1,
+    "maxParallelTasks": 1,
+    "maxDepth": 1,
+    "maxAttempts": 1,
+    "maxModelCalls": 8,
+    "maxTokens": 2200000,
+    "requireChildReview": true,
+    "maxReworkRounds": 0,
+    "timeoutSeconds": 600
+  },
+  "usage": {
+    "modelCalls": 2,
+    "consumedTokens": 6143,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "work": [
+    {
+      "id": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+      "status": "waiting",
+      "reason": "Waiting for your decision",
+      "result": null,
+      "access": {
+        "workspaceRead": false,
+        "workspaceWrite": false,
+        "shell": false,
+        "network": false,
+        "appActions": [
+          {
+            "accountId": "ca_8tjHHZD502Un",
+            "action": "SLACK_API_TEST",
+            "version": "20261015_00"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "id": "3242c670-7baa-4355-904e-bf421ed67a27",
+          "host": "local",
+          "status": "waiting"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "57fdbe52-cce3-44c3-a6f4-99d299297320",
+      "runId": "49a52253-c749-4207-938e-51fb2bf4603f",
+      "projectId": "055fe50b-b6e4-4401-8f9c-d99921edc85e",
+      "assignmentId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+      "taskId": "49a52253-c749-4207-938e-51fb2bf4603f",
+      "agentId": "c49e03b4-9cd3-400d-be3e-68c22c922e81",
+      "definitionRevision": 66,
+      "runRevision": 12,
+      "attemptId": "3242c670-7baa-4355-904e-bf421ed67a27",
+      "host": "local",
+      "title": "Run SLACK_API_TEST",
+      "proposal": "App action: SLACK_API_TEST\nConnected account: ca_8tjHHZD502Un\nTool version: 20261015_00\nArguments:\n{\"error\":\"qa_expected_error\"}",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_8tjHHZD502Un",
+          "action": "SLACK_API_TEST",
+          "version": "20261015_00"
+        },
+        "argumentsJson": "{\"error\":\"qa_expected_error\"}"
+      },
+      "status": "pending",
+      "revision": 1,
+      "createdAt": 1792396325
+    }
+  ],
+  "audit": {
+    "type": "teamAudit",
+    "events": [
+      {
+        "cursor": 399,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "prepared",
+        "detail": "Team/profile definitions pinned; waiting for dispatcher",
+        "timestamp": 1792396317
+      },
+      {
+        "cursor": 400,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "materialized",
+        "detail": "Child task persisted",
+        "timestamp": 1792396317
+      },
+      {
+        "cursor": 402,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "claimed",
+        "detail": "Assignment lease issued",
+        "timestamp": 1792396318
+      },
+      {
+        "cursor": 404,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "model_call",
+        "detail": "Reserved call d215f603-a022-40c4-8aa4-6d3b966de6eb for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792396320
+      },
+      {
+        "cursor": 406,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "model_usage",
+        "detail": "Call d215f603-a022-40c4-8aa4-6d3b966de6eb provider receipt: 2824 input + 112 output tokens",
+        "timestamp": 1792396322
+      },
+      {
+        "cursor": 409,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "model_call",
+        "detail": "Reserved call aacfc822-8473-46ed-ad3a-78067d109545 for pinned model deepseek-ai/DeepSeek-V4.1-Flash: 1048000 input + 4096 output tokens",
+        "timestamp": 1792396324
+      },
+      {
+        "cursor": 411,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "model_usage",
+        "detail": "Call aacfc822-8473-46ed-ad3a-78067d109545 provider receipt: 3089 input + 118 output tokens",
+        "timestamp": 1792396325
+      },
+      {
+        "cursor": 412,
+        "workId": "61ec0a2a-2a71-4588-8c12-17d790d7d144",
+        "event": "decision_requested",
+        "detail": "57fdbe52-cce3-44c3-a6f4-99d299297320",
+        "timestamp": 1792396325
+      }
+    ]
+  }
+}

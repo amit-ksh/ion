@@ -1,0 +1,22 @@
+{
+  "observedAtEpochMs": 1792380867016,
+  "readOnly": true,
+  "results": [
+    {
+      "account": "ca_8tjHHZD502Un",
+      "errorCode": null,
+      "httpStatus": 200,
+      "logs": [],
+      "requestId": null,
+      "tool": "SLACK_TEST_AUTH"
+    },
+    {
+      "account": "ca_V8OriN53zVfq",
+      "errorCode": null,
+      "httpStatus": 200,
+      "logs": [],
+      "requestId": null,
+      "tool": "GMAIL_GET_PROFILE"
+    }
+  ]
+}

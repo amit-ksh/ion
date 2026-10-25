@@ -1,0 +1,63 @@
+{
+  "verifiedAt": "2026-10-19T07:51:35.491Z",
+  "key": "slack1",
+  "runId": "fd5c89bf-f366-439d-9ee5-851dcc6d10d3",
+  "status": "completed",
+  "usage": {
+    "modelCalls": 4,
+    "consumedTokens": 14588,
+    "reservedTokens": 0,
+    "unknownCalls": 0,
+    "unmeteredCalls": 0,
+    "allowanceViolations": 0
+  },
+  "decisions": [
+    {
+      "id": "5e2ffe1d-3459-41fc-9ad2-4ab8c393cc76",
+      "status": "approved",
+      "appAction": {
+        "grant": {
+          "accountId": "ca_8tjHHZD502Un",
+          "action": "SLACK_TEST_AUTH",
+          "version": "20261015_00"
+        },
+        "argumentsJson": "{}"
+      }
+    }
+  ],
+  "appStarted": 1,
+  "appSettled": 1,
+  "artifacts": [
+    {
+      "id": "315e018d-db54-4249-ab08-7cec8da90593",
+      "name": "QA_CONNECTED_SLACK1_OK",
+      "format": "md",
+      "bytes": 365,
+      "sha256": "e48c3f9f6ca3a0cafb80d68c75f4aa8acc7b9e3170c2fffbf074cf31eccb59c6",
+      "expectedMarker": true
+    },
+    {
+      "id": "84b62ac2-5117-46dc-980d-ed1143e04f69",
+      "name": "App-action-5e2ffe1d345941fc9ad24ab8c393cc76.json",
+      "format": "json",
+      "bytes": 257,
+      "sha256": "be24ffc75b0e4eff37af7cbe6edee7426884364567ed81e5d813b0cdda5dfc47",
+      "receipt": {
+        "successful": true,
+        "logId": "log_ywEdp6In_91v",
+        "truncated": false,
+        "providerOk": true,
+        "dataKeys": [
+          "is_enterprise_install",
+          "ok",
+          "team",
+          "team_id",
+          "url",
+          "user",
+          "user_id"
+        ],
+        "error": null
+      }
+    }
+  ]
+}
