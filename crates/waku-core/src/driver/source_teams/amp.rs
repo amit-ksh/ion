@@ -362,6 +362,7 @@ impl Drop for ProjectPlugin {
                 if !lease.owned {
                     return;
                 }
+                #[cfg(windows)]
                 let folder = lease.folder;
                 #[cfg(windows)]
                 let root = &lease.root;

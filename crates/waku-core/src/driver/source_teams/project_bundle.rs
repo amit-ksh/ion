@@ -8,6 +8,7 @@ use std::{
 
 pub(super) struct ProjectBundle(Option<Files>);
 struct Files {
+    #[cfg_attr(not(windows), allow(dead_code))]
     root: PathBuf,
     name: String,
     pins: Vec<(PathBuf, fs::File)>,

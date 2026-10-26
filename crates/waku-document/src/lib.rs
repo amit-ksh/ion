@@ -13,6 +13,7 @@ pub struct PdfRaster {
     /// Native display pixel order. Encoding is explicit and stays on the worker.
     pub bgra: Vec<u8>,
 }
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 fn size(width: f64, height: f64, desired: u32) -> Result<(u32, u32)> {
     ensure!([800, 1200, 1600].contains(&desired), "Unsupported PDF zoom");
     ensure!(
@@ -44,6 +45,7 @@ fn raster_dips(pixels: u32, dpi: u32) -> Result<u32> {
     );
     Ok(dips)
 }
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 fn image(page: u32, pages: u32, width: u32, height: u32, bgra: Vec<u8>) -> Result<PdfRaster> {
     ensure!(
         u64::from(width) * u64::from(height) <= MAX_PIXELS

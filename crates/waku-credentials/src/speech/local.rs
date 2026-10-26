@@ -45,6 +45,7 @@ fn executable() -> PathBuf {
 }
 
 fn command() -> Command {
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut cmd = Command::new(executable());
     #[cfg(windows)]
     {
