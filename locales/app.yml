@@ -222,6 +222,22 @@ daemon.regenerate_token:
   en: Regenerate
 daemon.security_warning:
   en: The token grants full access to tasks, files, Git, attachments, and coding agents on this machine. Use WSS through a trusted TLS proxy outside a private network.
+daemon.pair_mobile:
+  en: Pair with mobile
+daemon.show_pairing_qr:
+  en: Show pairing QR
+daemon.hide_pairing_qr:
+  en: Hide pairing QR
+daemon.pairing_qr_description:
+  en: "On your phone, open Pair desktop → Scan to pair. Review the details and tap Add."
+daemon.pairing_qr_apply_first:
+  en: Apply your listener changes before creating a pairing code.
+daemon.pairing_qr_preparing:
+  en: Preparing pairing code…
+daemon.pairing_qr_private:
+  en: Keep both devices on the same private network. This code contains your full-access token; show it only to your own phone.
+daemon.pairing_qr_failed:
+  en: Could not create the pairing code. You can still copy the address and token manually.
 daemon.external_title:
   en: External daemon
 daemon.external_description:

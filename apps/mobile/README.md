@@ -35,12 +35,18 @@ Both the onboarding pairing sheet and **Paired desktops → Pair desktop** offer
 fills the form; review the desktop address and tap **Add** to connect. Cancel or
 deny camera access to keep entering the details manually.
 
-To display a QR for the current desktop, run `bun scripts/mobile-pairing.ts` from
-the repository root and open the printed localhost URL on that computer. Paste
-the WebSocket address and token from **Settings → Daemon**, then choose **Show
-pairing QR**. This offline helper encodes the credentials entirely in browser
-memory; no external QR service is used. Clear it when done. The token grants
-full daemon control, so share the QR only with your own device.
+On the updated desktop app, open **Settings → Daemon**, enable the managed
+daemon listener, apply any pending changes, then choose **Show pairing QR**.
+Keep the phone and desktop on the same private network. The desktop prefers
+its current private network address and falls back to the displayed hostname.
+The QR contains the daemon's full-control token; show it only to your own phone.
+Hide it when done. Changing the listener or token clears the code.
+
+For older desktop builds, `bun scripts/mobile-pairing.ts` from the repository
+root remains available as an offline browser helper. Open its printed localhost
+URL on the desktop, paste the WebSocket address and token from **Settings →
+Daemon**, then choose **Show pairing QR**. Encoding stays in browser memory;
+no external QR service is used.
 
 The scanner accepts versioned JSON
 `{"type":"ion-pairing","version":1,"name":"Desktop","address":"ws://192.168.1.5:4096","token":"YOUR_TOKEN"}`

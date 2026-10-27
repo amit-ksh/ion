@@ -1079,6 +1079,8 @@ pub struct Waku {
     daemon_origins_input: Entity<TextInput>,
     daemon_reconfigure_pending: bool,
     daemon_token_revealed: bool,
+    daemon_pairing_qr: daemon_pairing::PairingQrState,
+    daemon_pairing_qr_focus: FocusHandle,
     settings_focus: FocusHandle,
     onboarding_add_project_focus: FocusHandle,
     onboarding_projectless_focus: FocusHandle,
@@ -1650,6 +1652,7 @@ mod commit_dialog;
 mod components;
 mod composer;
 mod drafts;
+mod daemon_pairing;
 mod file_search;
 mod goal_dialog;
 mod home;
@@ -2928,6 +2931,8 @@ impl Waku {
                 daemon_origins_input,
                 daemon_reconfigure_pending: false,
                 daemon_token_revealed: false,
+                daemon_pairing_qr: daemon_pairing::PairingQrState::default(),
+                daemon_pairing_qr_focus: cx.focus_handle().tab_index(0).tab_stop(true),
                 settings_focus,
                 onboarding_add_project_focus,
                 onboarding_projectless_focus,

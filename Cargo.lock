@@ -5898,6 +5898,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8784,7 +8790,7 @@ checksum = "317211a0dc0ceedd78fb2ca9a44aed3d7b9b26f81870d485c07122b4350673b7"
 
 [[package]]
 name = "waku"
-version = "0.1.24"
+version = "0.1.25"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -8813,6 +8819,7 @@ dependencies = [
  "objc2-web-kit",
  "parking_lot",
  "pulldown-cmark",
+ "qrcode",
  "ratex-layout",
  "ratex-parser",
  "ratex-svg",

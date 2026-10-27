@@ -41,6 +41,7 @@ pub mod daemon;
 mod driver;
 mod input;
 mod md;
+mod mobile_pairing;
 mod platform;
 mod query;
 mod review_diff;

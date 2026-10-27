@@ -1583,6 +1583,7 @@ impl Waku {
                         .child(icon("icons/arrow-left.svg", 15.0, theme.text_tertiary))
                         .child(tr!("settings.back"))
                         .on_activation(cx, |this, window, cx| {
+                            this.daemon_pairing_qr.clear();
                             this.settings_page = None;
                             let focus_handle = this.composer_focus(cx);
                             window.focus(&focus_handle, cx);
@@ -2464,6 +2465,7 @@ impl Waku {
                                 .child(copy_token_button)
                                 .child(regenerate_button),
                         )
+                        .child(self.render_daemon_pairing_qr(cx))
                         .child(
                             div()
                                 .mt(px(7.0))
@@ -2515,7 +2517,7 @@ impl Waku {
             .map_err(|error| error.to_string())
     }
 
-    fn daemon_exposure_fields_dirty(&self, cx: &App) -> bool {
+    pub(super) fn daemon_exposure_fields_dirty(&self, cx: &App) -> bool {
         self.daemon_exposure_from_fields(cx)
             .map(|settings| {
                 settings.port != self.state.daemon_exposure.port
@@ -2594,6 +2596,7 @@ impl Waku {
         }
 
         let needs_restart = self.state.daemon_exposure.enabled || settings.enabled;
+        self.daemon_pairing_qr.clear();
         if !needs_restart {
             self.state.daemon_exposure = settings;
             self.save();
