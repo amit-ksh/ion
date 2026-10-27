@@ -1,5 +1,11 @@
 # ion Mobile
 
+## Android download
+
+The current sideload build is [Ion 1.0.1 for ARM64](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.1-arm64.apk), version code 2, for Android API 24+. Its installation as an update and nonvisual startup were checked on a Moto G32 running Android 13. The launcher name is **Ion** and the existing Ion icon and signing identity are retained. Open the downloaded APK in Files and install it over the existing app; no uninstall or data clearing is needed.
+
+The APK uses the existing test certificate. Verify it against the adjacent [SHA-256 file](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.1-arm64.apk.sha256). The internal package ID remains `sh.waku.mobile` for update and data compatibility. See [release verification](../../docs/android-release-1.0.1.md).
+
 Expo client for connecting to one or more remote ion daemons from iOS,
 Android.
 

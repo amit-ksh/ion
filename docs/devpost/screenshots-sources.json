@@ -1,0 +1,56 @@
+[
+  {
+    "file": "01-workspace.png",
+    "source": "D:\\personal\\apps\\ion-video\\public\\visual\\work.png",
+    "dimensions": [
+      1600,
+      850
+    ],
+    "status": "Existing Ion capture; previously prepared crop"
+  },
+  {
+    "file": "02-agent-teams.png",
+    "source": "D:\\personal\\apps\\ion-video\\public\\visual\\workspace.png",
+    "dimensions": [
+      1600,
+      850
+    ],
+    "status": "Existing Ion capture; previously prepared crop"
+  },
+  {
+    "file": "03-sandbox-approval.png",
+    "source": "D:\\personal\\apps\\ion-video\\public\\visual\\approval.png",
+    "dimensions": [
+      1600,
+      480
+    ],
+    "status": "Existing Ion capture; previously prepared crop"
+  },
+  {
+    "file": "04-sandbox-result.png",
+    "source": "D:\\personal\\apps\\ion-video\\public\\visual\\result.png",
+    "dimensions": [
+      1600,
+      480
+    ],
+    "status": "Existing Ion capture; previously prepared crop"
+  },
+  {
+    "file": "05-artifact-showcase.png",
+    "source": "D:\\personal\\apps\\ion-video\\out\\ion-demo-showcase-poster.png",
+    "dimensions": [
+      1920,
+      1080
+    ],
+    "status": "Authored showcase composited into existing recording"
+  },
+  {
+    "file": "06-android.png",
+    "source": "D:\\personal\\apps\\ion-video\\public\\visual\\phone.png",
+    "dimensions": [
+      540,
+      1200
+    ],
+    "status": "Existing Ion capture; previously prepared crop"
+  }
+]

@@ -26,10 +26,10 @@ bun run preview
 
 Edit `src/lib/releases.json`. Each platform has its own version, format, architecture, exact byte size, SHA-256, notes and **explicit** `url`. A `null`, malformed, insecure, localhost or upstream Waku URL keeps its button unavailable. No remote appcast is fetched, no URL is guessed and there is no fallback to an upstream installer. These records are bundled at build time; rebuild the website after changes.
 
-The checked-in records describe local artifacts, not public releases or promises of current-source coverage:
+The checked-in records select each platform's published download. They are not a promise that every feature has received device acceptance:
 
 - Windows: `../target/release/ion-0.1.24-x86_64-Setup.exe`, 33,373,298 bytes. SHA-256 was computed from the file. File presence/hash does not establish signing, device acceptance or publication.
-- Android: `../dist/mobile/ion-mobile-1.0.0-arm64.apk`, 53,387,237 bytes. Version 1.0.0, ARM64, Android API 24+ (Android 7.0+). SHA-256 was checked against the file and adjacent build manifest. This older test-certificate build has no physical-device acceptance and may predate cloud/authentication changes. See its adjacent `.build.json` and `INSTALL.md`.
+- Android: `../dist/mobile/ion-android-1.0.1-arm64.apk`, 53,651,331 bytes. Version 1.0.1 / version code 2, ARM64, Android API 24+ (Android 7.0+). SHA-256 `15e9f79bdbd34f90a680b59445810604ed85fa1ddb26803603cd05599a0255fc` matches the public GitHub download. The existing test certificate is retained; a data-preserving update and nonvisual startup passed on Moto G32 / Android 13. See `../docs/android-release-1.0.1.md`.
 
 To enable a download:
 

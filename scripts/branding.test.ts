@@ -15,7 +15,7 @@ test('OS app identity and permission descriptions use ion', () => {
   expect(helper).toContain('sh.waku.computer-use');
   expect(readFileSync('build.rs', 'utf8')).toContain('let description = "ion";');
   const mobile = JSON.parse(readFileSync('apps/mobile/app.json', 'utf8'));
-  expect(mobile.expo.name).toBe('ion');
+  expect(mobile.expo.name).toBe('Ion');
   expect(JSON.stringify(mobile.expo.plugins)).toContain('ion');
   expect(readFileSync('crates/waku-computer-use/src/sdk.rs', 'utf8')).toContain(
     'Cua Driver SDK is missing from this ion build',

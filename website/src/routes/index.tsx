@@ -754,6 +754,7 @@ const QUESTIONS: Array<[string, string]> = [
     'Token Factory is an optional model provider. Save and test your own key in Settings, or use an operator-managed service where your account has access, and choose Nebius per task or per agent. Nebius cloud features need a deployed Ion gateway and enabled operator policy. Ion is not a Nebius product.',
   ],
   ['What does the Android app connect to?', 'Your paired desktop daemon or personal gateway. It needs a reachable endpoint and authentication; it is a companion, not a standalone IDE. Phone dictation is transcribed on that desktop.'],
+  ['How do I install Ion on Android?', 'Download the latest APK from this page, then open it in your phone’s Files app. Allow installation from that source if Android asks. Install it over your existing Ion app to keep its settings. The download is for ARM64 phones running Android 7.0 or newer.'],
   ['Where does my work go?', 'Projects, transcripts and task data stay with the Ion daemon on your machine. Requests go to the agent providers, apps and Nebius endpoints you configure, under your credentials. Desktop dictation runs locally.'],
   ['Can Ion publish what agents make?', "Static HTML only: after a local build and your review, pages are served through Ion's Cloudflare Worker from private R2 storage. No server code is deployed."],
   ['Why can’t I download Ion yet?', 'The Windows and Android builds are verified locally, but no public download URL is published. The buttons switch on as soon as a verified HTTPS release URL is configured.'],
