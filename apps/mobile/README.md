@@ -2,9 +2,9 @@
 
 ## Android download
 
-The current sideload build is [Ion 1.0.1 for ARM64](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.1-arm64.apk), version code 2, for Android API 24+. Its installation as an update and nonvisual startup were checked on a Moto G32 running Android 13. The launcher name is **Ion** and the existing Ion icon and signing identity are retained. Open the downloaded APK in Files and install it over the existing app; no uninstall or data clearing is needed.
+The current sideload build is [Ion 1.0.2 for ARM64](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.2-arm64.apk), version code 3, for Android API 24+. Its installation as an update and nonvisual startup were checked on a Moto G32 running Android 13. The launcher name is **Ion**; all launcher, round, adaptive and themed icons now use the current Ion mark. Both pairing forms include **Scan to pair**. The signing identity is retained. Open the downloaded APK in Files and install it over the existing app; no uninstall or data clearing is needed.
 
-The APK uses the existing test certificate. Verify it against the adjacent [SHA-256 file](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.1-arm64.apk.sha256). The internal package ID remains `sh.waku.mobile` for update and data compatibility. See [release verification](../../docs/android-release-1.0.1.md).
+The APK uses the existing test certificate. Verify it against the adjacent [SHA-256 file](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.2-arm64.apk.sha256). The internal package ID remains `sh.waku.mobile` for update and data compatibility. See [release verification](../../docs/android-release-1.0.2.md).
 
 Expo client for connecting to one or more remote ion daemons from iOS,
 Android.
@@ -27,6 +27,34 @@ or private tailnet; the token grants full control of the daemon host.
 
 Saved profile metadata stays in app storage. On iOS and Android, daemon tokens
 are stored separately in the device keychain through Expo SecureStore.
+
+### Scan to pair
+
+Both the onboarding pairing sheet and **Paired desktops → Pair desktop** offer
+**Scan to pair**. Camera access is requested when you choose to allow it. Scanning
+fills the form; review the desktop address and tap **Add** to connect. Cancel or
+deny camera access to keep entering the details manually.
+
+To display a QR for the current desktop, run `bun scripts/mobile-pairing.ts` from
+the repository root and open the printed localhost URL on that computer. Paste
+the WebSocket address and token from **Settings → Daemon**, then choose **Show
+pairing QR**. This offline helper encodes the credentials entirely in browser
+memory; no external QR service is used. Clear it when done. The token grants
+full daemon control, so share the QR only with your own device.
+
+The scanner accepts versioned JSON
+`{"type":"ion-pairing","version":1,"name":"Desktop","address":"ws://192.168.1.5:4096","token":"YOUR_TOKEN"}`
+or `ion://pair?address=...&token=...&name=...` with percent-encoded values.
+Public addresses require `wss://`. Pairing codes are not personal gateway invites.
+
+### Local Android release preparation
+
+Before invoking Gradle on an existing generated Android directory, run
+`bun run --cwd apps/mobile android:prepare`. This synchronizes the launcher,
+adaptive and themed icon resources, version and native plugins with `app.json`.
+Changing the PNG source alone does not update a previously generated Android
+project. Verify actual resources with `python scripts/check-android-icons.py`
+and verify the final APK with `python scripts/check-android-icons.py path/to/app.apk`.
 
 Phone microphone dictation sends a short recording to the **selected daemon**
 for local NeMo-Speech.cpp transcription, then inserts editable text. To use

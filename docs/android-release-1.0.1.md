@@ -13,7 +13,9 @@ Verified on 27 October 2026.
 
 ## Changes and evidence
 
-The current mobile source was rebuilt with the Ion display name, Expo version 1.0.1, and Android version code 2. The native generated project was kept in sync with the Expo configuration. The build completed successfully, including release lint and signing validation.
+The current mobile source was rebuilt with the Ion display name, Expo version 1.0.1, and Android version code 2. The generated native name and version were updated. The build completed successfully, including release lint and signing validation.
+
+Subsequent launcher-icon investigation found that this APK retained the older “io” artwork in its generated mipmaps, despite the newer source PNGs. The original checks below did not compare launcher pixels. Android 1.0.2 regenerates those resources and adds a check against all launcher, round, adaptive and themed icon sizes.
 
 The actual APK passed signature verification, package/version/name inspection, ZIP integrity, ARM64 library inspection, standalone JavaScript-bundle presence, and 16KB native ZIP alignment checks. The public GitHub download was then downloaded independently and matched the built APK byte-for-byte.
 

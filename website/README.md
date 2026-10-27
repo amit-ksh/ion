@@ -29,7 +29,7 @@ Edit `src/lib/releases.json`. Each platform has its own version, format, archite
 The checked-in records select each platform's published download. They are not a promise that every feature has received device acceptance:
 
 - Windows: `../target/release/ion-0.1.24-x86_64-Setup.exe`, 33,373,298 bytes. SHA-256 was computed from the file. File presence/hash does not establish signing, device acceptance or publication.
-- Android: `../dist/mobile/ion-android-1.0.1-arm64.apk`, 53,651,331 bytes. Version 1.0.1 / version code 2, ARM64, Android API 24+ (Android 7.0+). SHA-256 `15e9f79bdbd34f90a680b59445810604ed85fa1ddb26803603cd05599a0255fc` matches the public GitHub download. The existing test certificate is retained; a data-preserving update and nonvisual startup passed on Moto G32 / Android 13. See `../docs/android-release-1.0.1.md`.
+- Android: `../dist/mobile/ion-android-1.0.2-arm64.apk`, 61,448,831 bytes. Version 1.0.2 / version code 3, ARM64, Android API 24+ (Android 7.0+). SHA-256 `0896e9c668f42d0de2a8d88798d4a6365b536615037ced787981ca79341318e8` matches the public GitHub download. The existing test certificate is retained; a data-preserving update and nonvisual startup passed on Moto G32 / Android 13. See `../docs/android-release-1.0.2.md`.
 
 To enable a download:
 

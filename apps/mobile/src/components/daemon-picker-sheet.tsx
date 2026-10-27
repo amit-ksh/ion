@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { AppSymbol } from '@/components/app-symbol';
+import { PairingScanButton } from '@/components/pairing-scanner';
 import { DaemonList } from '@/components/daemon-list';
 import { Sheet, SheetRow } from '@/components/sheet';
 import { NativeTint, Radius } from '@/constants/theme';
@@ -280,6 +281,13 @@ function DaemonEditor({
         title={profile ? 'Edit desktop' : 'Pair desktop'}
         onBack={onBack}
       />
+      {!profile && <PairingScanButton disabled={saving || removing} onScan={(input) => {
+        setName(input.name);
+        setAddress(input.address);
+        setToken(input.token);
+        setRevealed(false);
+        setLocalError(null);
+      }} />}
       <View style={[styles.formGroup, { backgroundColor: theme.overlay }]}>
         <View style={styles.formRow}>
           <Text style={[styles.fieldLabel, { color: theme.text }]}>Name</Text>

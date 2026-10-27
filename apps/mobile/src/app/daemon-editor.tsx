@@ -18,6 +18,7 @@ import {
 } from "react-native";
 
 import { AppSymbol } from "@/components/app-symbol";
+import { PairingScanButton } from "@/components/pairing-scanner";
 import { Radius } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useDaemon } from "@/lib/daemon-context";
@@ -174,6 +175,13 @@ export default function DaemonEditorScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {!profile && <PairingScanButton disabled={saving || removing} onScan={(input) => {
+          setName(input.name);
+          setAddress(input.address);
+          setToken(input.token);
+          setRevealed(false);
+          setLocalError(null);
+        }} />}
         <Text style={[styles.sectionLabel, { color: colors.secondaryText }]}>
           CONNECTION
         </Text>

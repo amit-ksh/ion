@@ -14,11 +14,11 @@
     "platform": "android",
     "name": "Android",
     "format": "APK · Android 7.0+",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "architecture": "arm64-v8a",
-    "bytes": 53651331,
-    "sha256": "15e9f79bdbd34f90a680b59445810604ed85fa1ddb26803603cd05599a0255fc",
-    "url": "https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.1-arm64.apk",
-    "notes": "Ion 1.0.1. Installed and started on Moto G32 / Android 13. Open the APK in Files and allow installation from that source if prompted. Uses the existing test signing certificate and installs over the previous Ion build."
+    "bytes": 61448831,
+    "sha256": "0896e9c668f42d0de2a8d88798d4a6365b536615037ced787981ca79341318e8",
+    "url": "https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-android-1.0.2-arm64.apk",
+    "notes": "Ion 1.0.2. Updated launcher icon and Scan to pair. Installed and started on Moto G32 / Android 13. Open the APK in Files and allow installation from that source if prompted. Uses the existing test signing certificate and updates the previous Ion build."
   }
 ]

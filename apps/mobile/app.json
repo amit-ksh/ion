@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ion",
     "slug": "waku-mobile",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": ["waku", "ion"],
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "sh.waku.mobile",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-foreground.png",
         "monochromeImage": "./assets/images/adaptive-monochrome.png",
@@ -34,6 +34,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Ion to scan desktop pairing codes and take photos to attach to tasks.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -75,7 +83,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow ion to choose photos to attach to tasks.",
-          "cameraPermission": "Allow ion to take photos to attach to tasks.",
+          "cameraPermission": "Allow Ion to scan desktop pairing codes and take photos to attach to tasks.",
           "microphonePermission": "Allow ion to record short dictation and send it to your selected paired ion desktop for transcription."
         }
       ],
