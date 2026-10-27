@@ -33,7 +33,7 @@ Generate a desktop QR with `bun scripts/mobile-pairing.ts` and open its printed 
 - MainActivity started, its process remained alive, and the checked process log contained no fatal startup exception. No uninstall or app-data clearing was performed.
 - The public GitHub download was downloaded again and matched the installed APK byte-for-byte.
 
-Live camera scanning and denied-permission/retry interactions have not been manually exercised on the phone. Installation and nonvisual startup are verified; this receipt does not claim full feature acceptance or an iOS build.
+The owner subsequently confirmed successful live camera QR pairing with Windows Ion 0.1.25. Denied-permission/retry interactions have not been manually exercised; this receipt does not claim an iOS build or full feature acceptance.
 
 The website's Android metadata selects this independently versioned asset under desktop release `v0.1.24`; existing desktop assets and older Android APKs remain available. This APK retains the existing test certificate and is intended for sideload testing.
 

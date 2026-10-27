@@ -15,10 +15,13 @@ first. Android Ion 1.0.2 supports **Pair desktop → Scan to pair**. See the
 | `target/release/ion-0.1.25-x86_64-Setup.exe` | 36,728,897 | `9d9cca41aba76540dac0c7d6f843c02172f212fe2fb8f0c86d346f7edd1dd1e4` |
 | `target/release/ion-0.1.25-x86_64-pc-windows-msvc.zip` | 52,744,255 | `b64b1d4de655292c48f38a591b5a54a513a3bf7f6f0ccfc9667f979643d82403` |
 
-These are local pilot artifacts. The Windows website download remains the
-published 0.1.24 build; its URL and hash have not been replaced by an
-unpublished local artifact. The Android website download was separately
-updated to the verified 1.0.2 APK.
+The verified pilot artifacts are now published: [Windows installer](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-0.1.25-x86_64-Setup.exe) and [portable ZIP](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-0.1.25-x86_64-pc-windows-msvc.zip). Both public downloads were downloaded independently and match the packages above byte-for-byte. The versioned [Windows checksums](https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-0.1.25-SHA256SUMS.txt) are published alongside them. Older assets remain available.
+
+The website metadata selects Windows 0.1.25 and Android 1.0.2.
+
+Website TypeScript, the three release-metadata tests and the production build
+passed. Cloudflare deployment `6a89a86d-6fba-44e3-adb2-5ecb22d545ed` is live;
+an HTTPS check confirmed that both download buttons select these versions.
 
 ## Verification
 

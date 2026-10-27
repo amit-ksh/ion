@@ -3,12 +3,12 @@
     "platform": "windows",
     "name": "Windows",
     "format": "EXE installer",
-    "version": "0.1.24",
+    "version": "0.1.25",
     "architecture": "x86_64",
-    "bytes": 36708407,
-    "sha256": "f215c83445c53f174a3ff94957a80690e773d9b7a829d84418db983dc398fd09",
-    "url": "https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-0.1.24-x86_64-Setup.exe",
-    "notes": "Windows 10 or 11. The installer is unsigned, so SmartScreen warns on first launch: choose More info, then Run anyway. A portable zip is on the release page."
+    "bytes": 36728897,
+    "sha256": "9d9cca41aba76540dac0c7d6f843c02172f212fe2fb8f0c86d346f7edd1dd1e4",
+    "url": "https://github.com/amit-ksh/ion/releases/download/v0.1.24/ion-0.1.25-x86_64-Setup.exe",
+    "notes": "Windows 10 or 11. Ion 0.1.25 adds native desktop QR pairing for the Android companion. Installed and paired successfully. The installer is unsigned; a portable ZIP and versioned checksums are on the release page."
   },
   {
     "platform": "android",
